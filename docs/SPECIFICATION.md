@@ -98,7 +98,18 @@ from the threats below.
 
 What this project explicitly does not try to do.
 
-- …
+- **No rules in the tool.** `AGENTS.md`, the ADRs, and the skills of the template stay the
+  source of every rule; `nuc` decides only what is mechanical and makes no judgment — no
+  review, no design revision, no ADR content.
+- **No agent- or editor-specific mechanism.** Enforcement runs through git hooks and CI only,
+  so it holds for every agent and every human alike. An LSP or MCP front end is a later
+  option, never the enforcement path.
+- **No release automation for projects.** How a derived project releases is the template's
+  ADR on releases, not this tool's.
+- **No writes beyond the repository without a human's instruction.** `nuc` pushes nothing,
+  writes nothing to GitHub, and applies no repository settings unless a human explicitly
+  instructs it; sensors only read.
+- **No network access in checks and hooks,** except in a sensor that names it.
 
 ## Constraints
 
