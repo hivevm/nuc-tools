@@ -117,7 +117,15 @@ What the solution has to live with regardless of the better choice: platforms, s
 systems to interoperate with, limits of time, budget, and team. A constraint not written here is
 rediscovered as a rejected alternative in an ADR.
 
-- …
+- **Language:** Rust stable, with the toolchain pinned.
+- **Runtime dependency:** the git CLI only, spawned as a process rather than linked through
+  libgit2, so that `nuc` behaves exactly as git does.
+- **Distribution formats:** GitHub Releases, the Dev Container Feature specification, and
+  GitHub Actions.
+- **Consumer:** the NUC template (`hivevm/nuc`) and the projects derived from it, coupled to
+  `nuc` by a minimum version in their `nuc.toml`.
+- **Migration:** the bash scripts stay in the template until `nuc` reaches parity with them.
+- **Team:** one maintainer; agents work the tickets, and the maintainer reviews and decides.
 
 ## Threats & Forbidden Actions
 
