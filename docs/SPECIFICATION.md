@@ -51,8 +51,20 @@ that test exists the criterion is pending work, and the traceability check lists
 ([ADR-0002](adr/0002-decisions-verified-by-tests.md)). Identifiers are never reused.
 Only a normalization renumbers them ([`AGENTS.md` §3](../AGENTS.md#3-adr-rules), rule 5).
 
-1. **G-1** — …
-2. **G-2** — …
+1. **G-1** — When a derived project runs `nuc check`, it reports the same findings as the bash
+   checks of the template release the project carries report on the same tree.
+2. **G-2** — When git runs a hook, the shim in `.githooks/` hands over to `nuc hook <name>`,
+   which refuses or passes exactly as the bash hook of that release does.
+3. **G-3** — When git merges `docs/adr/README.md`, `nuc` writes the index both sides imply, or
+   stops with a conflict when both sides changed its prose.
+4. **G-4** — When a project takes up a template release, `nuc upgrade` applies its mechanical
+   migrations and lists what needs judgment.
+5. **G-5** — When the `nuc` binary is missing or older than the project's `nuc.toml` requires,
+   every hook and check fails closed with a message naming how to install it.
+6. **G-6** — When a check fails, its output names a stable rule ID and `file:line`, and
+   `nuc explain <id>` gives the reason.
+7. **G-7** — When a check runs with `--format json` or `--format sarif`, it reports the same
+   findings as its text output.
 
 ## Quality Goals
 
