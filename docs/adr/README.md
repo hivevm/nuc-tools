@@ -102,6 +102,7 @@ is the table a session reads.
 | [draft-action-references-by-sha](draft-action-references-by-sha.md) | The workflows reference every action by full commit SHA with a version comment, kept current by Dependabot | every `uses:` line under `.github/workflows/`, `.github/dependabot.yml`, and the run of `scripts/sensor-action-refs.sh` in `scripts/check-all.sh` and the `sensors` job | 🟡 proposed |
 | [draft-no-stored-secrets](draft-no-stored-secrets.md) | The workflows use no stored secret, only `GITHUB_TOKEN` and OIDC with permissions set per job | every workflow under `.github/workflows/`, its `permissions`, and every reference to `secrets.` in them | 🟡 proposed |
 | [draft-dev-container-with-rust](draft-dev-container-with-rust.md) | The Dev Container keeps the template's Debian base image, adds the Rust Feature, and reaches no containers | `.devcontainer/devcontainer.json`, `.devcontainer/devcontainer-lock.json`, and the tools the container installs | 🟡 proposed |
+| [draft-gates-never-run-the-build](draft-gates-never-run-the-build.md) | This repository's gates never run the `nuc` being built, only the template's bash or a released `nuc` pinned like any dependency | `scripts/check-all.sh`, the hooks under `.githooks/`, the jobs of `.github/workflows/checks.yml`, and every place they name the tool that runs a check | 🟡 proposed |
 
 ### Superseded and rejected
 
