@@ -1,4 +1,4 @@
-# Specification — <Project Name>
+# Specification — nuc-tools
 
 > The **specification** of this project: the problem it solves, where it is going, and what has to
 > be true for it to have succeeded, written in the vocabulary of [`GLOSSARY.md`](GLOSSARY.md). It
@@ -7,8 +7,24 @@
 
 ## Problem
 
-What is painful or missing today, for whom, and what evidence says it is worth solving now: the
-discovery everything below rests on.
+Every project derived from the NUC template carries its own copy of the template's mechanics:
+about 8,000 lines of bash in checks, sensors, git hooks, the ADR index merge driver, and the
+scripts run by hand. Their maintainers and the agents working in them live with four costs
+today:
+
+- **Fixes do not propagate.** A defect fixed in one copy stays in every other: the leak of
+  `GIT_DIR` from a git hook into the self-tests is fixed in one derived repository and still
+  present in the others.
+- **Taking up a template release is a manual checklist.** For v0.5.0 it was ten steps, worked
+  by hand in each project.
+- **The checks are not portable.** They need bash 4.4 or later and GNU tools, which macOS and
+  Windows lack outside the Dev Container.
+- **Every project pays for the template's own tests.** The template's self-tests run in each
+  project's `check-all` and CI, although they test the template, not the project.
+
+The cost grows with every derived project and every template release, and the template's
+ADRs keep moving logic into these scripts, so it is worth solving now, before the copies
+diverge further.
 
 ## Mission
 
