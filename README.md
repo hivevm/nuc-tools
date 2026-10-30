@@ -1,15 +1,16 @@
-# NUC — an Agentic, Specification-Oriented Starter Template
+# nuc-tools
 
-[![Checks](https://github.com/hivevm/nuc/actions/workflows/checks.yml/badge.svg)](https://github.com/hivevm/nuc/actions/workflows/checks.yml)
-[![Release](https://img.shields.io/github/v/release/hivevm/nuc)](https://github.com/hivevm/nuc/releases/latest)
-[![License](https://img.shields.io/github/license/hivevm/nuc)](LICENSE)
+[![Checks](https://github.com/hivevm/nuc-tools/actions/workflows/checks.yml/badge.svg)](https://github.com/hivevm/nuc-tools/actions/workflows/checks.yml)
+[![Release](https://img.shields.io/github/v/release/hivevm/nuc-tools)](https://github.com/hivevm/nuc-tools/releases/latest)
+[![License](https://img.shields.io/github/license/hivevm/nuc-tools)](LICENSE)
 
-**NUC** is named after the small *nucleus colony* a full hive grows from in beekeeping. It is a
-starting point for building software **with coding agents** inside a ready-to-use Dev Container.
-The work is driven by a written **specification**
+**nuc-tools** builds `nuc`, a Rust CLI that takes over the mechanical logic of the
+[NUC](https://github.com/hivevm/nuc) template's bash scripts — checks, sensors, git hooks, the
+ADR index merge driver, and the scripts run by hand — and ships it as one pinned binary for every
+project derived from the template. The template keeps the rules; `nuc` decides only what is
+mechanical. The work is driven by a written **specification**
 ([`docs/SPECIFICATION.md`](docs/SPECIFICATION.md)) and **Architecture Decision Records**
-([`docs/adr/`](docs/adr/)), so intent and the reasoning behind every structural choice stay
-explicit and reviewable.
+([`docs/adr/`](docs/adr/)).
 
 > For agent instructions, see [`AGENTS.md`](AGENTS.md), the single source of truth for all coding
 > agents.
@@ -19,37 +20,6 @@ explicit and reviewable.
 > into your own project are in [`TEMPLATE-SETUP.md`](TEMPLATE-SETUP.md); ask your agent to run the
 > `setup-project` skill to be walked through them, one question at a time. Once you are through
 > them, `scripts/test-template-setup.sh --close` removes that file and this note.
-
-## Why NUC
-
-NUC is a paved road for agentic coding: a repository template, not a tool to install, for how
-humans and agents decide, review, and enforce. It ships no toolchain. A project starts from it
-with what a codebase built by several humans and agents over years needs on day one:
-
-- **One rule file for every agent.** [`AGENTS.md`](AGENTS.md) and the Agent Skills under
-  [`.agents/skills/`](.agents/skills/) are read by Claude Code, Codex, Gemini CLI, Cursor, and
-  others alike. No vendor's CLI or IDE is required.
-- **Intent and decisions on record.** The specification is the constitution. Every structural
-  choice is an ADR that a human accepts, and a normalization keeps the record readable as it
-  grows.
-- **Rules with teeth.** Git hooks and CI refuse what breaks the record: an accepted ADR no test
-  cites, a broken link, a placeholder left behind, a commit or push on `main`.
-- **Proportionate.** A small project takes a short path through the setup. A complex one grows
-  to tickets worked by agents in parallel, each in a worktree of its own.
-
-How it compares with other spec-driven approaches, as of October 2026:
-
-| | NUC | [Spec Kit](https://github.com/github/spec-kit) | [Kiro](https://kiro.dev) | [OpenSpec](https://github.com/Fission-AI/OpenSpec) | [BMAD Method](https://github.com/bmad-code-org/BMAD-METHOD) |
-|---|---|---|---|---|---|
-| Form | repository template | CLI and templates | IDE | CLI | agent personas |
-| Agents | any that reads `AGENTS.md` | many, by slash commands | its own | several | several |
-| Unit of work | specification, ADRs, tickets | spec, plan, tasks per feature | requirements, design, tasks per feature | change proposal with spec deltas | PRD, architecture, stories |
-| Decisions kept as | ADRs with a lifecycle | constitution and plans | design documents | specs, updated by each change | architecture document |
-| Enforced by | git hooks and CI checks | the agent's commands | IDE hooks | a validate command | the agent's workflow |
-
-Where another fits better: OpenSpec is lighter for small changes to existing code. Spec Kit and
-Kiro generate the spec, plan, and tasks of a feature by command. NUC asks for more setup in
-exchange for checks that hold for every agent and every human, and it assumes GitHub.
 
 ## Overview
 
