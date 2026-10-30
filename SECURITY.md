@@ -35,6 +35,9 @@ These properties shape the security posture of the coding agents working here:
   [`.github/CODEOWNERS`](.github/CODEOWNERS) together with the Code-Owner review requirement
   listed under [**Repository settings**](README.md#repository-settings). It does not stop the
   edit; it routes it to a human before it reaches `main`, and it holds for every agent alike.
+  With a single maintainer, who cannot approve their own pull request, that review is not
+  required: until a second maintainer joins, the specification and the decision record are
+  guarded by the rule alone, and CODEOWNERS names the owner without the requirement.
   Two limits are worth knowing. [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) is deliberately
   not gated, because [§5](AGENTS.md#5-quality-bar--definition-of-done) requires it to be updated in
   the same change as the structure it describes. And a code owner GitHub does not know matches
