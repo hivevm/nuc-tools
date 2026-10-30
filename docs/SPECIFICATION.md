@@ -93,6 +93,17 @@ from the threats below.
   corpus that passes with the last release of `nuc` passes with the new one under an unchanged
   `nuc.toml` and template release; a new check ships off, and only a template release turns it
   on.
+- **Q-7** — No execution of repository content: fixtures carrying content that would run if
+  interpreted leave a canary file uncreated after every command.
+- **Q-8** — Writes stay inside: across the test suite, no file outside the repository and its
+  git directory is created or changed.
+- **Q-9** — One repository: with `GIT_DIR`, `GIT_WORK_TREE`, `GIT_INDEX_FILE`, and
+  `GIT_CONFIG_PARAMETERS` set to a decoy repository, every command reports on the repository it
+  was pointed at and leaves the decoy untouched.
+- **Q-10** — No token disclosure: a canary token in the environment and in the git configuration
+  appears in no output and in no written file.
+- **Q-11** — No network in checks and hooks: with network access blocked, every check and hook
+  reports the same findings as with it.
 
 ## Non-Goals
 
@@ -133,9 +144,23 @@ The assets, the actors who threaten them, and the trust boundaries between the p
 the system must never do, regardless of what a task asks. A prohibition not written here does not
 exist for an agent. One a test can decide is restated as a `Q-n`, so that it is verified.
 
-- **Assets:** …
-- **Actors and trust boundaries:** …
-- The system shall never …
+- **Assets:** the gates — checks and hooks — of every project derived from the template; those
+  repositories, their trees, git directories, and refs; and the tokens present in the
+  environments `nuc` runs in, such as CI's.
+- **Actors and trust boundaries:**
+  - *The supply chain:* a compromised dependency, or a compromised build or release pipeline,
+    reaches every derived project through its hooks and CI. The boundary is the published
+    artifact.
+  - *Repository content:* ADR files, Markdown, and YAML are untrusted input, since they may come
+    from a fork's pull request. The boundary is every parser of `nuc`.
+  - *The inherited environment:* variables git sets for hooks, such as `GIT_DIR` and
+    `GIT_CONFIG_PARAMETERS`, can point `nuc` and the git it spawns at another repository or
+    another configuration. The boundary is the environment of every process `nuc` starts.
+- The system shall never execute repository content (Q-7).
+- The system shall never write outside the repository and its git directory (Q-8).
+- The system shall never act on a repository other than the one it was pointed at (Q-9).
+- The system shall never print or store a token (Q-10).
+- The system shall never pass when it could not decide (Q-1).
 
 ## Assumptions
 
