@@ -168,4 +168,15 @@ What is believed true today and would invalidate the decisions above if it turne
 expected scale, the shape of the data, who operates the result, which dependency stays
 maintained.
 
-- …
+- The bash scripts of each template release stay runnable as the parity oracle, on Linux with
+  bash 4.4 or later and the GNU tools, for as long as parity is measured.
+- The repositories of the parity corpus stay readable to the harness; which derived repositories
+  form it is decided when the harness is planned.
+- A git CLI is present wherever `nuc` runs, and its output is stable across the versions in use;
+  the minimum git version is not yet fixed.
+- `nuc` learns which template release a project carries either from the `Template release` line
+  of its README or from its `nuc.toml`; the founding decision on version coupling settles which.
+- The template switches its hooks and checks over to `nuc` once parity is reached, and keeps its
+  rules in `AGENTS.md`, the ADRs, and the skills.
+- The targets of Q-3 and Q-4 can be built reproducibly with the pinned Rust toolchain; which
+  macOS architectures are released, arm64 or x64 as well, is still open.
