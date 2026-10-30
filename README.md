@@ -23,8 +23,13 @@ mechanical. The work is driven by a written **specification**
 
 ## Overview
 
-Describe what this project does, who it is for, and its main goals. The full problem statement and
-goals live in [`docs/SPECIFICATION.md`](docs/SPECIFICATION.md), the vocabulary in
+`nuc` takes over the mechanics of the NUC template — its checks, sensors, git hooks, ADR index
+merge driver, and the scripts run by hand — so that a project derived from the template carries
+its rules and a thin shim per hook instead of a copy of ~8,000 lines of bash. It is for the
+maintainers of those projects and the agents working in them. The main goals: the same findings
+as the bash checks of the template release a project carries, gates that fail closed, and one
+pinned binary on Linux, macOS, and Windows without bash. The full problem statement and goals
+live in [`docs/SPECIFICATION.md`](docs/SPECIFICATION.md), the vocabulary in
 [`docs/GLOSSARY.md`](docs/GLOSSARY.md).
 
 ## Prerequisites
@@ -54,22 +59,20 @@ goals live in [`docs/SPECIFICATION.md`](docs/SPECIFICATION.md), the vocabulary i
 
 ## Build, Test & Run
 
-<!-- Fill in once the toolchain is chosen. This section is the single source for
-     build/test/lint/run commands; both humans and agents rely on it, and the rule file names
-     it. -->
+- **Build:** `cargo build --locked`
+- **Test:** `cargo test --locked`
+- **Lint:** `cargo fmt --check` and `cargo clippy --all-targets --locked -- -D warnings`
+- **Run:** `cargo run --locked -- <command>`, such as `cargo run --locked -- check`; for
+  development only, since the gates never run the build
+  ([ADR-draft-gates-never-run-the-build](docs/adr/draft-gates-never-run-the-build.md))
 
-- **Build:** TODO <!-- e.g. `make build` -->
-- **Test:** TODO <!-- e.g. `make test` -->
-- **Lint:** TODO <!-- e.g. `make lint` -->
-- **Run:** TODO <!-- e.g. `make run` -->
+[`scripts/check-build.sh`](scripts/check-build.sh) runs the lint, the build, and the tests;
+[`scripts/check-deps.sh`](scripts/check-deps.sh) audits the dependencies.
 
 ## Usage
 
-<!-- Once there is something to use, show how to use the built software: the primary commands or
-     API, a minimal example, and the expected output. Keep build/test/run mechanics in the section
-     above; this section is about using the result, not producing it. -->
-
-TODO — show a minimal example of using the project.
+Nothing to use yet: no release of `nuc` exists. The first commands are `nuc check`,
+`nuc hook <name>`, and `nuc explain <id>`.
 
 ## Project Layout
 
@@ -96,13 +99,19 @@ scripts/lib/          # what the scripts share: the ADR header, git, the ticket 
 scripts/*.sh          # run by hand, steps 7 and 8 of the integration branches: number-adrs.sh,
                       # ready-for-main.sh, drop-merged-branch.sh
 .githooks/            # git hooks: nothing lands on main locally; checks before a merge and a push
-.github/workflows/    # checks.yml runs the checks; review-binding.yml reads each pull request's hand-off
+.github/workflows/    # checks.yml runs the checks; review-binding.yml reads each pull request's hand-off;
+                      # portability.yml runs the build on Linux arm64, macOS, and Windows
 .github/              # Dependabot, issue & pull request templates, code owners
 .devcontainer/        # Dev Container definition (base image + Features)
 .vscode/              # shared editor settings
 .editorconfig         # editor-neutral formatting baseline
 .gitattributes        # line-ending normalization (LF everywhere), the ADR index merged by its driver
 .gitignore            # what git leaves out, .scratch/ for session artifacts among it
+Cargo.toml            # the crate: the library nuc and the binary nuc, and its lints
+Cargo.lock            # the resolved dependencies, built with --locked
+rust-toolchain.toml   # the pinned Rust toolchain
+deny.toml             # what cargo deny allows: advisories, bans, licenses, sources
+src/                  # the library's functional core, its shell in src/shell/, and the binary
 .agents/skills/       # the procedures of AGENTS.md as Agent Skills, one directory each (ADR-0003),
                       # with the scripts and templates they carry (claim.sh, remap.sh, ticket.md)
 .claude/CLAUDE.md     # pointer for Claude Code to read AGENTS.md
@@ -250,7 +259,7 @@ configured once by a maintainer and worth re-checking after a repository move or
   only, since squash and rebase discard the merges a `feat/` branch carries and the commits it
   was reworked into ([`AGENTS.md` §6](AGENTS.md#6-project-rules)); requires the
   <!-- required-checks begin — compared with the workflow's jobs by scripts/check-docs.sh -->
-  `docs`, `traceability`, `devcontainer`, `sensors`, and `shell`
+  `docs`, `traceability`, `devcontainer`, `sensors`, `shell`, `build`, and `deps`
   <!-- required-checks end -->
   jobs of the **Checks** workflow as required status checks (rulesets list checks by their job
   name) and a branch up to date with `main` before it merges, so that the checks see what the

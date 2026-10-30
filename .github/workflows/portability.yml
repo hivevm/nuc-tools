@@ -1,0 +1,36 @@
+name: Portability
+
+# Runs the build, test, and lint of scripts/check-build.sh on the platforms beyond the build job of
+# checks.yml: Linux arm64, macOS arm64, and Windows x64 (Q-4, ADR-draft-toolchain). It is no
+# required check: a matrix job carries one check name per platform, and the slower runners would
+# gate every push. The runner images ship rustup, which installs the toolchain rust-toolchain.toml
+# pins; on Windows the script runs in the Git Bash the image ships.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04-arm, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Format, lint, build, and test
+        shell: bash
+        run: bash scripts/check-build.sh

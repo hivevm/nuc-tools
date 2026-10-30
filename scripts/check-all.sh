@@ -190,6 +190,8 @@ run "Check runner self-test" scripts/test-check-all.sh
 run "Git hooks self-test" scripts/test-git-hooks.sh
 run "Shell lint self-test" scripts/test-check-shell.sh
 run "Shell lint" scripts/check-shell.sh
+run "Build, test, and lint" scripts/check-build.sh
+run "Dependency audit" scripts/check-deps.sh
 
 wait
 

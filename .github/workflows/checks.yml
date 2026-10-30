@@ -1,7 +1,8 @@
 name: Checks
 
-# Enforces the repository's rules as CI. Pure bash + coreutils — nothing is installed
-# (ShellCheck, used by the shell job, ships preinstalled on the GitHub-hosted runner image).
+# Enforces the repository's rules as CI. The checks are bash + coreutils, and only the build and
+# deps jobs install something (ShellCheck, used by the shell job, ships preinstalled on the
+# GitHub-hosted runner image).
 # scripts/check-all.sh is the local equivalent; check 9 of scripts/check-docs.sh holds its list,
 # the jobs of this workflow, and the required checks named in README.md together. Each job runs
 # a check after its own self-test, and each script's header says what it checks and which ADR it
@@ -13,10 +14,9 @@ name: Checks
 # binding sensor runs in review-binding.yml, the repository settings sensor on a human's
 # instruction (ADR-0002); this workflow runs the self-test of each.
 #
-# A build, test, and lint job is absent until the project has a toolchain. The catalogue entry
-# Toolchain of the propose-adr skill says how the job is added; it is the one job of this workflow
-# that installs something, with a timeout that fits the real build and 'submodules: recursive' on
-# the checkout where the project uses submodules.
+# The build job runs the toolchain's build, test, and lint, and the deps job the dependency audit
+# (ADR-draft-toolchain); they are the jobs of this workflow that install something. The same build
+# runs on Linux arm64, macOS, and Windows in portability.yml, which is no required check (Q-4).
 #
 # Every job is bounded by a timeout — a hung step would otherwise occupy a runner until the
 # platform's own six-hour limit — and every checkout runs with 'persist-credentials: false': the
@@ -167,3 +167,29 @@ jobs:
         run: bash scripts/test-check-shell.sh
       - name: Lint shell scripts with ShellCheck
         run: bash scripts/check-shell.sh
+
+  # The toolchain's job (ADR-draft-toolchain): the runner image ships rustup, which installs the
+  # toolchain rust-toolchain.toml pins on the first cargo call.
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Format, lint, build, and test
+        run: bash scripts/check-build.sh
+
+  # The dependency audit (ADR-draft-toolchain, Q-3): both tools are built from crates.io at the
+  # versions named here and fetch the RustSec advisory database.
+  deps:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Install cargo-deny and cargo-audit
+        run: cargo install --locked cargo-deny@0.20.2 cargo-audit@0.22.2
+      - name: Audit the dependencies
+        run: bash scripts/check-deps.sh
