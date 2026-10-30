@@ -28,15 +28,20 @@ diverge further.
 
 ## Mission
 
-The core purpose of this project, in one sentence.
+Make the NUC template's checks, hooks, and migrations a dependency that is fixed once and updated
+by version, not a copy maintained per project.
 
 ## Vision
 
-The desired future state, in a paragraph or two.
+A derived project carries only the template's rules and a thin shim per hook; a fix reaches it
+with a Dependabot update, taking up a template release is one `nuc upgrade` plus the judgment
+calls it lists, and the checks behave the same on Linux, macOS, and Windows without bash.
 
 ## Strategy
 
-The high-level approach to get there.
+Port the bash scripts one by one, each proved by a parity harness against the bash of the
+matching template release, on the template and on derived repositories; the bash stays in the
+template until `nuc` reaches parity, then the template switches over.
 
 ## Goals / Success Criteria
 
