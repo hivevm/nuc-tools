@@ -98,6 +98,7 @@ is the table a session reads.
 | [draft-fixture-repositories](draft-fixture-repositories.md) | Tests build their repositories through the real git CLI in fresh temporary directories, under a cleared environment | every test that needs a git repository, the test helpers that build one, and the environment the tests run under | 🟡 proposed |
 | [draft-parity-harness](draft-parity-harness.md) | A parity harness compares `nuc` with the bash scripts of a pinned corpus on the same trees, as a required check that fails on any difference | `tests/parity/`, its manifest `tests/parity/corpus.toml`, `scripts/check-parity.sh`, its job in `.github/workflows/checks.yml`, and the map from bash messages to rule IDs | 🟡 proposed |
 | [draft-version-coupling](draft-version-coupling.md) | A project's `nuc.toml` names the minimum `nuc` and the rules turned on, the template release ships both, and `nuc` reads the release from the README | the format of `nuc.toml`, how `nuc` loads it and the README's `Template release` line, and every rule's default state | 🟡 proposed |
+| [draft-distribution](draft-distribution.md) | `nuc` ships as attested GitHub Release binaries, a Dev Container Feature, and a GitHub Action, pinned by major tag and updated by Dependabot | the release workflow, the release tags of this repository, the release artifacts and their checksums and attestations, the Dev Container Feature and its publication, and the GitHub Action | 🟡 proposed |
 
 ### Superseded and rejected
 
