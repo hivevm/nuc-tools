@@ -100,6 +100,7 @@ is the table a session reads.
 | [draft-version-coupling](draft-version-coupling.md) | A project's `nuc.toml` names the minimum `nuc` and the rules turned on, the template release ships both, and `nuc` reads the release from the README | the format of `nuc.toml`, how `nuc` loads it and the README's `Template release` line, and every rule's default state | 🟡 proposed |
 | [draft-distribution](draft-distribution.md) | `nuc` ships as attested GitHub Release binaries, a Dev Container Feature, and a GitHub Action, pinned by major tag and updated by Dependabot | the release workflow, the release tags of this repository, the release artifacts and their checksums and attestations, the Dev Container Feature and its publication, and the GitHub Action | 🟡 proposed |
 | [draft-action-references-by-sha](draft-action-references-by-sha.md) | The workflows reference every action by full commit SHA with a version comment, kept current by Dependabot | every `uses:` line under `.github/workflows/`, `.github/dependabot.yml`, and the run of `scripts/sensor-action-refs.sh` in `scripts/check-all.sh` and the `sensors` job | 🟡 proposed |
+| [draft-no-stored-secrets](draft-no-stored-secrets.md) | The workflows use no stored secret, only `GITHUB_TOKEN` and OIDC with permissions set per job | every workflow under `.github/workflows/`, its `permissions`, and every reference to `secrets.` in them | 🟡 proposed |
 
 ### Superseded and rejected
 
