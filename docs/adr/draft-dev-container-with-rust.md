@@ -44,7 +44,7 @@ cargo tools the checks run, installed with the toolchain's job.
 
 ## Enforcement
 
-[`scripts/check-devcontainer.sh`](../../scripts/check-devcontainer.sh) holds the pin and the
+`scripts/check-devcontainer.sh` holds the pin and the
 lock of every Feature and refuses a host socket (ADR-0004). A test cited with
 `Verifies: ADR-draft-dev-container-with-rust` reads `.devcontainer/devcontainer.json` and fails
 unless it names the Debian base image and the Rust Feature, and on a `dockerComposeFile` or a
