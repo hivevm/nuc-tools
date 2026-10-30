@@ -73,9 +73,26 @@ against them. Each has a measure concrete enough to settle a disagreement and st
 `Q-n`, cited like a goal. Security goals, what the system must never do, belong here, derived
 from the threats below.
 
-- **Q-1** — <Quality, e.g. Performance>: why it matters, and how it is measured (e.g. "p95 response
-  under 200 ms at 100 requests per second").
-- **Q-2** — <Quality, e.g. Security, Availability, Portability, Accessibility>: …
+- **Q-1** — Integrity of the gates: a check or hook never passes when it could not decide. For
+  each class of failure — git missing or failing, an unreadable or malformed input, an unknown
+  rule, an internal error or panic — a fixture shows a non-zero exit and a message naming the
+  cause; no input makes `nuc` exit 0 with a finding dropped.
+- **Q-2** — Parity with the bash checks during the migration: the parity harness reports zero
+  differences in findings and exit status between `nuc` and the bash scripts of the template
+  release each repository carries, on the template and on every repository of the corpus, for
+  every ported check, hook, and script.
+- **Q-3** — Supply chain: every release artifact carries a SHA-256 checksum and a
+  build-provenance attestation that `gh attestation verify` accepts; a rebuild of the tag in CI
+  yields the published checksum for each target; `cargo deny check` and `cargo audit` pass on
+  every pull request, and every ignored advisory names its reason.
+- **Q-4** — Portability: the full test suite passes in CI on Linux x64, Linux arm64, macOS, and
+  Windows x64, with no bash on the `PATH` of the process under test.
+- **Q-5** — Hook latency: `nuc hook reference-transaction` adds at most 2 ms median per call over
+  a no-op hook on Linux x64, measured over 1,000 calls.
+- **Q-6** — Compatibility: a tool update never turns a green project red. Every repository of the
+  corpus that passes with the last release of `nuc` passes with the new one under an unchanged
+  `nuc.toml` and template release; a new check ships off, and only a template release turns it
+  on.
 
 ## Non-Goals
 
