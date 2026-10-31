@@ -32,10 +32,11 @@ each install the binary of their own release after verifying its checksum.
   checksum, and runs `nuc` with the arguments it is given.
 - **Release commit:** the commit a tag names cannot hold the checksums of the binaries built from
   it. After publishing, the release workflow writes `SHA256SUMS` and the version into the Action
-  and the Feature in a commit of its own on top of the tag, moves the major tag `vN` to it, and
+  and the Feature in a commit of its own on top of the tag, tags it `pinned/vX.Y.Z` so that it
+  stays reachable, moves the major tag `vN` to it unless `vN` already names a later release, and
   publishes the Feature from it. The tag `vX.Y.Z` keeps naming the source commit the attestation
-  names; a project that pins finer than `vN` pins the release commit by its SHA. A commit without
-  the file, as on `main` or at `vX.Y.Z`, installs nothing and says so.
+  names. Projects reference the Action by `vN` alone: a finer pin that Dependabot moves lands on a
+  `vX.Y.Z` source commit, which, like `main`, carries no checksums, installs nothing, and says so.
 - **In the projects:** the Feature and the Action are referenced by major tag and updated by
   Dependabot; the minimum in `nuc.toml` holds the floor
   ([ADR-draft-version-coupling](draft-version-coupling.md)).
