@@ -891,3 +891,34 @@ fn while_the_setup_file_exists_the_identity_files_are_not_read() {
     let output = fixture.nuc(&["check"]);
     assert_eq!(code(&output), Some(0), "{}", stderr(&output));
 }
+
+#[test]
+fn a_markdown_file_git_marks_generated_is_not_read_for_its_width() {
+    let long = format!("{}\n", "word ".repeat(24));
+    for (name, attribute, findings) in [
+        ("width-generated", "CHANGELOG.md linguist-generated\n", 0),
+        (
+            "width-generated-unset",
+            "CHANGELOG.md -linguist-generated\n",
+            1,
+        ),
+    ] {
+        let fixture = only(name, "docs/prose-width", README);
+        fixture.write("CHANGELOG.md", &long);
+        fixture.write(".gitattributes", attribute);
+        let output = fixture.nuc(&["check"]);
+        let out = stdout(&output);
+        assert_eq!(
+            out.lines().count(),
+            findings,
+            "{attribute}{out}{}",
+            stderr(&output)
+        );
+        if findings == 1 {
+            assert!(
+                out.starts_with("CHANGELOG.md:1: docs/prose-width: 120 columns"),
+                "{out}"
+            );
+        }
+    }
+}

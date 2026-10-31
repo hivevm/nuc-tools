@@ -41,3 +41,6 @@ skill-pointers-missing	docs/skill-pointers	.claude/skills/review	delete	-
 # docs/inherited-adrs, docs/template-identity: checks 12 and 13 of check-docs.sh.
 inherited-adrs-undecided	docs/inherited-adrs	docs/adr/0001-agent-governance-model.md	sed	s/^(- \*\*Deciders:\*\*) NUC maintainer, Markus Brigl$/\1 NUC maintainer/	nectar,nuc-tools,ocelli,opamp-fleet
 template-identity-badge	docs/template-identity	README.md	sed	0,/^\[!\[/s/^\[!\[/[![Checks](https:\/\/github.com\/hivevm\/nuc\/actions\/workflows\/checks.yml\/badge.svg)](https:\/\/github.com\/hivevm\/nuc)\n&/	nectar,nuc-tools,ocelli,opamp-fleet
+
+# docs/prose-width: check 15 of check-docs.sh.
+prose-width-101	docs/prose-width	README.md	sed	$s/$/\n\nword word word word word word word word word word word word word word word word word word word word w/

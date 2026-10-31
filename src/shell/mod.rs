@@ -121,6 +121,9 @@ fn check(repo: Option<&Path>) -> Result<u8, String> {
     if needs(Input::SetupFile) {
         inputs.setup_file = tree.root.join("TEMPLATE-SETUP.md").is_file();
     }
+    if needs(Input::Generated) {
+        inputs.generated = generated(&tree, &inputs.text_files)?;
+    }
     // While the setup file exists the identity rule is silent, so it reads nothing (check 13).
     if needs(Input::Identity) && !inputs.setup_file {
         for &file in rules::docs_template_identity::FILES {
@@ -152,6 +155,36 @@ fn check(repo: Option<&Path>) -> Result<u8, String> {
         eprintln!("nuc check: {} finding(s).", findings.len());
         Ok(FOUND)
     }
+}
+
+/// The Markdown files with a wide line that git's attributes mark `linguist-generated`, as the
+/// bash asks `git check-attr` for them and reads its answer: a path git quotes is not one.
+fn generated(
+    tree: &Tree,
+    text_files: &BTreeMap<String, Vec<u8>>,
+) -> Result<std::collections::BTreeSet<String>, String> {
+    let wide: Vec<&str> = text_files
+        .iter()
+        .filter(|(file, text)| {
+            file.ends_with(".md") && !rules::docs_prose_width::wide_lines(text).is_empty()
+        })
+        .map(|(file, _)| file.as_str())
+        .collect();
+    if wide.is_empty() {
+        return Ok(std::collections::BTreeSet::new());
+    }
+    let mut args = vec!["check-attr", "linguist-generated", "--"];
+    args.extend(&wide);
+    let answer = git::run(&tree.root, &args)?;
+    Ok(answer
+        .lines()
+        .filter_map(|line| {
+            ["set", "true"].iter().find_map(|value| {
+                line.strip_suffix(&format!(": linguist-generated: {value}"))
+                    .map(str::to_owned)
+            })
+        })
+        .collect())
 }
 
 /// The earliest template release whose bash checks the rules port.

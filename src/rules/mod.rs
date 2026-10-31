@@ -15,6 +15,7 @@ pub mod docs_check_lists;
 pub mod docs_inherited_adrs;
 pub mod docs_links;
 pub mod docs_project_layout;
+pub mod docs_prose_width;
 pub mod docs_section_refs;
 pub mod docs_skill_pointers;
 pub mod docs_template_identity;
@@ -51,6 +52,9 @@ pub struct Inputs {
     pub setup_file: bool,
     /// The files check 13 reads for the template's placeholders, by path, each that is a file.
     pub identity: std::collections::BTreeMap<String, Vec<u8>>,
+    /// The Markdown files with a line over 100 bytes that git's attributes mark
+    /// `linguist-generated`, as `set` or `true`.
+    pub generated: std::collections::BTreeSet<String>,
 }
 
 /// The files check 9 compares, each as `-f` finds it.
@@ -154,6 +158,8 @@ pub enum Input {
     SetupFile,
     /// The files the template's placeholders stand in.
     Identity,
+    /// The Markdown files git's attributes mark generated.
+    Generated,
 }
 
 /// A path a relative link names, as the bash tests it: whether it exists, as `-e` finds it, and
@@ -188,6 +194,7 @@ pub const ALL: &[Rule] = &[
     docs_skill_pointers::RULE,
     docs_inherited_adrs::RULE,
     docs_template_identity::RULE,
+    docs_prose_width::RULE,
     docs_template_release::RULE,
 ];
 
