@@ -11,7 +11,7 @@
 # skill is exercised with it: a claim in one repository, and a claim on a remote that a second
 # clone's claim of the same ticket loses, also when the branch there points at main itself.
 #
-# Verifies: ADR-0002
+# Verifies: ADR-0023
 # Inputs: scripts/sensor-plan-frontier.sh .agents/skills/work-tickets/claim.sh scripts/lib/
 #
 # Usage:

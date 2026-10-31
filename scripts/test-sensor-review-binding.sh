@@ -12,7 +12,7 @@
 # and code together and apart: the text of an ADR with other paths is listed, its Status, Date,
 # and Deciders lines and the index are not, inside a merged branch too.
 #
-# Verifies: ADR-0002
+# Verifies: ADR-0023
 # Inputs: scripts/sensor-review-binding.sh scripts/lib/
 #
 # Usage:

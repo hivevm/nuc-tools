@@ -59,7 +59,7 @@ in the record.
    never by a number that does not exist yet.
 6. **Enforcement:** the test that will cite this ADR with a `Verifies:` marker, or a paragraph
    starting `**Not mechanically decidable:**` with the reason
-   ([ADR-0002](../../../docs/adr/0002-decisions-verified-by-tests.md)).
+   ([ADR-0023](../../../docs/adr/0023-decisions-verified-by-tests.md)).
 7. Add the index row in [`docs/adr/README.md`](../../../docs/adr/README.md), status and *Applies
    to* mirrored verbatim. For a supersession, name the old ADR in `Supersedes` and leave its
    status line: the human flips it when accepting this one

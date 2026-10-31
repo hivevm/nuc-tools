@@ -13,7 +13,7 @@ to invent.
   up, that carries a template release.
   _Avoid:_ downstream project, consumer repo.
 - **template release** — A tagged version `vX.Y.Z` of the NUC template; a derived project names the
-  one it carries in its README ([ADR-0005](adr/0005-template-releases.md)).
+  one it carries in its README ([ADR-0024](adr/0024-template-releases.md)).
 - **check** — A mechanical test of a repository's tree or history that fails a commit, a push, or
   CI on a finding.
 - **sensor** — A mechanical reading of a repository that reports what it counts and fails on
