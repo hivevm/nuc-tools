@@ -30,6 +30,12 @@ each install the binary of their own release after verifying its checksum.
   installation.
 - **GitHub Action:** `hivevm/nuc-tools@vN`; it installs the binary of its release, verifies the
   checksum, and runs `nuc` with the arguments it is given.
+- **Release commit:** the commit a tag names cannot hold the checksums of the binaries built from
+  it. After publishing, the release workflow writes `SHA256SUMS` and the version into the Action
+  and the Feature in a commit of its own on top of the tag, moves the major tag `vN` to it, and
+  publishes the Feature from it. The tag `vX.Y.Z` keeps naming the source commit the attestation
+  names; a project that pins finer than `vN` pins the release commit by its SHA. A commit without
+  the file, as on `main` or at `vX.Y.Z`, installs nothing and says so.
 - **In the projects:** the Feature and the Action are referenced by major tag and updated by
   Dependabot; the minimum in `nuc.toml` holds the floor
   ([ADR-draft-version-coupling](draft-version-coupling.md)).
@@ -47,6 +53,9 @@ the attestation; how this repository references the actions it runs, a decision 
   pull request in the project, and a compromised release would reach every project at once.
 - **crates.io** — `cargo install` builds from source on the user's machine, with no attestation of
   what ran; a later channel if asked for.
+- **The installers fetching `SHA256SUMS` from the release** — no release commit and no moved tag,
+  but the checksum would come from the same place as the binary, so a replaced release asset
+  would pass with its own checksum.
 
 ## Sources / Prior art
 
