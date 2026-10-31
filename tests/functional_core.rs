@@ -2,11 +2,12 @@
 //!
 //! The library outside `src/shell/` names nothing of `functional_core.forbidden`, the list kept
 //! beside this test, and `src/main.rs` does nothing but call the shell. The source is read as
-//! text: comments and literals are dropped, whitespace is removed, and the paths of a grouped
-//! `use` are expanded, so `use std::{fs, io::stdout}` names `std::fs` and `std::io::stdout`. A
-//! path reached through a renamed crate, as `use std as s`, is not seen; that is review. Each
-//! rule module carrying exactly one rule ID, unique across the crate, is checked once the first
-//! rule fixes where rules live and how they name their ID.
+//! text: comments and literals are dropped, and the paths of a grouped `use` are expanded, so
+//! `use std::{fs, io::stdout}` names `std::fs` and `std::io::stdout`. A path reached through a
+//! renamed crate, as `use std as s`, is not seen; that is review.
+//!
+//! Each module under `src/rules/` is one rule: it declares exactly one `RULE_ID`, an
+//! `area/name` unique across the crate, and the list of every rule names its `RULE`.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -238,6 +239,96 @@ fn sources(dir: &Path, skip: &Path, found: &mut Vec<PathBuf>) {
         } else if path.extension().is_some_and(|ext| ext == "rs") {
             found.push(path);
         }
+    }
+}
+
+/// What is wrong with a rule module's ID: how many `RULE_ID` constants its code declares, and
+/// whether the one it declares is an `area/name`. `None` when it declares one well-formed ID.
+fn rule_id_problem(source: &str) -> Option<String> {
+    let compact: String = code(source)
+        .chars()
+        .filter(|c| !c.is_whitespace())
+        .collect();
+    let declared = compact.matches("constRULE_ID:").count();
+    if declared != 1 {
+        return Some(format!("declares {declared} RULE_ID constants, not one"));
+    }
+    let id = rule_id(source).unwrap_or_default();
+    (!is_area_name(&id)).then(|| format!("declares the rule ID '{id}', which is no area/name"))
+}
+
+/// The string the `RULE_ID` constant is set to, as written on its line.
+fn rule_id(source: &str) -> Option<String> {
+    let line = source.lines().find(|line| line.contains("const RULE_ID"))?;
+    line.split('"').nth(1).map(str::to_owned)
+}
+
+/// Whether the ID is two lowercase segments, `area/name`, the name in kebab case.
+fn is_area_name(id: &str) -> bool {
+    let word = |s: &str| {
+        !s.is_empty()
+            && s.bytes()
+                .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit())
+    };
+    match id.split_once('/') {
+        Some((area, name)) => word(area) && name.split('-').all(word),
+        None => false,
+    }
+}
+
+#[test]
+fn every_rule_module_declares_one_unique_rule_id_and_is_listed() {
+    let rules = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
+    let list = fs::read_to_string(rules.join("mod.rs")).expect("src/rules/mod.rs is readable");
+    let list: String = code(&list).chars().filter(|c| !c.is_whitespace()).collect();
+    let mut modules = Vec::new();
+    sources(&rules, &rules.join("mod.rs"), &mut modules);
+    assert!(!modules.is_empty(), "no rule module under src/rules/");
+    let mut seen: Vec<String> = Vec::new();
+    let mut problems = Vec::new();
+    for path in &modules {
+        let source = fs::read_to_string(path).expect("a rule module is readable");
+        let stem = path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or_default();
+        if let Some(problem) = rule_id_problem(&source) {
+            problems.push(format!("{}: {problem}", path.display()));
+        } else if let Some(id) = rule_id(&source) {
+            if seen.contains(&id) {
+                problems.push(format!(
+                    "{}: the rule ID '{id}' is used twice",
+                    path.display()
+                ));
+            }
+            seen.push(id);
+        }
+        if !list.contains(&format!("{stem}::RULE,")) && !list.contains(&format!("{stem}::RULE]")) {
+            problems.push(format!("{}: not in the list of every rule", path.display()));
+        }
+    }
+    assert!(
+        problems.is_empty(),
+        "the rules break their shape:\n{}",
+        problems.join("\n")
+    );
+}
+
+#[test]
+fn a_rule_module_without_exactly_one_well_formed_id_is_found() {
+    assert_eq!(
+        rule_id_problem("pub const RULE_ID: &str = \"docs/template-release\";"),
+        None
+    );
+    for source in [
+        "pub const OTHER: &str = \"docs/x\";",
+        "pub const RULE_ID: &str = \"docs/a\";\npub const RULE_ID: &str = \"docs/b\";",
+        "pub const RULE_ID: &str = \"Docs/A\";",
+        "pub const RULE_ID: &str = \"template-release\";",
+        "pub const RULE_ID: &str = \"docs/template--release\";",
+        "// pub const RULE_ID: &str = \"docs/a\";",
+    ] {
+        assert!(rule_id_problem(source).is_some(), "not found in: {source}");
     }
 }
 

@@ -71,8 +71,25 @@ live in [`docs/SPECIFICATION.md`](docs/SPECIFICATION.md), the vocabulary in
 
 ## Usage
 
-Nothing to use yet: no release of `nuc` exists. The first commands are `nuc check`,
-`nuc hook <name>`, and `nuc explain <id>`.
+No release of `nuc` exists yet; built from source, it checks a repository:
+
+- `nuc check [--repo <path>]` runs the rules the `nuc.toml` of the repository turns on, over the
+  repository that contains the current directory or `<path>`. Each finding is a line
+  `<file>[:<line>]: <rule ID>: <message>`. The exit code is 0 without a finding, 1 with one, and 2
+  when `nuc` could not decide, as without a readable `nuc.toml` or below its minimum version.
+- `nuc explain <rule ID>` gives the reason of a rule.
+
+`nuc.toml`, at the root of the repository, names the minimum version of `nuc` and the rules
+turned on
+([ADR-draft-version-coupling](docs/adr/draft-version-coupling.md)):
+
+```toml
+minimum = "0.1.0"
+rules = ["docs/template-release"]
+```
+
+The one rule so far is `docs/template-release`, check 14 of the template's `check-docs.sh`.
+`nuc hook <name>` follows with the port of the hooks.
 
 ## Project Layout
 
@@ -112,7 +129,8 @@ Cargo.lock            # the resolved dependencies, built with --locked
 rust-toolchain.toml   # the pinned Rust toolchain
 deny.toml             # what cargo deny allows: advisories, bans, licenses, sources
 src/                  # the library's functional core, its shell in src/shell/, and the binary
-tests/                # the integration tests: the shape of the code and the Dev Container
+tests/                # the integration tests, their fixture helpers in tests/support/, and the
+                      # corpus and normalization table of the parity harness in tests/parity/
 .agents/skills/       # the procedures of AGENTS.md as Agent Skills, one directory each (ADR-0003),
                       # with the scripts and templates they carry (claim.sh, remap.sh, ticket.md)
 .claude/CLAUDE.md     # pointer for Claude Code to read AGENTS.md
@@ -260,7 +278,7 @@ configured once by a maintainer and worth re-checking after a repository move or
   only, since squash and rebase discard the merges a `feat/` branch carries and the commits it
   was reworked into ([`AGENTS.md` §6](AGENTS.md#6-project-rules)); requires the
   <!-- required-checks begin — compared with the workflow's jobs by scripts/check-docs.sh -->
-  `docs`, `traceability`, `devcontainer`, `sensors`, `shell`, `gates`, `build`, and `deps`
+  `docs`, `traceability`, `devcontainer`, `sensors`, `shell`, `gates`, `build`, `deps`, and `parity`
   <!-- required-checks end -->
   jobs of the **Checks** workflow as required status checks (rulesets list checks by their job
   name) and a branch up to date with `main` before it merges, so that the checks see what the

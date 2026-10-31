@@ -1,0 +1,10 @@
+# The normalization table of the parity harness (ADR-draft-parity-harness), read by
+# scripts/check-parity.sh. One row per bash message, three fields separated by tabs: an extended
+# regular expression the message after "  - " matches, the rule ID of nuc it maps to, and
+# "line" when the bash message names a line, "-" when it names none and the comparison leaves the
+# line out. A bash message no row matches is a difference, so a ported rule brings its rows, and
+# a check that is not ported yet is caught when it fires on a tree of the corpus.
+
+# check-docs.sh, check 14: the template release named.
+^README\.md: no '\*\*Template release:\*\*' line	docs/template-release	-
+^README\.md: the Template release line names neither	docs/template-release	-

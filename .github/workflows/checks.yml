@@ -1,7 +1,7 @@
 name: Checks
 
-# Enforces the repository's rules as CI. The checks are bash + coreutils, and only the build and
-# deps jobs install something (ShellCheck, used by the shell job, ships preinstalled on the
+# Enforces the repository's rules as CI. The checks are bash + coreutils, and only the build, deps,
+# and parity jobs install something (ShellCheck, used by the shell job, ships preinstalled on the
 # GitHub-hosted runner image).
 # scripts/check-all.sh is the local equivalent; check 9 of scripts/check-docs.sh holds its list,
 # the jobs of this workflow, and the required checks named in README.md together. Each job runs
@@ -15,8 +15,9 @@ name: Checks
 # settings sensor on a human's instruction (ADR-0002); this workflow runs the self-test of each.
 #
 # The build job runs the toolchain's build, test, and lint, and the deps job the dependency audit
-# (ADR-draft-toolchain); they are the jobs of this workflow that install something. The same build
-# runs on Linux arm64, macOS, and Windows in portability.yml, which is no required check (Q-4).
+# (ADR-draft-toolchain); the parity job builds nuc for the parity harness
+# (ADR-draft-parity-harness). The same build runs on Linux arm64, macOS, and Windows in
+# portability.yml, which is no required check (Q-4).
 #
 # Every job is bounded by a timeout — a hung step would otherwise occupy a runner until the
 # platform's own six-hour limit — and every checkout runs with 'persist-credentials: false': the
@@ -231,3 +232,21 @@ jobs:
         run: cargo install --locked cargo-deny@0.20.2 cargo-audit@0.22.2
       - name: Audit the dependencies
         run: bash scripts/check-deps.sh
+
+  # The parity harness (ADR-draft-parity-harness, Q-2): the bash checks of each repository of the
+  # corpus and nuc on the same tree, any difference a failure. It fetches the corpus and builds nuc
+  # with the toolchain rust-toolchain.toml pins; Linux only.
+  parity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # The harness's own tests run first: a harness that is wrong passes nothing worth trusting.
+      - name: Self-test the parity harness
+        run: bash scripts/test-check-parity.sh
+      - name: Compare the bash checks and nuc on the corpus
+        run: bash scripts/check-parity.sh
