@@ -712,3 +712,130 @@ fn the_project_layout_is_checked_against_the_tree_and_what_git_tracks() {
         stderr(&output)
     );
 }
+
+/// A project with only the rule given on.
+fn only(name: &str, rule: &str, readme: &str) -> Fixture {
+    let config = format!("minimum = \"0.0.0\"\nrules = [\"{rule}\"]\n");
+    Fixture::project(name, &config, readme)
+}
+
+const LISTS_README: &str = "# Fixture\n\n- **Template release:** v0.6.0\n\n<!-- required-checks begin -->\n`docs`\n<!-- required-checks end -->\n";
+
+#[test]
+fn the_check_lists_are_read_as_the_bash_globs_and_find_list_them() {
+    let fixture = only("lists", "docs/check-lists", LISTS_README);
+    fixture.write(
+        ".github/workflows/checks.yml",
+        "jobs:\n  docs:\n    steps:\n      - run: bash scripts/check-docs.sh\n",
+    );
+    fixture.write(
+        "scripts/check-all.sh",
+        "run \"Docs\" scripts/check-docs.sh\n",
+    );
+    fixture.write("scripts/check-docs.sh", "true\n");
+    fixture.write("scripts/.dot.sh", "true\n");
+    let inline = "jobs:\n  publish:\n    steps:\n      - run: make\n";
+    fixture.write(".github/workflows/a.yaml", inline);
+    fixture.write(".github/workflows/b.yml", inline);
+    fixture.write(".github/workflows/.hidden.yml", inline);
+    #[cfg(unix)]
+    std::os::unix::fs::symlink("check-docs.sh", fixture.root().join("scripts/link.sh"))
+        .expect("linked");
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(
+        stdout(&output).lines().collect::<Vec<_>>(),
+        [
+            ".github/workflows/b.yml: docs/check-lists: job 'publish' runs no script under scripts/ — the local gate cannot run what it does",
+            ".github/workflows/a.yaml: docs/check-lists: job 'publish' runs no script under scripts/ — the local gate cannot run what it does",
+            "scripts/.dot.sh: docs/check-lists: no workflow and not scripts/check-all.sh runs it — add it to both lists, or name it on an '# On instruction:' line of scripts/check-all.sh",
+        ],
+        "{}",
+        stderr(&output)
+    );
+}
+
+const LAYOUT_README: &str =
+    "# Fixture\n\n## Project Layout\n\n```\nREADME.md\nnuc.toml\ndocs/plan/\n*.toml\n";
+
+#[test]
+fn an_absolute_layout_path_names_a_path_under_the_root_as_for_the_bash() {
+    let readme = format!("{LAYOUT_README}/etc/\n/etc/hostname\n```\n");
+    let output = only("layout-absolute", "docs/project-layout", &readme).nuc(&["check"]);
+    assert_eq!(
+        stdout(&output).lines().collect::<Vec<_>>(),
+        [
+            "README.md: docs/project-layout: Project Layout lists '/etc/', which is not a directory of this repository",
+            "README.md: docs/project-layout: Project Layout lists '/etc/hostname', which does not exist",
+        ],
+        "{}",
+        stderr(&output)
+    );
+}
+
+#[test]
+fn a_layout_without_open_work_and_with_a_matching_pattern_passes() {
+    let readme = format!("{LAYOUT_README}```\n");
+    let output = only("layout-pass", "docs/project-layout", &readme).nuc(&["check"]);
+    assert_eq!(
+        code(&output),
+        Some(0),
+        "{}{}",
+        stdout(&output),
+        stderr(&output)
+    );
+}
+
+#[test]
+fn a_layout_pattern_outside_the_repository_or_with_a_class_is_not_decided() {
+    for (name, pattern, why) in [
+        ("layout-up", "../*", "looks outside the repository"),
+        (
+            "layout-class",
+            "[[:alpha:]]*",
+            "uses a bracket nuc does not read",
+        ),
+    ] {
+        let readme = format!("{LAYOUT_README}{pattern}\n```\n");
+        let output = only(name, "docs/project-layout", &readme).nuc(&["check"]);
+        assert_eq!(code(&output), Some(2), "{pattern}: {}", stdout(&output));
+        assert!(
+            stderr(&output).contains(why),
+            "{pattern}: {}",
+            stderr(&output)
+        );
+    }
+}
+
+#[test]
+fn a_repository_without_skills_passes_and_one_with_pointers_only_fails() {
+    let none = only("skills-none", "docs/skill-pointers", README);
+    assert_eq!(code(&none.nuc(&["check"])), Some(0));
+    let pointers = only("skills-pointers-only", "docs/skill-pointers", README);
+    pointers.write(".claude/skills/lonely/SKILL.md", "# Lonely\n");
+    assert_eq!(
+        stdout(&pointers.nuc(&["check"])).trim_end(),
+        ".claude/skills/lonely: docs/skill-pointers: is not a symlink into .agents/skills/ — a skill lives there, where every agent reads it, and is pointed at from here (ADR-0003)"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn a_skill_directory_outside_the_repository_is_not_listed() {
+    let (probe, _) = outside("skills-outside-probe", "evil-SKILL.md", "# Evil\n");
+    std::fs::create_dir_all(probe.root().join("skills/evil")).expect("created");
+    std::fs::write(probe.root().join("skills/evil/SKILL.md"), "# Evil\n").expect("written");
+    let fixture = only("skills-outside", "docs/skill-pointers", README);
+    std::fs::create_dir_all(fixture.root().join(".agents")).expect("created");
+    std::os::unix::fs::symlink(
+        probe.root().join("skills"),
+        fixture.root().join(".agents/skills"),
+    )
+    .expect("linked");
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(2), "{}", stdout(&output));
+    assert!(
+        stderr(&output).contains("resolves outside the repository"),
+        "{}",
+        stderr(&output)
+    );
+}

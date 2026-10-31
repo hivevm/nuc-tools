@@ -268,6 +268,19 @@ expect fail "an empty --variants is refused" "--variants takes a file" \
 printf '%s' "$DELETE" > "$work/v-no-newline.tsv"
 expect pass "a last row without a newline is read" "" run "$c" "$(reactive_nuc)" "$work/v-no-newline.tsv"
 
+source_repo linked > /dev/null
+mkdir -p "$work/src-linked/docs"
+git -C "$work/src-linked" mv README.md docs/real.md
+ln -s docs/real.md "$work/src-linked/README.md"
+stub="$work/src-linked/scripts/check-docs.sh"
+sed "s/grep -q /grep -qs /" "$stub" > "$stub.tmp" && cat "$stub.tmp" > "$stub" && rm "$stub.tmp"
+git -C "$work/src-linked" add -A
+git -C "$work/src-linked" -c user.name=F -c user.email=f@example.invalid -c core.hooksPath=/dev/null commit -qm linked
+git -C "$work/src-linked" rev-parse HEAD > "$work/src-linked.commit"
+v="$(variants "$work/v-link.tsv" $'unlinked\tdocs/template-release\tREADME.md\tdelete\t-')"
+expect pass "a variant deletes a symbolic link itself" "" run "$(corpus "$work/linked.toml" linked)" "$(reactive_nuc)" "$v"
+check "the target of the deleted link stays" test -f "$work/src-linked/docs/real.md"
+
 v="$(variants "$work/v-escape.tsv" "$DELETE" $'escape\tdocs/template-release\t../agree/README.md\tdelete\t-')"
 expect fail "a variant whose path leaves the tree is refused" "no path inside the tree" run "$c" "$(reactive_nuc)" "$v"
 v="$(variants "$work/v-absolute.tsv" "$DELETE" $'absolute\tdocs/template-release\t/etc/hostname\tdelete\t-')"

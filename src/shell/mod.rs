@@ -440,6 +440,23 @@ fn entry_names(dir: &Path) -> Result<Vec<String>, String> {
 }
 
 impl Tree {
+    /// The names of the entries of a directory of the repository, as [`entry_names`] gives them;
+    /// a directory that resolves outside the repository is not listed, and not decided.
+    fn list(&self, dir: &Path) -> Result<Vec<String>, String> {
+        let real = match fs::canonicalize(dir) {
+            Ok(real) => real,
+            Err(e) if e.kind() == ErrorKind::NotFound => return Ok(Vec::new()),
+            Err(e) => return Err(format!("{}: unreadable — {e}", dir.display())),
+        };
+        if !real.starts_with(&self.inside) {
+            return Err(format!(
+                "{}: resolves outside the repository — not decided",
+                dir.display()
+            ));
+        }
+        entry_names(&real)
+    }
+
     /// The files of check 9: `checks.yml`, `check-all.sh`, the workflows as the bash's globs
     /// list them, and the scripts as `find -type f` lists them.
     fn read_check_lists(&self) -> Result<rules::CheckLists, String> {
@@ -457,7 +474,7 @@ impl Tree {
             ..rules::CheckLists::default()
         };
         let dir = self.root.join(".github/workflows");
-        let names = entry_names(&dir)?;
+        let names = self.list(&dir)?;
         lists.workflow_files = names
             .iter()
             .filter(|name| dir.join(name).is_file())
@@ -475,7 +492,7 @@ impl Tree {
             }
         }
         let scripts = self.root.join("scripts");
-        for name in entry_names(&scripts)? {
+        for name in self.list(&scripts)? {
             let regular = fs::symlink_metadata(scripts.join(&name)).is_ok_and(|m| m.is_file());
             if regular && name.ends_with(".sh") {
                 lists.scripts.push(name);
@@ -500,9 +517,10 @@ impl Tree {
             let there = if rules::docs_project_layout::is_pattern(&path) {
                 self.glob_matches(&path)?
             } else if let Some(dir) = path.strip_suffix('/') {
-                self.root.join(dir).is_dir()
+                // Joined as text, as the bash joins it: an absolute path stays under the root.
+                Path::new(&format!("{}/{dir}", self.root.display())).is_dir()
             } else {
-                self.root.join(&path).is_file()
+                Path::new(&format!("{}/{path}", self.root.display())).is_file()
             };
             layout.found.insert(path, there);
         }
@@ -576,7 +594,7 @@ impl Tree {
         let pointers = self.root.join(".claude/skills");
         let has_skill = |name: &str| skills.join(name).join("SKILL.md").is_file();
         let mut found = rules::Skills::default();
-        for name in entry_names(&skills)? {
+        for name in self.list(&skills)? {
             if name.starts_with('.') || !skills.join(&name).is_dir() || !has_skill(&name) {
                 continue;
             }
@@ -587,7 +605,7 @@ impl Tree {
             };
             found.skills.push((name, pointer));
         }
-        for name in entry_names(&pointers)? {
+        for name in self.list(&pointers)? {
             if name.starts_with('.') {
                 continue;
             }

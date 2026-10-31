@@ -2,7 +2,8 @@
 # scripts/check-parity.sh: edits that make a ported rule fire, applied to a copy of every corpus
 # tree they fit and compared there as on the tree itself. One row per variant, five fields
 # separated by tabs: a name of [a-z0-9-], the rule ID it makes fire, the path it edits, and
-# "sed" with an extended sed expression or "delete" with "-". A sed edit fits a tree when it
+# "sed" with an extended sed expression or "delete" with "-", which deletes a file or a symbolic
+# link itself. A sed edit fits a tree when it
 # changes the file; a variant that fits no tree fails the harness, and so does one on which
 # bash reports no finding of its rule.
 
@@ -34,4 +35,4 @@ adr-numbering-gap	docs/adr-numbering	docs/adr/0003-procedures-as-skills.md	delet
 # docs/check-lists, docs/project-layout, docs/skill-pointers: checks 9, 10, and 11 of check-docs.sh.
 check-lists-job-unnamed	docs/check-lists	.github/workflows/checks.yml	sed	$s/$/\n  variant:\n    steps:\n      - run: bash scripts\/check-docs.sh/
 project-layout-missing	docs/project-layout	README.md	sed	/^## Project Layout$/,/^(```|~~~)/s/^(```|~~~).*$/&\nmissing-variant.txt/
-skill-pointers-missing	docs/skill-pointers	.agents/skills/review/SKILL.md	delete	-
+skill-pointers-missing	docs/skill-pointers	.claude/skills/review	delete	-

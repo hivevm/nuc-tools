@@ -762,4 +762,29 @@ mod tests {
         );
         assert_eq!(check_names(b"`a (b)` `c`", false), [b"c".to_vec()]);
     }
+
+    /// Three more cases of check 9 in the template's `scripts/test-check-docs.sh`.
+    #[test]
+    fn another_workflow_and_a_setup_step_read_as_the_bash_reads_them() {
+        let other = (
+            ".github/workflows/other.yml".to_owned(),
+            "jobs:\n  lint:\n    steps:\n      - run: bash scripts/check-docs.sh\n".to_owned(),
+        );
+        let mut tree = Tree::new();
+        tree.workflows.push(other.clone());
+        assert_eq!(tree.messages(), Vec::<String>::new());
+        tree.readme = Some(README_TEXT.replace("`docs`", "`docs`, `lint`"));
+        assert_eq!(
+            tree.messages(),
+            [
+                "README.md: required check 'lint' is not a job of .github/workflows/checks.yml — a ruleset would wait for a check that never reports"
+            ]
+        );
+        let mut tree = Tree::new();
+        tree.checks = Some(
+            "jobs:\n  docs:\n    steps:\n      - uses: actions/checkout@v5\n      - run: bash scripts/check-docs.sh\n"
+                .to_owned(),
+        );
+        assert_eq!(tree.messages(), Vec::<String>::new());
+    }
 }
