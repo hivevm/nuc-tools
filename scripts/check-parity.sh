@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Parity harness (ADR-draft-parity-harness-with-variants, Q-2).
+# Parity harness (ADR-0020, Q-2).
 #
 # Runs the bash checks a repository of the corpus carries and nuc on the same tree, and fails on
 # any difference in their findings or their exit status. The corpus is tests/parity/corpus.toml:

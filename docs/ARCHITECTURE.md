@@ -39,7 +39,7 @@ golden path and the test pattern an agent copies from are named here.
 - **Parity harness** — `scripts/check-parity.sh` runs the bash checks of each repository of the
   corpus, all on template release v0.5.0 or later, and `nuc` on the same tree and on each variant
   of `tests/parity/variants.tsv` that fits it, and compares their findings
-  ([ADR-draft-parity-harness-with-variants](adr/draft-parity-harness-with-variants.md)).
+  ([ADR-0020](adr/0020-parity-harness-with-variants.md)).
 - **Release tooling** — `release/` builds a binary per target, writes `SHA256SUMS`, checks the
   tag against the crate's version, writes the release commit, and moves the major tag;
   `release/install-nuc.sh` is the one installer, run by the Action and the Feature, and refuses a

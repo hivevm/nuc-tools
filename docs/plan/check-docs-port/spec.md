@@ -103,8 +103,8 @@ trees as pinned and on variants of them that make each ported check fire.
 ## ADR impact
 
 - Binding: ADR-0009 (the shape), ADR-0010 (git), ADR-0011 (fixtures),
-  ADR-draft-parity-harness-with-variants (parity), ADR-0013 (version coupling), ADR-0018 (the
+  ADR-0020 (parity), ADR-0013 (version coupling), ADR-0018 (the
   gates), ADR-0019 (the contract).
 - **Variants and the release floor:** ADR-0012 compared on the pinned trees only. The proposed
-  ADR-draft-parity-harness-with-variants supersedes it, adding the variants and the corpus of
+  ADR-0020 supersedes it, adding the variants and the corpus of
   releases v0.5.0 and later; it is accepted before ticket 01 lands.
