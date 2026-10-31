@@ -118,6 +118,19 @@ fn check(repo: Option<&Path>) -> Result<u8, String> {
     if needs(Input::Skills) {
         inputs.skills = tree.read_skills()?;
     }
+    if needs(Input::SetupFile) {
+        inputs.setup_file = tree.root.join("TEMPLATE-SETUP.md").is_file();
+    }
+    if needs(Input::Identity) {
+        for &file in rules::docs_template_identity::FILES {
+            let path = tree.root.join(file);
+            if path.is_file()
+                && let Some(bytes) = tree.read_record_file(&path)?
+            {
+                inputs.identity.insert(file.to_owned(), bytes);
+            }
+        }
+    }
     let findings: Vec<Finding> = selected
         .iter()
         .flat_map(|rule| {

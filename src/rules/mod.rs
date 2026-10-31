@@ -12,10 +12,12 @@ pub mod docs_adr_numbering;
 pub mod docs_adr_refs;
 pub mod docs_adr_supersessions;
 pub mod docs_check_lists;
+pub mod docs_inherited_adrs;
 pub mod docs_links;
 pub mod docs_project_layout;
 pub mod docs_section_refs;
 pub mod docs_skill_pointers;
+pub mod docs_template_identity;
 pub mod docs_template_release;
 
 /// What the shell reads from the repository for the rules, before any of them runs.
@@ -45,6 +47,10 @@ pub struct Inputs {
     pub layout: Layout,
     /// The skills and their pointers.
     pub skills: Skills,
+    /// Whether `TEMPLATE-SETUP.md` is a file: the setup still runs.
+    pub setup_file: bool,
+    /// The files check 13 reads for the template's placeholders, by path, each that is a file.
+    pub identity: std::collections::BTreeMap<String, Vec<u8>>,
 }
 
 /// The files check 9 compares, each as `-f` finds it.
@@ -103,13 +109,7 @@ pub enum Entry {
     Points { target: String, at_skill: bool },
 }
 
-/// The lines `while IFS= read -r line` reads: each one ended by a newline; a last line without
-/// one is not read.
-pub fn read_lines(text: &[u8]) -> Vec<&[u8]> {
-    let mut lines: Vec<&[u8]> = text.split(|&b| b == b'\n').collect();
-    lines.pop();
-    lines
-}
+pub use crate::adr::read_lines;
 
 impl Inputs {
     /// Whether the tree is checked as the bash check of `release` or of a later one.
@@ -150,6 +150,10 @@ pub enum Input {
     Layout,
     /// The skills and their pointers.
     Skills,
+    /// Whether `TEMPLATE-SETUP.md` is a file.
+    SetupFile,
+    /// The files the template's placeholders stand in.
+    Identity,
 }
 
 /// A path a relative link names, as the bash tests it: whether it exists, as `-e` finds it, and
@@ -182,6 +186,8 @@ pub const ALL: &[Rule] = &[
     docs_check_lists::RULE,
     docs_project_layout::RULE,
     docs_skill_pointers::RULE,
+    docs_inherited_adrs::RULE,
+    docs_template_identity::RULE,
     docs_template_release::RULE,
 ];
 

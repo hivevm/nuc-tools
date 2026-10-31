@@ -839,3 +839,33 @@ fn a_skill_directory_outside_the_repository_is_not_listed() {
         stderr(&output)
     );
 }
+
+/// Verifies: ADR-0013
+#[test]
+fn the_inherited_adrs_and_the_identity_are_checked_once_the_setup_file_is_gone() {
+    let config =
+        "minimum = \"0.0.0\"\nrules = [\"docs/inherited-adrs\", \"docs/template-identity\"]\n";
+    let readme = format!(
+        "# NUC — an Agentic Fixture\n\n{}",
+        &README["# Fixture\n\n".len()..]
+    );
+    let fixture = Fixture::project("identity", config, &readme);
+    fixture.write(
+        "docs/adr/0001-a.md",
+        "# A\n\n- **Status:** 🟢 accepted\n- **Deciders:** NUC maintainer\n- **Applies to:** x\n",
+    );
+    fixture.write("TEMPLATE-SETUP.md", "# Template setup\n");
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(0), "{}", stdout(&output));
+    std::fs::remove_file(fixture.root().join("TEMPLATE-SETUP.md")).expect("removed");
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(
+        stdout(&output).lines().collect::<Vec<_>>(),
+        [
+            "docs/adr/0001-a.md: docs/inherited-adrs: inherited from the template and not decided by this project — add your name to Deciders and accept it, or supersede it (docs/adr/README.md)",
+            "README.md: docs/template-identity: the title is still the template's; give the project its name",
+        ],
+        "{}",
+        stderr(&output)
+    );
+}
