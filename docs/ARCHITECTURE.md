@@ -60,8 +60,7 @@ golden path and the test pattern an agent copies from are named here.
   of `tests/parity/variants.tsv` that is for it, both as a pull request into `main` marked ready,
   and compares their findings by `tests/parity/normalize.tsv`. A variant edits, deletes, or
   writes one path inside a copy of the tree, never under its `.git`
-  ([ADR-0020](adr/0020-parity-harness-with-variants.md),
-  ADR-0022).
+  ([ADR-0022](adr/0022-parity-variants-name-their-trees.md)).
 - **Release tooling** — `release/` builds a binary per target, writes `SHA256SUMS`, checks the
   tag against the crate's version, writes the release commit, and moves the major tag;
   `release/install-nuc.sh` is the one installer, run by the Action and the Feature, and refuses a
