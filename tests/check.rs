@@ -1121,3 +1121,36 @@ fn a_path_that_is_no_utf8_is_read_and_refused_only_where_it_holds_a_marker() {
         stderr(&output)
     );
 }
+
+#[test]
+fn the_criteria_without_a_test_are_named_in_the_summary_and_never_fail_the_run() {
+    let config = "minimum = \"0.0.0\"\nrules = [\"traceability/coverage\"]\n";
+    let fixture = Fixture::project("coverage", config, README);
+    fixture.write(
+        "docs/SPECIFICATION.md",
+        "## Goals / Success Criteria\n\n- **G-1** — a.\n- **G-2** — b.\n\n## Quality Goals\n\n\
+         - **Q-1** — c.\n",
+    );
+    fixture.write("tests/t.txt", &mark("G-2"));
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(0), "{}", stdout(&output));
+    assert_eq!(
+        stderr(&output),
+        "nuc check passed (1 rules); 2 criteria without a test: G-1 Q-1.\n"
+    );
+    fixture.write(
+        "docs/adr/0001-decision.md",
+        "# ADR-0001: decision\n\n- **Status:** 🟢 accepted\n",
+    );
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(1), "{}", stderr(&output));
+    assert!(
+        stdout(&output).starts_with("docs/adr: traceability/coverage: ADR-0001 is accepted"),
+        "{}",
+        stdout(&output)
+    );
+    assert_eq!(
+        stderr(&output),
+        "nuc check: 1 finding(s); 2 criteria without a test: G-1 Q-1.\n"
+    );
+}

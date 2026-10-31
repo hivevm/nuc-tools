@@ -58,3 +58,7 @@ criteria-no-identifier	traceability/criteria	docs/SPECIFICATION.md	sed	s/^([0-9]
 citations-missing-adr	traceability/citations	scripts/check-all.sh	sed	$s/$/\n# Verifies\x3a ADR\x2d9999/
 citations-unknown-criterion	traceability/citations	scripts/check-all.sh	sed	$s/$/\n# Verifies\x3a Q-999/
 citations-superseded	traceability/citations	docs/adr/0001-agent-governance-model.md	sed	s/^- \*\*Status:\*\* .*/- **Status:** ⚪ superseded by ADR-0002/
+
+# traceability/coverage: parts 2 and 4 of check-traceability.sh.
+coverage-uncited	traceability/coverage	docs/adr/0999-parity-variant.md	write	- **Status:** 🟢 accepted
+coverage-no-reason	traceability/coverage	docs/adr/0001-agent-governance-model.md	sed	$s/$/\n\n**Not mechanically decidable:**/

@@ -128,11 +128,12 @@ printf '%s\n' $'^x\tdocs/x\t-\tdocs/adr/' > "$work/bad-place.tsv"
 expect fail "a place that is neither '=' nor '+' is refused" "is not 'pattern<TAB>rule ID" \
   env PARITY_TABLE="$work/bad-place.tsv" bash "$HARNESS" --compare "$(bash_out bad-place)" 0 "$(nuc_out bad-place)" 0
 
-# The two scripts' outputs read as one: a finding of check-traceability.sh not ported yet beside
-# a passing check-docs.sh is understood and left out.
-printf '%s\n' "Documentation checks passed." "Traceability check FAILED:" \
-  "  - ADR-0001 is accepted but no test cites it — add a 'Verifies' marker" > "$work/joined.bash"
-expect pass "the outputs of both scripts are understood" "" compare "$work/joined.bash" 1 "$(nuc_out joined)" 0
+# The two scripts' outputs read as one: a finding of check-traceability.sh beside a passing
+# check-docs.sh is understood and compared.
+UNCITED="ADR-0001 is accepted but no test cites it — add a 'Verifies' marker"
+printf '%s\n' "Documentation checks passed." "Traceability check FAILED:" "  - $UNCITED" > "$work/joined.bash"
+expect pass "the outputs of both scripts are understood" "" \
+  compare "$work/joined.bash" 1 "$(nuc_out joined "docs/adr: traceability/coverage: $UNCITED")" 1
 
 # --- cases: a run over a corpus -----------------------------------------------------------
 

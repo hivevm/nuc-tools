@@ -25,10 +25,10 @@ const MARKER: &[u8] = b"Verifies:";
 
 /// One identifier one marker cites.
 #[derive(Debug, PartialEq, Eq)]
-struct Citation {
-    file: String,
-    line: usize,
-    id: String,
+pub struct Citation {
+    pub file: String,
+    pub line: usize,
+    pub id: String,
 }
 
 fn check(inputs: &Inputs) -> Vec<Finding> {
@@ -81,7 +81,7 @@ fn record(dir: &adr::Dir) -> (BTreeSet<String>, BTreeSet<String>) {
 
 /// Every citation of every file, in the order of the files and their lines, each as often as it
 /// is written.
-fn citations(markers: &BTreeMap<String, Vec<u8>>) -> Vec<Citation> {
+pub fn citations(markers: &BTreeMap<String, Vec<u8>>) -> Vec<Citation> {
     let mut found = Vec::new();
     for (file, bytes) in markers {
         for (i, line) in adr::awk_lines(bytes).into_iter().enumerate() {

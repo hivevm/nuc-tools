@@ -83,9 +83,11 @@ carries checks it, v0.5.0 or later: `docs/adr-index`, `docs/adr-numbering`, `doc
 `docs/section-refs`, `docs/adr-refs`, `docs/adr-link-targets`, `docs/adr-header`,
 `docs/adr-supersessions`, `docs/check-lists`, `docs/project-layout`, `docs/skill-pointers`,
 `docs/inherited-adrs`, `docs/template-identity`, `docs/prose-width`, `docs/no-draft-on-main`, and
-`docs/template-release`. From the template's `check-traceability.sh` they port the criteria of
-the specification, `traceability/criteria`, and the citations of the `Verifies` markers,
-`traceability/citations`. `nuc explain <rule ID>` gives each rule's reason.
+`docs/template-release`. They port every part of the template's `check-traceability.sh` too:
+the criteria of the specification, `traceability/criteria`; the citations of the `Verifies`
+markers, `traceability/citations`; and the accepted ADRs each cited or exempt,
+`traceability/coverage`, which names the criteria no test cites yet in the summary on standard
+error. `nuc explain <rule ID>` gives each rule's reason.
 `nuc hook <name>` follows with the port of the hooks.
 
 ## Project Layout

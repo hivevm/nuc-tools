@@ -151,13 +151,34 @@ fn check(repo: Option<&Path>) -> Result<u8, String> {
     for finding in &findings {
         println!("{finding}");
     }
-    if findings.is_empty() {
-        eprintln!("nuc check passed ({} rules).", selected.len());
-        Ok(PASSED)
+    eprintln!("{}", summary(&selected, &inputs, findings.len()));
+    Ok(if findings.is_empty() { PASSED } else { FOUND })
+}
+
+/// The closing line of `nuc check`: whether it passed, and, while the coverage rule runs, the
+/// criteria no test cites yet, as the bash's traceability check names them. They are pending
+/// work and never change the exit code.
+fn summary(selected: &[&rules::Rule], inputs: &Inputs, found: usize) -> String {
+    let mut line = if found == 0 {
+        format!("nuc check passed ({} rules)", selected.len())
     } else {
-        eprintln!("nuc check: {} finding(s).", findings.len());
-        Ok(FOUND)
+        format!("nuc check: {found} finding(s)")
+    };
+    if selected
+        .iter()
+        .any(|rule| rule.id == rules::traceability_coverage::RULE_ID)
+    {
+        let pending = rules::traceability_coverage::pending(inputs);
+        if !pending.is_empty() {
+            line.push_str(&format!(
+                "; {} criteria without a test: {}",
+                pending.len(),
+                pending.join(" ")
+            ));
+        }
     }
+    line.push('.');
+    line
 }
 
 /// The Markdown files with a wide line that git's attributes mark `linguist-generated`, as the
