@@ -9,7 +9,7 @@
 # counted (a docs-only commit, a merge, a change of the number), the due message with its
 # directories and their changes, and the three ways the line fails to read.
 #
-# Verifies: ADR-0002
+# Verifies: ADR-0023
 # Inputs: scripts/sensor-revision-due.sh scripts/lib/
 #
 # Usage:

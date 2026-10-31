@@ -24,11 +24,14 @@ Run in a fresh session. Name the entry point with the human:
 - **A template release:** a derived project takes up a later release. The inputs add the
   template's ADRs and specification scaffold at the tag the `Template release` line of
   [`README.md`](../../../README.md) names and at the new tag, and the release notes. What changed
-  between the two tags is what enters. Where the project has normalized before, the maps in the
-  commit bodies of its normalizations, read in order, say which of its ADRs restates which
-  template ADR. `AGENTS.md` is taken up as the release has it, except the ADR rules of
-  [§3](../../../AGENTS.md#3-adr-rules) that an ADR of the project on the ADR process changed:
-  those keep the project's wording, as its opening note says.
+  between the two tags is what enters. A template ADR the release corrected in place enters by
+  the normalization, a correction that changes a decision as one of its
+  [supersessions](#3-the-supersessions), never as an edit of an accepted ADR outside a normalization
+  ([ADR-0024](../../../docs/adr/0024-template-releases.md)). Where the project has normalized
+  before, the maps in the commit bodies of its normalizations, read in order, say which of its
+  ADRs restates which template ADR. `AGENTS.md` is taken up as the release has it, except the
+  ADR rules of [§3](../../../AGENTS.md#3-adr-rules) that an ADR of the project on the ADR
+  process changed: those keep the project's wording, as its opening note says.
 
 An adoption or a template release brings the template's git hooks and its repository settings
 with its files:
@@ -44,7 +47,7 @@ with its files:
   for an adoption all of it, for a release what changed in the template's section between the
   two tags, such as the merge method or a required check.
   [`scripts/sensor-repo-settings.sh`](../../../scripts/sensor-repo-settings.sh), run on the
-  maintainer's instruction ([ADR-0002](../../../docs/adr/0002-decisions-verified-by-tests.md)),
+  maintainer's instruction ([ADR-0023](../../../docs/adr/0023-decisions-verified-by-tests.md)),
   reports what differs once the new README is in.
   A ruleset that still requires a check the workflow no longer runs blocks the merge; one that
   lacks a new check lets the merge through while that check fails.
@@ -113,5 +116,5 @@ cut, the clause table, and the review in its hand-off. One pull request lands th
 ([`AGENTS.md` §6](../../../AGENTS.md#6-project-rules)).
 
 In the template, the release that lands a normalization is a major, and its notes carry the map
-([ADR-0005](../../../docs/adr/0005-template-releases.md)). In a derived project that took up a
+([ADR-0024](../../../docs/adr/0024-template-releases.md)). In a derived project that took up a
 release, the `Template release` line moves to it in the same change.

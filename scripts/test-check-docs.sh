@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Self-test of scripts/check-docs.sh. Verifies: ADR-0001 ADR-0003 ADR-0005
+# Self-test of scripts/check-docs.sh. Verifies: ADR-0001 ADR-0003 ADR-0024
 #
 # Each case builds a throwaway git repository under a temporary directory — a rule file with
 # numbered sections, a README with a Project Layout block, the required-checks markers, and the
@@ -701,7 +701,7 @@ d="$(repo check-lists)"
 echo 'run "Extra" scripts/check-extra.sh' >> "$d/scripts/check-all.sh"
 expect fail "a check the local runner has and CI does not" "$d" "CI and the local gate disagree"
 
-# Verifies: ADR-0002
+# Verifies: ADR-0023
 d="$(repo script-in-no-list)"
 echo 'echo new' > "$d/scripts/check-new.sh"
 expect fail "a script that neither list runs" "$d" "scripts/check-new.sh: no workflow and not scripts/check-all.sh runs it"
@@ -810,7 +810,7 @@ matrix_job() {
   sed_in "$dir/README.md" "s|^\`docs\`\$|\`docs\`, $names|"
 }
 
-# Verifies: ADR-0002
+# Verifies: ADR-0023
 d="$(repo matrix-runs)"
 # shellcheck disable=SC2016  # the backticks are literal Markdown, not a command substitution
 matrix_job "$d" '`build (ubuntu-latest)`, `build (macos-latest)`'
@@ -856,7 +856,7 @@ expect pass "docs/plan/ named while there is no open work" "$d"
 
 # --- cases: drafts (checks 1, 2, 5, 6, 8, and 16) ---------------------------------------
 
-# Verifies: ADR-0002
+# Verifies: ADR-0023
 DRAFT="draft"
 # draft_id <slug> — the draft identifier of a slug, assembled for the same reason as adr_id.
 draft_id() { printf 'ADR-%s-%s' "$DRAFT" "$1"; }

@@ -62,7 +62,7 @@ and whatever else the specification's threats protect.
 
 None, as a rule: who reviews, who decides which ADRs, and what runs unattended is decided
 outside the tree. The ADR says so in a `**Not mechanically decidable:**` paragraph
-([ADR-0002](../../../../docs/adr/0002-decisions-verified-by-tests.md)). What the harness relies
+([ADR-0023](../../../../docs/adr/0023-decisions-verified-by-tests.md)). What the harness relies
 on mechanically is already checked: the git hooks, the required checks, and the Code Owners
 review of the repository settings.
 
