@@ -1,5 +1,5 @@
-//! The command-line contract of `nuc`, clause by clause, on fixture repositories. Verifies:
-//! ADR-draft-command-line-contract
+//! The command-line contract of `nuc`, clause by clause, on fixture repositories.
+//! Verifies: ADR-draft-command-line-contract
 
 mod support;
 
