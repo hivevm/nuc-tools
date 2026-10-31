@@ -35,11 +35,11 @@ cannot place.
   ports the change ([ADR-0013](0013-version-coupling.md)).
 - **`unreleased`:** checked as the newest release this `nuc` knows.
 - **Not decided:** when a rule turned on reads the release, `nuc` refuses a tree whose release
-  is before v0.5.0, the earliest the rules port. It also refuses a tree without a `README.md`,
-  and one whose README has no `Template release` line or a line that names no release, unless
-  `docs/template-release` is turned on. That rule then fails the run with the finding the bash
-  reports, and a rule that reads the release reports only the findings it reports on every
-  release it knows: those no release could take back.
+  is before v0.5.0, the earliest the rules port, and a tree without a `README.md`, whatever
+  rules are turned on. It also refuses a tree whose README has no `Template release` line or a
+  line that names no release, unless `docs/template-release` is turned on. That rule then fails
+  the run with the finding the bash reports, and a rule that reads the release reports only the
+  findings it reports on every release it knows: those no release could take back.
 - **The corpus:** for each release at which a ported check changed, the parity corpus pins a
   tree that carries it.
 
@@ -78,9 +78,10 @@ releases (G-4).
 
 ## Enforcement
 
-The tests of `src/rules/docs_adr_supersessions.rs` and `tests/check.rs` cite this ADR with a
-`Verifies:` marker: a rule checks a tree on v0.5.x and one on v0.6.0 each as its bash check does,
-and that `nuc` refuses a tree whose release it cannot place. The parity harness runs the template
-at v0.5.0 and at v0.6.0 ([ADR-0020](0020-parity-harness-with-variants.md)). A variant edits one
-file, while the behaviour that differs between the releases needs two ADRs, so only the tests
-above tell the two behaviours apart.
+The tests of `src/rules/docs_adr_supersessions.rs`, `src/rules/docs_check_lists.rs`, and
+`tests/check.rs` cite this ADR with a `Verifies:` marker: a rule checks a tree on v0.5.x and one on
+v0.6.0 each as its bash check does, and `nuc` refuses a tree whose release it cannot place. The
+parity harness runs the template at v0.5.0 and at v0.6.0
+([ADR-0020](0020-parity-harness-with-variants.md)). For check 8 a variant edits one file, while
+the behaviour that differs between the releases needs two ADRs, so only the tests above tell the
+two behaviours apart there.
