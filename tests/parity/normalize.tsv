@@ -28,8 +28,8 @@
 ^[^ :]+: heading says '.*', but the filename says ADR-	docs/adr-numbering	-	+docs/adr/
 ^[^ :]+: a draft's slug is lower case letters and digits joined by single hyphens$	docs/adr-numbering	-	+docs/adr/
 
-# check-docs.sh, check 7: the ADR headers; the stray field names a line the comparison leaves out.
-^[^ :]+:[0-9]+: a header field not written as the list item 	docs/adr-header	-	+docs/adr/
-^[^ :]+: status line carries [0-9]+ status emoji	docs/adr-header	-	+docs/adr/
-^[^ :]+: status line reads 	docs/adr-header	-	+docs/adr/
-^[^ :]+: still carries the instruction paragraph from template\.md	docs/adr-header	-	+docs/adr/
+# check-docs.sh, check 7: the ADR headers; the stray field names its line, the others none.
+^[^ :]+:[0-9]+: a header field not written as the list item 	docs/adr-header	line	+docs/adr/
+^[^ :]+: status line carries [0-9]+ status emoji	docs/adr-header	line	+docs/adr/
+^[^ :]+: status line reads 	docs/adr-header	line	+docs/adr/
+^[^ :]+: still carries the instruction paragraph from template\.md	docs/adr-header	line	+docs/adr/

@@ -39,6 +39,10 @@
 
 set -uo pipefail
 
+# The harness reads the bash output byte by byte, as the checks write it under LC_ALL=C: in a
+# UTF-8 locale a byte that is no UTF-8 would keep a table row from matching its message.
+export LC_ALL=C
+
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TABLE="${PARITY_TABLE:-$ROOT/tests/parity/normalize.tsv}"
 
@@ -69,11 +73,20 @@ mode_of() {
   echo "unknown"
 }
 
-# key <rule> <file> <line> — the normalized finding, its line kept only where the table says so.
+# key <rule> <file> <line> <text> — the normalized finding: its line kept only where the table
+# says so, and its text, which nuc words as the bash does.
 key() {
   local line="$3"
   [[ "$(mode_of "$1")" == "line" ]] || line=""
-  printf '%s\t%s\t%s\n' "$1" "$2" "$line"
+  printf '%s\t%s\t%s\t%s\n' "$1" "$2" "$line" "$(canonical "$4")"
+}
+
+# canonical <text> — the text without the bytes that are no UTF-8 and without U+FFFD: the bash
+# prints such a byte as it is, nuc shows it as U+FFFD, and both name the same byte.
+canonical() {
+  local text
+  text="$(printf '%s' "$1" | iconv -c -f UTF-8 -t UTF-8 2>/dev/null)"
+  printf '%s' "${text//$'\xef\xbf\xbd'/}"
 }
 
 # compare <label> <bash output> <bash exit> <nuc output> <nuc exit> — print the differences of
@@ -81,7 +94,7 @@ key() {
 compare() {
   local label="$1" bash_out="$2" bash_rc="$3" nuc_out="$4" nuc_rc="$5"
   local -a diffs=() bash_keys=() nuc_keys=()
-  local line msg i rule file n bash_any=0
+  local line msg i rule file n text bash_any=0
   while IFS= read -r line; do
     case "$line" in
       "  - "*)
@@ -97,11 +110,14 @@ compare() {
             file="${BASH_REMATCH[1]}"
             [[ "${modes[i]}" == "line" ]] && n="${BASH_REMATCH[2]}"
           fi
+          # The text is the message after its location, or the whole message where the table
+          # places it at a path of its own.
+          text="${msg#*: }"
           case "${places[i]}" in
-            =*) file="${places[i]#=}" ;;
+            =*) file="${places[i]#=}" text="$msg" ;;
             +*) file="${places[i]#+}$file" ;;
           esac
-          bash_keys+=("$(key "$rule" "$file" "$n")")
+          bash_keys+=("$(key "$rule" "$file" "$n" "$text")")
         fi
         ;;
       "" | "Documentation checks FAILED:" | "Documentation checks passed.") ;;
@@ -112,7 +128,7 @@ compare() {
     if [[ "$line" =~ ^([^:]+)(:([0-9]+))?:\ ([a-z0-9]+/[a-z0-9-]+):\  ]]; then
       rule="${BASH_REMATCH[4]}"
       [[ "$(mode_of "$rule")" == "unknown" ]] && diffs+=("nuc reports '$rule', which the table maps no message to")
-      nuc_keys+=("$(key "$rule" "${BASH_REMATCH[1]}" "${BASH_REMATCH[3]}")")
+      nuc_keys+=("$(key "$rule" "${BASH_REMATCH[1]}" "${BASH_REMATCH[3]}" "${line#"${BASH_REMATCH[0]}"}")")
     else
       diffs+=("nuc output not understood: $line")
     fi
