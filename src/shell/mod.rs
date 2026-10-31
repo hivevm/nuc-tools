@@ -121,7 +121,8 @@ fn check(repo: Option<&Path>) -> Result<u8, String> {
     if needs(Input::SetupFile) {
         inputs.setup_file = tree.root.join("TEMPLATE-SETUP.md").is_file();
     }
-    if needs(Input::Identity) {
+    // While the setup file exists the identity rule is silent, so it reads nothing (check 13).
+    if needs(Input::Identity) && !inputs.setup_file {
         for &file in rules::docs_template_identity::FILES {
             let path = tree.root.join(file);
             if path.is_file()
@@ -300,6 +301,8 @@ impl Tree {
                 || ((name == "README.md" || name == "template.md") && entry.path().is_file());
             let bytes = if wanted {
                 self.read_record_file(&entry.path())?
+                    .map(|bytes| unit_separator_free(&entry.path(), bytes))
+                    .transpose()?
             } else {
                 None
             };
@@ -421,6 +424,19 @@ impl Tree {
         }
         Ok(resolved)
     }
+}
+
+/// The bytes of an ADR file without the unit separator, byte 0x1F, which the bash splits its awk
+/// output on, so that a field holding it reads differently there; such a file is not decided
+/// (Q-1).
+fn unit_separator_free(path: &Path, bytes: Vec<u8>) -> Result<Vec<u8>, String> {
+    if bytes.contains(&0x1F) {
+        return Err(format!(
+            "{}: holds the byte 0x1F, which the bash reads the record's fields apart by — not decided",
+            path.display()
+        ));
+    }
+    Ok(bytes)
 }
 
 /// The bytes within which `grep -I` finds a NUL byte however its buffers fall: GNU grep reads

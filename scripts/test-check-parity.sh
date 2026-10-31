@@ -245,6 +245,9 @@ expect fail "a variant that does not apply to one tree of the corpus fails and n
   "agree, variant other-only — its edit of README.md does not apply" run "$two" "$(reactive_nuc)" "$v"
 v="$(variants "$work/v-named.tsv" "$DELETE" $'other-only\tdocs/template-release\tREADME.md\tsed\t/Template release:/{N;/\\nOther$/d}\tother')"
 expect pass "a variant that names its trees is for those alone" "" run "$two" "$(reactive_nuc)" "$v"
+v="$(variants "$work/v-named-unfit.tsv" "$DELETE" $'other-only\tdocs/template-release\tREADME.md\tsed\t/Template release:/{N;/\\nOther$/d}\tagree,other')"
+expect fail "a variant that does not apply to a tree it names fails" \
+  "agree, variant other-only — its edit of README.md does not apply" run "$two" "$(reactive_nuc)" "$v"
 v="$(variants "$work/v-lacks.tsv" "$DELETE" $'other-only\tdocs/template-release\tREADME.md\tsed\t/Template release:/{N;/\\nOther$/d}\tother,gone')"
 expect fail "a variant that names a tree the corpus lacks fails" "names the tree 'gone', which the corpus lacks" \
   run "$two" "$(reactive_nuc)" "$v"

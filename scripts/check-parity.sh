@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Parity harness (ADR-0020, Q-2).
+# Parity harness (ADR-draft-parity-variants-name-their-trees, Q-2).
 #
 # Runs the bash checks a repository of the corpus carries and nuc on the same tree, and fails on
 # any difference in their findings or their exit status. The corpus is tests/parity/corpus.toml:
@@ -8,10 +8,12 @@
 # cache that cannot be filled fails the harness, never skips the repository (Q-1). A tree whose
 # README names a template release before v0.5.0, or none, is refused and never compared.
 #
-# Each tree is compared as pinned and on each variant of tests/parity/variants.tsv it fits: an
-# edit that makes a ported rule fire, applied to a copy in a directory of the harness's own, never
-# to the cache. A variant that fits no tree fails, and so does one on which bash reports no
-# finding of its rule, since agreement on a rule that never fires decides nothing.
+# Each tree is compared as pinned and on each variant of tests/parity/variants.tsv that is for it:
+# an edit that makes a ported rule fire, applied to a copy in a directory of the harness's own,
+# never to the cache. A variant is for the trees it names, or for every tree when it names none.
+# It fails on a tree it is for where its edit does not apply, or where bash reports no finding of
+# its rule, since agreement on a rule that never fires decides nothing; so does one that names a
+# tree the corpus lacks.
 #
 # For each repository and each variant:
 #   1. The bash scripts with a ported rule run in the tree, with the environment cleared to PATH,

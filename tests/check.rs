@@ -869,3 +869,25 @@ fn the_inherited_adrs_and_the_identity_are_checked_once_the_setup_file_is_gone()
         stderr(&output)
     );
 }
+
+#[test]
+fn an_adr_holding_the_unit_separator_is_not_decided() {
+    let config = "minimum = \"0.0.0\"\nrules = [\"docs/inherited-adrs\"]\n";
+    let fixture = Fixture::project("unit-separator", config, README);
+    fixture.write(
+        "docs/adr/0001-a.md",
+        "# A\n\n- **Status:** 🟢 accepted\n- **Deciders:** NUC maintainer\u{1f}\n- **Applies to:** x\n",
+    );
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(2), "{}", stdout(&output));
+    assert!(stderr(&output).contains("0x1F"), "{}", stderr(&output));
+}
+
+#[test]
+fn while_the_setup_file_exists_the_identity_files_are_not_read() {
+    let fixture = only("identity-setup", "docs/template-identity", README);
+    fixture.write("TEMPLATE-SETUP.md", "# Template setup\n");
+    std::fs::write(fixture.root().join("LICENSE"), b"Copyright\0 Maintainer\n").expect("written");
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(0), "{}", stderr(&output));
+}
