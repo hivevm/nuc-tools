@@ -24,14 +24,38 @@ The parts the system is made of, each with one responsibility, named in the voca
 [`GLOSSARY.md`](GLOSSARY.md). One level deep, deeper only where the size of a part earns it. The
 golden path and the test pattern an agent copies from are named here.
 
-- **<Part>** — what it is responsible for, what it deliberately does not do, and the ADR that
-  put it there.
-
-TODO — fill in once there is more than one part.
+- **Rules** — one module each under `src/rules/`, a pure function from the inputs the shell read
+  to the findings, with one rule ID and the reason `nuc explain` gives; the list of every rule is
+  `rules::ALL`. A rule reads no file and runs no process
+  ([ADR-draft-functional-core](adr/draft-functional-core.md)).
+- **Configuration** — `config` reads `nuc.toml` and selects the rules it turns on, or says why
+  `nuc` refuses: missing, unreadable, a minimum above the running version, an unknown rule ID
+  ([ADR-draft-version-coupling](adr/draft-version-coupling.md)).
+- **Shell** — `src/shell/` reads the command line and the repository, runs git under a cleared
+  environment in `shell::git`, calls the rules, prints the findings, and sets the exit code
+  ([ADR-draft-git-cli-cleared-environment](adr/draft-git-cli-cleared-environment.md)).
+- **Binary** — `src/main.rs` calls the shell and nothing else.
+- **Parity harness** — `scripts/check-parity.sh` runs the bash checks of each repository of the
+  corpus and `nuc` on the same tree and compares their findings
+  ([ADR-draft-parity-harness](adr/draft-parity-harness.md)).
+- **The golden path** — the rule `docs/template-release`, check 14 of the template's
+  `check-docs.sh`, and the pieces it takes through every layer. A new rule copies it:
+  1. a module under `src/rules/` with its `RULE_ID`, an `area/name`, and its `RULE`, listed in
+     `rules::ALL`, its unit tests the cases of the bash self-test of the check it ports;
+  2. what it needs to read, added to the inputs and read by the shell;
+  3. its rows in the normalization table of the parity harness, one per bash message.
+- **The test pattern** — `tests/check.rs`: a fixture repository built through git by
+  `tests/support/`, `nuc` run on it as a process under a cleared environment, and its exit code
+  and output asserted. The structural test `tests/functional_core.rs` holds the shape
+  ([ADR-draft-fixture-repositories](adr/draft-fixture-repositories.md)).
 
 ## How it runs
 
 The few paths worth following end to end, such as a request, a job, or a build, and where state
 lives between them. Only what a newcomer would otherwise reconstruct from code.
 
-TODO — fill in once there is more than one part to connect.
+`nuc check` finds the root of the working tree with `git rev-parse --show-toplevel`, reads
+`nuc.toml` there and selects the rules it turns on, reads `README.md`, runs each selected rule on
+what it read, prints the findings on the standard output, and exits 0 without a finding and 1
+with one. Every cause that keeps it from deciding ends the run with exit 2 and a message on the
+standard error, before any rule runs (Q-1). Nothing is written and no state is kept between runs.
