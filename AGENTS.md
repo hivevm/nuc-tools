@@ -88,7 +88,7 @@ restates nothing. A rule this file does not state is not a rule of this project.
    permitted, both by a human. One flips the `Status` line. The other adds the project's decider
    to the `Deciders` line of an ADR inherited from the template, when the project accepts it as
    its own. ADR numbers are permanent between normalizations. The template repository corrects
-   its own ADRs in place ([ADR-0005](docs/adr/0005-template-releases.md)). If the specification
+   its own ADRs in place ([ADR-0024](docs/adr/0024-template-releases.md)). If the specification
    and an ADR conflict, the specification wins. Raise the conflict; never choose silently.
 
    **A normalization restates the record, only on a human's instruction.** The specification is
@@ -160,7 +160,7 @@ restates nothing. A rule this file does not state is not a rule of this project.
   against the new implementation.
 - **Every accepted ADR, and every specification criterion (`G-n`, `Q-n`) a change meets, is
   cited by a test** with a `Verifies: <id>` marker
-  ([ADR-0002](docs/adr/0002-decisions-verified-by-tests.md)). An ADR no test can decide says so
+  ([ADR-0023](docs/adr/0023-decisions-verified-by-tests.md)). An ADR no test can decide says so
   in its *Enforcement* section. A criterion no test cites yet is pending work.
 - **Never weaken the suite to make it pass. A flaky test is a defect, not noise:** no retries, no
   re-running until green.
