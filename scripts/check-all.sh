@@ -198,6 +198,8 @@ run "Gates self-test" scripts/test-check-gates.sh
 run "Gates" scripts/check-gates.sh
 run "Build, test, and lint" scripts/check-build.sh
 run "Dependency audit" scripts/check-deps.sh
+run "Parity harness self-test" scripts/test-check-parity.sh
+run "Parity" scripts/check-parity.sh
 
 wait
 
