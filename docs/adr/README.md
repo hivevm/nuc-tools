@@ -103,6 +103,7 @@ is the table a session reads.
 | [draft-no-stored-secrets](draft-no-stored-secrets.md) | The workflows use no stored secret, only `GITHUB_TOKEN` and OIDC with permissions set per job | every workflow under `.github/workflows/`, its `permissions`, and every reference to `secrets.` in them | 🟡 proposed |
 | [draft-dev-container-with-rust](draft-dev-container-with-rust.md) | The Dev Container keeps the template's Debian base image, adds the Rust Feature, and reaches no containers | `.devcontainer/devcontainer.json`, `.devcontainer/devcontainer-lock.json`, and the tools the container installs | 🟡 proposed |
 | [draft-gates-never-run-the-build](draft-gates-never-run-the-build.md) | This repository's gates never run the `nuc` being built, only the template's bash or a released `nuc` pinned like any dependency | `scripts/check-all.sh`, the hooks under `.githooks/`, the jobs of `.github/workflows/checks.yml`, and every place they name the tool that runs a check | 🟡 proposed |
+| [draft-command-line-contract](draft-command-line-contract.md) | `nuc` reads `nuc.toml` as a TOML subset, writes one finding per line as `<file>[:<line>]: <rule ID>: <message>`, and exits 0, 1, or 2 | the keys and the syntax of `nuc.toml` and how `src/config.rs` reads them, the text output of every `nuc` command, and its exit codes | 🟡 proposed |
 
 ### Superseded and rejected
 
