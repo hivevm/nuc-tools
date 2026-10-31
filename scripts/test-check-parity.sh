@@ -1,13 +1,20 @@
 #!/usr/bin/env bash
 #
-# Self-test of scripts/check-parity.sh. Verifies: ADR-0012
+# Self-test of scripts/check-parity.sh. Verifies: ADR-0020
 #
 # The comparison cases feed the harness pairs of outputs through '--compare': pairs that differ in
 # one finding, in one exit status, by one bash message the table does not know, or by a line nuc
-# writes that is no finding fail; pairs that agree pass, a check not ported yet included. The run
-# cases build a corpus from a fixture repository, fetched through file://, whose check-docs.sh is a
-# stub, and run the harness with a stand-in for nuc: agreeing outputs pass, differing ones fail, a
-# corpus whose cache cannot be filled fails, and a malformed corpus is refused. No network and no
+# writes that is no finding fail; pairs that agree pass, a check not ported yet included.
+#
+# The run cases build a corpus from fixture repositories, fetched through file://, whose
+# check-docs.sh is a stub that reports the missing release line as check 14 does, and run the
+# harness with a stand-in for nuc. Agreeing trees and variants pass and leave the cache as pinned;
+# differing ones, a cache that cannot be filled, and a malformed corpus fail. The floor cases
+# refuse a tree whose release line names a release before v0.5.0, a pre-release, 'unreleased',
+# or none, read as check 14 reads it, and compare a later one. The variant cases fail a variant
+# that does not apply to one tree, one that does not make its rule fire beyond the tree's own
+# findings, a ported rule without one, a path outside the tree, a sed expression that runs a
+# command or writes a file, a name used twice, and a malformed or unmapped row. No network and no
 # build.
 #
 # Inputs: scripts/check-parity.sh tests/parity/ scripts/lib/
@@ -25,6 +32,8 @@ HARNESS="$ROOT/scripts/check-parity.sh"
 MISSING="README.md: no '**Template release:**' line — the Template section names the release of the template this repository carries, or 'unreleased' (ADR-0005)"
 MALFORMED="README.md: the Template release line names neither a 'vX.Y.Z' tag nor 'unreleased' — a release moves it to the tag it cuts (ADR-0005)"
 UNPORTED="docs/x.md:3: a line of prose is 104 columns, over 100"
+# The texts nuc words as the bash does: the message after its location.
+MISSING_TEXT="${MISSING#README.md: }" MALFORMED_TEXT="${MALFORMED#README.md: }"
 
 # bash_out <name> [messages...] — the output of check-docs.sh with the messages as its findings.
 bash_out() {
@@ -67,7 +76,7 @@ compare() { bash "$HARNESS" --compare "$@"; }
 expect pass "both pass" "" compare "$(bash_out pass)" 0 "$(nuc_out pass)" 0
 
 expect pass "the same finding, bash without a line, nuc with one" "" \
-  compare "$(bash_out same "$MALFORMED")" 1 "$(nuc_out same "README.md:5: docs/template-release: $MALFORMED")" 1
+  compare "$(bash_out same "$MALFORMED")" 1 "$(nuc_out same "README.md:5: docs/template-release: $MALFORMED_TEXT")" 1
 
 # The table of the repository and a row for a check not ported yet.
 { cat "$ROOT/tests/parity/normalize.tsv"; printf '^docs/x\\.md:[0-9]+: a line of prose\t-\t-\n'; } > "$work/unported.tsv"
@@ -98,59 +107,185 @@ expect fail "a line of nuc that is no finding" "nuc output not understood" \
 expect fail "a rule of nuc the table maps nothing to" "which the table maps no message to" \
   compare "$(bash_out unmapped)" 0 "$(nuc_out unmapped "README.md:1: docs/other: x")" 1
 
+# A table whose rows place a bash location at the file nuc names, by path and by prefix.
+printf '%s\n' $'^ADR index: lists \tdocs/x\t-\t=docs/adr/README.md' $'^[^ :]+:[0-9]+: a field\tdocs/y\t-\t+docs/adr/' \
+  > "$work/places.tsv"
+# shellcheck disable=SC2317,SC2329 # run through expect
+placed() { env PARITY_TABLE="$work/places.tsv" bash "$HARNESS" --compare "$@"; }
+expect pass "a place '=' names the file nuc names" "" \
+  placed "$(bash_out place-eq "ADR index: lists 'a.md' twice")" 1 "$(nuc_out place-eq "docs/adr/README.md:4: docs/x: ADR index: lists 'a.md' twice")" 1
+expect pass "a place '+' prefixes the bash location, its line left out under '-'" "" \
+  placed "$(bash_out place-plus "0001-a.md:3: a field")" 1 "$(nuc_out place-plus "docs/adr/0001-a.md:3: docs/y: a field")" 1
+expect fail "a place that does not name nuc's file is a difference" "only bash reports: docs/x docs/adr/README.md" \
+  placed "$(bash_out place-other "ADR index: lists 'a.md' twice")" 1 "$(nuc_out place-other "README.md: docs/x: lists")" 1
+expect fail "the same file and rule with another text is a difference" "only nuc reports: docs/x docs/adr/README.md" \
+  placed "$(bash_out place-text "ADR index: lists 'a.md' twice")" 1 \
+  "$(nuc_out place-text "docs/adr/README.md: docs/x: ADR index: lists 'b.md' twice")" 1
+printf '%s\n' $'^x\tdocs/x\t-\tdocs/adr/' > "$work/bad-place.tsv"
+expect fail "a place that is neither '=' nor '+' is refused" "is not 'pattern<TAB>rule ID" \
+  env PARITY_TABLE="$work/bad-place.tsv" bash "$HARNESS" --compare "$(bash_out bad-place)" 0 "$(nuc_out bad-place)" 0
+
 # --- cases: a run over a corpus -----------------------------------------------------------
 
-# source_repo <name> <findings...> — a repository whose check-docs.sh prints the findings, printed
-# as its path; its commit is in $work/<name>.commit.
+# source_repo <name> [README line] — a repository whose check-docs.sh reports the missing
+# release line as check 14 does whenever the README lacks a line '- **Template release:** v…',
+# printed as its path; its commit is in $work/src-<name>.commit. The README carries the line given,
+# by default one naming v0.5.0.
 source_repo() {
-  local dir="$work/src-$1"; shift
+  local dir="$work/src-$1" line="${2:-- **Template release:** v0.5.0}"
   mkdir -p "$dir/scripts"
   git -C "$dir" init -q
   git -C "$dir" config uploadpack.allowAnySHA1InWant true
-  bash_out "stub-$(basename "$dir")" "$@" > /dev/null
-  printf '#!/usr/bin/env bash\ncat %q\n[[ -s %q ]] && grep -q "^  - " %q && exit 1\nexit 0\n' \
-    "$work/stub-$(basename "$dir").bash" "$work/stub-$(basename "$dir").bash" "$work/stub-$(basename "$dir").bash" \
-    > "$dir/scripts/check-docs.sh"
-  echo "# Fixture" > "$dir/README.md"
+  # shellcheck disable=SC2016 # the script is the stub's
+  printf '%s\n' '#!/usr/bin/env bash' \
+    'if grep -q "^- \*\*Template release:\*\* v" README.md; then echo "Documentation checks passed."; exit 0; fi' \
+    "printf 'Documentation checks FAILED:\\n\\n  - %s\\n\\n1 problem(s) found.\\n' \"$MISSING\"" \
+    'exit 1' > "$dir/scripts/check-docs.sh"
+  printf '# Fixture\n\n%s\n' "$line" > "$dir/README.md"
   git -C "$dir" add -A
   git -C "$dir" -c user.name=F -c user.email=f@example.invalid -c core.hooksPath=/dev/null commit -q -m fixture
-  git -C "$dir" rev-parse HEAD > "$work/$(basename "$dir").commit"
+  git -C "$dir" rev-parse HEAD > "$work/src-$1.commit"
   echo "$dir"
 }
 
-# corpus <file> <name> <url> <commit> — a corpus with one repository.
+# corpus <file> <name>... — a corpus with the source repositories of the names, through file://.
 corpus() {
-  printf '# A fixture corpus.\n[[repository]]\nname = "%s"\nurl = "%s"\ncommit = "%s"\n' "$2" "$3" "$4" > "$1"
-  echo "$1"
+  local f="$1" n; shift
+  for n in "$@"; do
+    printf '[[repository]]\nname = "%s"\nurl = "file://%s"\ncommit = "%s"\n' \
+      "$n" "$work/src-$n" "$(cat "$work/src-$n.commit")"
+  done > "$f"
+  echo "$f"
 }
 
-# stand_in <name> <lines...> — a nuc that prints the lines and exits 1 when there are any.
-stand_in() {
-  local f="$work/nuc-$1"; shift
-  { echo '#!/usr/bin/env bash'; printf 'printf "%%s\\n" %q\n' "$@"; (($#)) && echo 'exit 1'; echo 'exit 0'; } > "$f"
+# reactive_nuc — a nuc that reports the missing release line of the tree given by --repo, as the
+# stub's check-docs.sh does.
+reactive_nuc() {
+  local f="$work/nuc-reactive"
+  # shellcheck disable=SC2016 # the script is the stand-in's
+  printf '%s\n' '#!/usr/bin/env bash' \
+    'grep -q "^- \*\*Template release:\*\* v" "$3/README.md" && exit 0' \
+    "echo $(printf %q "README.md: docs/template-release: $MISSING_TEXT"); exit 1" > "$f"
   chmod +x "$f"
   echo "$f"
 }
 
+# stand_in <name> <lines...> — a nuc that prints the lines whatever the tree, and exits 1 when
+# there are any.
+stand_in() {
+  local f="$work/nuc-$1"; shift
+  { echo '#!/usr/bin/env bash'; (($#)) && printf 'printf "%%s\\n" %q\n' "$@"; (($#)) && echo 'exit 1'; echo 'exit 0'; } > "$f"
+  chmod +x "$f"
+  echo "$f"
+}
+
+# variants <file> <rows...> — a variants file with the rows, printed as its path.
+variants() { local f="$1"; shift; printf '%s\n' "$@" > "$f"; echo "$f"; }
+
+DELETE=$'deleted\tdocs/template-release\tREADME.md\tsed\t/Template release:/d'
+DEFAULT="$(variants "$work/default.tsv" "# The variant of the one ported rule." "$DELETE")"
+
+# The table of the repository with the rows of docs/template-release alone, the one rule the
+# fixtures carry.
+grep -E $'^#|\tdocs/template-release\t' "$ROOT/tests/parity/normalize.tsv" > "$work/one-rule.tsv"
+
+# run <corpus> <nuc> [variants] — the harness on the corpus, with the default variant unless given.
 # shellcheck disable=SC2317,SC2329 # run through expect
-run() { bash "$HARNESS" --corpus "$1" --cache "$work/cache" --nuc "$2"; }
+run() {
+  env PARITY_TABLE="$work/one-rule.tsv" bash "$HARNESS" --corpus "$1" --cache "$work/cache" --nuc "$2" \
+    --variants "${3:-$DEFAULT}"
+}
 
-src="$(source_repo agree "$MISSING")"
-c="$(corpus "$work/agree.toml" agree "file://$src" "$(cat "$work/src-agree.commit")")"
-expect pass "a corpus on which bash and nuc agree" "" \
-  run "$c" "$(stand_in agree "README.md: docs/template-release: no line")"
-expect pass "the filled cache is used again, the tree reset" "" \
-  run "$c" "$(stand_in again "README.md: docs/template-release: no line")"
+source_repo agree > /dev/null
+c="$(corpus "$work/agree.toml" agree)"
+expect pass "a corpus on which bash and nuc agree, on the tree and on its variant" "" run "$c" "$(reactive_nuc)"
+expect pass "the filled cache is used again, the tree reset" "" run "$c" "$(reactive_nuc)"
+check "the run names the variant it compared" \
+  bash -c "PARITY_TABLE=\"$work/one-rule.tsv\" bash \"$HARNESS\" --corpus \"$c\" --cache \"$work/cache\" --nuc \"$(reactive_nuc)\" --variants \"$DEFAULT\" | grep -q 'variant deleted — 1 finding'"
+check "the variant leaves the cached tree as pinned" \
+  bash -c "test -z \"\$(git -C \"$work/cache/agree\" status --porcelain --untracked-files=no)\""
 
-expect fail "a corpus on which they differ" "only bash reports" run "$c" "$(stand_in differ)"
+expect fail "a corpus on which they differ" "variant deleted — 2 difference" run "$c" "$(stand_in silent)"
 
-c="$(corpus "$work/gone.toml" gone "file://$work/no-such-repository" "$(cat "$work/src-agree.commit")")"
-expect fail "a cache that cannot be filled fails" "the cache could not be filled" run "$c" "$(stand_in gone)"
+printf '[[repository]]\nname = "gone"\nurl = "file://%s"\ncommit = "%s"\n' "$work/no-such-repository" \
+  "$(cat "$work/src-agree.commit")" > "$work/gone.toml"
+expect fail "a cache that cannot be filled fails" "the cache could not be filled" run "$work/gone.toml" "$(reactive_nuc)"
 
 printf '[[repository]]\nname = "x"\nurl = "file:///x"\ncommit = "abc"\n' > "$work/short.toml"
-expect fail "a commit that is no full SHA is refused" "a 40-hex commit" run "$work/short.toml" "$(stand_in short)"
+expect fail "a commit that is no full SHA is refused" "a 40-hex commit" run "$work/short.toml" "$(reactive_nuc)"
 
 printf '[[repository]]\nname = "x"\nbranch = "main"\n' > "$work/key.toml"
-expect fail "a key the corpus does not have is refused" "a 40-hex commit" run "$work/key.toml" "$(stand_in key)"
+expect fail "a key the corpus does not have is refused" "a 40-hex commit" run "$work/key.toml" "$(reactive_nuc)"
+
+# --- cases: the release floor -------------------------------------------------------------
+
+n=0
+for line in "- **Template release:** v0.4.9" "- **Template release:** unreleased" \
+            "- **Template release:** v0.5.0-rc.1" "- **Template release:** unreleased (next after v0.5.0)" \
+            "Created from the template."; do
+  n=$((n + 1))
+  source_repo "floor-$n" "$line" > /dev/null
+  expect fail "a tree whose release line reads '$line' is refused" "not v0.5.0 or later" \
+    run "$(corpus "$work/floor-$n.toml" "floor-$n")" "$(reactive_nuc)"
+done
+
+source_repo later "- **Template release:** v0.6.0." > /dev/null
+expect pass "a tree of a later release, ending a sentence, is compared" "" \
+  run "$(corpus "$work/later.toml" later)" "$(reactive_nuc)"
+
+# --- cases: variants ----------------------------------------------------------------------
+
+source_repo other "- **Template release:** v0.5.0" > /dev/null
+printf 'Other\n' >> "$work/src-other/README.md"
+git -C "$work/src-other" -c user.name=F -c user.email=f@example.invalid -c core.hooksPath=/dev/null commit -qam other
+git -C "$work/src-other" rev-parse HEAD > "$work/src-other.commit"
+two="$(corpus "$work/two.toml" agree other)"
+v="$(variants "$work/v-one.tsv" "$DELETE" $'other-only\tdocs/template-release\tREADME.md\tsed\t/^Other$/d')"
+expect fail "a variant that does not apply to one tree of the corpus fails and names it" \
+  "agree, variant other-only — its edit of README.md does not apply" run "$two" "$(reactive_nuc)" "$v"
+
+v="$(variants "$work/v-missing-file.tsv" "$DELETE" $'gone\tdocs/template-release\tNO-SUCH.md\tdelete\t-')"
+expect fail "a variant of a file the tree lacks fails" "variant gone — its edit of NO-SUCH.md does not apply" \
+  run "$c" "$(reactive_nuc)" "$v"
+
+v="$(variants "$work/v-silent.tsv" $'silent\tdocs/template-release\tREADME.md\tsed\ts/Fixture/Changed/')"
+expect fail "a variant that does not make its rule fire fails" "does not make its rule fire" run "$c" "$(reactive_nuc)" "$v"
+
+source_repo broken "- **Template release:** v0.5.0" > /dev/null
+printf '%s\n' '#!/usr/bin/env bash' \
+  "printf 'Documentation checks FAILED:\\n\\n  - %s\\n\\n1 problem(s) found.\\n' \"$MISSING\"" 'exit 1' \
+  > "$work/src-broken/scripts/check-docs.sh"
+git -C "$work/src-broken" -c user.name=F -c user.email=f@example.invalid -c core.hooksPath=/dev/null commit -qam always
+git -C "$work/src-broken" rev-parse HEAD > "$work/src-broken.commit"
+v="$(variants "$work/v-already.tsv" $'retitled\tdocs/template-release\tREADME.md\tsed\ts/Fixture/Changed/')"
+expect fail "a finding the tree already has does not make a variant fire" "does not make its rule fire" \
+  run "$(corpus "$work/broken.toml" broken)" "$(stand_in always "README.md: docs/template-release: $MISSING_TEXT")" "$v"
+
+: > "$work/v-empty.tsv"
+expect fail "a ported rule without a variant is refused" "brings no variant" run "$c" "$(reactive_nuc)" "$work/v-empty.tsv"
+expect fail "an empty --variants is refused" "--variants takes a file" \
+  bash "$HARNESS" --corpus "$c" --cache "$work/cache" --nuc "$(reactive_nuc)" --variants ""
+printf '%s' "$DELETE" > "$work/v-no-newline.tsv"
+expect pass "a last row without a newline is read" "" run "$c" "$(reactive_nuc)" "$work/v-no-newline.tsv"
+
+v="$(variants "$work/v-escape.tsv" "$DELETE" $'escape\tdocs/template-release\t../agree/README.md\tdelete\t-')"
+expect fail "a variant whose path leaves the tree is refused" "no path inside the tree" run "$c" "$(reactive_nuc)" "$v"
+v="$(variants "$work/v-absolute.tsv" "$DELETE" $'absolute\tdocs/template-release\t/etc/hostname\tdelete\t-')"
+expect fail "a variant with an absolute path is refused" "no path inside the tree" run "$c" "$(reactive_nuc)" "$v"
+v="$(variants "$work/v-command.tsv" "$DELETE" "command	docs/template-release	README.md	sed	s|Fixture|touch $work/PWNED|e")"
+expect fail "a sed expression that runs a command does not apply" "variant command — its edit of README.md does not apply" \
+  run "$c" "$(reactive_nuc)" "$v"
+check "the command of the refused expression did not run" test ! -e "$work/PWNED"
+v="$(variants "$work/v-write.tsv" "$DELETE" "write	docs/template-release	README.md	sed	w $work/WRITTEN")"
+expect fail "a sed expression that writes another file does not apply" "variant write — its edit of README.md does not apply" \
+  run "$c" "$(reactive_nuc)" "$v"
+check "the file of the refused expression was not written" test ! -e "$work/WRITTEN"
+
+v="$(variants "$work/v-twice.tsv" "$DELETE" "$DELETE")"
+expect fail "a variant named twice is refused" "is named twice" run "$c" "$(reactive_nuc)" "$v"
+v="$(variants "$work/v-malformed.tsv" $'bad name\tdocs/template-release\tREADME.md\tsed')"
+expect fail "a malformed variant row is refused" "is not 'name<TAB>rule" run "$c" "$(reactive_nuc)" "$v"
+v="$(variants "$work/v-unmapped.tsv" "$DELETE" $'odd\tdocs/no-such-rule\tREADME.md\tdelete\t-')"
+expect fail "a variant of a rule the table maps nothing to is refused" "maps no message to" run "$c" "$(reactive_nuc)" "$v"
 
 summary "Parity harness self-test"

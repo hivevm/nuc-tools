@@ -1,10 +1,29 @@
-# The corpus of the parity harness (ADR-0012), read by scripts/check-parity.sh:
-# each repository by URL and commit, run with the bash checks it carries and with nuc. A pull
-# request moves a pin. The format is one '[[repository]]' table per entry with the three keys
-# below, each a string on a line of its own.
+# The corpus of the parity harness (ADR-0020), read by
+# scripts/check-parity.sh: each repository by URL and commit, on template release v0.5.0 or later,
+# run with the bash checks it carries and with nuc. A pull request moves a pin. The format is one
+# '[[repository]]' table per entry with the three keys below, each a string on a line of its own.
 
 # The template at the commit of its release v0.5.0, the release this repository carries.
 [[repository]]
 name = "nuc"
 url = "https://github.com/hivevm/nuc.git"
 commit = "1bc9c65fe48e893aaf4e3b49f1bc803c0c753a98"
+
+# A derived repository on template release v0.5.0, at a fixed commit of its main.
+[[repository]]
+name = "opamp-fleet"
+url = "https://github.com/mbrigl/opamp-fleet.git"
+commit = "2afdce057985ac06a28811f174499489bbcdc1ea"
+
+# A derived repository on template release v0.5.0, at a fixed commit of its main.
+[[repository]]
+name = "nectar"
+url = "https://github.com/hivevm/nectar.git"
+commit = "0beb01d6f4eca9649ddaeff21b9b32c2f3b13747"
+
+# This repository on template release v0.5.0, at the commit of its main that merged its setup;
+# its check-docs.sh is the template's with the badge fix it reported upstream.
+[[repository]]
+name = "nuc-tools"
+url = "https://github.com/hivevm/nuc-tools.git"
+commit = "a85d61589ffdaf1ad56b59e73ba2ea14c353ed71"

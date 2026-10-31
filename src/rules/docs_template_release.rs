@@ -112,6 +112,7 @@ mod tests {
     fn findings(readme: &str) -> Vec<Finding> {
         check(&Inputs {
             readme: Some(readme.to_owned()),
+            ..Inputs::default()
         })
     }
 

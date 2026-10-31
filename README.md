@@ -78,7 +78,9 @@ rules = ["docs/template-release"]
 A `nuc` built from source is version 0.0.0 until the first release, so a higher minimum refuses
 it.
 
-The one rule so far is `docs/template-release`, check 14 of the template's `check-docs.sh`.
+The rules so far port checks of the template's `check-docs.sh` at v0.5.0: `docs/adr-index`,
+`docs/adr-numbering`, and `docs/adr-header` (checks 1, 2, and 7), and `docs/template-release`
+(check 14); `nuc explain <rule ID>` gives each one's reason.
 `nuc hook <name>` follows with the port of the hooks.
 
 ## Project Layout
@@ -123,7 +125,8 @@ action.yml            # the GitHub Action: installs the nuc of its release and r
 release/              # the release tooling: build, checksums, the installer, and the release commit
 feature/              # the Dev Container Feature ghcr.io/hivevm/nuc-tools/nuc
 tests/                # the integration tests, their fixture helpers in tests/support/, and the
-                      # corpus and normalization table of the parity harness in tests/parity/
+                      # corpus, variants, and normalization table of the parity harness in
+                      # tests/parity/
 .agents/skills/       # the procedures of AGENTS.md as Agent Skills, one directory each (ADR-0003),
                       # with the scripts and templates they carry (claim.sh, remap.sh, ticket.md)
 .claude/CLAUDE.md     # pointer for Claude Code to read AGENTS.md

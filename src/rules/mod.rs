@@ -4,6 +4,9 @@
 
 use crate::finding::Finding;
 
+pub mod docs_adr_header;
+pub mod docs_adr_index;
+pub mod docs_adr_numbering;
 pub mod docs_template_release;
 
 /// What the shell reads from the repository for the rules, before any of them runs.
@@ -11,6 +14,11 @@ pub mod docs_template_release;
 pub struct Inputs {
     /// The text of `README.md` at the root, if the file exists.
     pub readme: Option<String>,
+    /// The files of `docs/adr/` the bash reads, by name: the ADRs, the index, and the template.
+    pub adr: crate::adr::Dir,
+    /// Each file a row of the index links, by its target as the row writes it: its bytes when
+    /// it is a file, as `-f` finds it, or none.
+    pub adr_targets: std::collections::BTreeMap<String, Option<Vec<u8>>>,
 }
 
 /// One rule: its ID, the reason `nuc explain` gives, and the check.
@@ -21,7 +29,12 @@ pub struct Rule {
 }
 
 /// Every rule this `nuc` knows, in the order their findings are reported.
-pub const ALL: &[Rule] = &[docs_template_release::RULE];
+pub const ALL: &[Rule] = &[
+    docs_adr_index::RULE,
+    docs_adr_numbering::RULE,
+    docs_adr_header::RULE,
+    docs_template_release::RULE,
+];
 
 /// The rule with the ID, if this `nuc` knows it.
 pub fn find(id: &str) -> Option<&'static Rule> {

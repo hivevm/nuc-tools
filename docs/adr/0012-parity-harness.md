@@ -1,6 +1,6 @@
 # ADR-0012: A parity harness compares `nuc` with the bash scripts of a pinned corpus on the same trees, as a required check that fails on any difference
 
-- **Status:** 🟢 accepted
+- **Status:** ⚪ superseded by ADR-0020
 - **Date:** 2026-10-31
 - **Deciders:** Markus Brigl
 - **Applies to:** `tests/parity/`, its manifest `tests/parity/corpus.toml`, `scripts/check-parity.sh`, its job in `.github/workflows/checks.yml`, and the map from bash messages to rule IDs

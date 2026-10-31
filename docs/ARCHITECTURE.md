@@ -27,7 +27,8 @@ golden path and the test pattern an agent copies from are named here.
 - **Rules** — one module each under `src/rules/`, a pure function from the inputs the shell read
   to the findings, with one rule ID and the reason `nuc explain` gives; the list of every rule is
   `rules::ALL`. A rule reads no file and runs no process
-  ([ADR-0009](adr/0009-functional-core.md)).
+  ([ADR-0009](adr/0009-functional-core.md)). The rules of the decision record share one reading
+  of it in `src/adr.rs`, outside `src/rules/`, the way the bash's `scripts/lib/adr.sh` reads it.
 - **Configuration** — `config` reads `nuc.toml` and selects the rules it turns on, or says why
   `nuc` refuses: missing, unreadable, a minimum above the running version, an unknown rule ID
   ([ADR-0013](adr/0013-version-coupling.md)).
@@ -36,8 +37,9 @@ golden path and the test pattern an agent copies from are named here.
   ([ADR-0010](adr/0010-git-cli-cleared-environment.md)).
 - **Binary** — `src/main.rs` calls the shell and nothing else.
 - **Parity harness** — `scripts/check-parity.sh` runs the bash checks of each repository of the
-  corpus and `nuc` on the same tree and compares their findings
-  ([ADR-0012](adr/0012-parity-harness.md)).
+  corpus, all on template release v0.5.0 or later, and `nuc` on the same tree and on each variant
+  of `tests/parity/variants.tsv` that fits it, and compares their findings
+  ([ADR-0020](adr/0020-parity-harness-with-variants.md)).
 - **Release tooling** — `release/` builds a binary per target, writes `SHA256SUMS`, checks the
   tag against the crate's version, writes the release commit, and moves the major tag;
   `release/install-nuc.sh` is the one installer, run by the Action and the Feature, and refuses a
