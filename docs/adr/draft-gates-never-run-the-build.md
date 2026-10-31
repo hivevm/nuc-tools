@@ -22,10 +22,14 @@ We will run this repository's gates only with the template's bash scripts or wit
 review.
 
 - **Now:** the gates are the template's bash scripts, as ADR-0002 decides.
-- **Later:** a released `nuc`, reached through this repository's own Action pinned by commit SHA
-  ([ADR-draft-action-references-by-sha](draft-action-references-by-sha.md)) and its Dev Container
-  Feature pinned by the lock
-  ([ADR-draft-dev-container-with-rust](draft-dev-container-with-rust.md)), may replace them.
+- **Later:** a released `nuc` may replace them, installed in CI by the local
+  `release/install-nuc.sh` from the `SHA256SUMS` and `VERSION` of a release committed in this
+  repository and moved by a pull request, and in the Dev Container by its Feature pinned by the
+  lock ([ADR-draft-dev-container-with-rust](draft-dev-container-with-rust.md)). Not through this
+  repository's own Action: the SHA pin
+  [ADR-draft-action-references-by-sha](draft-action-references-by-sha.md) asks for would be moved
+  by Dependabot to a source commit `vX.Y.Z`, which carries no checksums and installs nothing
+  ([ADR-draft-distribution](draft-distribution.md)).
   The switch is a decision of its own, which supersedes the bash clause of ADR-0002, and is taken
   only once the released `nuc` reaches parity for every check these gates run.
 - **Never:** `cargo run`, a binary under `target/`, or any other build of the working tree as a

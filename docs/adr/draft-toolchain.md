@@ -46,7 +46,8 @@ a job of `checks.yml` among the required checks and a `run` line of `scripts/che
   - *Architecture fitness:* `cargo deny`'s `bans`, and the structural test of the shape of the
     code, which the decision on the shape names.
 - **Benchmark:** the measure of Q-5 runs in a workflow of its own on a schedule, not in
-  `checks.yml`.
+  `checks.yml`. It lands with the port of the hooks, in the change that adds
+  `nuc hook reference-transaction`, the command it measures.
 
 **Out of scope:** the platform matrix of Q-4 and which of its jobs are required, decided with the
 job in setup step 6; mutation testing, which a design revision adds when the mistakes call for
