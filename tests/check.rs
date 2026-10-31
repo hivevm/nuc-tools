@@ -1109,7 +1109,10 @@ fn a_path_that_is_no_utf8_is_read_and_refused_only_where_it_holds_a_marker() {
     let name = fixture
         .root()
         .join(std::ffi::OsStr::from_bytes(b"n\xffo.txt"));
-    std::fs::write(&name, "nothing here\n").unwrap();
+    // A file system that holds only UTF-8 names, as APFS on macOS, cannot have the path at all.
+    if std::fs::write(&name, "nothing here\n").is_err() {
+        return;
+    }
     let output = fixture.nuc(&["check"]);
     assert_eq!(code(&output), Some(0), "{}", stderr(&output));
     std::fs::write(&name, mark("G-1")).unwrap();
