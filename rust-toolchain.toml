@@ -1,0 +1,6 @@
+# The Rust toolchain of this repository, one fixed stable version; a pull request moves it
+# (ADR-draft-toolchain).
+[toolchain]
+channel = "1.99.1"
+components = ["rustfmt", "clippy"]
+profile = "minimal"

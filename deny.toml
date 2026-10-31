@@ -1,0 +1,35 @@
+# What cargo deny allows (ADR-draft-toolchain, Q-3). scripts/check-deps.sh runs 'cargo deny check'
+# against this file. An ignored advisory names its reason beside its id.
+
+[graph]
+all-features = true
+
+[advisories]
+# Every advisory of the RustSec database fails the check, unmaintained and unsound crates
+# included; nothing is ignored.
+unmaintained = "all"
+unsound = "all"
+yanked = "deny"
+ignore = []
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+# Crates that would bring a second way to reach git than its CLI (constraints of the
+# specification, ADR-draft-git-cli-cleared-environment).
+deny = [
+  { crate = "git2", reason = "git is reached only through its CLI" },
+  { crate = "gix", reason = "git is reached only through its CLI" },
+]
+
+[licenses]
+# The licenses the dependencies carry; a dependency under another license adds it here, in the
+# change that adds the dependency, for the review to weigh.
+allow = ["MIT"]
+confidence-threshold = 0.9
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []

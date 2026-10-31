@@ -1,9 +1,13 @@
-# Keeps the GitHub Actions under .github/workflows/ current: within a major, the version tag
-# picks up new releases by itself; Dependabot raises a pull request when an action publishes a
-# new major.
+# Keeps the dependencies current as pull requests (ADR-draft-action-references-by-sha): the
+# GitHub Actions under .github/workflows/, pinned by commit SHA, get a pull request that moves the
+# pin and its version comment; the crates of Cargo.lock get one that scripts/check-deps.sh audits.
 version: 2
 updates:
   - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+  - package-ecosystem: cargo
     directory: /
     schedule:
       interval: monthly
