@@ -29,7 +29,8 @@ review.
   The switch is a decision of its own, which supersedes the bash clause of ADR-0002, and is taken
   only once the released `nuc` reaches parity for every check these gates run.
 - **Never:** `cargo run`, a binary under `target/`, or any other build of the working tree as a
-  gate. The tests of the build run the build; they are not the gate's judge of it.
+  gate. The tests of the build run the build, `scripts/check-build.sh` and the parity harness
+  `scripts/check-parity.sh`; they are not the gate's judge of it.
 
 **Out of scope:** when the switch comes and which release it pins; the gates of derived projects.
 
@@ -57,5 +58,5 @@ review.
 
 A check cited with `Verifies: ADR-draft-gates-never-run-the-build` reads `scripts/check-all.sh`,
 the hooks under `.githooks/`, and `.github/workflows/checks.yml`, and fails on `cargo run`, a
-path under `target/`, or a `nuc` invoked without a released, pinned source, outside the
-`scripts/check-build.sh` that runs the build's own tests.
+path under `target/`, or a `nuc` invoked without a released, pinned source, outside
+`scripts/check-build.sh` and `scripts/check-parity.sh`, which run the build's own tests.

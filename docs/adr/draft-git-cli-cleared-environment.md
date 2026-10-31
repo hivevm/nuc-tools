@@ -31,8 +31,9 @@ neutralized by `-c` on every call.
   variable of the parent starting with `GIT_` among them.
 - **Repository:** determined from the directory `nuc` runs in, or from an explicit `--repo`, never
   from the environment, and passed to every call as `-C <path>`.
-- **Neutralized keys:** `core.fsmonitor=false`, and `core.hooksPath` set to an empty directory;
-  a key that makes a git command `nuc` uses run another command joins the list, kept beside the
+- **Neutralized keys:** `core.fsmonitor=false`, and `core.hooksPath` set to the null device
+  (`/dev/null`, on Windows `NUL`), which can hold no hook and needs nothing written; a key that
+  makes a git command `nuc` uses run another command joins the list, kept beside the
   test, in the change that starts using that command.
 - **Configuration:** the system and global configuration stay in effect, so that git behaves as
   it does for the user.
