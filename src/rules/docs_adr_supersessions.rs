@@ -313,6 +313,7 @@ mod tests {
         assert_eq!(found_at(None, &early).len(), 1);
     }
 
+    /// Verifies: ADR-draft-rules-follow-the-carried-release
     #[test]
     fn from_v0_6_0_a_chain_of_supersessions_passes() {
         let adrs = [
@@ -338,6 +339,7 @@ mod tests {
         assert_eq!(found_at(Some(FLIP_ON_ACCEPTANCE), &adrs), []);
     }
 
+    /// Verifies: ADR-draft-rules-follow-the-carried-release
     #[test]
     fn from_v0_6_0_an_old_adr_flipped_for_a_draft_still_proposed_fails() {
         let status = format!("⚪ superseded by [{}](draft-next.md)", id("draft-next"));
@@ -347,5 +349,24 @@ mod tests {
             ("draft-next.md", adr("🟡 proposed", &field)),
         ];
         assert_eq!(found_at(Some(Version(0, 7, 2)), &adrs).len(), 1);
+    }
+
+    /// Verifies: ADR-draft-rules-follow-the-carried-release
+    #[test]
+    fn from_v0_6_0_a_rejected_successor_leaves_the_old_adr_in_force() {
+        let field = format!("- **Supersedes:** [{}](0001-a.md)\n", id("0001"));
+        let kept = [
+            ("0001-a.md", adr("🟢 accepted", "")),
+            ("0002-b.md", adr("🔴 rejected", &field)),
+        ];
+        assert_eq!(found_at(Some(FLIP_ON_ACCEPTANCE), &kept), []);
+        let flipped = [
+            (
+                "0001-a.md",
+                adr(&format!("⚪ superseded by {}", id("0002")), ""),
+            ),
+            ("0002-b.md", adr("🔴 rejected", &field)),
+        ];
+        assert_eq!(found_at(Some(FLIP_ON_ACCEPTANCE), &flipped).len(), 1);
     }
 }

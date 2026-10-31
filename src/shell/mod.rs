@@ -132,7 +132,8 @@ fn carried_release(tree: &Tree, reported: bool) -> Result<Option<Version>, Strin
     let readme = tree.read_checked(&tree.root.join("README.md"))?;
     match readme.as_deref().and_then(rules::docs_template_release::carried) {
         Some(Carried::Unreleased) => Ok(None),
-        None if reported => Ok(None),
+        // The Template release rule reports a README that names no release, never a missing one.
+        None if reported && readme.is_some() => Ok(None),
         Some(Carried::Release(release)) if release >= EARLIEST_RELEASE => Ok(Some(release)),
         Some(Carried::Release(release)) => Err(format!(
             "README.md: template release v{release} is before v{EARLIEST_RELEASE}, the earliest whose checks this nuc ports — not decided"

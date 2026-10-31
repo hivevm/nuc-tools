@@ -626,3 +626,15 @@ fn without_a_release_line_the_template_release_rule_fails_the_run_and_the_tree_i
         "{out}"
     );
 }
+
+#[test]
+fn without_a_readme_a_rule_that_checks_by_the_release_is_not_decided() {
+    let fixture = flipped_early("release-no-readme", "No release line.");
+    fixture.write(
+        "nuc.toml",
+        "minimum = \"0.0.0\"\nrules = [\"docs/template-release\", \"docs/adr-supersessions\"]\n",
+    );
+    std::fs::remove_file(fixture.root().join("README.md")).expect("removed");
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(2), "{}", stdout(&output));
+}

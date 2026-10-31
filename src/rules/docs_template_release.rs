@@ -204,4 +204,30 @@ mod tests {
     fn without_a_readme_there_is_nothing_to_report() {
         assert_eq!(check(&Inputs::default()), []);
     }
+
+    #[test]
+    fn the_carried_release_is_read_from_the_first_line_in_each_form() {
+        let v = |a, b, c| Some(Carried::Release(Version(a, b, c)));
+        for (line, want) in [
+            ("- **Template release:** v0.6.0", v(0, 6, 0)),
+            ("- **Template release:** `v0.5.1`", v(0, 5, 1)),
+            (
+                "* **Template release:** [v10.2.3](https://x.invalid).",
+                v(10, 2, 3),
+            ),
+            ("**Template release:**v0.5.0;", v(0, 5, 0)),
+            (
+                "- **Template release:** unreleased",
+                Some(Carried::Unreleased),
+            ),
+            ("- **Template release:** v0.6", None),
+            ("- **Template release:** v01.0.0", None),
+            ("- **Template release:** latest", None),
+        ] {
+            assert_eq!(carried(&readme(line)), want, "{line}");
+        }
+        assert_eq!(carried("# Project\n"), None);
+        let two = readme("- **Template release:** v0.5.0\n- **Template release:** v0.6.0");
+        assert_eq!(carried(&two), v(0, 5, 0));
+    }
 }
