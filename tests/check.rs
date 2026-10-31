@@ -919,3 +919,18 @@ fn a_draft_fails_where_ci_says_a_ready_change_lands_on_main() {
         assert_eq!(code(&output), Some(0), "{vars:?}: {}", stdout(&output));
     }
 }
+
+#[cfg(unix)]
+#[test]
+fn a_draft_whose_name_holds_a_newline_is_not_decided() {
+    let fixture = only("no-draft-newline", "docs/no-draft-on-main", README);
+    fixture.write("docs/adr/draft-a\nb.md", "# A\n");
+    let ready = [("GITHUB_BASE_REF", "main"), ("PULL_REQUEST_DRAFT", "false")];
+    let output = fixture.nuc_with(&ready, &["check"]);
+    assert_eq!(code(&output), Some(2), "{}", stdout(&output));
+    assert!(
+        stderr(&output).contains("holds a newline"),
+        "{}",
+        stderr(&output)
+    );
+}

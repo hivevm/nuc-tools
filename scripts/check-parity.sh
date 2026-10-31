@@ -17,7 +17,8 @@
 #
 # For each repository and each variant:
 #   1. The bash scripts with a ported rule run in the tree, with the environment cleared to PATH,
-#      HOME, and LC_ALL=C: today scripts/check-docs.sh, whose findings are its '  - ' lines.
+#      HOME, LC_ALL=C, and that of a pull request into main marked ready (CI_ENV): today
+#      scripts/check-docs.sh, whose findings are its '  - ' lines.
 #   2. nuc runs 'check' on the tree, with a nuc.toml the harness writes beside it, ignored through
 #      the cache's .git/info/exclude, that turns on every rule the table maps to.
 #   3. The findings are normalized to (rule ID, file, line) by tests/parity/normalize.tsv and
@@ -258,7 +259,7 @@ apply_variant() {
     local parent
     parent="$(realpath "$(dirname "$file")")"
     [[ "$parent" == "$(realpath "$copy")" || "$parent" == "$(realpath "$copy")"/* ]] || return 1
-    printf '%s\n' "$4" > "$file"
+    printf '%s\n' "$4" 2>/dev/null > "$file" || return 1
     return 0
   fi
   # A symbolic link is deleted itself, wherever it points, when its directory is in the copy.
@@ -302,10 +303,10 @@ fires() {
   [[ -n "$(comm -13 <(rule_messages "$1" "$3") <(rule_messages "$2" "$3"))" ]]
 }
 
-# The variants, one row each: name, rule, path in the tree, 'sed' with an extended expression or
-# 'delete' with '-', and optionally the names of the corpus trees it is for, separated by commas,
-# all separated by tabs. Without names it is for every tree. The path stays inside the tree; every
-# ported rule brings one at least.
+# The variants, one row each: name, rule, path in the tree, 'sed' with an extended expression,
+# 'delete' with '-', or 'write' with a line, and optionally the names of the corpus trees it is
+# for, separated by commas, all separated by tabs. Without names it is for every tree. The path
+# stays inside the tree and out of its .git; every ported rule brings one at least.
 variant_names=() variant_rules=() variant_paths=() variant_ops=() variant_args=() variant_trees=()
 [[ -r "$variants" ]] || die "$variants: unreadable"
 while IFS=$'\t' read -r vname vrule vpath vop varg vtrees extra || [[ -n "$vname" ]]; do
@@ -315,7 +316,9 @@ while IFS=$'\t' read -r vname vrule vpath vop varg vtrees extra || [[ -n "$vname
     || ! [[ ( "$vop" == sed && -n "$varg" ) || ( "$vop" == delete && "$varg" == - ) || ( "$vop" == write && -n "$varg" ) ]]; then
     die "$variants: the row '$vname' is not 'name<TAB>rule<TAB>path<TAB>sed|delete|write<TAB>argument[<TAB>tree,…]'"
   fi
-  [[ "$vpath" != /* && "/$vpath/" != */../* ]] \
+  # The repository's own .git is no part of the tree: an edit there could point git, and so both
+  # tools, at another repository.
+  [[ "$vpath" != /* && "/$vpath/" != */../* && "/$vpath/" != */.git/* ]] \
     || die "$variants: the variant '$vname' edits '$vpath', which is no path inside the tree"
   _contains "$vname" "${variant_names[@]}" && die "$variants: the variant '$vname' is named twice"
   [[ "$(mode_of "$vrule")" != unknown ]] \

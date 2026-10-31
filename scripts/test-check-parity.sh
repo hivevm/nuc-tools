@@ -296,6 +296,12 @@ v="$(variants "$work/v-overwrite.tsv" "$DELETE" $'overwrite\tdocs/template-relea
 expect fail "a variant that would write over a file does not apply" "variant overwrite — its edit of README.md does not apply" \
   run "$c" "$(reactive_nuc)" "$v"
 
+v="$(variants "$work/v-git.tsv" "$DELETE" $'git\tdocs/template-release\t.git/commondir\twrite\t/elsewhere')"
+expect fail "a variant that edits the repository's .git is refused" "no path inside the tree" run "$c" "$(reactive_nuc)" "$v"
+v="$(variants "$work/v-no-parent.tsv" "$DELETE" $'orphan\tdocs/template-release\tno-such-dir/NEW.md\twrite\tx')"
+expect fail "a variant that would write into a directory the tree lacks does not apply" \
+  "variant orphan — its edit of no-such-dir/NEW.md does not apply" run "$c" "$(reactive_nuc)" "$v"
+
 v="$(variants "$work/v-escape.tsv" "$DELETE" $'escape\tdocs/template-release\t../agree/README.md\tdelete\t-')"
 expect fail "a variant whose path leaves the tree is refused" "no path inside the tree" run "$c" "$(reactive_nuc)" "$v"
 v="$(variants "$work/v-absolute.tsv" "$DELETE" $'absolute\tdocs/template-release\t/etc/hostname\tdelete\t-')"
