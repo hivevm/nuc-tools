@@ -32,7 +32,8 @@ tracer bullet of the spec: every later ticket adds rules and variants to what th
 
 ## Read first
 
-- ADR-draft-parity-harness-with-variants (parity), ADR-0013 (version coupling), ADR-0018 (gates), ADR-0019 (contract).
+- ADR-draft-parity-harness-with-variants (parity), ADR-0013 (version coupling), ADR-0018
+  (gates), ADR-0019 (contract).
 - Glossary: parity, parity harness, corpus, rule ID.
 - The golden path and the test pattern in `docs/ARCHITECTURE.md`; the harness and its self-test.
 
