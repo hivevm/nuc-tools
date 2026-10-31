@@ -1,4 +1,4 @@
-# ADR-draft-parity-variants-name-their-trees: A parity harness compares `nuc` with the bash scripts on the pinned trees of a corpus of releases v0.5.0 and later and on variants derived from the trees each names, as a required check that fails on any difference
+# ADR-draft-parity-variants-name-their-trees: A parity harness compares `nuc` with the bash scripts on the pinned trees of a corpus of releases v0.5.0 and later and on variants derived from those trees, each on the trees it is for, as a required check that fails on any difference
 
 - **Status:** 🟡 proposed
 - **Date:** 2026-10-31
@@ -44,9 +44,9 @@ difference, run by `scripts/check-parity.sh` as a required job on Linux and from
   such as a deleted line or a broken link. An edit names the trees of the corpus it is for, or
   none, which is every tree; the harness applies it to each tree it names and compares on the
   result as on the tree itself. A tree an edit names that the corpus lacks, an edit that does
-  not apply to a tree it names, a ported
-  rule without an edit, and an edit on which the bash reports no finding of its rule beyond the
-  tree's own each fail the harness, so that a moved pin cannot silently drop a comparison (Q-1).
+  not apply to a tree it is for, a ported rule without an edit, and an edit on which the bash
+  reports no finding of its rule beyond the tree's own each fail the harness, so that a moved pin
+  cannot silently drop a comparison (Q-1).
   An edit stays inside the copy it is applied to: it names a path within the tree, and runs no
   command and writes no other file.
 - **Cache:** the harness fetches the corpus into an ignored cache under `.scratch/`; when it
@@ -57,9 +57,9 @@ difference, run by `scripts/check-parity.sh` as a required job on Linux and from
 - **Comparison:** findings as sets, and exit status, per check, hook, and script ported; any
   difference fails.
 
-**Out of scope:** the format of the variants; which derived repositories of v0.5.0 or later form
-the corpus, moved by pull requests; when the harness is retired, once the bash leaves the
-template.
+**Out of scope:** the format of the variants beyond the trees an edit names; which derived
+repositories of v0.5.0 or later form the corpus, moved by pull requests; when the harness is
+retired, once the bash leaves the template.
 
 ## Alternatives considered
 
@@ -106,13 +106,13 @@ template.
 
 ## Enforcement
 
-The harness's own self-test, cited with a `Verifies:` marker of this ADR, feeds
-it a pair of outputs that differ in one finding, one exit status, and one unknown bash message,
-and checks that each fails, and a pair that agrees, and checks that it passes; it runs it on a
-corpus entry of a release before v0.5.0 and checks that it fails, and on a variant that applies,
-one that does not apply to one of the trees, one that names a tree the corpus lacks, one
-that names only the trees it applies to, one that does not make its rule fire, a ported rule
-without a variant, and a variant that reaches outside its copy, and checks that the first
-and the one naming its trees are compared and the others fail.
+The harness's own self-test, cited with a `Verifies:` marker of this ADR, feeds it a pair of
+outputs that differ in one finding, one exit status, and one unknown bash message, and checks
+that each fails, and a pair that agrees, and checks that it passes. It runs it on a corpus entry
+of a release before v0.5.0 and checks that it fails. It runs it on a variant that applies, and on
+one that names only the trees it applies to, and checks that both are compared. It runs it on a
+variant that does not apply to one of the trees, one that does not apply to a tree it names, one
+that names a tree the corpus lacks, one that does not make its rule fire, a ported rule without a
+variant, and a variant that reaches outside its copy, and checks that each fails.
 Check 9 of [`scripts/check-docs.sh`](../../scripts/check-docs.sh) holds the `parity` job, its
 `run` line, and the README's required checks together.
