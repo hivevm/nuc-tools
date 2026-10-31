@@ -28,7 +28,8 @@ golden path and the test pattern an agent copies from are named here.
   to the findings, with one rule ID and the reason `nuc explain` gives; the list of every rule is
   `rules::ALL`. A rule reads no file and runs no process
   ([ADR-0009](adr/0009-functional-core.md)). The rules of the decision record share one reading
-  of it in `src/adr.rs`, outside `src/rules/`, the way the bash's `scripts/lib/adr.sh` reads it.
+  of it in `src/adr.rs`, and the rules of Markdown one reading of its links in `src/markdown.rs`,
+  both outside `src/rules/`, the way the bash's `scripts/lib/adr.sh` and awk passes read them.
 - **Configuration** — `config` reads `nuc.toml` and selects the rules it turns on, or says why
   `nuc` refuses: missing, unreadable, a minimum above the running version, an unknown rule ID
   ([ADR-0013](adr/0013-version-coupling.md)).

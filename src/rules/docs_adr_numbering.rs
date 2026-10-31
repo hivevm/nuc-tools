@@ -106,27 +106,13 @@ fn reference_heading(heading: &str) -> Option<&str> {
         return Some(&heading[..prefix + 4]);
     }
     let slug = rest.strip_prefix("draft-")?;
-    let length = slug_length(slug);
+    let length = adr::slug_length(slug.as_bytes());
     (length > 0).then(|| &heading[..prefix + "draft-".len() + length])
-}
-
-/// The length of the longest slug at the start of the text: alphanumeric runs joined by hyphens.
-fn slug_length(text: &str) -> usize {
-    let bytes = text.as_bytes();
-    let word = |b: &u8| b.is_ascii_lowercase() || b.is_ascii_digit();
-    let mut end = bytes.iter().take_while(|b| word(b)).count();
-    if end == 0 {
-        return 0;
-    }
-    while bytes.get(end) == Some(&b'-') && bytes.get(end + 1).is_some_and(word) {
-        end += 1 + bytes[end + 1..].iter().take_while(|b| word(b)).count();
-    }
-    end
 }
 
 /// Whether the text is a slug: lower case letters and digits joined by single hyphens.
 fn is_slug(text: &str) -> bool {
-    !text.is_empty() && slug_length(text) == text.len()
+    !text.is_empty() && adr::slug_length(text.as_bytes()) == text.len()
 }
 
 #[cfg(test)]

@@ -79,8 +79,9 @@ A `nuc` built from source is version 0.0.0 until the first release, so a higher 
 it.
 
 The rules so far port checks of the template's `check-docs.sh` at v0.5.0: `docs/adr-index`,
-`docs/adr-numbering`, and `docs/adr-header` (checks 1, 2, and 7), and `docs/template-release`
-(check 14); `nuc explain <rule ID>` gives each one's reason.
+`docs/adr-numbering`, `docs/adr-refs`, `docs/adr-link-targets`, `docs/adr-header`, and
+`docs/adr-supersessions` (checks 1, 2, 5, 6, 7, and 8), and `docs/template-release` (check 14);
+`nuc explain <rule ID>` gives each one's reason.
 `nuc hook <name>` follows with the port of the hooks.
 
 ## Project Layout

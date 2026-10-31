@@ -33,3 +33,14 @@
 ^[^ :]+: status line carries [0-9]+ status emoji	docs/adr-header	line	+docs/adr/
 ^[^ :]+: status line reads 	docs/adr-header	line	+docs/adr/
 ^[^ :]+: still carries the instruction paragraph from template\.md	docs/adr-header	line	+docs/adr/
+
+# check-docs.sh, check 5: the ADR references.
+^[^:]+:[0-9]+: reference '.*' matches no ADR file in docs/adr/$	docs/adr-refs	line
+
+# check-docs.sh, check 6: a link citing an ADR points at its file.
+^[^:]+: link '.*' cites ADR-.* but points at '.*'$	docs/adr-link-targets	-
+
+# check-docs.sh, check 8: the supersessions.
+^[^ :]+: [^ :]+ supersedes it, but its status line does not say 'superseded by ADR-	docs/adr-supersessions	-	+docs/adr/
+^[^ :]+: status is ⚪ but the line names no superseding ADR$	docs/adr-supersessions	-	+docs/adr/
+^[^ :]+: [^ :]+ says it supersedes, but it carries no '\*\*Supersedes:\*\*' field naming ADR-	docs/adr-supersessions	-	+docs/adr/

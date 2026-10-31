@@ -74,6 +74,7 @@ fn check(repo: Option<&Path>) -> Result<u8, String> {
     let inputs = Inputs {
         readme: read_checked(&root.join("README.md"))?,
         adr_targets: read_adr_targets(&root, &adr)?,
+        text_files: read_text_files(&root)?,
         adr,
     };
     let findings: Vec<Finding> = selected
@@ -212,4 +213,29 @@ fn read_adr_targets(
         targets.insert(target, bytes);
     }
     Ok(targets)
+}
+
+/// Every text file of the repository by its path, as the bash's collect_text_files lists them:
+/// the lines of `git ls-files --cached --others --exclude-standard`, read as they stand, so that a
+/// path git quotes names no file; each a file with a byte other than a newline and no NUL byte,
+/// which `grep -Il .` keeps under `LC_ALL=C`.
+fn read_text_files(root: &Path) -> Result<BTreeMap<String, Vec<u8>>, String> {
+    let listing = git::run(
+        root,
+        &["ls-files", "--cached", "--others", "--exclude-standard"],
+    )?;
+    let mut files = BTreeMap::new();
+    for path in listing.lines() {
+        let full = root.join(path);
+        if !full.is_file() {
+            continue;
+        }
+        let Some(bytes) = read_bytes(&full)? else {
+            continue;
+        };
+        if !bytes.contains(&0) && bytes.iter().any(|&b| b != b'\n') {
+            files.insert(path.to_owned(), bytes);
+        }
+    }
+    Ok(files)
 }
