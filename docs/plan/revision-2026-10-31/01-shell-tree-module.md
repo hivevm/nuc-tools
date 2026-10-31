@@ -16,6 +16,10 @@ test three reviews of the port found missing. Move `Tree` and its readers into a
 `src/shell/` of their own, with that test in one function every reader calls. ADR-0009 names
 this split as its follow-up; it changes no behaviour.
 
+The port of `check-traceability.sh` added three readers, `read_specification`, `read_markers`,
+and `read_identity`, the helper `path_of`, and the summary of `nuc check`, and the file now
+holds about 880 lines.
+
 ## Acceptance criteria
 
 - [ ] Given the suite as it stands, when the readers have moved, then every existing test passes

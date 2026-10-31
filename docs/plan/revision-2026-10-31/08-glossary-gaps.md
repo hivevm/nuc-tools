@@ -18,9 +18,14 @@ of every refusal of the shell. The entry **parity harness** still says it runs o
 only. Add the entries, correct the stale one, and move code and documents to the chosen words where
 they use a synonym.
 
+The port of `check-traceability.sh` uses three more: **marker**, the `Verifies:` line that
+cites identifiers, which ADR-0023 names; **pending criterion**, a criterion no marker cites, which
+the summary of `nuc check` names; and **area**, the first part of a rule ID, `docs` or
+`traceability`, which the README and the specs use.
+
 ## Acceptance criteria
 
-- [ ] Given `docs/GLOSSARY.md`, when the ticket lands, then it defines the three terms, each in
+- [ ] Given `docs/GLOSSARY.md`, when the ticket lands, then it defines the six terms, each in
   one or two sentences, and the parity harness entry names the variants.
 - [ ] Given a synonym the glossary lists under _Avoid:_, when the tree is searched for it, then
   no code, comment, or document uses it.
