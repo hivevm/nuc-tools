@@ -209,3 +209,120 @@ fn a_readme_with_a_nul_byte_is_not_decided() {
     assert_eq!(code(&output), Some(2));
     assert!(stderr(&output).contains("NUL byte"), "{}", stderr(&output));
 }
+
+#[test]
+fn an_adr_with_a_nul_byte_is_not_decided_and_names_the_file() {
+    let config = "minimum = \"0.0.0\"\nrules = [\"docs/adr-header\"]\n";
+    let fixture = Fixture::project("adr-nul", config, README);
+    fixture.write(
+        "docs/adr/0001-a.md",
+        "# ADR-0001: A\n\n- **Status:** 🟢 accepted\n",
+    );
+    std::fs::write(
+        fixture.root().join("docs/adr/0002-b.md"),
+        b"# ADR-0002\n\0\n",
+    )
+    .expect("written");
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(2));
+    assert!(
+        stderr(&output).contains("0002-b.md: holds a NUL byte"),
+        "{}",
+        stderr(&output)
+    );
+}
+
+#[test]
+fn the_rules_of_the_record_report_end_to_end() {
+    let config = "minimum = \"0.0.0\"\nrules = [\"docs/adr-index\", \"docs/adr-numbering\", \"docs/adr-header\"]\n";
+    let fixture = Fixture::project("adr-record", config, README);
+    fixture.write("docs/adr/README.md", "| ADR | Title | Applies to | Status |\n|---|---|---|---|\n| [0001](0001-a.md) | A | every commit | 🟢 accepted |\n");
+    fixture.write(
+        "docs/adr/0001-a.md",
+        "# ADR-0001: A\n\n- **Status:** 🟢 proposed\n- **Applies to:** every commit\n",
+    );
+    fixture.write(
+        "docs/adr/0003-c.md",
+        "# ADR-0003: C\n\n- **Status:** 🟢 accepted\n- **Applies to:** x\n",
+    );
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(1), "{}", stderr(&output));
+    let out = stdout(&output);
+    for line in [
+        "docs/adr/README.md: docs/adr-index: ADR index: file '0003-c.md' exists but is not listed in the index",
+        "docs/adr: docs/adr-numbering: ADR numbering: expected '0002-*.md' at position 2, found '0003-c.md'",
+        "docs/adr/0001-a.md: docs/adr-header: status line reads '🟢 proposed', but 🟢 means 'accepted'",
+    ] {
+        assert!(
+            out.lines().any(|l| l.starts_with(line)),
+            "missing {line}:\n{out}"
+        );
+    }
+}
+
+/// A project whose nuc.toml turns on the rules of the record, with the index and one ADR.
+fn record(name: &str, row_target: &str) -> Fixture {
+    let config = "minimum = \"0.0.0\"\nrules = [\"docs/adr-index\", \"docs/adr-numbering\", \"docs/adr-header\"]\n";
+    let fixture = Fixture::project(name, config, README);
+    let row = format!("| [0001]({row_target}) | A | every commit | 🟢 accepted |\n");
+    fixture.write(
+        "docs/adr/README.md",
+        &format!("| ADR | Title | Applies to | Status |\n|---|---|---|---|\n{row}"),
+    );
+    fixture.write(
+        "docs/adr/0001-a.md",
+        "# ADR-0001: A\n\n- **Status:** 🟢 accepted\n- **Applies to:** every commit\n",
+    );
+    fixture
+}
+
+#[test]
+fn a_binary_file_beside_the_adrs_is_not_read() {
+    let fixture = record("adr-png", "0001-a.md");
+    std::fs::write(
+        fixture.root().join("docs/adr/diagram.png"),
+        b"\x89PNG\r\n\x1a\n\0\0",
+    )
+    .expect("written");
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(
+        code(&output),
+        Some(0),
+        "{}{}",
+        stdout(&output),
+        stderr(&output)
+    );
+}
+
+#[test]
+fn a_row_target_resolves_as_the_bash_s_file_test_resolves_it() {
+    let fixture = record("adr-dot", "./0001-a.md");
+    let output = fixture.nuc(&["check"]);
+    let out = stdout(&output);
+    assert!(!out.contains("no such ADR file exists"), "{out}");
+    assert!(out.contains("row for 0001 links to './0001-a.md'"), "{out}");
+}
+
+#[test]
+fn a_row_target_outside_the_repository_is_not_decided() {
+    // A file beside the fixture, outside its repository, which a row reaches from docs/adr/.
+    let probe = Fixture::new("adr-outside-probe");
+    let outside = probe.root().join("outside.md");
+    std::fs::write(&outside, "- **Status:** 🟢 accepted\n").expect("written");
+    let up = format!(
+        "../../../{}/outside.md",
+        probe
+            .root()
+            .file_name()
+            .and_then(|n| n.to_str())
+            .expect("a name")
+    );
+    let fixture = record("adr-outside", &up);
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(2), "{}", stdout(&output));
+    assert!(
+        stderr(&output).contains("outside the repository"),
+        "{}",
+        stderr(&output)
+    );
+}
