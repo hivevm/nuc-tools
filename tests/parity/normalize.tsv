@@ -59,3 +59,24 @@
 ^AGENTS\.md not found in the repository root$	docs/section-refs	line	=AGENTS.md
 ^AGENTS\.md: no numbered '## N\.' section headings found$	docs/section-refs	line	=AGENTS.md
 ^AGENTS\.md: numbered sections must run 1\.\.N in order	docs/section-refs	line	=AGENTS.md
+
+# check-docs.sh, check 9: the check lists.
+^[^:]+: not found — the check lists cannot be compared$	docs/check-lists	-
+^scripts/check-all\.sh: '# Not a gate: .*' names (the workflow of the required checks|no workflow of this repository)$	docs/check-lists	-
+^[^:]+: job '[^']*' runs no script under scripts/ — the local gate cannot run what it does$	docs/check-lists	-
+^\.github/workflows/checks\.yml: no jobs found under 'jobs:'	docs/check-lists	-
+^scripts/check-all\.sh: no 'run <label> <script>' invocations found	docs/check-lists	-
+^scripts/check-all\.sh: (does not run|runs) '.*', which (a workflow runs|no job of a workflow runs) — CI and the local gate disagree$	docs/check-lists	-
+^scripts/[^:]+: no workflow and not scripts/check-all\.sh runs it	docs/check-lists	-
+^README\.md: no job names between the 'required-checks' markers	docs/check-lists	-
+^README\.md: required check '.*' (is not a job of|is a job with a matrix|names a check run of) 	docs/check-lists	-
+^README\.md: job '.*' of .* is missing from the required checks	docs/check-lists	-
+
+# check-docs.sh, check 10: the Project Layout.
+^README\.md: not found — the Project Layout block cannot be checked$	docs/project-layout	-
+^README\.md: Project Layout lists '.*', which (matches nothing|is not a directory|does not exist)	docs/project-layout	-
+^README\.md: no paths found under '## Project Layout'	docs/project-layout	-
+^README\.md: Project Layout does not name '.*', a top-level part of this repository$	docs/project-layout	-
+
+# check-docs.sh, check 11: the skill pointers.
+^\.claude/skills/[^:]+: (is a copy of the skill|no pointer|is not a symlink into|dangles|points at )	docs/skill-pointers	-

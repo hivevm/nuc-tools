@@ -14,6 +14,7 @@ use std::process::ExitCode;
 use crate::adr;
 use crate::config::{self, Version};
 use crate::finding::Finding;
+use crate::glob;
 use crate::markdown;
 use crate::rules::{self, Carried, Input, Inputs};
 
@@ -77,6 +78,7 @@ fn check(repo: Option<&Path>) -> Result<u8, String> {
     // Only what a rule turned on reads: an input no rule needs can neither refuse nor cost.
     let needs = |input: Input| selected.iter().any(|rule| rule.reads.contains(&input));
     let mut inputs = Inputs::default();
+    let mut unplaced = false;
     if needs(Input::Readme) {
         inputs.readme = tree.read_checked(&tree.root.join("README.md"))?;
     }
@@ -84,7 +86,10 @@ fn check(repo: Option<&Path>) -> Result<u8, String> {
         let reported = selected
             .iter()
             .any(|rule| rule.id == rules::docs_template_release::RULE_ID);
-        inputs.release = carried_release(&tree, reported)?;
+        match carried_release(&tree, reported)? {
+            Some(release) => inputs.release = release,
+            None => unplaced = true,
+        }
     }
     if needs(Input::Adr) {
         inputs.adr = tree.read_adr(&tree.root.join("docs/adr"))?;
@@ -104,9 +109,24 @@ fn check(repo: Option<&Path>) -> Result<u8, String> {
             None
         };
     }
+    if needs(Input::CheckLists) {
+        inputs.check_lists = tree.read_check_lists()?;
+    }
+    if needs(Input::Layout) {
+        inputs.layout = tree.read_layout(inputs.readme.as_deref())?;
+    }
+    if needs(Input::Skills) {
+        inputs.skills = tree.read_skills()?;
+    }
     let findings: Vec<Finding> = selected
         .iter()
-        .flat_map(|rule| (rule.check)(&inputs))
+        .flat_map(|rule| {
+            if unplaced && rule.reads.contains(&Input::Release) {
+                on_every_release(rule, &inputs)
+            } else {
+                (rule.check)(&inputs)
+            }
+        })
         .collect();
     for finding in &findings {
         println!("{finding}");
@@ -121,20 +141,42 @@ fn check(repo: Option<&Path>) -> Result<u8, String> {
 }
 
 /// The earliest template release whose bash checks the rules port.
-const EARLIEST_RELEASE: Version = Version(0, 5, 0);
+const EARLIEST_RELEASE: Version = rules::RELEASES[0];
+
+/// The findings of a rule that checks by the release on a tree whose README names none: those it
+/// reports on every release it knows, which no release could take back.
+fn on_every_release(rule: &rules::Rule, inputs: &Inputs) -> Vec<Finding> {
+    let runs: Vec<Vec<Finding>> = rules::RELEASES
+        .iter()
+        .map(|&release| {
+            let inputs = Inputs {
+                release: Some(release),
+                ..inputs.clone()
+            };
+            (rule.check)(&inputs)
+        })
+        .collect();
+    let (first, rest) = runs.split_first().expect("the rules know a release");
+    first
+        .iter()
+        .filter(|finding| rest.iter().all(|run| run.contains(finding)))
+        .cloned()
+        .collect()
+}
 
 /// The template release the tree carries, for the rules whose bash check changed between
 /// releases: none for `unreleased`, checked as the newest release. A release before the earliest
 /// is not decided; so is a README that names none, unless the rule `reported` on, the Template
-/// release rule, fails the run on it, and the tree is checked as the newest release
-/// (ADR-draft-rules-follow-the-carried-release).
-fn carried_release(tree: &Tree, reported: bool) -> Result<Option<Version>, String> {
+/// release rule, fails the run on it: then a rule reports only what it reports on every release
+/// (ADR-draft-rules-follow-the-carried-release). The outer none is that case, a release the
+/// README does not name.
+fn carried_release(tree: &Tree, reported: bool) -> Result<Option<Option<Version>>, String> {
     let readme = tree.read_checked(&tree.root.join("README.md"))?;
     match readme.as_deref().and_then(rules::docs_template_release::carried) {
-        Some(Carried::Unreleased) => Ok(None),
+        Some(Carried::Unreleased) => Ok(Some(None)),
         // The Template release rule reports a README that names no release, never a missing one.
         None if reported && readme.is_some() => Ok(None),
-        Some(Carried::Release(release)) if release >= EARLIEST_RELEASE => Ok(Some(release)),
+        Some(Carried::Release(release)) if release >= EARLIEST_RELEASE => Ok(Some(Some(release))),
         Some(Carried::Release(release)) => Err(format!(
             "README.md: template release v{release} is before v{EARLIEST_RELEASE}, the earliest whose checks this nuc ports — not decided"
         )),
@@ -371,3 +413,237 @@ impl Tree {
 /// The bytes within which `grep -I` finds a NUL byte however its buffers fall: GNU grep reads
 /// at least this much before it decides.
 const GREP_FIRST_BUFFER: usize = 32 * 1024;
+
+/// The names of the directory's entries, sorted by their bytes as a glob in the C locale sorts
+/// them; empty when it is no directory. A name that is no UTF-8 is not decided.
+fn entry_names(dir: &Path) -> Result<Vec<String>, String> {
+    let entries = match fs::read_dir(dir) {
+        Ok(entries) => entries,
+        Err(e) if matches!(e.kind(), ErrorKind::NotFound | ErrorKind::NotADirectory) => {
+            return Ok(Vec::new());
+        }
+        Err(e) => return Err(format!("{}: unreadable — {e}", dir.display())),
+    };
+    let mut names = Vec::new();
+    for entry in entries {
+        let entry = entry.map_err(|e| format!("{}: unreadable — {e}", dir.display()))?;
+        let Some(name) = entry.file_name().to_str().map(str::to_owned) else {
+            return Err(format!(
+                "{}: a file name that is no UTF-8 — not decided",
+                entry.path().display()
+            ));
+        };
+        names.push(name);
+    }
+    names.sort();
+    Ok(names)
+}
+
+impl Tree {
+    /// The names of the entries of a directory of the repository, as [`entry_names`] gives them;
+    /// a directory that resolves outside the repository is not listed, and not decided.
+    fn list(&self, dir: &Path) -> Result<Vec<String>, String> {
+        let real = match fs::canonicalize(dir) {
+            Ok(real) => real,
+            Err(e) if e.kind() == ErrorKind::NotFound => return Ok(Vec::new()),
+            Err(e) => return Err(format!("{}: unreadable — {e}", dir.display())),
+        };
+        if !real.starts_with(&self.inside) {
+            return Err(format!(
+                "{}: resolves outside the repository — not decided",
+                dir.display()
+            ));
+        }
+        entry_names(&real)
+    }
+
+    /// The files of check 9: `checks.yml`, `check-all.sh`, the workflows as the bash's globs
+    /// list them, and the scripts as `find -type f` lists them.
+    fn read_check_lists(&self) -> Result<rules::CheckLists, String> {
+        let file = |path: &str| -> Result<Option<Vec<u8>>, String> {
+            let full = self.root.join(path);
+            if full.is_file() {
+                self.read_record_file(&full)
+            } else {
+                Ok(None)
+            }
+        };
+        let mut lists = rules::CheckLists {
+            checks: file(".github/workflows/checks.yml")?,
+            check_all: file("scripts/check-all.sh")?,
+            ..rules::CheckLists::default()
+        };
+        let dir = self.root.join(".github/workflows");
+        let names = self.list(&dir)?;
+        lists.workflow_files = names
+            .iter()
+            .filter(|name| dir.join(name).is_file())
+            .cloned()
+            .collect();
+        for suffix in [".yml", ".yaml"] {
+            for name in names
+                .iter()
+                .filter(|name| !name.starts_with('.') && name.ends_with(suffix))
+            {
+                let rel = format!(".github/workflows/{name}");
+                if let Some(bytes) = file(&rel)? {
+                    lists.workflows.push((rel, bytes));
+                }
+            }
+        }
+        let scripts = self.root.join("scripts");
+        for name in self.list(&scripts)? {
+            let regular = fs::symlink_metadata(scripts.join(&name)).is_ok_and(|m| m.is_file());
+            if regular && name.ends_with(".sh") {
+                lists.scripts.push(name);
+            }
+        }
+        Ok(lists)
+    }
+
+    /// What check 10 tests: each path of the Project Layout block, as `compgen -G`, `-d`, or
+    /// `-f` tests it, and the first part of every tracked path.
+    fn read_layout(&self, readme: Option<&str>) -> Result<rules::Layout, String> {
+        let mut layout = rules::Layout::default();
+        for path in readme
+            .map(rules::docs_project_layout::listed)
+            .unwrap_or_default()
+        {
+            if path.contains('\u{FFFD}') {
+                return Err(format!(
+                    "README.md: the Project Layout lists a path that is no UTF-8, '{path}' — not decided"
+                ));
+            }
+            let there = if rules::docs_project_layout::is_pattern(&path) {
+                self.glob_matches(&path)?
+            } else if let Some(dir) = path.strip_suffix('/') {
+                // Joined as text, as the bash joins it: an absolute path stays under the root.
+                Path::new(&format!("{}/{dir}", self.root.display())).is_dir()
+            } else {
+                Path::new(&format!("{}/{path}", self.root.display())).is_file()
+            };
+            layout.found.insert(path, there);
+        }
+        let listing = git::run(&self.root, &["ls-files", "--cached"])?;
+        let mut top: Vec<String> = listing
+            .split('\n')
+            .filter(|path| !path.is_empty())
+            .map(|path| path.split('/').next().unwrap_or(path).to_owned())
+            .collect();
+        top.sort();
+        top.dedup();
+        layout.top_level = top;
+        Ok(layout)
+    }
+
+    /// Whether the pattern matches a path under the root, as bash's pathname expansion matches
+    /// it. A directory the walk would list outside the repository is not decided.
+    fn glob_matches(&self, pattern: &str) -> Result<bool, String> {
+        let (pattern, want_dir) = match pattern.strip_suffix('/') {
+            Some(p) => (p, true),
+            None => (pattern, false),
+        };
+        let segments: Vec<&str> = pattern.split('/').collect();
+        let mut current = vec![self.root.clone()];
+        for (i, segment) in segments.iter().enumerate() {
+            let last = i + 1 == segments.len();
+            let mut next = Vec::new();
+            for dir in &current {
+                if !glob::has_magic(segment) {
+                    let path = dir.join(glob::unescape(segment));
+                    let exists = if last && !want_dir {
+                        fs::symlink_metadata(&path).is_ok()
+                    } else {
+                        path.is_dir()
+                    };
+                    if exists {
+                        next.push(path);
+                    }
+                    continue;
+                }
+                if !dir.as_os_str().is_empty() {
+                    let real = fs::canonicalize(dir)
+                        .map_err(|e| format!("{}: unreadable — {e}", dir.display()))?;
+                    if !real.starts_with(&self.inside) {
+                        return Err(format!(
+                            "README.md: the Project Layout pattern '{pattern}' looks outside the repository — not decided"
+                        ));
+                    }
+                }
+                for name in entry_names(dir)? {
+                    let matched = glob::matches(segment, &name).ok_or_else(|| {
+                        format!(
+                            "README.md: the Project Layout pattern '{pattern}' uses a bracket nuc does not read — not decided"
+                        )
+                    })?;
+                    let path = dir.join(&name);
+                    if matched && (!(want_dir || !last) || path.is_dir()) {
+                        next.push(path);
+                    }
+                }
+            }
+            current = next;
+        }
+        Ok(!current.is_empty())
+    }
+
+    /// What check 11 tests: each skill and what stands at its pointer, and each entry of the
+    /// pointer directory, resolved as `cd -P` resolves it.
+    fn read_skills(&self) -> Result<rules::Skills, String> {
+        let skills = self.root.join(".agents/skills");
+        let pointers = self.root.join(".claude/skills");
+        let has_skill = |name: &str| skills.join(name).join("SKILL.md").is_file();
+        let mut found = rules::Skills::default();
+        for name in self.list(&skills)? {
+            if name.starts_with('.') || !skills.join(&name).is_dir() || !has_skill(&name) {
+                continue;
+            }
+            let pointer = match fs::symlink_metadata(pointers.join(&name)) {
+                Ok(m) if m.file_type().is_symlink() => rules::Pointer::Symlink,
+                Ok(_) => rules::Pointer::Other,
+                Err(_) => rules::Pointer::Missing,
+            };
+            found.skills.push((name, pointer));
+        }
+        for name in self.list(&pointers)? {
+            if name.starts_with('.') {
+                continue;
+            }
+            let p = pointers.join(&name);
+            let symlink = fs::symlink_metadata(&p).is_ok_and(|m| m.file_type().is_symlink());
+            let entry = if !symlink {
+                rules::Entry::NotSymlink {
+                    skill: has_skill(&name),
+                }
+            } else {
+                let resolve = |path: &Path| fs::canonicalize(path).ok().filter(|r| r.is_dir());
+                match resolve(&p) {
+                    None => rules::Entry::Dangles,
+                    Some(target) => {
+                        let want = resolve(&skills.join(&name));
+                        let at_skill = want.as_ref() == Some(&target) && has_skill(&name);
+                        rules::Entry::Points {
+                            target: self.shown(&target),
+                            at_skill,
+                        }
+                    }
+                }
+            };
+            found.pointers.push((name, entry));
+        }
+        Ok(found)
+    }
+
+    /// A resolved path as the bash shows it: relative to the root when under it, `/` between its
+    /// parts, and whole otherwise.
+    fn shown(&self, real: &Path) -> String {
+        match real.strip_prefix(&self.inside) {
+            Ok(rel) if !rel.as_os_str().is_empty() => rel
+                .components()
+                .map(|c| c.as_os_str().to_string_lossy())
+                .collect::<Vec<_>>()
+                .join("/"),
+            _ => real.display().to_string(),
+        }
+    }
+}

@@ -246,6 +246,14 @@ run_pair() {
 # reads or writes no other file.
 apply_variant() {
   local copy="$1" file="$1/$2"
+  # A symbolic link is deleted itself, wherever it points, when its directory is in the copy.
+  if [[ "$3" == delete && -L "$file" ]]; then
+    local dir
+    dir="$(realpath "$(dirname "$file")")"
+    [[ "$dir" == "$(realpath "$copy")" || "$dir" == "$(realpath "$copy")"/* ]] || return 1
+    rm -f "$file"
+    return 0
+  fi
   [[ -f "$file" ]] || return 1
   [[ "$(realpath -m "$file")" == "$(realpath "$copy")"/* ]] || return 1
   case "$3" in

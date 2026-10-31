@@ -22,11 +22,11 @@ name = "opamp-fleet"
 url = "https://github.com/mbrigl/opamp-fleet.git"
 commit = "2afdce057985ac06a28811f174499489bbcdc1ea"
 
-# A derived repository on template release v0.5.0, at a fixed commit of its main.
+# A derived repository on template release v0.6.0, at a fixed commit of its main.
 [[repository]]
 name = "nectar"
 url = "https://github.com/hivevm/nectar.git"
-commit = "0beb01d6f4eca9649ddaeff21b9b32c2f3b13747"
+commit = "4be43632c7dd15fe332f52006b3952d1f7176954"
 
 # This repository on template release v0.5.0, at the commit of its main that merged its setup;
 # its check-docs.sh is the template's with the badge fix it reported upstream.
@@ -34,3 +34,9 @@ commit = "0beb01d6f4eca9649ddaeff21b9b32c2f3b13747"
 name = "nuc-tools"
 url = "https://github.com/hivevm/nuc-tools.git"
 commit = "a85d61589ffdaf1ad56b59e73ba2ea14c353ed71"
+
+# A derived repository on template release v0.6.0, at a fixed commit of its main.
+[[repository]]
+name = "ocelli"
+url = "https://github.com/hivevm/ocelli.git"
+commit = "520ecdf964ccc25c9ccf8518ceda138c12e02230"
