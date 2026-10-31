@@ -1096,3 +1096,28 @@ fn a_marker_beside_a_nul_byte_past_the_first_buffer_is_not_decided() {
     assert_eq!(code(&output), Some(2), "{}", stdout(&output));
     assert!(stderr(&output).contains("late.bin"), "{}", stderr(&output));
 }
+
+#[cfg(unix)]
+#[test]
+fn a_path_that_is_no_utf8_is_read_and_refused_only_where_it_holds_a_marker() {
+    use std::os::unix::ffi::OsStrExt;
+    let fixture = Fixture::project("citations-bytes", CITATIONS, README);
+    fixture.write(
+        "docs/SPECIFICATION.md",
+        "## Goals / Success Criteria\n\n- **G-1** — it works.\n",
+    );
+    let name = fixture
+        .root()
+        .join(std::ffi::OsStr::from_bytes(b"n\xffo.txt"));
+    std::fs::write(&name, "nothing here\n").unwrap();
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(0), "{}", stderr(&output));
+    std::fs::write(&name, mark("G-1")).unwrap();
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(2), "{}", stdout(&output));
+    assert!(
+        stderr(&output).contains("n\u{FFFD}o.txt"),
+        "{}",
+        stderr(&output)
+    );
+}

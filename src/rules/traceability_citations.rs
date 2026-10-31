@@ -24,11 +24,11 @@ pub const RULE: Rule = Rule {
 const MARKER: &[u8] = b"Verifies:";
 
 /// One identifier one marker cites.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Citation {
-    pub file: String,
-    pub line: usize,
-    pub id: String,
+#[derive(Debug, PartialEq, Eq)]
+struct Citation {
+    file: String,
+    line: usize,
+    id: String,
 }
 
 fn check(inputs: &Inputs) -> Vec<Finding> {
@@ -63,7 +63,7 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
 
 /// The identifiers of the ADR files, and those of the files whose status line carries 🔴 or ⚪
 /// but not 🟢, as the bash's `case` sorts them.
-pub fn record(dir: &adr::Dir) -> (BTreeSet<String>, BTreeSet<String>) {
+fn record(dir: &adr::Dir) -> (BTreeSet<String>, BTreeSet<String>) {
     let mut known = BTreeSet::new();
     let mut inactive = BTreeSet::new();
     for (name, header) in adr::headers(dir) {
@@ -81,10 +81,10 @@ pub fn record(dir: &adr::Dir) -> (BTreeSet<String>, BTreeSet<String>) {
 
 /// Every citation of every file, in the order of the files and their lines, each as often as it
 /// is written.
-pub fn citations(markers: &BTreeMap<String, Vec<u8>>) -> Vec<Citation> {
+fn citations(markers: &BTreeMap<String, Vec<u8>>) -> Vec<Citation> {
     let mut found = Vec::new();
     for (file, bytes) in markers {
-        for (i, line) in lines(bytes).enumerate() {
+        for (i, line) in adr::awk_lines(bytes).into_iter().enumerate() {
             for id in cited(line) {
                 found.push(Citation {
                     file: file.clone(),
@@ -97,15 +97,6 @@ pub fn citations(markers: &BTreeMap<String, Vec<u8>>) -> Vec<Citation> {
     found
 }
 
-/// The lines as grep numbers them: split at each newline, the last one kept when it has bytes.
-fn lines(text: &[u8]) -> impl Iterator<Item = &[u8]> {
-    let body = text.strip_suffix(b"\n").unwrap_or(text);
-    (!text.is_empty())
-        .then(|| body.split(|&b| b == b'\n'))
-        .into_iter()
-        .flatten()
-}
-
 /// The identifiers the markers of one line cite, as `grep -oE` finds each marker
 /// `Verifies:[[:space:]]*(ID)([[:space:],]+(ID))*`, leftmost and longest, the search going on
 /// after it, and `grep -oE ID` takes the identifiers out of it.
@@ -114,7 +105,11 @@ fn cited(line: &[u8]) -> Vec<&[u8]> {
     let mut from = 0;
     while let Some(at) = adr::find(&line[from..], MARKER) {
         let start = from + at + MARKER.len();
-        let mut i = start + line[start..].iter().take_while(|&&b| is_space(b)).count();
+        let mut i = start
+            + line[start..]
+                .iter()
+                .take_while(|&&b| adr::is_space(b))
+                .count();
         let Some(length) = identifier_at(&line[i..]) else {
             from += at + 1;
             continue;
@@ -124,7 +119,7 @@ fn cited(line: &[u8]) -> Vec<&[u8]> {
         loop {
             let gap = line[i..]
                 .iter()
-                .take_while(|&&b| is_space(b) || b == b',')
+                .take_while(|&&b| adr::is_space(b) || b == b',')
                 .count();
             match (gap > 0).then(|| identifier_at(&line[i + gap..])).flatten() {
                 Some(length) => {
@@ -152,11 +147,6 @@ fn identifier_at(text: &[u8]) -> Option<usize> {
         }
         _ => None,
     }
-}
-
-/// The space class of the C locale, which the bash matches with `[[:space:]]`.
-fn is_space(b: u8) -> bool {
-    matches!(b, b' ' | b'\t' | b'\n' | b'\x0B' | b'\x0C' | b'\r')
 }
 
 #[cfg(test)]
@@ -201,46 +191,84 @@ mod tests {
             .collect()
     }
 
+    /// The specification of the bash self-test's fixtures, with the goals given and the quality
+    /// goal given.
+    fn spec(goals: &[&str], quality: &str) -> String {
+        let goals: String = goals.iter().map(|g| format!("- {g}\n")).collect();
+        format!(
+            "# Specification\n\n## Goals / Success Criteria\n\n{goals}\n## Quality Goals\n\n\
+             {quality}\n\n## Non-Goals\n\n- none\n"
+        )
+    }
+
+    const Q1: &str = "- **Q-1** — fast enough.";
+
     #[test]
     fn the_cases_of_the_bash_self_test_report_as_it_does() {
+        let g1 = spec(&["**G-1** — it works."], Q1);
+        let g2 = spec(&["**G-1** — it works.", "**G-2** — it also works."], Q1);
         let text = format!("{}\n{}\n", mark(&adr_id(1)), mark("G-1"));
         assert!(
             messages(&inputs(
-                SPEC,
+                &g1,
                 &[(1, "🟢 accepted")],
                 &[("tests/t.txt", &text)]
             ))
             .is_empty()
         );
-        let text = mark(&format!("{}, G-1 Q-1", adr_id(1)));
+        let text = mark(&format!("{}, G-1 G-2", adr_id(1)));
         assert!(
             messages(&inputs(
-                SPEC,
+                &g2,
                 &[(1, "🟢 accepted")],
                 &[("tests/t.txt", &text)]
             ))
             .is_empty()
         );
-        assert_eq!(
-            messages(&inputs(SPEC, &[], &[("tests/t.txt", &mark("G-9"))])),
-            ["tests/t.txt:1: cites 'G-9', which is not a criterion of docs/SPECIFICATION.md"]
+        // A G-n filed under Quality Goals is still a criterion a marker may cite.
+        let wrong = spec(
+            &["**G-1** — it works."],
+            "- **G-2** — a goal filed under quality.",
+        );
+        let text = mark("G-1 G-2");
+        assert!(
+            messages(&inputs(
+                &wrong,
+                &[(1, "🟡 proposed")],
+                &[("tests/t.txt", &text)]
+            ))
+            .is_empty()
         );
         assert_eq!(
-            messages(&inputs(SPEC, &[], &[("tests/t.txt", &mark(&adr_id(42)))])),
+            messages(&inputs(
+                &g1,
+                &[(1, "🟡 proposed")],
+                &[("tests/t.txt", &mark("G-1 G-9"))]
+            )),
+            ["tests/t.txt:1: cites 'G-9', which is not a criterion of docs/SPECIFICATION.md"]
+        );
+        let text = mark(&format!("G-1 {}", adr_id(42)));
+        assert_eq!(
+            messages(&inputs(
+                &g1,
+                &[(1, "🟡 proposed")],
+                &[("tests/t.txt", &text)]
+            )),
             [format!(
                 "tests/t.txt:1: cites '{}', which does not exist in docs/adr/",
                 adr_id(42)
             )]
         );
-        let text = format!("x\n{}\n", mark(&adr_id(1)));
+        let superseded = format!("⚪ superseded by {}", adr_id(2));
+        let text = mark(&format!("G-1 {} {}", adr_id(1), adr_id(2)));
         assert_eq!(
             messages(&inputs(
-                SPEC,
-                &[(1, "⚪ superseded by ADR-0002"), (2, "🟢 accepted")],
+                &g1,
+                &[(1, &superseded), (2, "🟢 accepted")],
                 &[("tests/t.txt", &text)]
             )),
             [format!(
-                "tests/t.txt:2: cites '{}', which is superseded or rejected — a test cannot \
+                "tests/t.txt:1: cites '{}', which is superseded or rejected — a test cannot \
                  verify a decision no longer in force",
                 adr_id(1)
             )]

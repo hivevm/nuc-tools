@@ -335,7 +335,7 @@ impl Tree {
     /// grep reads makes the file binary to `grep -I`, which leaves it out; a later one, in a file
     /// that holds the marker, is binary to grep or not depending on its buffers, and not decided.
     fn read_markers(&self) -> Result<BTreeMap<String, Vec<u8>>, String> {
-        let listing = git::run(
+        let listing = git::run_bytes(
             &self.root,
             &[
                 "ls-files",
@@ -346,9 +346,11 @@ impl Tree {
             ],
         )?;
         let mut files = BTreeMap::new();
-        for path in listing.split('\0').filter(|path| !path.is_empty()) {
-            let full = self.root.join(path);
-            if path.ends_with(".md") || !full.is_file() {
+        for raw in listing.split(|&b| b == 0).filter(|path| !path.is_empty()) {
+            let Some(full) = path_of(&self.root, raw) else {
+                continue;
+            };
+            if raw.ends_with(b".md") || !full.is_file() {
                 continue;
             }
             let Some(bytes) = self.read_bytes(&full)? else {
@@ -357,6 +359,13 @@ impl Tree {
             if !adr::contains(&bytes, b"Verifies:") {
                 continue;
             }
+            // A path a finding could not name is read only where it holds no marker.
+            let Ok(path) = std::str::from_utf8(raw) else {
+                return Err(format!(
+                    "{}: a path that is no UTF-8 holds a 'Verifies:' marker, which a finding could not name — not decided",
+                    String::from_utf8_lossy(raw)
+                ));
+            };
             match bytes.iter().position(|&b| b == 0) {
                 Some(at) if at < GREP_FIRST_BUFFER => {}
                 Some(_) => {
@@ -562,6 +571,20 @@ fn unit_separator_free(path: &Path, bytes: Vec<u8>) -> Result<Vec<u8>, String> {
 /// The bytes within which `grep -I` finds a NUL byte however its buffers fall: GNU grep reads
 /// at least this much before it decides.
 const GREP_FIRST_BUFFER: usize = 32 * 1024;
+
+/// The path under the root of the bytes git names: on Unix any bytes, elsewhere only UTF-8,
+/// which is what git writes there.
+fn path_of(root: &Path, raw: &[u8]) -> Option<PathBuf> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::ffi::OsStrExt;
+        Some(root.join(std::ffi::OsStr::from_bytes(raw)))
+    }
+    #[cfg(not(unix))]
+    {
+        std::str::from_utf8(raw).ok().map(|path| root.join(path))
+    }
+}
 
 /// The names of the directory's entries, sorted by their bytes as a glob in the C locale sorts
 /// them; empty when it is no directory. A name that is no UTF-8 is not decided.

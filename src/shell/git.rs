@@ -46,6 +46,12 @@ pub fn command(repo: &Path, args: &[&str]) -> Command {
 
 /// The standard output of git for `args` on `repo`, or why it could not be had.
 pub fn run(repo: &Path, args: &[&str]) -> Result<String, String> {
+    String::from_utf8(run_bytes(repo, args)?)
+        .map_err(|_| format!("git {} wrote no UTF-8", args.join(" ")))
+}
+
+/// The standard output of git for `args` on `repo` as bytes, or why it could not be had.
+pub fn run_bytes(repo: &Path, args: &[&str]) -> Result<Vec<u8>, String> {
     let output = command(repo, args)
         .output()
         .map_err(|e| format!("git could not be run ({e}) — install git and put it on the PATH"))?;
@@ -53,7 +59,7 @@ pub fn run(repo: &Path, args: &[&str]) -> Result<String, String> {
         let stderr = String::from_utf8_lossy(&output.stderr);
         return Err(format!("git {} failed: {}", args.join(" "), stderr.trim()));
     }
-    String::from_utf8(output.stdout).map_err(|_| format!("git {} wrote no UTF-8", args.join(" ")))
+    Ok(output.stdout)
 }
 
 /// The root of the working tree that contains `dir`.
