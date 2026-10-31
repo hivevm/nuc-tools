@@ -96,7 +96,6 @@ is the table a session reads.
 | [0009](0009-functional-core.md) | One library crate with the rules as a functional core, its effects in one shell module, and a thin binary | the source tree of the crate, `src/main.rs`, `src/shell/`, every rule module, and the structural test that holds them | 🟢 accepted |
 | [0010](0010-git-cli-cleared-environment.md) | The shell spawns the git CLI with a cleared environment, an allowlist passed through, the repository named by `-C`, and command-running configuration neutralized | every spawn of git in `src/shell/`, the environment and arguments it passes, and the list of neutralized configuration keys kept beside its test | 🟢 accepted |
 | [0011](0011-fixture-repositories.md) | Tests build their repositories through the real git CLI in fresh temporary directories, under a cleared environment | every test that needs a git repository, the test helpers that build one, and the environment the tests run under | 🟢 accepted |
-| [0012](0012-parity-harness.md) | A parity harness compares `nuc` with the bash scripts of a pinned corpus on the same trees, as a required check that fails on any difference | `tests/parity/`, its manifest `tests/parity/corpus.toml`, `scripts/check-parity.sh`, its job in `.github/workflows/checks.yml`, and the map from bash messages to rule IDs | 🟢 accepted |
 | [0013](0013-version-coupling.md) | A project's `nuc.toml` names the minimum `nuc` and the rules turned on, the template release ships both, and `nuc` reads the release from the README | the format of `nuc.toml`, how `nuc` loads it and the README's `Template release` line, and every rule's default state | 🟢 accepted |
 | [0014](0014-distribution.md) | `nuc` ships as attested GitHub Release binaries, a Dev Container Feature, and a GitHub Action, pinned by major tag and updated by Dependabot | the release workflow, the release tags of this repository, the release artifacts and their checksums and attestations, the Dev Container Feature and its publication, and the GitHub Action | 🟢 accepted |
 | [0015](0015-action-references-by-sha.md) | The workflows reference every action by full commit SHA with a version comment, kept current by Dependabot | every `uses:` line under `.github/workflows/`, `.github/dependabot.yml`, and the run of `scripts/sensor-action-refs.sh` in `scripts/check-all.sh` and the `sensors` job | 🟢 accepted |
@@ -104,6 +103,7 @@ is the table a session reads.
 | [0017](0017-dev-container-with-rust.md) | The Dev Container keeps the template's Debian base image, adds the Rust Feature, and reaches no containers | `.devcontainer/devcontainer.json`, `.devcontainer/devcontainer-lock.json`, and the tools the container installs | 🟢 accepted |
 | [0018](0018-gates-never-run-the-build.md) | This repository's gates never run the `nuc` being built, only the template's bash or a released `nuc` pinned like any dependency | `scripts/check-all.sh`, the hooks under `.githooks/`, the jobs of `.github/workflows/checks.yml`, and every place they name the tool that runs a check | 🟢 accepted |
 | [0019](0019-command-line-contract.md) | `nuc` reads `nuc.toml` as a TOML subset, writes one finding per line as `<file>[:<line>]: <rule ID>: <message>`, and exits 0, 1, or 2 | the keys and the syntax of `nuc.toml` and how `src/config.rs` reads them, the text output of every `nuc` command, and its exit codes | 🟢 accepted |
+| [draft-parity-harness-with-variants](draft-parity-harness-with-variants.md) | A parity harness compares `nuc` with the bash scripts on the pinned trees of a corpus of releases v0.5.0 and later and on variants derived from them, as a required check that fails on any difference | `tests/parity/`, its manifest `tests/parity/corpus.toml`, the variants kept beside it, `scripts/check-parity.sh`, its job in `.github/workflows/checks.yml`, and the map from bash messages to rule IDs | 🟡 proposed |
 
 ### Superseded and rejected
 
@@ -111,4 +111,6 @@ The record of what was decided against or replaced: read one when a change touch
 governed, to learn why the current decision stands. A row moves here in the change that
 flips its status.
 
-None yet.
+| ADR | Title | Applies to | Status |
+|-----|-------|------------|--------|
+| [0012](0012-parity-harness.md) | A parity harness compares `nuc` with the bash scripts of a pinned corpus on the same trees, as a required check that fails on any difference | `tests/parity/`, its manifest `tests/parity/corpus.toml`, `scripts/check-parity.sh`, its job in `.github/workflows/checks.yml`, and the map from bash messages to rule IDs | ⚪ superseded by ADR-draft-parity-harness-with-variants |
