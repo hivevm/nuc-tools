@@ -112,6 +112,7 @@ Cargo.lock            # the resolved dependencies, built with --locked
 rust-toolchain.toml   # the pinned Rust toolchain
 deny.toml             # what cargo deny allows: advisories, bans, licenses, sources
 src/                  # the library's functional core, its shell in src/shell/, and the binary
+tests/                # the integration tests: the shape of the code and the Dev Container
 .agents/skills/       # the procedures of AGENTS.md as Agent Skills, one directory each (ADR-0003),
                       # with the scripts and templates they carry (claim.sh, remap.sh, ticket.md)
 .claude/CLAUDE.md     # pointer for Claude Code to read AGENTS.md
