@@ -43,16 +43,13 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
             )));
             break;
         }
-        let heading = header
-            .heading
-            .as_deref()
-            .and_then(number_heading)
-            .unwrap_or("");
+        let text = header.heading.as_deref().map(adr::show).unwrap_or_default();
+        let heading = number_heading(&text).unwrap_or("");
         if heading != format!("# ADR-{number}") {
             found.push(finding(
                 format!("docs/adr/{name}"),
                 format!(
-                    "{name}: heading says '{}', but the filename says ADR-{number}",
+                    "heading says '{}', but the filename says ADR-{number}",
                     if heading.is_empty() {
                         "<none>"
                     } else {
@@ -68,21 +65,20 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
     {
         let key = adr::key_of(name);
         if !key.strip_prefix("draft-").is_some_and(is_slug) {
-            found.push(finding(format!("docs/adr/{name}"), format!(
-                "{name}: a draft's slug is lower case letters and digits joined by single hyphens"
-            )));
+            found.push(finding(
+                format!("docs/adr/{name}"),
+                "a draft's slug is lower case letters and digits joined by single hyphens"
+                    .to_owned(),
+            ));
             continue;
         }
-        let heading = header
-            .heading
-            .as_deref()
-            .and_then(reference_heading)
-            .unwrap_or("");
+        let text = header.heading.as_deref().map(adr::show).unwrap_or_default();
+        let heading = reference_heading(&text).unwrap_or("");
         if heading != format!("# ADR-{key}") {
             found.push(finding(
                 format!("docs/adr/{name}"),
                 format!(
-                    "{name}: heading says '{}', but the filename says ADR-{key}",
+                    "heading says '{}', but the filename says ADR-{key}",
                     if heading.is_empty() {
                         "<none>"
                     } else {
@@ -136,20 +132,12 @@ fn is_slug(text: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::adr::{Dir, File};
+    use crate::adr::Dir;
 
     fn inputs(files: &[(&str, &str)]) -> Inputs {
         let adr: Dir = files
             .iter()
-            .map(|(n, t)| {
-                (
-                    (*n).to_owned(),
-                    File {
-                        text: (*t).to_owned(),
-                        listed: true,
-                    },
-                )
-            })
+            .map(|(n, t)| ((*n).to_owned(), t.as_bytes().to_vec()))
             .collect();
         Inputs {
             adr,
@@ -201,11 +189,11 @@ mod tests {
     fn a_heading_that_names_another_number_or_none_fails() {
         assert_eq!(
             messages(&[("0001-a.md", "# ADR-0002: A")]),
-            ["0001-a.md: heading says '# ADR-0002', but the filename says ADR-0001"]
+            ["heading says '# ADR-0002', but the filename says ADR-0001"]
         );
         assert_eq!(
             messages(&[("0001-a.md", "# A")]),
-            ["0001-a.md: heading says '<none>', but the filename says ADR-0001"]
+            ["heading says '<none>', but the filename says ADR-0001"]
         );
     }
 
@@ -213,15 +201,13 @@ mod tests {
     fn a_draft_with_a_malformed_slug_or_another_heading_fails() {
         assert_eq!(
             messages(&[("draft-Bad_slug.md", &draft("Bad_slug"))]),
-            [
-                "draft-Bad_slug.md: a draft's slug is lower case letters and digits joined by single hyphens"
-            ]
+            ["a draft's slug is lower case letters and digits joined by single hyphens"]
         );
         assert_eq!(messages(&[("draft-a--b.md", &draft("a--b"))]).len(), 1);
         assert_eq!(
             messages(&[("draft-x.md", &draft("y: Y"))]),
             [format!(
-                "draft-x.md: heading says '{}', but the filename says {}",
+                "heading says '{}', but the filename says {}",
                 draft("y"),
                 &draft("x")[2..]
             )]

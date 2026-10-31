@@ -251,11 +251,78 @@ fn the_rules_of_the_record_report_end_to_end() {
     for line in [
         "docs/adr/README.md: docs/adr-index: ADR index: file '0003-c.md' exists but is not listed in the index",
         "docs/adr: docs/adr-numbering: ADR numbering: expected '0002-*.md' at position 2, found '0003-c.md'",
-        "docs/adr/0001-a.md: docs/adr-header: 0001-a.md: status line reads '🟢 proposed', but 🟢 means 'accepted'",
+        "docs/adr/0001-a.md: docs/adr-header: status line reads '🟢 proposed', but 🟢 means 'accepted'",
     ] {
         assert!(
             out.lines().any(|l| l.starts_with(line)),
             "missing {line}:\n{out}"
         );
     }
+}
+
+/// A project whose nuc.toml turns on the rules of the record, with the index and one ADR.
+fn record(name: &str, row_target: &str) -> Fixture {
+    let config = "minimum = \"0.0.0\"\nrules = [\"docs/adr-index\", \"docs/adr-numbering\", \"docs/adr-header\"]\n";
+    let fixture = Fixture::project(name, config, README);
+    let row = format!("| [0001]({row_target}) | A | every commit | 🟢 accepted |\n");
+    fixture.write(
+        "docs/adr/README.md",
+        &format!("| ADR | Title | Applies to | Status |\n|---|---|---|---|\n{row}"),
+    );
+    fixture.write(
+        "docs/adr/0001-a.md",
+        "# ADR-0001: A\n\n- **Status:** 🟢 accepted\n- **Applies to:** every commit\n",
+    );
+    fixture
+}
+
+#[test]
+fn a_binary_file_beside_the_adrs_is_not_read() {
+    let fixture = record("adr-png", "0001-a.md");
+    std::fs::write(
+        fixture.root().join("docs/adr/diagram.png"),
+        b"\x89PNG\r\n\x1a\n\0\0",
+    )
+    .expect("written");
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(
+        code(&output),
+        Some(0),
+        "{}{}",
+        stdout(&output),
+        stderr(&output)
+    );
+}
+
+#[test]
+fn a_row_target_resolves_as_the_bash_s_file_test_resolves_it() {
+    let fixture = record("adr-dot", "./0001-a.md");
+    let output = fixture.nuc(&["check"]);
+    let out = stdout(&output);
+    assert!(!out.contains("no such ADR file exists"), "{out}");
+    assert!(out.contains("row for 0001 links to './0001-a.md'"), "{out}");
+}
+
+#[test]
+fn a_row_target_outside_the_repository_is_not_decided() {
+    // A file beside the fixture, outside its repository, which a row reaches from docs/adr/.
+    let probe = Fixture::new("adr-outside-probe");
+    let outside = probe.root().join("outside.md");
+    std::fs::write(&outside, "- **Status:** 🟢 accepted\n").expect("written");
+    let up = format!(
+        "../../../{}/outside.md",
+        probe
+            .root()
+            .file_name()
+            .and_then(|n| n.to_str())
+            .expect("a name")
+    );
+    let fixture = record("adr-outside", &up);
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(2), "{}", stdout(&output));
+    assert!(
+        stderr(&output).contains("outside the repository"),
+        "{}",
+        stderr(&output)
+    );
 }

@@ -14,8 +14,11 @@ pub mod docs_template_release;
 pub struct Inputs {
     /// The text of `README.md` at the root, if the file exists.
     pub readme: Option<String>,
-    /// The files directly in `docs/adr/`, by name; empty when the directory does not exist.
+    /// The files of `docs/adr/` the bash reads, by name: the ADRs, the index, and the template.
     pub adr: crate::adr::Dir,
+    /// Each file a row of the index links, by its target as the row writes it: its bytes when
+    /// it is a file, as `-f` finds it, or none.
+    pub adr_targets: std::collections::BTreeMap<String, Option<Vec<u8>>>,
 }
 
 /// One rule: its ID, the reason `nuc explain` gives, and the check.

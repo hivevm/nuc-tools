@@ -4,6 +4,7 @@
 
 pub mod git;
 
+use std::collections::BTreeMap;
 use std::env;
 use std::fs;
 use std::io::ErrorKind;
@@ -69,9 +70,11 @@ fn check(repo: Option<&Path>) -> Result<u8, String> {
     let text = read(&root.join("nuc.toml"))?.ok_or_else(|| config::Refusal::Missing.to_string())?;
     let config = config::load(&text, running()).map_err(|refusal| refusal.to_string())?;
     let selected = config::select(&config, rules::ALL).map_err(|r| r.to_string())?;
+    let adr = read_adr(&root.join("docs/adr"))?;
     let inputs = Inputs {
         readme: read_checked(&root.join("README.md"))?,
-        adr: read_adr(&root.join("docs/adr"))?,
+        adr_targets: read_adr_targets(&root, &adr)?,
+        adr,
     };
     let findings: Vec<Finding> = selected
         .iter()
@@ -133,9 +136,24 @@ fn read_checked(path: &Path) -> Result<Option<String>, String> {
         .transpose()
 }
 
-/// The files directly in the directory that are files or links to files, read as the bash checks
-/// read them; empty when the directory does not exist. A file of its own is listed as an ADR
-/// candidate, as `find -type f` lists it; a link only answers whether a row's target exists.
+/// The bytes of a file awk or `read` reads for a rule of the record, `None` when it is missing; a
+/// NUL byte, which they do not read as the other bytes, is not decided (Q-1).
+fn read_record_file(path: &Path) -> Result<Option<Vec<u8>>, String> {
+    let Some(bytes) = read_bytes(path)? else {
+        return Ok(None);
+    };
+    if bytes.contains(&0) {
+        return Err(format!(
+            "{}: holds a NUL byte, which the bash checks read as binary — not decided",
+            path.display()
+        ));
+    }
+    Ok(Some(bytes))
+}
+
+/// The files of the directory the bash reads for the record: each ADR file of its own, as
+/// `find -type f` lists it, and the index and the template wherever they resolve, as `-f` and
+/// `grep` do; empty when the directory does not exist.
 fn read_adr(dir: &Path) -> Result<adr::Dir, String> {
     let entries = match fs::read_dir(dir) {
         Ok(entries) => entries,
@@ -145,19 +163,53 @@ fn read_adr(dir: &Path) -> Result<adr::Dir, String> {
     let mut files = adr::Dir::new();
     for entry in entries {
         let entry = entry.map_err(|e| format!("{}: unreadable — {e}", dir.display()))?;
-        let path = entry.path();
-        if !path.is_file() {
-            continue;
-        }
         let Some(name) = entry.file_name().to_str().map(str::to_owned) else {
             return Err(format!(
                 "{}: a file name that is no UTF-8 — not decided",
-                path.display()
+                entry.path().display()
             ));
         };
-        let listed = entry.file_type().is_ok_and(|kind| kind.is_file());
-        let text = read_checked(&path)?.unwrap_or_default();
-        files.insert(name, adr::File { text, listed });
+        let own_file = entry.file_type().is_ok_and(|kind| kind.is_file());
+        let wanted = (own_file && adr::is_adr_name(&name))
+            || ((name == "README.md" || name == "template.md") && entry.path().is_file());
+        let bytes = if wanted {
+            read_record_file(&entry.path())?
+        } else {
+            None
+        };
+        if let Some(bytes) = bytes {
+            files.insert(name, bytes);
+        }
     }
     Ok(files)
+}
+
+/// The file each row of the index links, resolved under `docs/adr/` as `-f` resolves it: its
+/// bytes when it is a file, or none. A target that resolves outside the repository is not
+/// decided: no rule reads beyond the tree it checks.
+fn read_adr_targets(
+    root: &Path,
+    adr: &adr::Dir,
+) -> Result<BTreeMap<String, Option<Vec<u8>>>, String> {
+    let Some(index) = adr.get("README.md") else {
+        return Ok(BTreeMap::new());
+    };
+    let base = root.join("docs/adr");
+    let inside =
+        fs::canonicalize(root).map_err(|e| format!("{}: unreadable — {e}", root.display()))?;
+    let mut targets = BTreeMap::new();
+    for target in rules::docs_adr_index::targets(index) {
+        let path = base.join(&target);
+        let bytes = match fs::canonicalize(&path) {
+            Ok(real) if !real.starts_with(&inside) => {
+                return Err(format!(
+                    "docs/adr/README.md: a row links '{target}', outside the repository — not decided"
+                ));
+            }
+            Ok(real) if real.is_file() => read_bytes(&real)?,
+            _ => None,
+        };
+        targets.insert(target, bytes);
+    }
+    Ok(targets)
 }
