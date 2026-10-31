@@ -303,6 +303,7 @@ mod tests {
         let rule = |id| Rule {
             id,
             explain: "",
+            reads: &[],
             check: |_| Vec::new(),
         };
         let known = [rule("docs/a"), rule("docs/b")];

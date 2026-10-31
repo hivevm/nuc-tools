@@ -2,7 +2,7 @@
 //! an ADR points at that ADR's own file. Only links to ADR files are compared; the template and
 //! the superseded and rejected ADRs are not read.
 
-use super::{Inputs, Rule};
+use super::{Input, Inputs, Rule};
 use crate::adr::{self, show};
 use crate::finding::Finding;
 use crate::markdown;
@@ -15,6 +15,7 @@ pub const RULE: Rule = Rule {
               identifier and the file it links name the same decision. Both halves resolve on \
               their own, so a renumbering, a copied line, or a consolidated decision set can leave \
               them naming different ADRs. Only links into ADR files are compared.",
+    reads: &[Input::Adr, Input::TextFiles],
     check,
 };
 
@@ -106,7 +107,14 @@ mod tests {
             )]
         );
         let draft = format!("[{}](0001-decision.md)\n", id("draft-next"));
-        assert_eq!(messages(&[("docs/adr/README.md", &draft)]).len(), 1);
+        assert_eq!(
+            messages(&[("docs/adr/README.md", &draft)]),
+            [format!(
+                "link '[{}](0001-decision.md)' cites {} but points at '0001-decision.md'",
+                id("draft-next"),
+                id("draft-next")
+            )]
+        );
     }
 
     #[test]

@@ -2,7 +2,7 @@
 //! ADR and the `⚪ superseded by ADR-NNNN` status line of every ADR it names agree, both ways. A
 //! name that matches no file is the reference rule's.
 
-use super::{Inputs, Rule};
+use super::{Input, Inputs, Rule};
 use crate::adr::{self, Header, show};
 use crate::finding::Finding;
 
@@ -15,6 +15,7 @@ pub const RULE: Rule = Rule {
               other. Both are written in the same pull request but in two files, and the index \
               check sees neither half missing. Every name of a Supersedes field counts, on \
               whichever line it sits.",
+    reads: &[Input::Adr],
     check,
 };
 
@@ -195,6 +196,59 @@ mod tests {
                 adr(&format!("⚪ superseded by {}", id("0008")), ""),
             ),
             ("0002-b.md", adr("🟢 accepted", &field)),
+        ];
+        assert_eq!(found(&adrs), []);
+    }
+    #[test]
+    fn a_consolidation_on_one_line_passes() {
+        let by3 = format!("⚪ superseded by {}", id("0003"));
+        let field = format!(
+            "- **Supersedes:** [{}](0001-a.md), [{}](0002-b.md)\n",
+            id("0001"),
+            id("0002")
+        );
+        let adrs = [
+            ("0001-a.md", adr(&by3, "")),
+            ("0002-b.md", adr(&by3, "")),
+            ("0003-c.md", adr("🟢 accepted", &field)),
+        ];
+        assert_eq!(found(&adrs), []);
+    }
+
+    #[test]
+    fn an_unflipped_name_on_the_continuation_line_fails_at_it() {
+        let field = format!(
+            "- **Supersedes:** [{}](0001-a.md),\n  [{}](0002-b.md)\n",
+            id("0001"),
+            id("0002")
+        );
+        let adrs = [
+            (
+                "0001-a.md",
+                adr(&format!("⚪ superseded by {}", id("0003")), ""),
+            ),
+            ("0002-b.md", adr("🟡 proposed", "")),
+            ("0003-c.md", adr("🟢 accepted", &field)),
+        ];
+        assert_eq!(
+            found(&adrs),
+            [(
+                "docs/adr/0002-b.md".to_owned(),
+                format!(
+                    "0003-c.md supersedes it, but its status line does not say 'superseded by {}'",
+                    id("0003")
+                )
+            )]
+        );
+    }
+
+    #[test]
+    fn a_draft_successor_linked_from_the_status_line_passes() {
+        let status = format!("⚪ superseded by [{}](draft-next.md)", id("draft-next"));
+        let field = format!("- **Supersedes:** [{}](0001-a.md)\n", id("0001"));
+        let adrs = [
+            ("0001-a.md", adr(&status, "")),
+            ("draft-next.md", adr("🟡 proposed", &field)),
         ];
         assert_eq!(found(&adrs), []);
     }

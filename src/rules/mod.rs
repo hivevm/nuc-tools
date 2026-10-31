@@ -27,10 +27,23 @@ pub struct Inputs {
     pub text_files: std::collections::BTreeMap<String, Vec<u8>>,
 }
 
-/// One rule: its ID, the reason `nuc explain` gives, and the check.
+/// What the shell reads from the repository for a rule.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Input {
+    /// `README.md` at the root.
+    Readme,
+    /// The files of `docs/adr/` and the targets of the index.
+    Adr,
+    /// Every text file of the repository.
+    TextFiles,
+}
+
+/// One rule: its ID, the reason `nuc explain` gives, what it reads, and the check.
 pub struct Rule {
     pub id: &'static str,
     pub explain: &'static str,
+    /// The inputs the check reads; the shell reads only those a rule turned on needs.
+    pub reads: &'static [Input],
     pub check: fn(&Inputs) -> Vec<Finding>,
 }
 

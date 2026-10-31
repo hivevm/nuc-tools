@@ -2,7 +2,7 @@
 //! gaps, each `# ADR-NNNN` heading matches its file name, and a draft's slug and heading follow
 //! its file name.
 
-use super::{Inputs, Rule};
+use super::{Input, Inputs, Rule};
 use crate::adr;
 use crate::finding::Finding;
 
@@ -15,6 +15,7 @@ pub const RULE: Rule = Rule {
               letters and digits joined by single hyphens, and its heading reads \
               '# ADR-draft-<slug>' for the file 'draft-<slug>.md'. Superseded ADRs stay on disk, \
               so a gap can only mean a deleted ADR or a botched rename.",
+    reads: &[Input::Adr],
     check,
 };
 

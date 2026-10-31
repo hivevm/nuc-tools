@@ -2,7 +2,7 @@
 //! `ADR-draft-<slug>` reference in a text file of the repository names an ADR file that exists in
 //! `docs/adr/`. The template and the superseded and rejected ADRs are not read.
 
-use super::{Inputs, Rule};
+use super::{Input, Inputs, Rule};
 use crate::adr::{self, show};
 use crate::finding::Finding;
 
@@ -14,6 +14,7 @@ pub const RULE: Rule = Rule {
               that exists in docs/adr/. A follow-up that does not exist yet is described by \
               topic, never by a number. The template and superseded or rejected ADRs are not \
               read: they describe a state of the repository that does not exist.",
+    reads: &[Input::Adr, Input::TextFiles],
     check,
 };
 

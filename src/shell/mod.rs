@@ -14,7 +14,7 @@ use std::process::ExitCode;
 use crate::adr;
 use crate::config::{self, Version};
 use crate::finding::Finding;
-use crate::rules::{self, Inputs};
+use crate::rules::{self, Input, Inputs};
 
 /// Exit code of a run that found nothing.
 const PASSED: u8 = 0;
@@ -70,13 +70,19 @@ fn check(repo: Option<&Path>) -> Result<u8, String> {
     let text = read(&root.join("nuc.toml"))?.ok_or_else(|| config::Refusal::Missing.to_string())?;
     let config = config::load(&text, running()).map_err(|refusal| refusal.to_string())?;
     let selected = config::select(&config, rules::ALL).map_err(|r| r.to_string())?;
-    let adr = read_adr(&root.join("docs/adr"))?;
-    let inputs = Inputs {
-        readme: read_checked(&root.join("README.md"))?,
-        adr_targets: read_adr_targets(&root, &adr)?,
-        text_files: read_text_files(&root)?,
-        adr,
-    };
+    // Only what a rule turned on reads: an input no rule needs can neither refuse nor cost.
+    let needs = |input: Input| selected.iter().any(|rule| rule.reads.contains(&input));
+    let mut inputs = Inputs::default();
+    if needs(Input::Readme) {
+        inputs.readme = read_checked(&root.join("README.md"))?;
+    }
+    if needs(Input::Adr) {
+        inputs.adr = read_adr(&root.join("docs/adr"))?;
+        inputs.adr_targets = read_adr_targets(&root, &inputs.adr)?;
+    }
+    if needs(Input::TextFiles) {
+        inputs.text_files = read_text_files(&root)?;
+    }
     let findings: Vec<Finding> = selected
         .iter()
         .flat_map(|rule| (rule.check)(&inputs))
@@ -225,7 +231,7 @@ fn read_text_files(root: &Path) -> Result<BTreeMap<String, Vec<u8>>, String> {
         &["ls-files", "--cached", "--others", "--exclude-standard"],
     )?;
     let mut files = BTreeMap::new();
-    for path in listing.lines() {
+    for path in listing.split('\n').filter(|path| !path.is_empty()) {
         let full = root.join(path);
         if !full.is_file() {
             continue;
@@ -233,9 +239,30 @@ fn read_text_files(root: &Path) -> Result<BTreeMap<String, Vec<u8>>, String> {
         let Some(bytes) = read_bytes(&full)? else {
             continue;
         };
-        if !bytes.contains(&0) && bytes.iter().any(|&b| b != b'\n') {
-            files.insert(path.to_owned(), bytes);
+        match bytes.iter().position(|&b| b == 0) {
+            // A NUL in the first buffer grep reads makes the file binary to `grep -I`: left out.
+            Some(at) if at < GREP_FIRST_BUFFER => continue,
+            // A later one is binary to grep or not depending on where its buffers fall.
+            Some(_) => {
+                return Err(format!(
+                    "{path}: holds a NUL byte past its first {GREP_FIRST_BUFFER} bytes, which grep reads as text or as binary depending on its buffers — not decided"
+                ));
+            }
+            None if bytes.iter().any(|&b| b != b'\n') => {
+                files.insert(path.to_owned(), bytes);
+            }
+            None => {}
         }
+    }
+    if files.is_empty() {
+        return Err(format!(
+            "no text files found under {} — the file list is empty, so nothing was checked",
+            root.display()
+        ));
     }
     Ok(files)
 }
+
+/// The bytes within which `grep -I` finds a NUL byte however its buffers fall: GNU grep reads
+/// at least this much before it decides.
+const GREP_FIRST_BUFFER: usize = 32 * 1024;

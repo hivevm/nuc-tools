@@ -326,3 +326,85 @@ fn a_row_target_outside_the_repository_is_not_decided() {
         stderr(&output)
     );
 }
+
+/// A project whose nuc.toml turns on the reference rule, which reads every text file.
+fn references(name: &str) -> Fixture {
+    let config = "minimum = \"0.0.0\"\nrules = [\"docs/adr-refs\"]\n";
+    Fixture::project(name, config, README)
+}
+
+/// A reference to an ADR that does not exist, assembled so that this file names none itself.
+fn missing_reference() -> String {
+    format!("See {}-0099.\n", "ADR")
+}
+
+#[test]
+fn the_text_files_are_those_git_lists_that_grep_reads_as_text() {
+    let fixture = references("text-files");
+    fixture.write(".gitignore", "ignored.md\n");
+    fixture.write("ignored.md", &missing_reference());
+    fixture.write("untracked.md", &missing_reference());
+    fixture.write("blank.md", "\n\n\n");
+    let mut binary = missing_reference().into_bytes();
+    binary.extend_from_slice(b"\0");
+    std::fs::write(fixture.root().join("early-nul.bin"), binary).expect("written");
+    let output = fixture.nuc(&["check"]);
+    let out = stdout(&output);
+    assert!(out.contains("untracked.md:1: docs/adr-refs: "), "{out}");
+    assert!(!out.contains("ignored.md"), "{out}");
+    assert!(!out.contains("early-nul.bin"), "{out}");
+    assert_eq!(code(&output), Some(1));
+}
+
+#[test]
+fn a_path_git_quotes_names_no_file_as_for_the_bash() {
+    let fixture = references("quoted-path");
+    fixture.write("caf\u{e9}.md", &missing_reference());
+    fixture.commit("A file with a name git quotes");
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(0), "{}", stdout(&output));
+}
+
+#[test]
+fn a_nul_byte_past_grep_s_first_buffer_is_not_decided() {
+    let fixture = references("late-nul");
+    let mut late = missing_reference().into_bytes();
+    late.extend(std::iter::repeat_n(b"line of text\n".as_slice(), 4000).flatten());
+    late.push(0);
+    std::fs::write(fixture.root().join("late.txt"), late).expect("written");
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(2), "{}", stdout(&output));
+    assert!(
+        stderr(&output).contains("late.txt: holds a NUL byte past its first"),
+        "{}",
+        stderr(&output)
+    );
+}
+
+#[test]
+fn a_repository_without_a_text_file_is_not_decided() {
+    // Nothing tracked, and everything new ignored, nuc.toml included.
+    let fixture = Fixture::new("no-text");
+    fixture.write(
+        "nuc.toml",
+        "minimum = \"0.0.0\"\nrules = [\"docs/adr-refs\"]\n",
+    );
+    fixture.write(".gitignore", "*\n");
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(2), "{}", stdout(&output));
+    assert!(
+        stderr(&output).contains("no text files found under"),
+        "{}",
+        stderr(&output)
+    );
+}
+
+#[test]
+fn a_rule_that_reads_no_text_files_is_not_held_up_by_one() {
+    let fixture = Fixture::project("unread", CONFIG, README);
+    let mut late = b"x\n".repeat(20_000);
+    late.push(0);
+    std::fs::write(fixture.root().join("late.txt"), late).expect("written");
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(0), "{}", stderr(&output));
+}

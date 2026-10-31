@@ -69,6 +69,13 @@ impl Header {
     }
 }
 
+/// A field whose continuation lines the awk reads.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Continued {
+    Supersedes,
+    Deciders,
+}
+
 /// The lines of the text as awk reads them: split at newlines, an unterminated last line kept.
 pub fn awk_lines(text: &[u8]) -> Vec<&[u8]> {
     let mut lines: Vec<&[u8]> = text.split(|&b| b == b'\n').collect();
@@ -92,7 +99,7 @@ pub fn header(text: &[u8], needle: Option<&[u8]>) -> Header {
     let mut header = Header::default();
     let mut seen: BTreeSet<Vec<u8>> = BTreeSet::new();
     let mut head = true;
-    let mut continuing: Option<&'static [u8]> = None;
+    let mut continuing: Option<Continued> = None;
     for (i, line) in awk_lines(text).into_iter().enumerate() {
         if head && line.starts_with(b"## ") {
             head = false;
@@ -110,9 +117,10 @@ pub fn header(text: &[u8], needle: Option<&[u8]>) -> Header {
         if line.starts_with(b"# ADR-") && seen.insert(b"heading".to_vec()) {
             header.heading = Some(line.to_vec());
         }
-        // A field the awk continues: Supersedes and Deciders, on lines that open with space.
+        // A field the awk continues, Supersedes or Deciders, on lines that open with space; only
+        // the Supersedes text is kept.
         if continuing.is_some() && continues(line) {
-            if continuing == Some(b"Supersedes") {
+            if continuing == Some(Continued::Supersedes) {
                 header.supersedes.extend_from_slice(line);
                 header.supersedes.push(b'\n');
             }
@@ -125,16 +133,14 @@ pub fn header(text: &[u8], needle: Option<&[u8]>) -> Header {
                 b"needle" => header.needle = true,
                 b"stray" => header.stray.push(line.to_vec()),
                 _ => {
-                    if name == b"Supersedes" {
+                    continuing = match name {
+                        b"Supersedes" => Some(Continued::Supersedes),
+                        b"Deciders" => Some(Continued::Deciders),
+                        _ => None,
+                    };
+                    if continuing == Some(Continued::Supersedes) {
                         header.supersedes.extend_from_slice(line);
                         header.supersedes.push(b'\n');
-                    }
-                    if name == b"Supersedes" || name == b"Deciders" {
-                        continuing = Some(if name == b"Supersedes" {
-                            b"Supersedes"
-                        } else {
-                            b"Deciders"
-                        });
                     }
                     let name = String::from_utf8_lossy(name).into_owned();
                     header.fields.insert(name, line.to_vec());
@@ -145,19 +151,19 @@ pub fn header(text: &[u8], needle: Option<&[u8]>) -> Header {
     header
 }
 
-/// The position of the first occurrence of the needle in the bytes.
+/// The position of the first occurrence of the needle in the bytes; an empty needle is at 0.
 pub fn find(haystack: &[u8], needle: &[u8]) -> Option<usize> {
+    if needle.is_empty() {
+        return Some(0);
+    }
     haystack
-        .windows(needle.len().max(1))
+        .windows(needle.len())
         .position(|window| window == needle)
 }
 
 /// Whether the needle occurs in the bytes.
 pub fn contains(haystack: &[u8], needle: &[u8]) -> bool {
-    needle.is_empty()
-        || haystack
-            .windows(needle.len())
-            .any(|window| window == needle)
+    find(haystack, needle).is_some()
 }
 
 /// Whether the line holds `**<field>:**` for a field of the template, anywhere on it.
