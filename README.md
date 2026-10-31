@@ -84,9 +84,12 @@ turned on
 ([ADR-draft-version-coupling](docs/adr/draft-version-coupling.md)):
 
 ```toml
-minimum = "0.1.0"
+minimum = "0.0.0"
 rules = ["docs/template-release"]
 ```
+
+A `nuc` built from source is version 0.0.0 until the first release, so a higher minimum refuses
+it.
 
 The one rule so far is `docs/template-release`, check 14 of the template's `check-docs.sh`.
 `nuc hook <name>` follows with the port of the hooks.

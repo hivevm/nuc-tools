@@ -57,5 +57,6 @@ lives between them. Only what a newcomer would otherwise reconstruct from code.
 `nuc check` finds the root of the working tree with `git rev-parse --show-toplevel`, reads
 `nuc.toml` there and selects the rules it turns on, reads `README.md`, runs each selected rule on
 what it read, prints the findings on the standard output, and exits 0 without a finding and 1
-with one. Every cause that keeps it from deciding ends the run with exit 2 and a message on the
-standard error, before any rule runs (Q-1). Nothing is written and no state is kept between runs.
+with one. Every cause it can name that keeps it from deciding ends the run with exit 2 and a
+message on the standard error, before any rule runs; a panic ends it with exit 101, non-zero as
+well (Q-1). Nothing is written and no state is kept between runs.
