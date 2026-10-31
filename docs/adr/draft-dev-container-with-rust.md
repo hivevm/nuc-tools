@@ -1,7 +1,7 @@
 # ADR-draft-dev-container-with-rust: The Dev Container keeps the template's Debian base image, adds the Rust Feature, and reaches no containers
 
-- **Status:** 🟡 proposed
-- **Date:** 2026-10-30
+- **Status:** 🟢 accepted
+- **Date:** 2026-10-31
 - **Deciders:** Markus Brigl
 - **Applies to:** `.devcontainer/devcontainer.json`, `.devcontainer/devcontainer-lock.json`, and the tools the container installs
 

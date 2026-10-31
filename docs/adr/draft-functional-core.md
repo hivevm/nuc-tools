@@ -1,7 +1,7 @@
 # ADR-draft-functional-core: One library crate with the rules as a functional core, its effects in one shell module, and a thin binary
 
-- **Status:** 🟡 proposed
-- **Date:** 2026-10-30
+- **Status:** 🟢 accepted
+- **Date:** 2026-10-31
 - **Deciders:** Markus Brigl
 - **Applies to:** the source tree of the crate, `src/main.rs`, `src/shell/`, every rule module, and the structural test that holds them
 

@@ -1,7 +1,7 @@
 # ADR-draft-distribution: `nuc` ships as attested GitHub Release binaries, a Dev Container Feature, and a GitHub Action, pinned by major tag and updated by Dependabot
 
-- **Status:** 🟡 proposed
-- **Date:** 2026-10-30
+- **Status:** 🟢 accepted
+- **Date:** 2026-10-31
 - **Deciders:** Markus Brigl
 - **Applies to:** the release workflow, the release tags of this repository, the release artifacts and their checksums and attestations, the Dev Container Feature and its publication, and the GitHub Action
 

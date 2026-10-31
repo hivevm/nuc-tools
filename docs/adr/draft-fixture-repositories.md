@@ -1,7 +1,7 @@
 # ADR-draft-fixture-repositories: Tests build their repositories through the real git CLI in fresh temporary directories, under a cleared environment
 
-- **Status:** 🟡 proposed
-- **Date:** 2026-10-30
+- **Status:** 🟢 accepted
+- **Date:** 2026-10-31
 - **Deciders:** Markus Brigl
 - **Applies to:** every test that needs a git repository, the test helpers that build one, and the environment the tests run under
 

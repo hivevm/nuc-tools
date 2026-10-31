@@ -1,7 +1,7 @@
 # ADR-draft-git-cli-cleared-environment: The shell spawns the git CLI with a cleared environment, an allowlist passed through, the repository named by `-C`, and command-running configuration neutralized
 
-- **Status:** 🟡 proposed
-- **Date:** 2026-10-30
+- **Status:** 🟢 accepted
+- **Date:** 2026-10-31
 - **Deciders:** Markus Brigl
 - **Applies to:** every spawn of git in `src/shell/`, the environment and arguments it passes, and the list of neutralized configuration keys kept beside its test
 

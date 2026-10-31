@@ -1,7 +1,7 @@
 # ADR-draft-harness: One agent implements and a fresh session reviews, one ticket at a time, and the maintainer reviews every change to the protected parts
 
-- **Status:** 🟡 proposed
-- **Date:** 2026-10-30
+- **Status:** 🟢 accepted
+- **Date:** 2026-10-31
 - **Deciders:** Markus Brigl
 - **Applies to:** every change made by a coding agent, the `review` skill, the agents and models that work here, and the parts of the system listed under Decision as never worked unattended
 

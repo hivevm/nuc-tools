@@ -1,7 +1,7 @@
 # ADR-draft-action-references-by-sha: The workflows reference every action by full commit SHA with a version comment, kept current by Dependabot
 
-- **Status:** 🟡 proposed
-- **Date:** 2026-10-30
+- **Status:** 🟢 accepted
+- **Date:** 2026-10-31
 - **Deciders:** Markus Brigl
 - **Applies to:** every `uses:` line under `.github/workflows/`, `.github/dependabot.yml`, and the run of `scripts/sensor-action-refs.sh` in `scripts/check-all.sh` and the `sensors` job
 

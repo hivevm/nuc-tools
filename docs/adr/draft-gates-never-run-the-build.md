@@ -1,7 +1,7 @@
 # ADR-draft-gates-never-run-the-build: This repository's gates never run the `nuc` being built, only the template's bash or a released `nuc` pinned like any dependency
 
-- **Status:** 🟡 proposed
-- **Date:** 2026-10-30
+- **Status:** 🟢 accepted
+- **Date:** 2026-10-31
 - **Deciders:** Markus Brigl
 - **Applies to:** `scripts/check-all.sh`, the hooks under `.githooks/`, the jobs of `.github/workflows/checks.yml`, and every place they name the tool that runs a check
 

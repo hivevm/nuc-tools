@@ -1,7 +1,7 @@
 # ADR-draft-toolchain: Rust stable pinned in `rust-toolchain.toml`, cargo's build, test, fmt, and clippy behind `scripts/check-build.sh`, and the dependency audit behind `scripts/check-deps.sh`
 
-- **Status:** 🟡 proposed
-- **Date:** 2026-10-30
+- **Status:** 🟢 accepted
+- **Date:** 2026-10-31
 - **Deciders:** Markus Brigl
 - **Applies to:** `rust-toolchain.toml`, `Cargo.toml`, `Cargo.lock`, `deny.toml`, `scripts/check-build.sh`, `scripts/check-deps.sh`, their jobs in `.github/workflows/checks.yml`, the benchmark workflow, and the Build, Test & Run section of `README.md`
 

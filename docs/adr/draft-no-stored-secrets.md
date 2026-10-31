@@ -1,7 +1,7 @@
 # ADR-draft-no-stored-secrets: The workflows use no stored secret, only `GITHUB_TOKEN` and OIDC with permissions set per job
 
-- **Status:** 🟡 proposed
-- **Date:** 2026-10-30
+- **Status:** 🟢 accepted
+- **Date:** 2026-10-31
 - **Deciders:** Markus Brigl
 - **Applies to:** every workflow under `.github/workflows/`, its `permissions`, and every reference to `secrets.` in them
 
