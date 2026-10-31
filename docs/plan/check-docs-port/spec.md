@@ -101,9 +101,8 @@ trees as pinned and on variants of them that make each ported check fire.
 
 ## ADR impact
 
-- Binding: ADR-0009 (the shape), ADR-0010 (git), ADR-0011 (fixtures), ADR-0012 (parity),
+- Binding: ADR-0009 (the shape), ADR-0010 (git), ADR-0011 (fixtures), ADR-draft-parity-harness-with-variants (parity),
   ADR-0013 (version coupling), ADR-0018 (the gates), ADR-0019 (the contract).
-- **Variants:** ADR-0012 compares bash and `nuc` on "the same trees of a corpus pinned by
-  commit". Whether a tree the harness derives from a pinned tree by a scripted edit is such a
-  tree is for the maintainer to say before ticket 01 starts; if it is not, ticket 01 opens by
-  proposing an ADR that supersedes ADR-0012 with variants in its decision.
+- **Variants and the release floor:** ADR-0012 compared on the pinned trees only. The proposed
+  ADR-draft-parity-harness-with-variants supersedes it, adding the variants and the corpus of
+  releases v0.5.0 and later; it is accepted before ticket 01 lands.

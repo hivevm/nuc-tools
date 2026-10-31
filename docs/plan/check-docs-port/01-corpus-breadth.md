@@ -32,15 +32,13 @@ tracer bullet of the spec: every later ticket adds rules and variants to what th
 
 ## Read first
 
-- ADR-0012 (parity), ADR-0013 (version coupling), ADR-0018 (gates), ADR-0019 (contract).
-- The spec's ADR impact on variants: the maintainer's answer decides whether this ticket opens
-  with a superseding ADR.
+- ADR-draft-parity-harness-with-variants (parity), ADR-0013 (version coupling), ADR-0018 (gates), ADR-0019 (contract).
 - Glossary: parity, parity harness, corpus, rule ID.
 - The golden path and the test pattern in `docs/ARCHITECTURE.md`; the harness and its self-test.
 
 ## Blocked by
 
-- None (can start immediately), once the maintainer has answered the spec's question on variants.
+- None (can start immediately); ADR-draft-parity-harness-with-variants is accepted before it lands.
 
 ## Mode
 
