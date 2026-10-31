@@ -1,4 +1,4 @@
-# ADR-draft-gates-never-run-the-build: This repository's gates never run the `nuc` being built, only the template's bash or a released `nuc` pinned like any dependency
+# ADR-0018: This repository's gates never run the `nuc` being built, only the template's bash or a released `nuc` pinned like any dependency
 
 - **Status:** 🟢 accepted
 - **Date:** 2026-10-31
@@ -25,11 +25,11 @@ review.
 - **Later:** a released `nuc` may replace them, installed in CI by the local
   `release/install-nuc.sh` from the `SHA256SUMS` and `VERSION` of a release committed in this
   repository and moved by a pull request, and in the Dev Container by its Feature pinned by the
-  lock ([ADR-draft-dev-container-with-rust](draft-dev-container-with-rust.md)). Not through this
+  lock ([ADR-0017](0017-dev-container-with-rust.md)). Not through this
   repository's own Action: the SHA pin
-  [ADR-draft-action-references-by-sha](draft-action-references-by-sha.md) asks for would be moved
+  [ADR-0015](0015-action-references-by-sha.md) asks for would be moved
   by Dependabot to a source commit `vX.Y.Z`, which carries no checksums and installs nothing
-  ([ADR-draft-distribution](draft-distribution.md)).
+  ([ADR-0014](0014-distribution.md)).
   The switch is a decision of its own, which supersedes the bash clause of ADR-0002, and is taken
   only once the released `nuc` reaches parity for every check these gates run.
 - **Never:** `cargo run`, a binary under `target/`, or any other build of the working tree as a
@@ -60,7 +60,7 @@ review.
 
 ## Enforcement
 
-A check cited with `Verifies: ADR-draft-gates-never-run-the-build` reads `scripts/check-all.sh`,
+A check cited with `Verifies: ADR-0018` reads `scripts/check-all.sh`,
 the hooks under `.githooks/`, and `.github/workflows/checks.yml`, and fails on `cargo run`, a
 path under `target/`, or a `nuc` invoked without a released, pinned source, outside
 `scripts/check-build.sh` and `scripts/check-parity.sh`, which run the build's own tests.

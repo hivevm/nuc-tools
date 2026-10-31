@@ -1,4 +1,4 @@
-# ADR-draft-action-references-by-sha: The workflows reference every action by full commit SHA with a version comment, kept current by Dependabot
+# ADR-0015: The workflows reference every action by full commit SHA with a version comment, kept current by Dependabot
 
 - **Status:** 🟢 accepted
 - **Date:** 2026-10-31
@@ -9,7 +9,7 @@
 
 A compromised release pipeline is a threat to every derived project (*Threats*): the release
 workflow of this repository holds a token that publishes releases, packages on `ghcr.io`, and
-attestations ([ADR-draft-distribution](draft-distribution.md)), and every `uses:` line runs
+attestations ([ADR-0014](0014-distribution.md)), and every `uses:` line runs
 third-party code with it. Q-3 puts the supply chain third among the quality goals. The template
 ships its workflows with first-party actions by major version tag and Dependabot configured.
 
@@ -28,12 +28,12 @@ comment, kept current by Dependabot, and gate the form with `scripts/sensor-acti
   local actions (`./…`) are exempt.
 - **Updates:** `.github/dependabot.yml` keeps the `github-actions` ecosystem, which updates a pin
   with its comment, and adds the `cargo` ecosystem, so that the crates arrive as pull requests
-  `scripts/check-deps.sh` audits ([ADR-draft-toolchain](draft-toolchain.md)).
+  `scripts/check-deps.sh` audits ([ADR-0008](0008-toolchain.md)).
 - **Gate:** `scripts/sensor-action-refs.sh --require sha` runs in `scripts/check-all.sh` and in
   the `sensors` job.
 
 **Out of scope:** how derived projects reference the Action and the Feature of this repository,
-which [ADR-draft-distribution](draft-distribution.md) decides; workflow audits beyond the form of
+which [ADR-0014](0014-distribution.md) decides; workflow audits beyond the form of
 the reference, such as zizmor's.
 
 ## Alternatives considered
@@ -64,4 +64,4 @@ the reference, such as zizmor's.
 
 `scripts/sensor-action-refs.sh --require sha` in `scripts/check-all.sh` and in the `sensors` job
 fails on every reference in another form; the comment beside its `run` line cites this ADR with
-`Verifies: ADR-draft-action-references-by-sha`.
+`Verifies: ADR-0015`.

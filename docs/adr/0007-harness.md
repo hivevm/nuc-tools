@@ -1,4 +1,4 @@
-# ADR-draft-harness: One agent implements and a fresh session reviews, one ticket at a time, and the maintainer reviews every change to the protected parts
+# ADR-0007: One agent implements and a fresh session reviews, one ticket at a time, and the maintainer reviews every change to the protected parts
 
 - **Status:** 🟢 accepted
 - **Date:** 2026-10-31

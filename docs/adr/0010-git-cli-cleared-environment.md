@@ -1,4 +1,4 @@
-# ADR-draft-git-cli-cleared-environment: The shell spawns the git CLI with a cleared environment, an allowlist passed through, the repository named by `-C`, and command-running configuration neutralized
+# ADR-0010: The shell spawns the git CLI with a cleared environment, an allowlist passed through, the repository named by `-C`, and command-running configuration neutralized
 
 - **Status:** 🟢 accepted
 - **Date:** 2026-10-31
@@ -15,7 +15,7 @@ repository, as the leak of `GIT_DIR` into the template's self-tests did (*Proble
 The environments `nuc` runs in, CI's among them, carry tokens (*Threats*). The threats ask that
 `nuc` act only on the repository it was pointed at (Q-9), disclose no token (Q-10), and execute no
 repository content (Q-7). The shape keeps every spawn in `src/shell/`
-([ADR-draft-functional-core](draft-functional-core.md)).
+([ADR-0009](0009-functional-core.md)).
 
 Some git configuration keys make git run a command, such as `core.fsmonitor` and the hooks under
 `core.hooksPath`. A container needs the user's global configuration for `safe.directory`.
@@ -76,6 +76,6 @@ git, which `nuc` does not spawn.
 The test of Q-9 runs every command with `GIT_DIR`, `GIT_WORK_TREE`, `GIT_INDEX_FILE`, and
 `GIT_CONFIG_PARAMETERS` set to a decoy repository and checks that it reports on the repository it
 was pointed at and leaves the decoy untouched; it cites this ADR with
-`Verifies: ADR-draft-git-cli-cleared-environment`. A test of the shell spawns a git stand-in that
+`Verifies: ADR-0010`. A test of the shell spawns a git stand-in that
 records its environment and arguments, and fails on a variable outside the allowlist, on a call
 without `-C`, and on a call without each key of the list.

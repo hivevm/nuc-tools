@@ -1,4 +1,4 @@
-# ADR-draft-no-stored-secrets: The workflows use no stored secret, only `GITHUB_TOKEN` and OIDC with permissions set per job
+# ADR-0016: The workflows use no stored secret, only `GITHUB_TOKEN` and OIDC with permissions set per job
 
 - **Status:** 🟢 accepted
 - **Date:** 2026-10-31
@@ -8,7 +8,7 @@
 ## Context
 
 The specification names tokens as an asset (*Threats*). The release publishes binaries,
-packages on `ghcr.io`, and attestations ([ADR-draft-distribution](draft-distribution.md)), all of
+packages on `ghcr.io`, and attestations ([ADR-0014](0014-distribution.md)), all of
 which the short-lived `GITHUB_TOKEN` and the workflow's OIDC token can do; the project has no
 credential of its own shape. The catalogue entry *Secrets* fits the baseline to one developer
 with few credentials, all in GitHub's scanning patterns; secret scanning with push protection is
@@ -20,7 +20,7 @@ We will store no secret for this repository and have its workflows authenticate 
 `GITHUB_TOKEN` and OIDC, with `permissions` set per job to what that job needs.
 
 **Out of scope:** the tokens of the environments `nuc` runs in, which Q-10 and
-[ADR-draft-git-cli-cleared-environment](draft-git-cli-cleared-environment.md) protect; a workflow
+[ADR-0010](0010-git-cli-cleared-environment.md) protect; a workflow
 that needs a stored secret, which is a decision of its own.
 
 ## Alternatives considered
@@ -44,7 +44,7 @@ that needs a stored secret, which is a decision of its own.
 
 ## Enforcement
 
-A check over `.github/workflows/`, cited with `Verifies: ADR-draft-no-stored-secrets`, fails on a
+A check over `.github/workflows/`, cited with `Verifies: ADR-0016`, fails on a
 reference to `secrets.` other than `secrets.GITHUB_TOKEN` and on a job without a `permissions`
 key. That no secret is stored in the repository's settings is outside the tree; the check of the
 workflows is what holds the decision there.

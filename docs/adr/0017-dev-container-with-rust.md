@@ -1,4 +1,4 @@
-# ADR-draft-dev-container-with-rust: The Dev Container keeps the template's Debian base image, adds the Rust Feature, and reaches no containers
+# ADR-0017: The Dev Container keeps the template's Debian base image, adds the Rust Feature, and reaches no containers
 
 - **Status:** 🟢 accepted
 - **Date:** 2026-10-31
@@ -9,10 +9,10 @@
 
 The work runs in the Dev Container the template ships, under
 [ADR-0004](0004-dev-container-runtime.md). The toolchain is Rust, pinned in `rust-toolchain.toml`
-([ADR-draft-toolchain](draft-toolchain.md)); the parity harness needs bash 4.4 or later and the
+([ADR-0008](0008-toolchain.md)); the parity harness needs bash 4.4 or later and the
 GNU tools, which the Debian base image carries
-([ADR-draft-parity-harness](draft-parity-harness.md)); the tests need git and no other
-container ([ADR-draft-fixture-repositories](draft-fixture-repositories.md)).
+([ADR-0012](0012-parity-harness.md)); the tests need git and no other
+container ([ADR-0011](0011-fixture-repositories.md)).
 
 ## Decision
 
@@ -46,6 +46,6 @@ cargo tools the checks run, installed with the toolchain's job.
 
 `scripts/check-devcontainer.sh` holds the pin and the
 lock of every Feature and refuses a host socket (ADR-0004). A test cited with
-`Verifies: ADR-draft-dev-container-with-rust` reads `.devcontainer/devcontainer.json` and fails
+`Verifies: ADR-0017` reads `.devcontainer/devcontainer.json` and fails
 unless it names the Debian base image and the Rust Feature, and on a `dockerComposeFile` or a
 Feature that brings a container engine.

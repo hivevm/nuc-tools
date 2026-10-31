@@ -1,4 +1,4 @@
-# ADR-draft-functional-core: One library crate with the rules as a functional core, its effects in one shell module, and a thin binary
+# ADR-0009: One library crate with the rules as a functional core, its effects in one shell module, and a thin binary
 
 - **Status:** 🟢 accepted
 - **Date:** 2026-10-31
@@ -13,7 +13,7 @@ writing files, reading the environment, printing findings. Those effects are exa
 threats aim at: acting on another repository through an inherited environment (Q-9), writing
 outside the repository (Q-8), disclosing a token (Q-10), reaching the network (Q-11), executing
 repository content (Q-7). The harness keeps the code that does them with the maintainer
-([ADR-draft-harness](draft-harness.md)). Parity (Q-2) asks for many fixtures, which are cheapest
+([ADR-0007](0007-harness.md)). Parity (Q-2) asks for many fixtures, which are cheapest
 when a rule is a function of values.
 
 The catalogue entry *Functional core, imperative shell* fits when the logic is rich and the
@@ -71,7 +71,7 @@ module layout inside the core beyond one module per rule; the output formats.
 
 ## Enforcement
 
-A structural test, cited with `Verifies: ADR-draft-functional-core`, reads the sources of the
+A structural test, cited with `Verifies: ADR-0009`, reads the sources of the
 library outside `src/shell/` and fails on a use of `std::fs`, `std::process`, `std::env`,
 `std::net`, the standard streams, or the printing macros, and on any crate the list beside the
 test names as doing I/O. It fails as well on a rule module without exactly one rule ID, on a rule

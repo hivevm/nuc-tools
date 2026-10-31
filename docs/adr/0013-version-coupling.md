@@ -1,4 +1,4 @@
-# ADR-draft-version-coupling: A project's `nuc.toml` names the minimum `nuc` and the rules turned on, the template release ships both, and `nuc` reads the release from the README
+# ADR-0013: A project's `nuc.toml` names the minimum `nuc` and the rules turned on, the template release ships both, and `nuc` reads the release from the README
 
 - **Status:** 🟢 accepted
 - **Date:** 2026-10-31
@@ -63,7 +63,7 @@ take; the shims themselves, which the template ships.
 
 ## Enforcement
 
-Tests cited with `Verifies: ADR-draft-version-coupling` run `nuc check` on fixtures with
+Tests cited with `Verifies: ADR-0013` run `nuc check` on fixtures with
 `nuc.toml` missing, unreadable, naming a higher minimum, and listing an unknown rule ID, and check
 each exits non-zero with the message; one with a rule known to `nuc` but not listed checks that
 the rule reports nothing.

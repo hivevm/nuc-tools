@@ -1,4 +1,4 @@
-# ADR-draft-command-line-contract: `nuc` reads `nuc.toml` as a TOML subset, writes one finding per line as `<file>[:<line>]: <rule ID>: <message>`, and exits 0, 1, or 2
+# ADR-0019: `nuc` reads `nuc.toml` as a TOML subset, writes one finding per line as `<file>[:<line>]: <rule ID>: <message>`, and exits 0, 1, or 2
 
 - **Status:** 🟢 accepted
 - **Date:** 2026-10-31
@@ -9,9 +9,9 @@
 
 `nuc` runs in the hooks and the CI of every derived project, and three things it shares with them
 outlive any release: the `nuc.toml` the template release ships
-([ADR-draft-version-coupling](draft-version-coupling.md), which leaves its format out of scope),
+([ADR-0013](0013-version-coupling.md), which leaves its format out of scope),
 the lines a finding is printed as, which editors, scripts, and the parity harness read
-([ADR-draft-parity-harness](draft-parity-harness.md)), and the exit codes the hooks and CI branch
+([ADR-0012](0012-parity-harness.md)), and the exit codes the hooks and CI branch
 on. G-6 asks a finding to name its rule ID and `file:line`; G-5 and Q-1 ask every run that could
 not decide to fail closed with a message naming how to install `nuc`; Q-6 asks that an update of
 `nuc` never turn a green project red; Q-3 counts every dependency against the supply chain. A
@@ -74,7 +74,7 @@ messages, which may change in any release; the output of `nuc explain`, which is
 
 ## Enforcement
 
-Tests cited with `Verifies: ADR-draft-command-line-contract` run `nuc` on fixture repositories
+Tests cited with `Verifies: ADR-0019` run `nuc` on fixture repositories
 and check each clause: a `nuc.toml` with an unknown key and a higher `minimum` refuses as too old;
 an unknown key, a key set twice, and another syntax refuse as unreadable, with exit 2 and the
 install hint; a finding is the line form on the standard output and the summary is on the
