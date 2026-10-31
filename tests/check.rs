@@ -515,14 +515,12 @@ fn links_the_bash_reads_no_file_for_are_decided_without_one() {
     );
 }
 
-#[cfg(unix)]
 #[test]
 fn a_link_path_that_is_no_utf8_is_not_decided() {
-    use std::os::unix::ffi::OsStrExt;
+    // Refused before the file system is asked, so no such file is needed, nor could every file
+    // system hold one.
     let config = "minimum = \"0.0.0\"\nrules = [\"docs/links\"]\n";
     let fixture = Fixture::project("links-bytes", config, README);
-    let name = std::ffi::OsStr::from_bytes(b"caf\xe9.txt");
-    std::fs::write(fixture.root().join(name), "a\n").expect("written");
     std::fs::write(fixture.root().join("x.md"), b"[c](caf\xe9.txt)\n").expect("written");
     let output = fixture.nuc(&["check"]);
     assert_eq!(code(&output), Some(2), "{}", stdout(&output));
