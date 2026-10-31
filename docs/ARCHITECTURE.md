@@ -38,6 +38,12 @@ golden path and the test pattern an agent copies from are named here.
 - **Parity harness** — `scripts/check-parity.sh` runs the bash checks of each repository of the
   corpus and `nuc` on the same tree and compares their findings
   ([ADR-draft-parity-harness](adr/draft-parity-harness.md)).
+- **Release tooling** — `release/` builds a binary per target, writes `SHA256SUMS`, checks the
+  tag against the crate's version, writes the release commit, and moves the major tag;
+  `release/install-nuc.sh` is the one installer, run by the Action and the Feature, and refuses a
+  binary whose checksum differs ([ADR-draft-distribution](adr/draft-distribution.md)).
+- **Action and Feature** — `action.yml` and `feature/src/nuc/` install the `nuc` of the release
+  their release commit carries; at any other commit they install nothing.
 - **The golden path** — the rule `docs/template-release`, check 14 of the template's
   `check-docs.sh`, and the pieces it takes through every layer. A new rule copies it:
   1. a module under `src/rules/` with its `RULE_ID`, an `area/name`, and its `RULE`, listed in
@@ -60,3 +66,11 @@ what it read, prints the findings on the standard output, and exits 0 without a 
 with one. Every cause it can name that keeps it from deciding ends the run with exit 2 and a
 message on the standard error, before any rule runs; a panic ends it with exit 101, non-zero as
 well (Q-1). Nothing is written and no state is kept between runs.
+
+A release starts when a human pushes a tag `vX.Y.Z` that names the version of `Cargo.toml`.
+`release.yml` builds the four targets, writes `SHA256SUMS`, attests each binary and verifies the
+attestations, and creates the release as a draft. It writes the release commit on top of the tag,
+which carries the checksums and the version for the Action and the Feature, tags it
+`pinned/vX.Y.Z`, moves the major tag `vN` to it unless `vN` names a later release, and only then
+makes the release public and publishes the Feature from the release commit. A project on `@vN`
+gets the new release through the moved tag; its Dependabot raises the next major.

@@ -34,3 +34,7 @@ to invent.
   _Avoid:_ upgrade step.
 - **`nuc.toml`** — The file in a derived project that names the minimum version of `nuc` it
   requires.
+- **release commit** — The commit the release workflow writes on top of a tag `vX.Y.Z`, carrying
+  the checksums and the version the Action and the Feature install from; tagged `pinned/vX.Y.Z`.
+- **major tag** — The tag `vN` that names the release commit of the latest release of major
+  version N, and by which projects reference the Action.
