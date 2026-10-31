@@ -41,7 +41,10 @@ golden path and the test pattern an agent copies from are named here.
   reading of it in `src/adr.rs`, and the rules of Markdown one reading of its links in
   `src/markdown.rs`, both outside `src/rules/`, the way the bash's `scripts/lib/adr.sh` and awk
   passes read them. `src/adr.rs` also holds the byte-level readings of the bash's tools that
-  other rules use: lines as awk and `read` split them, and POSIX space. The shell matches path
+  other rules use: lines as awk and `read` split them, and POSIX space. The rules of the area
+  `traceability` read the criteria of the specification through `traceability_criteria::read`
+  and the identifiers the `Verifies:` markers cite through `traceability_citations::citations`,
+  each kept in the module of the rule that reads it first. The shell matches path
   patterns as bash's pathname expansion does through `src/glob.rs`. A rule whose bash check
   changed between template releases, today `docs/adr-supersessions` and `docs/check-lists`,
   reads the release the tree carries and checks as that release does
@@ -91,8 +94,10 @@ lives between them. Only what a newcomer would otherwise reconstruct from code.
 others: `README.md` and the release it carries, the record under `docs/adr/`, the text files git
 lists, the targets of relative links, `AGENTS.md`, the workflows and scripts, the Project
 Layout's paths, the skills and their pointers, the identity files, the attributes that mark a
-file generated, and the variables CI sets. It runs each selected rule on what it read, prints
-the findings on the standard output, and exits 0 without a finding and 1 with one. Every cause it
+file generated, the variables CI sets, the specification, and the files that carry a `Verifies:`
+marker. It runs each selected rule on what it read, prints the findings on the standard output,
+and exits 0 without a finding and 1 with one. While `traceability/coverage` runs, the summary on
+the standard error names the criteria no marker cites, which change no exit code. Every cause it
 can name that keeps it from deciding ends the run with exit 2 and a message on the standard
 error, before any rule runs: an input that resolves outside the repository, one the bash would
 read otherwise, a release a rule that checks by it cannot place. A panic ends it with exit 101,
