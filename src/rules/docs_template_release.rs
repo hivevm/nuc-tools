@@ -1,7 +1,8 @@
 //! Check 14 of the template's `scripts/check-docs.sh`: `README.md` carries a
 //! `**Template release:**` line naming a `vX.Y.Z` tag or `unreleased` (ADR-0005 of the template).
 
-use super::{Input, Inputs, Rule};
+use super::{Carried, Input, Inputs, Rule};
+use crate::config::Version;
 use crate::finding::Finding;
 
 pub const RULE_ID: &str = "docs/template-release";
@@ -88,6 +89,22 @@ fn names_release(value: &str) -> bool {
         Some('.') => chars.next().is_none_or(is_space),
         Some(_) => false,
     }
+}
+
+/// The release the README carries, as the first Template release line names it: a tag, or
+/// `Unreleased`; none when no line names one, as this rule reports.
+pub fn carried(readme: &str) -> Option<Carried> {
+    let line = readme.split('\n').find(|line| is_release_line(line))?;
+    let value = after_label(line);
+    if !names_release(value) {
+        return None;
+    }
+    let value = value.strip_prefix(['[', '`']).unwrap_or(value);
+    if value.starts_with("unreleased") {
+        return Some(Carried::Unreleased);
+    }
+    let rest = tag(value)?;
+    Version::parse(&value[1..value.len() - rest.len()]).map(Carried::Release)
 }
 
 /// The text after a `vX.Y.Z` tag at the start of the value, each number without a leading zero.

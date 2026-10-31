@@ -2,6 +2,7 @@
 //! ADR-0009). A rule is a pure function from the [`Inputs`] the shell gathered
 //! to its findings.
 
+use crate::config::Version;
 use crate::finding::Finding;
 
 pub mod docs_adr_header;
@@ -32,6 +33,23 @@ pub struct Inputs {
     pub link_targets: std::collections::BTreeMap<String, Resolved>,
     /// The bytes of `AGENTS.md` at the root, if it is a file.
     pub agents: Option<Vec<u8>>,
+    /// The template release the tree carries, for a rule whose bash check changed between
+    /// releases; none for `unreleased`, which is checked as the newest release this `nuc` knows.
+    pub release: Option<Version>,
+}
+
+impl Inputs {
+    /// Whether the tree is checked as the bash check of `release` or of a later one.
+    pub fn carries_at_least(&self, release: Version) -> bool {
+        self.release.is_none_or(|carried| carried >= release)
+    }
+}
+
+/// The template release a README names on its `Template release` line.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Carried {
+    Release(Version),
+    Unreleased,
 }
 
 /// What the shell reads from the repository for a rule.
@@ -47,6 +65,8 @@ pub enum Input {
     LinkTargets,
     /// `AGENTS.md` at the root.
     Agents,
+    /// The template release `README.md` names, which the shell refuses when it cannot place it.
+    Release,
 }
 
 /// A path a relative link names, as the bash tests it: whether it exists, as `-e` finds it, and

@@ -15,7 +15,7 @@ use crate::adr;
 use crate::config::{self, Version};
 use crate::finding::Finding;
 use crate::markdown;
-use crate::rules::{self, Input, Inputs};
+use crate::rules::{self, Carried, Input, Inputs};
 
 /// Exit code of a run that found nothing.
 const PASSED: u8 = 0;
@@ -80,6 +80,12 @@ fn check(repo: Option<&Path>) -> Result<u8, String> {
     if needs(Input::Readme) {
         inputs.readme = tree.read_checked(&tree.root.join("README.md"))?;
     }
+    if needs(Input::Release) {
+        let reported = selected
+            .iter()
+            .any(|rule| rule.id == rules::docs_template_release::RULE_ID);
+        inputs.release = carried_release(&tree, reported)?;
+    }
     if needs(Input::Adr) {
         inputs.adr = tree.read_adr(&tree.root.join("docs/adr"))?;
         inputs.adr_targets = tree.read_adr_targets(&inputs.adr)?;
@@ -111,6 +117,30 @@ fn check(repo: Option<&Path>) -> Result<u8, String> {
     } else {
         eprintln!("nuc check: {} finding(s).", findings.len());
         Ok(FOUND)
+    }
+}
+
+/// The earliest template release whose bash checks the rules port.
+const EARLIEST_RELEASE: Version = Version(0, 5, 0);
+
+/// The template release the tree carries, for the rules whose bash check changed between
+/// releases: none for `unreleased`, checked as the newest release. A release before the earliest
+/// is not decided; so is a README that names none, unless the rule `reported` on, the Template
+/// release rule, fails the run on it, and the tree is checked as the newest release
+/// (ADR-draft-rules-follow-the-carried-release).
+fn carried_release(tree: &Tree, reported: bool) -> Result<Option<Version>, String> {
+    let readme = tree.read_checked(&tree.root.join("README.md"))?;
+    match readme.as_deref().and_then(rules::docs_template_release::carried) {
+        Some(Carried::Unreleased) => Ok(None),
+        None if reported => Ok(None),
+        Some(Carried::Release(release)) if release >= EARLIEST_RELEASE => Ok(Some(release)),
+        Some(Carried::Release(release)) => Err(format!(
+            "README.md: template release v{release} is before v{EARLIEST_RELEASE}, the earliest whose checks this nuc ports — not decided"
+        )),
+        None => Err(
+            "README.md: no Template release line names the release the tree carries, which a rule turned on checks by — not decided"
+                .to_owned(),
+        ),
     }
 }
 

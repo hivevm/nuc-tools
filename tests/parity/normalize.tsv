@@ -44,6 +44,7 @@
 ^[^ :]+: [^ :]+ supersedes it, but its status line does not say 'superseded by ADR-	docs/adr-supersessions	-	+docs/adr/
 ^[^ :]+: status is ⚪ but the line names no superseding ADR$	docs/adr-supersessions	-	+docs/adr/
 ^[^ :]+: [^ :]+ says it supersedes, but it carries no '\*\*Supersedes:\*\*' field naming ADR-	docs/adr-supersessions	-	+docs/adr/
+^[^ :]+: superseded by ADR-[^ ]+, which is not accepted — the status line flips when the human accepts ADR-	docs/adr-supersessions	-	+docs/adr/
 
 # check-docs.sh, check 3: the relative links.
 ^[^:]+: broken relative link -> '.*'$	docs/links	-

@@ -3,11 +3,18 @@
 # run with the bash checks it carries and with nuc. A pull request moves a pin. The format is one
 # '[[repository]]' table per entry with the three keys below, each a string on a line of its own.
 
-# The template at the commit of its release v0.5.0, the release this repository carries.
+# The template at the commit of its release v0.5.0.
 [[repository]]
 name = "nuc"
 url = "https://github.com/hivevm/nuc.git"
 commit = "1bc9c65fe48e893aaf4e3b49f1bc803c0c753a98"
+
+# The template at the commit of its release v0.6.0, where check 8 flips an old ADR on the
+# acceptance of its successor: the rules that check by the release check it as v0.6.0.
+[[repository]]
+name = "nuc-v0-6-0"
+url = "https://github.com/hivevm/nuc.git"
+commit = "f9d3c56b9bc238c975ee4d1b4f5a9bb4cfdc8f33"
 
 # A derived repository on template release v0.5.0, at a fixed commit of its main.
 [[repository]]

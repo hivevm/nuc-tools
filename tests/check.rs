@@ -530,3 +530,99 @@ fn a_link_path_that_is_no_utf8_is_not_decided() {
         stderr(&output)
     );
 }
+
+/// A project on the template release given, with only the supersession rule turned on, and ADR
+/// 0001 flipped for 0002, which is only proposed.
+fn flipped_early(name: &str, release_line: &str) -> Fixture {
+    let config = "minimum = \"0.0.0\"\nrules = [\"docs/adr-supersessions\"]\n";
+    let fixture = Fixture::project(name, config, &format!("# Fixture\n\n{release_line}\n"));
+    let by2 = format!("⚪ superseded by {}-0002", "ADR");
+    fixture.write(
+        "docs/adr/0001-a.md",
+        &format!("# A\n\n- **Status:** {by2}\n- **Applies to:** x\n"),
+    );
+    fixture.write(
+        "docs/adr/0002-b.md",
+        &format!(
+            "# B\n\n- **Status:** 🟡 proposed\n- **Supersedes:** {}-0001\n- **Applies to:** x\n",
+            "ADR"
+        ),
+    );
+    fixture
+}
+
+/// Verifies: ADR-draft-rules-follow-the-carried-release
+#[test]
+fn a_rule_checks_a_tree_as_the_release_it_carries() {
+    let old = flipped_early("release-0.5", "- **Template release:** v0.5.1");
+    let output = old.nuc(&["check"]);
+    assert_eq!(
+        code(&output),
+        Some(0),
+        "{}{}",
+        stdout(&output),
+        stderr(&output)
+    );
+    for (name, line) in [
+        ("release-0.6", "- **Template release:** v0.6.0"),
+        (
+            "release-later",
+            "- **Template release:** [v9.0.0](https://example.invalid)",
+        ),
+        ("release-unreleased", "- **Template release:** unreleased"),
+    ] {
+        let output = flipped_early(name, line).nuc(&["check"]);
+        assert_eq!(code(&output), Some(1), "{line}: {}", stderr(&output));
+        assert!(
+            stdout(&output).contains("docs/adr/0001-a.md: docs/adr-supersessions: superseded by"),
+            "{line}: {}",
+            stdout(&output)
+        );
+    }
+}
+
+#[test]
+fn a_rule_that_checks_by_the_release_refuses_a_tree_it_cannot_place() {
+    for (name, line, why) in [
+        (
+            "release-none",
+            "No release line.",
+            "no Template release line",
+        ),
+        (
+            "release-bad",
+            "- **Template release:** soon",
+            "no Template release line",
+        ),
+        (
+            "release-early",
+            "- **Template release:** v0.4.0",
+            "v0.4.0 is before v0.5.0",
+        ),
+    ] {
+        let output = flipped_early(name, line).nuc(&["check"]);
+        assert_eq!(code(&output), Some(2), "{line}: {}", stdout(&output));
+        assert!(stderr(&output).contains(why), "{line}: {}", stderr(&output));
+    }
+}
+
+#[test]
+fn without_a_release_line_the_template_release_rule_fails_the_run_and_the_tree_is_checked_as_the_newest()
+ {
+    let fixture = flipped_early("release-reported", "No release line.");
+    fixture.write(
+        "nuc.toml",
+        "minimum = \"0.0.0\"\nrules = [\"docs/template-release\", \"docs/adr-supersessions\"]\n",
+    );
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(1), "{}", stderr(&output));
+    let out = stdout(&output);
+    assert!(
+        out.contains("README.md: docs/template-release: no"),
+        "{out}"
+    );
+    assert!(
+        out.contains("docs/adr-supersessions: superseded by"),
+        "{out}"
+    );
+}
