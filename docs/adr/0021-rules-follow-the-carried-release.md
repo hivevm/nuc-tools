@@ -1,6 +1,6 @@
 # ADR-0021: A rule checks a tree as the bash check of the template release the tree carries
 
-- **Status:** 🟡 proposed
+- **Status:** 🟢 accepted
 - **Date:** 2026-10-31
 - **Deciders:** Markus Brigl
 - **Applies to:** every rule whose bash check differs between template releases, how the shell reads the README's `Template release` line for the rules, and the trees `tests/parity/corpus.toml` pins for each such release
