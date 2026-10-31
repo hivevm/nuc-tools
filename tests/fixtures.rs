@@ -47,7 +47,12 @@ fn the_helpers_build_where_they_say_under_an_inherited_decoy() {
         "the child ran no test:\n{}",
         stdout(&output)
     );
-    assert_eq!(snapshot(decoy.root()), before, "the decoy changed");
+    let after = snapshot(decoy.root());
+    assert!(
+        after == before,
+        "the decoy changed: {:?}",
+        support::changed(&before, &after)
+    );
 }
 
 fn build_in_child() {

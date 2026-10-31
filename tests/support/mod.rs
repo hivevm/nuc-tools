@@ -64,6 +64,11 @@ pub fn git_in(dir: &Path, args: &[&str]) -> Output {
             &format!("core.hooksPath={NULL_DEVICE}"),
             "-c",
             "core.fsmonitor=false",
+            // No maintenance in the background, which would change a fixture after its snapshot.
+            "-c",
+            "maintenance.auto=false",
+            "-c",
+            "gc.auto=0",
         ])
         .args(args)
         .output()
@@ -174,4 +179,17 @@ pub fn snapshot(dir: &Path) -> Vec<(PathBuf, Vec<u8>)> {
     }
     files.sort();
     files
+}
+
+/// The paths that differ between two snapshots: added, removed, or changed.
+pub fn changed(before: &[(PathBuf, Vec<u8>)], after: &[(PathBuf, Vec<u8>)]) -> Vec<PathBuf> {
+    let mut paths: Vec<PathBuf> = before
+        .iter()
+        .filter(|entry| !after.contains(entry))
+        .chain(after.iter().filter(|entry| !before.contains(entry)))
+        .map(|(path, _)| path.clone())
+        .collect();
+    paths.sort();
+    paths.dedup();
+    paths
 }
