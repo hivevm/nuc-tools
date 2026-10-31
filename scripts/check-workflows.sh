@@ -6,9 +6,11 @@
 # names. This check reads every workflow under .github/workflows/ and fails on what would break
 # that:
 #
-#   1. Secrets: a reference to the 'secrets' context inside a '${{ ... }}' expression other than
-#      'secrets.GITHUB_TOKEN' — 'secrets.<NAME>', 'secrets[...]', or the whole context, as in
-#      'toJSON(secrets)' — and a 'secrets:' key, which hands secrets to a reusable workflow.
+#   1. Secrets: the word 'secrets' anywhere on a line other than as 'secrets.GITHUB_TOKEN' —
+#      'secrets.<NAME>', 'secrets[...]', or the whole context, as in 'toJSON(secrets)', inside an
+#      expression of any form or across lines — and a 'secrets:' key, which hands secrets to a
+#      reusable workflow. The word is matched wherever it stands, a step name included, so that no
+#      form of expression slips past; a workflow says "credentials" where it means the word.
 #   2. Permissions: a job without a 'permissions' key of its own. A job inherits the workflow's
 #      permissions otherwise, and what each job needs is the job's to name.
 #
@@ -70,17 +72,15 @@ for wf in "${workflows[@]}"; do
     n="${hit%%:*}" text="${hit#*:}"
     if [[ "$text" =~ ^[[:space:]]*(-[[:space:]]+)?secrets: ]]; then
       add_error "$rel:$n: a 'secrets:' key hands secrets to a reusable workflow"
+      continue
     fi
-    while IFS= read -r expr; do
-      [[ -n "$expr" ]] || continue
-      while IFS= read -r ref; do
-        [[ -n "$ref" ]] || continue
-        secret_refs=$((secret_refs + 1))
-        [[ "$ref" == "secrets.GITHUB_TOKEN" ]] \
-          || add_error "$rel:$n: '$ref' is a stored secret; only secrets.GITHUB_TOKEN is used"
-      done < <(grep -oE '(^|[^A-Za-z0-9_.-])secrets(\.[A-Za-z0-9_-]+|\[[^]]*\])?' <<< "$expr" \
-        | sed -E 's/^[^s]//')
-    done < <(grep -oE '\$\{\{[^}]*\}\}' <<< "$text")
+    while IFS= read -r ref; do
+      [[ -n "$ref" ]] || continue
+      secret_refs=$((secret_refs + 1))
+      [[ "$ref" == "secrets.GITHUB_TOKEN" ]] \
+        || add_error "$rel:$n: '$ref' reads the secrets context; only secrets.GITHUB_TOKEN is used"
+    done < <(grep -oE '(^|[^A-Za-z0-9_.-])secrets(\.[A-Za-z0-9_-]+|\[[^]]*\])?' <<< "$text" \
+      | sed -E 's/^[^s]//')
   done < <(grep -nvE '^[[:space:]]*#' "$wf" | grep -E 'secrets')
 
   while IFS= read -r miss; do

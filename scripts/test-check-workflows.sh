@@ -36,7 +36,7 @@ workflow() {
     echo '    permissions:'
     echo '      contents: read'
     echo '    steps:'
-    echo '      - name: Check that no secrets leak'
+    echo '      - name: Check that no credentials leak'
     echo '        run: echo "$TOKEN"'
     echo '        env:'
     echo '          TOKEN: ${{ secrets.GITHUB_TOKEN }}'
@@ -79,22 +79,36 @@ expect pass "jobs with their permissions and only secrets.GITHUB_TOKEN pass" "$d
 d="$work/stored-secret"
 # shellcheck disable=SC2016 # the expression is the workflow's
 workflow "$d" '- run: echo "$T"' '  env:' '    T: ${{ secrets.RELEASE_TOKEN }}'
-expect fail "a stored secret" "$d" "'secrets.RELEASE_TOKEN' is a stored secret"
+expect fail "a stored secret" "$d" "'secrets.RELEASE_TOKEN' reads the secrets context"
 
 d="$work/indexed-secret"
 # shellcheck disable=SC2016 # the expression is the workflow's
 workflow "$d" "- run: echo \"\${{ secrets['NPM'] }}\""
-expect fail "a secret by index" "$d" "'secrets['NPM']' is a stored secret"
+expect fail "a secret by index" "$d" "'secrets['NPM']' reads the secrets context"
 
 d="$work/whole-context"
 # shellcheck disable=SC2016 # the expression is the workflow's
 workflow "$d" '- run: echo "${{ toJSON(secrets) }}"'
-expect fail "the whole secrets context" "$d" "'secrets' is a stored secret"
+expect fail "the whole secrets context" "$d" "'secrets' reads the secrets context"
 
 d="$work/token-and-secret"
 # shellcheck disable=SC2016 # the expression is the workflow's
 workflow "$d" '- run: echo "${{ secrets.GITHUB_TOKEN }} ${{ secrets.OTHER }}"'
 expect fail "a stored secret beside GITHUB_TOKEN on one line" "$d" "'secrets.OTHER'"
+
+d="$work/inside-a-function"
+# shellcheck disable=SC2016 # the expression is the workflow's
+workflow "$d" '- run: echo "$T"' '  env:' "    T: \${{ format('{0}', secrets.DEPLOY_KEY) }}"
+expect fail "a secret inside an expression with braces before it" "$d" "'secrets.DEPLOY_KEY'"
+
+d="$work/across-lines"
+# shellcheck disable=SC2016 # the expression is the workflow's
+workflow "$d" '- run: echo "$T"' '  env:' '    T: ${{' '      secrets.DEPLOY_KEY' '      }}'
+expect fail "a secret in an expression across lines" "$d" "'secrets.DEPLOY_KEY'"
+
+d="$work/in-a-name"
+workflow "$d" '- name: Rotate the secrets'
+expect fail "the word in a step name, which the check does not tell from a reference" "$d" "'secrets'"
 
 d="$work/inherit"
 workflow "$d"
