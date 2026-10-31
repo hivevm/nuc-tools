@@ -19,9 +19,10 @@ it runs on.
 
 Drafted text, a new quality goal after Q-11 and a line among the forbidden actions:
 
-> - **Q-12** — Reads stay inside: no command of `nuc` reads, lists, or follows a path of the tree
+> - **Q-12** — Reads stay inside: no command of `nuc` reads a file or lists a directory of the tree
 >   that resolves outside the repository; a fixture whose link, symbolic link, or listed path
->   leads outside shows exit 2 and a message naming it. Git's own configuration, attribute, and
+>   leads a read outside shows exit 2 and a message naming it. A test of existence, as the bash's
+>   `-e`, follows the path and reads nothing. Git's own configuration, attribute, and
 >   exclude files are git's to read.
 
 > - The system shall never read through the tree outside the repository (Q-12).

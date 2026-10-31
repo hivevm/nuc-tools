@@ -1,4 +1,4 @@
-# The variants of the parity harness (ADR-draft-parity-variants-name-their-trees), read by
+# The variants of the parity harness (ADR-0020, ADR-draft-parity-variants-name-their-trees), read by
 # scripts/check-parity.sh: edits that make a ported rule fire, applied to a copy of every corpus
 # tree they are for and compared there as on the tree itself. One row per variant, five or six
 # fields separated by tabs: a name of [a-z0-9-], the rule ID it makes fire, the path it edits,

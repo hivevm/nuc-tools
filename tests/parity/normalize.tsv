@@ -1,5 +1,5 @@
-# The normalization table of the parity harness (ADR-0020), read by
-# scripts/check-parity.sh. One row per bash message, three or four fields separated by tabs: an
+# The normalization table of the parity harness (ADR-0020, ADR-draft-parity-variants-name-their-trees),
+# read by scripts/check-parity.sh. One row per bash message, three or four fields separated by tabs: an
 # extended regular expression the message after "  - " matches; the rule ID of nuc it maps to;
 # "line" when the bash message names a line, "-" when it names none and the comparison leaves the
 # line out; and "=<path>" for the file nuc names in place of the bash's location, or "+<prefix>"
