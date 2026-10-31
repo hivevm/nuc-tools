@@ -92,3 +92,6 @@
 ^CODE_OF_CONDUCT\.md: the reporting contact is still the placeholder$	docs/template-identity	-
 ^\.github/CODEOWNERS: (no active rule|the instruction to add a code owner is still there)	docs/template-identity	-
 ^docs/[A-Z]+\.md: (the title still carries '<Project Name>'|a criterion is still the scaffold's placeholder|the scaffold's (building block|entry) is still listed)	docs/template-identity	-
+
+# check-docs.sh, check 15: the prose width.
+^[^:]+:[0-9]+: [0-9]+ columns — wrap the prose at 100 \(a link that does not fit stands on a line of its own\)$	docs/prose-width	line
