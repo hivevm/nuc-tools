@@ -3,8 +3,9 @@
 //! The library outside `src/shell/` names nothing of `functional_core.forbidden`, the list kept
 //! beside this test, and `src/main.rs` does nothing but call the shell. The source is read as
 //! text: comments and literals are dropped, and the paths of a grouped `use` are expanded, so
-//! `use std::{fs, io::stdout}` names `std::fs` and `std::io::stdout`. A path reached through a
-//! renamed crate, as `use std as s`, is not seen; that is review.
+//! `use std::{fs, io::stdout}` names `std::fs` and `std::io::stdout`. An opening, a glob as
+//! `use std::*` or a rename as `use std as s`, counts as naming every entry it can bring into
+//! scope. A rename inside a group, as `use std::{fs as f}`, is read as the path it renames.
 //!
 //! Each module under `src/rules/` is one rule: it declares exactly one `RULE_ID`, an
 //! `area/name` unique across the crate, and the list of every rule names its `RULE`.
@@ -186,6 +187,11 @@ fn emit(found: &mut Vec<String>, prefix: Option<&str>, path: &str) {
     if path.is_empty() {
         return;
     }
+    // A rename keeps its keyword, unprefixed, so that the path before it reads as an opening.
+    if path == "as" {
+        found.push(path.to_owned());
+        return;
+    }
     let full = format!("{}{path}", prefix.unwrap_or_default());
     found.push(full.strip_suffix("::self").unwrap_or(&full).to_owned());
 }
@@ -198,6 +204,24 @@ fn names(path: &str, entry: &str) -> bool {
         .any(|window| window == entry.as_slice())
 }
 
+/// Whether an opening, a glob `path::*` or a rename `path as x`, can bring the entry into scope
+/// under a shorter or another name: the entry starts with the last segments of the path.
+fn opens(path: &str, entry: &str) -> bool {
+    let path: Vec<&str> = path.trim_end_matches("::").split("::").collect();
+    let entry: Vec<&str> = entry.trim_end_matches('!').split("::").collect();
+    (1..=path.len().min(entry.len())).any(|k| entry[..k] == path[path.len() - k..])
+}
+
+/// The openings among the paths: each glob, and each path a rename follows.
+fn openings(paths: &[String]) -> Vec<&str> {
+    paths
+        .iter()
+        .enumerate()
+        .filter(|(i, path)| path.ends_with("::") || paths.get(i + 1).is_some_and(|n| n == "as"))
+        .map(|(_, path)| path.as_str())
+        .collect()
+}
+
 /// Whether the code invokes the macro, as `name!` with no identifier character before it.
 fn invokes(code: &str, mac: &str) -> bool {
     code.match_indices(mac)
@@ -208,11 +232,15 @@ fn invokes(code: &str, mac: &str) -> bool {
 fn violations(source: &str, list: &str) -> Vec<String> {
     let code = code(source);
     let paths = paths(&code);
+    let openings = openings(&paths);
     entries(list)
         .into_iter()
-        .filter(|entry| match entry.strip_suffix('!') {
-            Some(_) => invokes(&code, entry),
-            None => paths.iter().any(|path| names(path, entry)),
+        .filter(|entry| {
+            let named = match entry.strip_suffix('!') {
+                Some(_) => invokes(&code, entry),
+                None => paths.iter().any(|path| names(path, entry)),
+            };
+            named || openings.iter().any(|opening| opens(opening, entry))
         })
         .map(str::to_owned)
         .collect()
@@ -276,6 +304,18 @@ fn is_area_name(id: &str) -> bool {
     }
 }
 
+/// Whether the list of every rule, the code of `src/rules/mod.rs` without whitespace, has the
+/// entry `<module>::RULE`, compared entry by entry.
+fn listed(list: &str, module: &str) -> bool {
+    let entries = list
+        .split_once("ALL:&[Rule]=&[")
+        .and_then(|(_, rest)| rest.split_once(']'))
+        .map_or("", |(entries, _)| entries);
+    entries
+        .split(',')
+        .any(|entry| entry == format!("{module}::RULE"))
+}
+
 #[test]
 fn every_rule_module_declares_one_unique_rule_id_and_is_listed() {
     let rules = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
@@ -303,7 +343,7 @@ fn every_rule_module_declares_one_unique_rule_id_and_is_listed() {
             }
             seen.push(id);
         }
-        if !list.contains(&format!("{stem}::RULE,")) && !list.contains(&format!("{stem}::RULE]")) {
+        if !listed(&list, stem) {
             problems.push(format!("{}: not in the list of every rule", path.display()));
         }
     }
@@ -390,6 +430,13 @@ fn a_path_is_found_in_every_form() {
         "use ::std::fs::File;",
         "use std::io; fn f() { io::stdout(); }",
         "use std :: { env } ;",
+        "use std::*; fn f() { fs::read(\"x\"); }",
+        "use std::io::*; fn f() { stdout(); }",
+        "use std as s; fn f() { s::fs::read(\"x\"); }",
+        "extern crate std as s;",
+        "use std::io as sio; fn f() { sio::stdout(); }",
+        "use std::{fs as f};",
+        "use std::println as say;",
     ] {
         assert!(
             !violations(source, FORBIDDEN).is_empty(),
@@ -422,6 +469,7 @@ fn comments_literals_and_lookalikes_are_no_effect() {
         "const C: char = '\"'; fn f<'a>(x: &'a str) -> &'a str { x }",
         "use std::io::Write; use std::collections::HashMap; fn f() { sprintln(); }",
         "mod fsck {} fn f() { my::std_fs::read(); }",
+        "use super::*; use std::collections::*; use crate::finding::Finding as F;",
         "fn f() { let r = io::Result::<()>::Ok(()); }",
     ] {
         assert_eq!(
@@ -450,4 +498,14 @@ fn only_the_call_into_the_shell_is_thin() {
         "use std::process::ExitCode;\nfn main() -> ExitCode {\n    let _ = 1;\n    nuc::shell::main()\n}\n"
     ));
     assert!(!main_is_thin("fn main() { nuc::shell::main(); }"));
+}
+
+#[test]
+fn a_rule_is_listed_only_by_its_own_entry() {
+    let list = "pubconstALL:&[Rule]=&[docs_template_release::RULE,other::RULE];";
+    assert!(listed(list, "docs_template_release"));
+    assert!(listed(list, "other"));
+    assert!(!listed(list, "release"));
+    assert!(!listed(list, "template_release"));
+    assert!(!listed("pubconstALL:&[Rule]=&[];", "other"));
 }
