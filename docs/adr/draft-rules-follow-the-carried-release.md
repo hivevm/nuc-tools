@@ -22,7 +22,8 @@ stable (G-6), and nothing passes when it could not decide (Q-1).
 ## Decision
 
 We will have each rule read the template release the tree carries from its README and check the
-tree as the bash check of that release does, and refuse a tree whose release it cannot place.
+tree as the bash check of that release does, and have `nuc` refuse a tree whose release such a rule
+cannot place.
 
 - **The release:** the first `Template release` line of `README.md`, read as check 14 reads it.
   The value is a `vX.Y.Z` tag at its start, or `unreleased`.
@@ -33,11 +34,11 @@ tree as the bash check of that release does, and refuse a tree whose release it 
   knows. The `nuc.toml` of a release that changes a check raises its minimum to a `nuc` that
   ports the change ([ADR-0013](0013-version-coupling.md)).
 - **`unreleased`:** checked as the newest release this `nuc` knows.
-- **Not decided:** a rule that reads the release refuses a tree whose release is before v0.5.0,
-  the earliest the rules port. It also refuses a tree with no `Template release` line, or with
-  a line that names no release, unless `docs/template-release` is turned on. That rule then
-  fails the run with the finding the bash reports, and the tree is checked as the newest
-  release.
+- **Not decided:** when a rule turned on reads the release, `nuc` refuses a tree whose release
+  is before v0.5.0, the earliest the rules port. It also refuses a tree without a `README.md`,
+  and one whose README has no `Template release` line or a line that names no release, unless
+  `docs/template-release` is turned on. That rule then fails the run with the finding the bash
+  reports, and the tree is checked as the newest release.
 - **The corpus:** for each release at which a ported check changed, the parity corpus pins a
   tree that carries it.
 
@@ -78,5 +79,7 @@ releases (G-4).
 
 The tests of `src/rules/docs_adr_supersessions.rs` and `tests/check.rs` cite this ADR with a
 `Verifies:` marker: a rule checks a tree on v0.5.x and one on v0.6.0 each as its bash check does,
-and refuses a tree whose release it cannot place. The parity harness runs the template at v0.5.0
-and at v0.6.0 ([ADR-0020](0020-parity-harness-with-variants.md)).
+and that `nuc` refuses a tree whose release it cannot place. The parity harness runs the template
+at v0.5.0 and at v0.6.0 ([ADR-0020](0020-parity-harness-with-variants.md)). A variant edits one
+file, while the behaviour that differs between the releases needs two ADRs, so only the tests
+above tell the two behaviours apart.
