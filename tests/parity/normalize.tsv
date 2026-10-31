@@ -108,6 +108,6 @@
 # check-traceability.sh, part 3: the citations of the markers.
 ^.+:[0-9]+: cites '[^']+', which (does not exist in docs/adr/|is superseded or rejected — |is not a criterion of docs/SPECIFICATION\.md)	traceability/citations	line
 
-# check-traceability.sh, parts 2 and 4: not ported yet, left out of the comparison.
-^docs/adr/[^ :]+: 'Not mechanically decidable' declared without a reason — 	-	-
-^ADR-([0-9]{4}|draft-[a-z0-9-]+) is accepted but no test cites it — 	-	-
+# check-traceability.sh, parts 2 and 4: the coverage of the accepted ADRs.
+^docs/adr/.+: 'Not mechanically decidable' declared without a reason — 	traceability/coverage	-
+^ADR-[^ ]+ is accepted but no test cites it — 	traceability/coverage	-	=docs/adr

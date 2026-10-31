@@ -22,6 +22,7 @@ pub mod docs_skill_pointers;
 pub mod docs_template_identity;
 pub mod docs_template_release;
 pub mod traceability_citations;
+pub mod traceability_coverage;
 pub mod traceability_criteria;
 
 /// What the shell reads from the repository for the rules, before any of them runs.
@@ -216,6 +217,7 @@ pub const ALL: &[Rule] = &[
     docs_template_release::RULE,
     traceability_criteria::RULE,
     traceability_citations::RULE,
+    traceability_coverage::RULE,
 ];
 
 /// The rule with the ID, if this `nuc` knows it.
