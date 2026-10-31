@@ -1,10 +1,13 @@
-# The variants of the parity harness (ADR-0020), read by
+# The variants of the parity harness (ADR-0020, ADR-0022), read by
 # scripts/check-parity.sh: edits that make a ported rule fire, applied to a copy of every corpus
-# tree they fit and compared there as on the tree itself. One row per variant, five fields
-# separated by tabs: a name of [a-z0-9-], the rule ID it makes fire, the path it edits, and
-# "sed" with an extended sed expression or "delete" with "-". A sed edit fits a tree when it
-# changes the file; a variant that fits no tree fails the harness, and so does one on which
-# bash reports no finding of its rule.
+# tree they are for and compared there as on the tree itself. One row per variant, five or six
+# fields separated by tabs: a name of [a-z0-9-], the rule ID it makes fire, the path it edits,
+# "sed" with an extended sed expression, "delete" with "-", which deletes a file or a symbolic link
+# itself, or "write" with a line, which creates the file the path names and must not find it, and
+# optionally the corpus trees it is for, by name and separated by commas; a
+# variant without them is for every tree. A variant fails the harness on a tree it is for where
+# its edit changes nothing or bash reports no finding of its rule, and when it names a tree the
+# corpus lacks.
 
 # docs/template-release: check 14 of check-docs.sh.
 template-release-deleted	docs/template-release	README.md	sed	/^[[:space:]]*([-*] )?\*\*Template release:\*\*/d
@@ -23,3 +26,25 @@ adr-refs-missing	docs/adr-refs	README.md	sed	1s/$/ ADR-09\x399/
 adr-link-targets-other	docs/adr-link-targets	docs/adr/0001-agent-governance-model.md	sed	$s/$/\n\nSee [ADR-0002](0003-procedures-as-skills.md)./
 adr-supersessions-no-successor	docs/adr-supersessions	docs/adr/0001-agent-governance-model.md	sed	s/^(- \*\*Status:\*\*) 🟢 accepted$/\1 ⚪ superseded/
 adr-supersessions-unflipped	docs/adr-supersessions	docs/adr/0002-decisions-verified-by-tests.md	sed	s/^(- \*\*Applies to:\*\*)/- **Supersedes:** ADR-0001\n\1/
+
+# docs/links, docs/section-refs: checks 3 and 4 of check-docs.sh; and the gap in the numbering,
+# which fires checks 1, 2, 3, and 5.
+links-broken	docs/links	README.md	sed	$s/$/\n\nSee [the missing file](missing-variant.md)./
+links-anchor	docs/links	README.md	sed	$s/$/\n\nSee [the rules](AGENTS.md#no-such-section)./
+section-refs-bare	docs/section-refs	README.md	sed	$s/$/\n\nSee §3 of the agents file./
+adr-numbering-gap	docs/adr-numbering	docs/adr/0003-procedures-as-skills.md	delete	-
+
+# docs/check-lists, docs/project-layout, docs/skill-pointers: checks 9, 10, and 11 of check-docs.sh.
+check-lists-job-unnamed	docs/check-lists	.github/workflows/checks.yml	sed	$s/$/\n  variant:\n    steps:\n      - run: bash scripts\/check-docs.sh/
+project-layout-missing	docs/project-layout	README.md	sed	/^## Project Layout$/,/^(```|~~~)/s/^(```|~~~).*$/&\nmissing-variant.txt/
+skill-pointers-missing	docs/skill-pointers	.claude/skills/review	delete	-
+
+# docs/inherited-adrs, docs/template-identity: checks 12 and 13 of check-docs.sh.
+inherited-adrs-undecided	docs/inherited-adrs	docs/adr/0001-agent-governance-model.md	sed	s/^(- \*\*Deciders:\*\*) NUC maintainer, Markus Brigl$/\1 NUC maintainer/	nectar,nuc-tools,ocelli
+template-identity-badge	docs/template-identity	README.md	sed	0,/^\[!\[/s/^\[!\[/[![Checks](https:\/\/github.com\/hivevm\/nuc\/actions\/workflows\/checks.yml\/badge.svg)](https:\/\/github.com\/hivevm\/nuc)\n&/	nectar,nuc-tools,ocelli
+
+# docs/prose-width: check 15 of check-docs.sh.
+prose-width-101	docs/prose-width	README.md	sed	$s/$/\n\nword word word word word word word word word word word word word word word word word word word word w/
+
+# docs/no-draft-on-main: check 16 of check-docs.sh, run as a pull request into main marked ready.
+no-draft-on-main-draft	docs/no-draft-on-main	docs/adr/draft-parity-variant.md	write	# A draft the variant writes

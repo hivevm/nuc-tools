@@ -32,11 +32,13 @@ verifies.
   code may reference a number. No draft reaches `main`. A branch that already carries a numbered
   proposed ADR whose number another branch brought to `main` first gives it the next free number
   before it merges, in every reference its own branch makes to it. Until a normalization, a
-  superseded ADR keeps its file and its body. Its `Status` line flips to `⚪ superseded by
-  ADR-NNNN` in the change that lands the superseding ADR, whose `Supersedes` field names it back.
+  superseded ADR keeps its file and its body. The superseding ADR's `Supersedes` field names it
+  from the proposal on; its `Status` line stays as it is while the successor is proposed, and
+  flips to `⚪ superseded by ADR-NNNN` in the change where a human accepts the successor
+  ([`AGENTS.md` §3](../../AGENTS.md#3-adr-rules), rule 4), its index row moving with it.
 - **Between normalizations, sprawl is curbed by supersession, never by editing.** One ADR may
   supersede several whose decisions have grown into one. Its `Supersedes` field names each, and
-  each flips its status in the same change, so the set an agent reads for a change shrinks
+  each flips its status when the superseding ADR is accepted, so the set an agent reads shrinks
   while every number and every body stays.
 - **A normalization restates the record** ([`AGENTS.md` §3](../../AGENTS.md#3-adr-rules), rule
   5).
@@ -104,6 +106,10 @@ is the table a session reads.
 | [0018](0018-gates-never-run-the-build.md) | This repository's gates never run the `nuc` being built, only the template's bash or a released `nuc` pinned like any dependency | `scripts/check-all.sh`, the hooks under `.githooks/`, the jobs of `.github/workflows/checks.yml`, and every place they name the tool that runs a check | 🟢 accepted |
 | [0019](0019-command-line-contract.md) | `nuc` reads `nuc.toml` as a TOML subset, writes one finding per line as `<file>[:<line>]: <rule ID>: <message>`, and exits 0, 1, or 2 | the keys and the syntax of `nuc.toml` and how `src/config.rs` reads them, the text output of every `nuc` command, and its exit codes | 🟢 accepted |
 | [0020](0020-parity-harness-with-variants.md) | A parity harness compares `nuc` with the bash scripts on the pinned trees of a corpus of releases v0.5.0 and later and on variants derived from them, as a required check that fails on any difference | `tests/parity/`, its manifest `tests/parity/corpus.toml`, the variants kept beside it, `scripts/check-parity.sh`, its job in `.github/workflows/checks.yml`, and the map from bash messages to rule IDs | 🟢 accepted |
+| [0021](0021-rules-follow-the-carried-release.md) | A rule checks a tree as the bash check of the template release the tree carries | every rule whose bash check differs between template releases, how the shell reads the README's `Template release` line for the rules, and the trees `tests/parity/corpus.toml` pins for each such release | 🟡 proposed |
+| [0022](0022-parity-variants-name-their-trees.md) | A parity harness compares `nuc` with the bash scripts on the pinned trees of a corpus of releases v0.5.0 and later and on variants derived from those trees, each on the trees it is for, as a required check that fails on any difference | `tests/parity/`, its manifest `tests/parity/corpus.toml`, the variants kept beside it, `scripts/check-parity.sh`, its job in `.github/workflows/checks.yml`, and the map from bash messages to rule IDs | 🟡 proposed |
+| [0023](0023-decisions-verified-by-tests.md) | Every accepted decision and every success criterion is verified by a test that cites it, and the checks that hold the decisions are bash scripts under `scripts/` | every accepted ADR, the identifiers by which ADRs are cited, the Goals and Quality Goals of `docs/SPECIFICATION.md`, the tests that verify them, the checks and sensors under `scripts/`, and the git hooks under `.githooks/` | 🟡 proposed |
+| [0024](0024-template-releases.md) | The template is released as SemVer tags on `main`, and every repository names the release it carries | the tags of the template repository, its own ADRs, the **Template** section of `README.md`, check 14 of `scripts/check-docs.sh`, and the pull request that lands a release | 🟡 proposed |
 
 ### Superseded and rejected
 

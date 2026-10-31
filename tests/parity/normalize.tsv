@@ -1,5 +1,5 @@
-# The normalization table of the parity harness (ADR-0020), read by
-# scripts/check-parity.sh. One row per bash message, three or four fields separated by tabs: an
+# The normalization table of the parity harness (ADR-0020, ADR-0022),
+# read by scripts/check-parity.sh. One row per bash message, three or four fields separated by tabs: an
 # extended regular expression the message after "  - " matches; the rule ID of nuc it maps to;
 # "line" when the bash message names a line, "-" when it names none and the comparison leaves the
 # line out; and "=<path>" for the file nuc names in place of the bash's location, or "+<prefix>"
@@ -44,3 +44,57 @@
 ^[^ :]+: [^ :]+ supersedes it, but its status line does not say 'superseded by ADR-	docs/adr-supersessions	-	+docs/adr/
 ^[^ :]+: status is ⚪ but the line names no superseding ADR$	docs/adr-supersessions	-	+docs/adr/
 ^[^ :]+: [^ :]+ says it supersedes, but it carries no '\*\*Supersedes:\*\*' field naming ADR-	docs/adr-supersessions	-	+docs/adr/
+^[^ :]+: superseded by ADR-[^ ]+, which is not accepted — the status line flips when the human accepts ADR-	docs/adr-supersessions	-	+docs/adr/
+
+# check-docs.sh, check 3: the relative links.
+^[^:]+: broken relative link -> '.*'$	docs/links	-
+^[^:]+: link '.*' has no matching anchor '#.*' in .*$	docs/links	-
+
+# check-docs.sh, check 4: the section references; the findings of AGENTS.md itself name no line.
+^[^:]+:[0-9]+: reference 'AGENTS\.md, section [0-9]+' matches no numbered section in AGENTS\.md$	docs/section-refs	line
+^[^:]+:[0-9]+: reference '§[0-9]+' matches no numbered section in AGENTS\.md$	docs/section-refs	line
+^[^:]+:[0-9]+: '§[0-9]+' is cited without an anchor	docs/section-refs	line
+^[^:]+:[0-9]+: '§[0-9]+' links to anchor 	docs/section-refs	line
+^[^:]+:[0-9]+: '§[0-9]+' stands outside a link	docs/section-refs	line
+^AGENTS\.md not found in the repository root$	docs/section-refs	line	=AGENTS.md
+^AGENTS\.md: no numbered '## N\.' section headings found$	docs/section-refs	line	=AGENTS.md
+^AGENTS\.md: numbered sections must run 1\.\.N in order	docs/section-refs	line	=AGENTS.md
+
+# check-docs.sh, check 9: the check lists.
+^[^:]+: not found — the check lists cannot be compared$	docs/check-lists	-
+^scripts/check-all\.sh: '# Not a gate: .*' names (the workflow of the required checks|no workflow of this repository)$	docs/check-lists	-
+^[^:]+: job '[^']*' runs no script under scripts/ — the local gate cannot run what it does$	docs/check-lists	-
+^\.github/workflows/checks\.yml: no jobs found under 'jobs:'	docs/check-lists	-
+^scripts/check-all\.sh: no 'run <label> <script>' invocations found	docs/check-lists	-
+^scripts/check-all\.sh: (does not run|runs) '.*', which (a workflow runs|no job of a workflow runs) — CI and the local gate disagree$	docs/check-lists	-
+^scripts/[^:]+: no workflow and not scripts/check-all\.sh runs it	docs/check-lists	-
+^README\.md: no job names between the 'required-checks' markers	docs/check-lists	-
+^README\.md: required check '.*' (is not a job of|is a job with a matrix|names a check run of) 	docs/check-lists	-
+^README\.md: job '.*' of .* is missing from the required checks	docs/check-lists	-
+
+# check-docs.sh, check 10: the Project Layout.
+^README\.md: not found — the Project Layout block cannot be checked$	docs/project-layout	-
+^README\.md: Project Layout lists '.*', which (matches nothing|is not a directory|does not exist)	docs/project-layout	-
+^README\.md: no paths found under '## Project Layout'	docs/project-layout	-
+^README\.md: Project Layout does not name '.*', a top-level part of this repository$	docs/project-layout	-
+
+# check-docs.sh, check 11: the skill pointers.
+^\.claude/skills/[^:]+: (is a copy of the skill|no pointer|is not a symlink into|dangles|points at )	docs/skill-pointers	-
+
+# check-docs.sh, check 12: the inherited ADRs decided.
+^[^ :]+: inherited from the template and (not decided by this project|still proposed after setup) — 	docs/inherited-adrs	-	+docs/adr/
+
+# check-docs.sh, check 13: the template's identity replaced.
+^README\.md: (the title is still the template's|the intro still explains the template's name|the Why NUC section still presents the template|the Overview is still the scaffold's sentence|the Usage section is still TODO|a badge still points at the template's repository|a Build, Test, Lint, or Run command is still TODO)	docs/template-identity	-
+^\.devcontainer/devcontainer\.json: the Dev Container still carries the template's name$	docs/template-identity	-
+^LICENSE: the copyright holder is still the placeholder	docs/template-identity	-
+^SECURITY\.md: the security contact is still the placeholder$	docs/template-identity	-
+^CODE_OF_CONDUCT\.md: the reporting contact is still the placeholder$	docs/template-identity	-
+^\.github/CODEOWNERS: (no active rule|the instruction to add a code owner is still there)	docs/template-identity	-
+^docs/[A-Z]+\.md: (the title still carries '<Project Name>'|a criterion is still the scaffold's placeholder|the scaffold's (building block|entry) is still listed)	docs/template-identity	-
+
+# check-docs.sh, check 15: the prose width.
+^[^:]+:[0-9]+: [0-9]+ columns — wrap the prose at 100 \(a link that does not fit stands on a line of its own\)$	docs/prose-width	line
+
+# check-docs.sh, check 16: no draft on main.
+^[^ :]+: a draft lands on main — give it its number first with scripts/number-adrs\.sh \(ADR-0002\)$	docs/no-draft-on-main	-	+docs/adr/

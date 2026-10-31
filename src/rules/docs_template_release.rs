@@ -1,7 +1,8 @@
 //! Check 14 of the template's `scripts/check-docs.sh`: `README.md` carries a
 //! `**Template release:**` line naming a `vX.Y.Z` tag or `unreleased` (ADR-0005 of the template).
 
-use super::{Input, Inputs, Rule};
+use super::{Carried, Input, Inputs, Rule};
+use crate::config::Version;
 use crate::finding::Finding;
 
 pub const RULE_ID: &str = "docs/template-release";
@@ -88,6 +89,22 @@ fn names_release(value: &str) -> bool {
         Some('.') => chars.next().is_none_or(is_space),
         Some(_) => false,
     }
+}
+
+/// The release the README carries, as the first Template release line names it: a tag, or
+/// `Unreleased`; none when no line names one, as this rule reports.
+pub fn carried(readme: &str) -> Option<Carried> {
+    let line = readme.split('\n').find(|line| is_release_line(line))?;
+    let value = after_label(line);
+    if !names_release(value) {
+        return None;
+    }
+    let value = value.strip_prefix(['[', '`']).unwrap_or(value);
+    if value.starts_with("unreleased") {
+        return Some(Carried::Unreleased);
+    }
+    let rest = tag(value)?;
+    Version::parse(&value[1..value.len() - rest.len()]).map(Carried::Release)
 }
 
 /// The text after a `vX.Y.Z` tag at the start of the value, each number without a leading zero.
@@ -186,5 +203,31 @@ mod tests {
     #[test]
     fn without_a_readme_there_is_nothing_to_report() {
         assert_eq!(check(&Inputs::default()), []);
+    }
+
+    #[test]
+    fn the_carried_release_is_read_from_the_first_line_in_each_form() {
+        let v = |a, b, c| Some(Carried::Release(Version(a, b, c)));
+        for (line, want) in [
+            ("- **Template release:** v0.6.0", v(0, 6, 0)),
+            ("- **Template release:** `v0.5.1`", v(0, 5, 1)),
+            (
+                "* **Template release:** [v10.2.3](https://x.invalid).",
+                v(10, 2, 3),
+            ),
+            ("**Template release:**v0.5.0;", v(0, 5, 0)),
+            (
+                "- **Template release:** unreleased",
+                Some(Carried::Unreleased),
+            ),
+            ("- **Template release:** v0.6", None),
+            ("- **Template release:** v01.0.0", None),
+            ("- **Template release:** latest", None),
+        ] {
+            assert_eq!(carried(&readme(line)), want, "{line}");
+        }
+        assert_eq!(carried("# Project\n"), None);
+        let two = readme("- **Template release:** v0.5.0\n- **Template release:** v0.6.0");
+        assert_eq!(carried(&two), v(0, 5, 0));
     }
 }

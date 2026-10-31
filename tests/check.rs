@@ -408,3 +408,587 @@ fn a_rule_that_reads_no_text_files_is_not_held_up_by_one() {
     let output = fixture.nuc(&["check"]);
     assert_eq!(code(&output), Some(0), "{}", stderr(&output));
 }
+
+#[test]
+fn links_into_a_submodule_a_directory_and_with_a_title_resolve_as_for_the_bash() {
+    let module = Fixture::new("links-module");
+    module
+        .write("guide.md", "# Guide\n\n## Setup\n")
+        .commit("A module");
+    let config = "minimum = \"0.0.0\"\nrules = [\"docs/links\"]\n";
+    let fixture = Fixture::project("links", config, README);
+    let url = module.root().to_str().expect("a UTF-8 path");
+    fixture.git(&[
+        "-c",
+        "protocol.file.allow=always",
+        "submodule",
+        "add",
+        "-q",
+        url,
+        "vendor/module",
+    ]);
+    fixture.write("docs/tools/x.sh", "a\nb\n");
+    fixture.write(
+        "docs/links.md",
+        "[m](../vendor/module/guide.md#setup) [d](tools/) [t](tools/x.sh \"A title\") [l](tools/x.sh#L2)\n\n[x](../vendor/module/guide.md#nope) [y](missing/)\n",
+    );
+    let output = fixture.nuc(&["check"]);
+    let out = stdout(&output);
+    let lines: Vec<&str> = out.lines().collect();
+    assert_eq!(
+        lines,
+        [
+            "docs/links.md:3: docs/links: link '../vendor/module/guide.md#nope' has no matching anchor '#nope' in docs/../vendor/module/guide.md",
+            "docs/links.md:3: docs/links: broken relative link -> 'missing/'",
+        ],
+        "{}",
+        stderr(&output)
+    );
+}
+
+/// A file beside the fixture, outside its repository, and the path from the fixture's root to it.
+fn outside(name: &str, file: &str, contents: &str) -> (Fixture, String) {
+    let probe = Fixture::new(name);
+    std::fs::write(probe.root().join(file), contents).expect("written");
+    let dir = probe
+        .root()
+        .file_name()
+        .and_then(|n| n.to_str())
+        .expect("a name");
+    let up = format!("../{dir}/{file}");
+    (probe, up)
+}
+
+#[cfg(unix)]
+#[test]
+fn an_agents_md_that_links_outside_the_repository_is_not_decided() {
+    let (_probe, up) = outside("agents-outside-probe", "outside.md", "## 1. Secret\n");
+    let config = "minimum = \"0.0.0\"\nrules = [\"docs/section-refs\"]\n";
+    let fixture = Fixture::project("agents-outside", config, README);
+    std::os::unix::fs::symlink(&up, fixture.root().join("AGENTS.md")).expect("linked");
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(2), "{}", stdout(&output));
+    assert!(!stdout(&output).contains("secret"), "{}", stdout(&output));
+    assert!(
+        stderr(&output).contains("AGENTS.md: resolves outside the repository"),
+        "{}",
+        stderr(&output)
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn a_text_file_that_links_outside_the_repository_is_not_decided() {
+    let (_probe, up) = outside("text-outside-probe", "outside.md", "Secret\n");
+    let fixture = references("text-outside");
+    std::os::unix::fs::symlink(&up, fixture.root().join("leak.md")).expect("linked");
+    fixture.git(&["add", "leak.md"]);
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(2), "{}", stdout(&output));
+    assert!(
+        stderr(&output).contains("leak.md: resolves outside the repository"),
+        "{}",
+        stderr(&output)
+    );
+}
+
+#[test]
+fn links_the_bash_reads_no_file_for_are_decided_without_one() {
+    let (_md, up_md) = outside("links-unread-md", "outside.md", "# Outside\n");
+    let (_txt, up_txt) = outside("links-unread-txt", "outside.txt", "a\n");
+    let config = "minimum = \"0.0.0\"\nrules = [\"docs/links\"]\n";
+    let fixture = Fixture::project("links-unread", config, README);
+    // A superseded ADR is not read; an anchor that names no lines is not checked in a file
+    // that is no Markdown, so neither file outside is read.
+    fixture.write(
+        "docs/adr/0001-a.md",
+        &format!("# ADR-0001\n\n- **Status:** ⚪ superseded\n\n[x](../../{up_md}#L1)\n"),
+    );
+    fixture.write("docs/x.md", &format!("[t](../{up_txt}#main)\n"));
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(
+        code(&output),
+        Some(0),
+        "{}{}",
+        stdout(&output),
+        stderr(&output)
+    );
+}
+
+#[test]
+fn a_link_path_that_is_no_utf8_is_not_decided() {
+    // Refused before the file system is asked, so no such file is needed, nor could every file
+    // system hold one.
+    let config = "minimum = \"0.0.0\"\nrules = [\"docs/links\"]\n";
+    let fixture = Fixture::project("links-bytes", config, README);
+    std::fs::write(fixture.root().join("x.md"), b"[c](caf\xe9.txt)\n").expect("written");
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(2), "{}", stdout(&output));
+    assert!(
+        stderr(&output).contains("x.md:1: a link names a path that is no UTF-8"),
+        "{}",
+        stderr(&output)
+    );
+}
+
+/// A project on the template release given, with only the supersession rule turned on, and ADR
+/// 0001 flipped for 0002, which is only proposed.
+fn flipped_early(name: &str, release_line: &str) -> Fixture {
+    let config = "minimum = \"0.0.0\"\nrules = [\"docs/adr-supersessions\"]\n";
+    let fixture = Fixture::project(name, config, &format!("# Fixture\n\n{release_line}\n"));
+    let by2 = format!("⚪ superseded by {}-0002", "ADR");
+    fixture.write(
+        "docs/adr/0001-a.md",
+        &format!("# A\n\n- **Status:** {by2}\n- **Applies to:** x\n"),
+    );
+    fixture.write(
+        "docs/adr/0002-b.md",
+        &format!(
+            "# B\n\n- **Status:** 🟡 proposed\n- **Supersedes:** {}-0001\n- **Applies to:** x\n",
+            "ADR"
+        ),
+    );
+    fixture
+}
+
+/// Verifies: ADR-0021
+#[test]
+fn a_rule_checks_a_tree_as_the_release_it_carries() {
+    let old = flipped_early("release-0.5", "- **Template release:** v0.5.1");
+    let output = old.nuc(&["check"]);
+    assert_eq!(
+        code(&output),
+        Some(0),
+        "{}{}",
+        stdout(&output),
+        stderr(&output)
+    );
+    for (name, line) in [
+        ("release-0.6", "- **Template release:** v0.6.0"),
+        (
+            "release-later",
+            "- **Template release:** [v9.0.0](https://example.invalid)",
+        ),
+        ("release-unreleased", "- **Template release:** unreleased"),
+    ] {
+        let output = flipped_early(name, line).nuc(&["check"]);
+        assert_eq!(code(&output), Some(1), "{line}: {}", stderr(&output));
+        assert!(
+            stdout(&output).contains("docs/adr/0001-a.md: docs/adr-supersessions: superseded by"),
+            "{line}: {}",
+            stdout(&output)
+        );
+    }
+}
+
+#[test]
+fn a_rule_that_checks_by_the_release_refuses_a_tree_it_cannot_place() {
+    for (name, line, why) in [
+        (
+            "release-none",
+            "No release line.",
+            "no Template release line",
+        ),
+        (
+            "release-bad",
+            "- **Template release:** soon",
+            "no Template release line",
+        ),
+        (
+            "release-early",
+            "- **Template release:** v0.4.0",
+            "v0.4.0 is before v0.5.0",
+        ),
+    ] {
+        let output = flipped_early(name, line).nuc(&["check"]);
+        assert_eq!(code(&output), Some(2), "{line}: {}", stdout(&output));
+        assert!(stderr(&output).contains(why), "{line}: {}", stderr(&output));
+    }
+}
+
+/// Verifies: ADR-0021
+#[test]
+fn without_a_release_line_the_template_release_rule_fails_the_run_and_a_rule_reports_what_every_release_does()
+ {
+    let fixture = flipped_early("release-reported", "No release line.");
+    fixture.write(
+        "nuc.toml",
+        "minimum = \"0.0.0\"\nrules = [\"docs/template-release\", \"docs/adr-supersessions\"]\n",
+    );
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(1), "{}", stderr(&output));
+    let out = stdout(&output);
+    assert!(
+        out.contains("README.md: docs/template-release: no"),
+        "{out}"
+    );
+    // Only v0.6.0 fails an ADR flipped early, so the finding is not one every release reports.
+    assert!(!out.contains("docs/adr-supersessions"), "{out}");
+}
+
+#[test]
+fn without_a_readme_a_rule_that_checks_by_the_release_is_not_decided() {
+    let fixture = flipped_early("release-no-readme", "No release line.");
+    fixture.write(
+        "nuc.toml",
+        "minimum = \"0.0.0\"\nrules = [\"docs/template-release\", \"docs/adr-supersessions\"]\n",
+    );
+    std::fs::remove_file(fixture.root().join("README.md")).expect("removed");
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(2), "{}", stdout(&output));
+}
+
+/// A project with only the skill pointer rule on and the skill `review` under `.agents/skills/`.
+fn skills(name: &str) -> Fixture {
+    let config = "minimum = \"0.0.0\"\nrules = [\"docs/skill-pointers\"]\n";
+    let fixture = Fixture::project(name, config, README);
+    fixture.write(".agents/skills/review/SKILL.md", "# Review\n");
+    fixture
+}
+
+#[test]
+fn a_skill_pointer_that_is_a_copy_or_missing_fails_as_for_the_bash() {
+    let missing = skills("skills-missing");
+    let out = stdout(&missing.nuc(&["check"]));
+    assert!(
+        out.contains(".claude/skills/review: docs/skill-pointers: no pointer — the skill .agents/skills/review is invisible to Claude Code"),
+        "{out}"
+    );
+    let copy = skills("skills-copy");
+    copy.write(".claude/skills/review/SKILL.md", "# Review\n");
+    copy.write(".claude/skills/stray/SKILL.md", "# Stray\n");
+    let out = stdout(&copy.nuc(&["check"]));
+    assert_eq!(
+        out.lines().collect::<Vec<_>>(),
+        [
+            ".claude/skills/review: docs/skill-pointers: is a copy of the skill, not a symlink — a second source drifts; replace it: rm -r .claude/skills/review && ln -s ../../.agents/skills/review .claude/skills/review",
+            ".claude/skills/stray: docs/skill-pointers: is not a symlink into .agents/skills/ — a skill lives there, where every agent reads it, and is pointed at from here (ADR-0003)",
+        ]
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn a_skill_pointer_that_resolves_passes_and_one_that_dangles_or_strays_fails() {
+    use std::os::unix::fs::symlink;
+    let fixture = skills("skills-links");
+    fixture.write(".agents/skills/other/SKILL.md", "# Other\n");
+    let pointers = fixture.root().join(".claude/skills");
+    std::fs::create_dir_all(&pointers).expect("created");
+    symlink("../../.agents/skills/review", pointers.join("review")).expect("linked");
+    symlink("../../.agents/skills/review", pointers.join("other")).expect("linked");
+    symlink("../../.agents/skills/gone", pointers.join("gone")).expect("linked");
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(
+        stdout(&output).lines().collect::<Vec<_>>(),
+        [
+            ".claude/skills/gone: docs/skill-pointers: dangles — its target does not exist; point it at .agents/skills/gone or delete it",
+            ".claude/skills/other: docs/skill-pointers: points at '.agents/skills/review', not at the skill .agents/skills/other",
+        ],
+        "{}",
+        stderr(&output)
+    );
+}
+
+#[test]
+fn the_project_layout_is_checked_against_the_tree_and_what_git_tracks() {
+    let config = "minimum = \"0.0.0\"\nrules = [\"docs/project-layout\"]\n";
+    let readme = format!(
+        "{README}\n## Project Layout\n\n```text\nREADME.md\nnuc.toml\nsrc/\nsrc/*.rs   the code\ndocs/*.txt\ngone/\n```\n"
+    );
+    let fixture = Fixture::project("layout", config, &readme);
+    fixture.write("src/lib.rs", "\n");
+    fixture.write("extra.txt", "x\n");
+    fixture.git(&["add", "-A"]);
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(
+        stdout(&output).lines().collect::<Vec<_>>(),
+        [
+            "README.md: docs/project-layout: Project Layout lists 'docs/*.txt', which matches nothing in this repository",
+            "README.md: docs/project-layout: Project Layout lists 'gone/', which is not a directory of this repository",
+            "README.md: docs/project-layout: Project Layout does not name 'extra.txt', a top-level part of this repository",
+        ],
+        "{}",
+        stderr(&output)
+    );
+}
+
+/// A project with only the rule given on.
+fn only(name: &str, rule: &str, readme: &str) -> Fixture {
+    let config = format!("minimum = \"0.0.0\"\nrules = [\"{rule}\"]\n");
+    Fixture::project(name, &config, readme)
+}
+
+const LISTS_README: &str = "# Fixture\n\n- **Template release:** v0.6.0\n\n<!-- required-checks begin -->\n`docs`\n<!-- required-checks end -->\n";
+
+#[test]
+fn the_check_lists_are_read_as_the_bash_globs_and_find_list_them() {
+    let fixture = only("lists", "docs/check-lists", LISTS_README);
+    fixture.write(
+        ".github/workflows/checks.yml",
+        "jobs:\n  docs:\n    steps:\n      - run: bash scripts/check-docs.sh\n",
+    );
+    fixture.write(
+        "scripts/check-all.sh",
+        "run \"Docs\" scripts/check-docs.sh\n",
+    );
+    fixture.write("scripts/check-docs.sh", "true\n");
+    fixture.write("scripts/.dot.sh", "true\n");
+    let inline = "jobs:\n  publish:\n    steps:\n      - run: make\n";
+    fixture.write(".github/workflows/a.yaml", inline);
+    fixture.write(".github/workflows/b.yml", inline);
+    fixture.write(".github/workflows/.hidden.yml", inline);
+    #[cfg(unix)]
+    std::os::unix::fs::symlink("check-docs.sh", fixture.root().join("scripts/link.sh"))
+        .expect("linked");
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(
+        stdout(&output).lines().collect::<Vec<_>>(),
+        [
+            ".github/workflows/b.yml: docs/check-lists: job 'publish' runs no script under scripts/ — the local gate cannot run what it does",
+            ".github/workflows/a.yaml: docs/check-lists: job 'publish' runs no script under scripts/ — the local gate cannot run what it does",
+            "scripts/.dot.sh: docs/check-lists: no workflow and not scripts/check-all.sh runs it — add it to both lists, or name it on an '# On instruction:' line of scripts/check-all.sh",
+        ],
+        "{}",
+        stderr(&output)
+    );
+}
+
+const LAYOUT_README: &str =
+    "# Fixture\n\n## Project Layout\n\n```\nREADME.md\nnuc.toml\ndocs/plan/\n*.toml\n";
+
+#[test]
+fn an_absolute_layout_path_names_a_path_under_the_root_as_for_the_bash() {
+    let readme = format!("{LAYOUT_README}/etc/\n/etc/hostname\n```\n");
+    let output = only("layout-absolute", "docs/project-layout", &readme).nuc(&["check"]);
+    assert_eq!(
+        stdout(&output).lines().collect::<Vec<_>>(),
+        [
+            "README.md: docs/project-layout: Project Layout lists '/etc/', which is not a directory of this repository",
+            "README.md: docs/project-layout: Project Layout lists '/etc/hostname', which does not exist",
+        ],
+        "{}",
+        stderr(&output)
+    );
+}
+
+#[test]
+fn a_layout_without_open_work_and_with_a_matching_pattern_passes() {
+    let readme = format!("{LAYOUT_README}```\n");
+    let output = only("layout-pass", "docs/project-layout", &readme).nuc(&["check"]);
+    assert_eq!(
+        code(&output),
+        Some(0),
+        "{}{}",
+        stdout(&output),
+        stderr(&output)
+    );
+}
+
+#[test]
+fn a_layout_pattern_outside_the_repository_or_with_a_class_is_not_decided() {
+    for (name, pattern, why) in [
+        ("layout-up", "../*", "looks outside the repository"),
+        (
+            "layout-class",
+            "[[:alpha:]]*",
+            "uses a bracket nuc does not read",
+        ),
+    ] {
+        let readme = format!("{LAYOUT_README}{pattern}\n```\n");
+        let output = only(name, "docs/project-layout", &readme).nuc(&["check"]);
+        assert_eq!(code(&output), Some(2), "{pattern}: {}", stdout(&output));
+        assert!(
+            stderr(&output).contains(why),
+            "{pattern}: {}",
+            stderr(&output)
+        );
+    }
+}
+
+#[test]
+fn a_repository_without_skills_passes_and_one_with_pointers_only_fails() {
+    let none = only("skills-none", "docs/skill-pointers", README);
+    assert_eq!(code(&none.nuc(&["check"])), Some(0));
+    let pointers = only("skills-pointers-only", "docs/skill-pointers", README);
+    pointers.write(".claude/skills/lonely/SKILL.md", "# Lonely\n");
+    assert_eq!(
+        stdout(&pointers.nuc(&["check"])).trim_end(),
+        ".claude/skills/lonely: docs/skill-pointers: is not a symlink into .agents/skills/ — a skill lives there, where every agent reads it, and is pointed at from here (ADR-0003)"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn a_skill_directory_outside_the_repository_is_not_listed() {
+    let (probe, _) = outside("skills-outside-probe", "evil-SKILL.md", "# Evil\n");
+    std::fs::create_dir_all(probe.root().join("skills/evil")).expect("created");
+    std::fs::write(probe.root().join("skills/evil/SKILL.md"), "# Evil\n").expect("written");
+    let fixture = only("skills-outside", "docs/skill-pointers", README);
+    std::fs::create_dir_all(fixture.root().join(".agents")).expect("created");
+    std::os::unix::fs::symlink(
+        probe.root().join("skills"),
+        fixture.root().join(".agents/skills"),
+    )
+    .expect("linked");
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(2), "{}", stdout(&output));
+    assert!(
+        stderr(&output).contains("resolves outside the repository"),
+        "{}",
+        stderr(&output)
+    );
+}
+
+/// Verifies: ADR-0013
+#[test]
+fn the_inherited_adrs_and_the_identity_are_checked_once_the_setup_file_is_gone() {
+    let config =
+        "minimum = \"0.0.0\"\nrules = [\"docs/inherited-adrs\", \"docs/template-identity\"]\n";
+    let readme = format!(
+        "# NUC — an Agentic Fixture\n\n{}",
+        &README["# Fixture\n\n".len()..]
+    );
+    let fixture = Fixture::project("identity", config, &readme);
+    fixture.write(
+        "docs/adr/0001-a.md",
+        "# A\n\n- **Status:** 🟢 accepted\n- **Deciders:** NUC maintainer\n- **Applies to:** x\n",
+    );
+    fixture.write("TEMPLATE-SETUP.md", "# Template setup\n");
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(0), "{}", stdout(&output));
+    std::fs::remove_file(fixture.root().join("TEMPLATE-SETUP.md")).expect("removed");
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(
+        stdout(&output).lines().collect::<Vec<_>>(),
+        [
+            "docs/adr/0001-a.md: docs/inherited-adrs: inherited from the template and not decided by this project — add your name to Deciders and accept it, or supersede it (docs/adr/README.md)",
+            "README.md: docs/template-identity: the title is still the template's; give the project its name",
+        ],
+        "{}",
+        stderr(&output)
+    );
+}
+
+#[test]
+fn an_adr_holding_the_unit_separator_is_not_decided() {
+    let config = "minimum = \"0.0.0\"\nrules = [\"docs/inherited-adrs\"]\n";
+    let fixture = Fixture::project("unit-separator", config, README);
+    fixture.write(
+        "docs/adr/0001-a.md",
+        "# A\n\n- **Status:** 🟢 accepted\n- **Deciders:** NUC maintainer\u{1f}\n- **Applies to:** x\n",
+    );
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(2), "{}", stdout(&output));
+    assert!(stderr(&output).contains("0x1F"), "{}", stderr(&output));
+}
+
+#[test]
+fn while_the_setup_file_exists_the_identity_files_are_not_read() {
+    let fixture = only("identity-setup", "docs/template-identity", README);
+    fixture.write("TEMPLATE-SETUP.md", "# Template setup\n");
+    std::fs::write(fixture.root().join("LICENSE"), b"Copyright\0 Maintainer\n").expect("written");
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(0), "{}", stderr(&output));
+}
+
+#[test]
+fn a_markdown_file_git_marks_generated_is_not_read_for_its_width() {
+    let long = format!("{}\n", "word ".repeat(24));
+    for (name, attribute, findings) in [
+        ("width-generated", "CHANGELOG.md linguist-generated\n", 0),
+        (
+            "width-generated-unset",
+            "CHANGELOG.md -linguist-generated\n",
+            1,
+        ),
+        (
+            "width-generated-true",
+            "CHANGELOG.md linguist-generated=true\n",
+            0,
+        ),
+        ("width-generated-pattern", "*.md linguist-generated\n", 0),
+        (
+            "width-generated-false",
+            "CHANGELOG.md linguist-generated=false\n",
+            1,
+        ),
+    ] {
+        let fixture = only(name, "docs/prose-width", README);
+        fixture.write("CHANGELOG.md", &long);
+        fixture.write(".gitattributes", attribute);
+        let output = fixture.nuc(&["check"]);
+        let out = stdout(&output);
+        assert_eq!(
+            out.lines().count(),
+            findings,
+            "{attribute}{out}{}",
+            stderr(&output)
+        );
+        if findings == 1 {
+            assert!(
+                out.starts_with("CHANGELOG.md:1: docs/prose-width: 120 columns"),
+                "{out}"
+            );
+        }
+    }
+}
+
+#[test]
+fn a_wide_line_the_bash_counts_otherwise_is_not_decided() {
+    let fixture = only("width-bytes", "docs/prose-width", README);
+    let mut line = b"[a\xff b](https://example.invalid/".to_vec();
+    line.extend(b"a".repeat(100));
+    line.extend(b")\n");
+    std::fs::write(fixture.root().join("odd.md"), &line).expect("written");
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(2), "{}", stdout(&output));
+    assert!(
+        stderr(&output).contains("odd.md:1: a line over 100 bytes"),
+        "{}",
+        stderr(&output)
+    );
+}
+
+#[test]
+fn a_draft_fails_where_ci_says_a_ready_change_lands_on_main() {
+    let fixture = only("no-draft", "docs/no-draft-on-main", README);
+    fixture.write("docs/adr/draft-next.md", "# Next\n");
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(
+        "draft-next.md",
+        fixture.root().join("docs/adr/draft-link.md"),
+    )
+    .expect("linked");
+    let ready = [("GITHUB_BASE_REF", "main"), ("PULL_REQUEST_DRAFT", "false")];
+    let output = fixture.nuc_with(&ready, &["check"]);
+    assert_eq!(
+        stdout(&output).trim_end(),
+        "docs/adr/draft-next.md: docs/no-draft-on-main: a draft lands on main — give it its number first with scripts/number-adrs.sh (ADR-0002)",
+        "{}",
+        stderr(&output)
+    );
+    for vars in [
+        &[("GITHUB_BASE_REF", "main"), ("PULL_REQUEST_DRAFT", "true")][..],
+        &[("GITHUB_BASE_REF", "feat/topic")][..],
+        &[][..],
+    ] {
+        let output = fixture.nuc_with(vars, &["check"]);
+        assert_eq!(code(&output), Some(0), "{vars:?}: {}", stdout(&output));
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn a_draft_whose_name_holds_a_newline_is_not_decided() {
+    let fixture = only("no-draft-newline", "docs/no-draft-on-main", README);
+    fixture.write("docs/adr/draft-a\nb.md", "# A\n");
+    let ready = [("GITHUB_BASE_REF", "main"), ("PULL_REQUEST_DRAFT", "false")];
+    let output = fixture.nuc_with(&ready, &["check"]);
+    assert_eq!(code(&output), Some(2), "{}", stdout(&output));
+    assert!(
+        stderr(&output).contains("holds a newline"),
+        "{}",
+        stderr(&output)
+    );
+}

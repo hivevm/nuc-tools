@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Self-test of scripts/check-parity.sh. Verifies: ADR-0020
+# Self-test of scripts/check-parity.sh. Verifies: ADR-0020 ADR-0022
 #
 # The comparison cases feed the harness pairs of outputs through '--compare': pairs that differ in
 # one finding, in one exit status, by one bash message the table does not know, or by a line nuc
@@ -243,6 +243,14 @@ two="$(corpus "$work/two.toml" agree other)"
 v="$(variants "$work/v-one.tsv" "$DELETE" $'other-only\tdocs/template-release\tREADME.md\tsed\t/^Other$/d')"
 expect fail "a variant that does not apply to one tree of the corpus fails and names it" \
   "agree, variant other-only — its edit of README.md does not apply" run "$two" "$(reactive_nuc)" "$v"
+v="$(variants "$work/v-named.tsv" "$DELETE" $'other-only\tdocs/template-release\tREADME.md\tsed\t/Template release:/{N;/\\nOther$/d}\tother')"
+expect pass "a variant that names its trees is for those alone" "" run "$two" "$(reactive_nuc)" "$v"
+v="$(variants "$work/v-named-unfit.tsv" "$DELETE" $'other-only\tdocs/template-release\tREADME.md\tsed\t/Template release:/{N;/\\nOther$/d}\tagree,other')"
+expect fail "a variant that does not apply to a tree it names fails" \
+  "agree, variant other-only — its edit of README.md does not apply" run "$two" "$(reactive_nuc)" "$v"
+v="$(variants "$work/v-lacks.tsv" "$DELETE" $'other-only\tdocs/template-release\tREADME.md\tsed\t/Template release:/{N;/\\nOther$/d}\tother,gone')"
+expect fail "a variant that names a tree the corpus lacks fails" "names the tree 'gone', which the corpus lacks" \
+  run "$two" "$(reactive_nuc)" "$v"
 
 v="$(variants "$work/v-missing-file.tsv" "$DELETE" $'gone\tdocs/template-release\tNO-SUCH.md\tdelete\t-')"
 expect fail "a variant of a file the tree lacks fails" "variant gone — its edit of NO-SUCH.md does not apply" \
@@ -267,6 +275,32 @@ expect fail "an empty --variants is refused" "--variants takes a file" \
   bash "$HARNESS" --corpus "$c" --cache "$work/cache" --nuc "$(reactive_nuc)" --variants ""
 printf '%s' "$DELETE" > "$work/v-no-newline.tsv"
 expect pass "a last row without a newline is read" "" run "$c" "$(reactive_nuc)" "$work/v-no-newline.tsv"
+
+source_repo linked > /dev/null
+mkdir -p "$work/src-linked/docs"
+git -C "$work/src-linked" mv README.md docs/real.md
+ln -s docs/real.md "$work/src-linked/README.md"
+stub="$work/src-linked/scripts/check-docs.sh"
+sed "s/grep -q /grep -qs /" "$stub" > "$stub.tmp" && cat "$stub.tmp" > "$stub" && rm "$stub.tmp"
+git -C "$work/src-linked" add -A
+git -C "$work/src-linked" -c user.name=F -c user.email=f@example.invalid -c core.hooksPath=/dev/null commit -qm linked
+git -C "$work/src-linked" rev-parse HEAD > "$work/src-linked.commit"
+v="$(variants "$work/v-link.tsv" $'unlinked\tdocs/template-release\tREADME.md\tdelete\t-')"
+expect pass "a variant deletes a symbolic link itself" "" run "$(corpus "$work/linked.toml" linked)" "$(reactive_nuc)" "$v"
+check "the target of the deleted link stays" test -f "$work/src-linked/docs/real.md"
+
+v="$(variants "$work/v-new.tsv" "$DELETE" $'written\tdocs/template-release\tNEW.md\twrite\tA new file')"
+expect fail "a variant that writes a new file applies, and is compared" "variant written — bash reports no finding" \
+  run "$c" "$(reactive_nuc)" "$v"
+v="$(variants "$work/v-overwrite.tsv" "$DELETE" $'overwrite\tdocs/template-release\tREADME.md\twrite\tGone')"
+expect fail "a variant that would write over a file does not apply" "variant overwrite — its edit of README.md does not apply" \
+  run "$c" "$(reactive_nuc)" "$v"
+
+v="$(variants "$work/v-git.tsv" "$DELETE" $'git\tdocs/template-release\t.git/commondir\twrite\t/elsewhere')"
+expect fail "a variant that edits the repository's .git is refused" "no path inside the tree" run "$c" "$(reactive_nuc)" "$v"
+v="$(variants "$work/v-no-parent.tsv" "$DELETE" $'orphan\tdocs/template-release\tno-such-dir/NEW.md\twrite\tx')"
+expect fail "a variant that would write into a directory the tree lacks does not apply" \
+  "variant orphan — its edit of no-such-dir/NEW.md does not apply" run "$c" "$(reactive_nuc)" "$v"
 
 v="$(variants "$work/v-escape.tsv" "$DELETE" $'escape\tdocs/template-release\t../agree/README.md\tdelete\t-')"
 expect fail "a variant whose path leaves the tree is refused" "no path inside the tree" run "$c" "$(reactive_nuc)" "$v"

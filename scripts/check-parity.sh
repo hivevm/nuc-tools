@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Parity harness (ADR-0020, Q-2).
+# Parity harness (ADR-0020, ADR-0022, Q-2).
 #
 # Runs the bash checks a repository of the corpus carries and nuc on the same tree, and fails on
 # any difference in their findings or their exit status. The corpus is tests/parity/corpus.toml:
@@ -8,14 +8,17 @@
 # cache that cannot be filled fails the harness, never skips the repository (Q-1). A tree whose
 # README names a template release before v0.5.0, or none, is refused and never compared.
 #
-# Each tree is compared as pinned and on each variant of tests/parity/variants.tsv it fits: an
-# edit that makes a ported rule fire, applied to a copy in a directory of the harness's own, never
-# to the cache. A variant that fits no tree fails, and so does one on which bash reports no
-# finding of its rule, since agreement on a rule that never fires decides nothing.
+# Each tree is compared as pinned and on each variant of tests/parity/variants.tsv that is for it:
+# an edit that makes a ported rule fire, applied to a copy in a directory of the harness's own,
+# never to the cache. A variant is for the trees it names, or for every tree when it names none.
+# It fails on a tree it is for where its edit does not apply, or where bash reports no finding of
+# its rule, since agreement on a rule that never fires decides nothing; so does one that names a
+# tree the corpus lacks.
 #
 # For each repository and each variant:
 #   1. The bash scripts with a ported rule run in the tree, with the environment cleared to PATH,
-#      HOME, and LC_ALL=C: today scripts/check-docs.sh, whose findings are its '  - ' lines.
+#      HOME, LC_ALL=C, and that of a pull request into main marked ready (CI_ENV): today
+#      scripts/check-docs.sh, whose findings are its '  - ' lines.
 #   2. nuc runs 'check' on the tree, with a nuc.toml the harness writes beside it, ignored through
 #      the cache's .git/info/exclude, that turns on every rule the table maps to.
 #   3. The findings are normalized to (rule ID, file, line) by tests/parity/normalize.tsv and
@@ -230,22 +233,43 @@ at_least_floor() {
   [[ -n "$1" ]] && [[ "$(printf '%s\n%s\n' "$FLOOR" "$1" | sort -V | head -1)" == "$FLOOR" ]]
 }
 
+# The environment of a pull request into main marked ready, in which both run, so that a check
+# that reads where a change lands (check 16) speaks as it does in CI.
+CI_ENV=(GITHUB_BASE_REF=main PULL_REQUEST_DRAFT=false)
+
 # run_pair <label> <tree> <output prefix> — run bash and nuc on the tree and compare them.
 run_pair() {
   local label="$1" dir="$2" out="$3" bash_rc nuc_rc
-  (cd "$dir" && env -i PATH="$PATH" HOME="$HOME" LC_ALL=C bash scripts/check-docs.sh) > "$out.bash" 2>&1
+  (cd "$dir" && env -i PATH="$PATH" HOME="$HOME" LC_ALL=C "${CI_ENV[@]}" bash scripts/check-docs.sh) > "$out.bash" 2>&1
   bash_rc=$?
-  env -i PATH="$PATH" HOME="$HOME" "$nuc" check --repo "$dir" > "$out.nuc" 2> "$out.nuc.err"
+  env -i PATH="$PATH" HOME="$HOME" "${CI_ENV[@]}" "$nuc" check --repo "$dir" > "$out.nuc" 2> "$out.nuc.err"
   nuc_rc=$?
   compare "$label" "$out.bash" "$bash_rc" "$out.nuc" "$nuc_rc"
 }
 
-# apply_variant <copy> <path> <sed|delete> <argument> — apply the edit to the copy of a tree. It
-# fails when the edit does not apply: the file is missing, resolves outside the copy, or the sed
-# expression fails or changes nothing. sed runs sandboxed, so an expression runs no command and
-# reads or writes no other file.
+# apply_variant <copy> <path> <sed|delete|write> <argument> — apply the edit to the copy of a tree.
+# It fails when the edit does not apply: the file is missing, or for 'write' already there,
+# resolves outside the copy, or the sed expression fails or changes nothing. 'write' creates the
+# file with the argument as its one line, in a directory the copy already has. sed runs sandboxed,
+# so an expression runs no command and reads or writes no other file.
 apply_variant() {
   local copy="$1" file="$1/$2"
+  if [[ "$3" == write ]]; then
+    [[ ! -e "$file" && ! -L "$file" && -d "$(dirname "$file")" ]] || return 1
+    local parent
+    parent="$(realpath "$(dirname "$file")")"
+    [[ "$parent" == "$(realpath "$copy")" || "$parent" == "$(realpath "$copy")"/* ]] || return 1
+    printf '%s\n' "$4" 2>/dev/null > "$file" || return 1
+    return 0
+  fi
+  # A symbolic link is deleted itself, wherever it points, when its directory is in the copy.
+  if [[ "$3" == delete && -L "$file" ]]; then
+    local dir
+    dir="$(realpath "$(dirname "$file")")"
+    [[ "$dir" == "$(realpath "$copy")" || "$dir" == "$(realpath "$copy")"/* ]] || return 1
+    rm -f "$file"
+    return 0
+  fi
   [[ -f "$file" ]] || return 1
   [[ "$(realpath -m "$file")" == "$(realpath "$copy")"/* ]] || return 1
   case "$3" in
@@ -279,24 +303,28 @@ fires() {
   [[ -n "$(comm -13 <(rule_messages "$1" "$3") <(rule_messages "$2" "$3"))" ]]
 }
 
-# The variants, one row each: name, rule, path in the tree, 'sed' with an extended expression or
-# 'delete' with '-', separated by tabs. The path stays inside the tree; every ported rule brings
-# one at least.
-variant_names=() variant_rules=() variant_paths=() variant_ops=() variant_args=()
+# The variants, one row each: name, rule, path in the tree, 'sed' with an extended expression,
+# 'delete' with '-', or 'write' with a line, and optionally the names of the corpus trees it is
+# for, separated by commas, all separated by tabs. Without names it is for every tree. The path
+# stays inside the tree and out of its .git; every ported rule brings one at least.
+variant_names=() variant_rules=() variant_paths=() variant_ops=() variant_args=() variant_trees=()
 [[ -r "$variants" ]] || die "$variants: unreadable"
-while IFS=$'\t' read -r vname vrule vpath vop varg extra || [[ -n "$vname" ]]; do
+while IFS=$'\t' read -r vname vrule vpath vop varg vtrees extra || [[ -n "$vname" ]]; do
   [[ -z "$vname" || "$vname" == \#* ]] && continue
   if ! [[ "$vname" =~ ^[a-z0-9-]+$ && -n "$vpath" && -z "${extra:-}" ]] \
-    || ! [[ ( "$vop" == sed && -n "$varg" ) || ( "$vop" == delete && "$varg" == - ) ]]; then
-    die "$variants: the row '$vname' is not 'name<TAB>rule<TAB>path<TAB>sed|delete<TAB>argument'"
+    || ! [[ -z "${vtrees:-}" || "$vtrees" =~ ^[a-z0-9-]+(,[a-z0-9-]+)*$ ]] \
+    || ! [[ ( "$vop" == sed && -n "$varg" ) || ( "$vop" == delete && "$varg" == - ) || ( "$vop" == write && -n "$varg" ) ]]; then
+    die "$variants: the row '$vname' is not 'name<TAB>rule<TAB>path<TAB>sed|delete|write<TAB>argument[<TAB>tree,…]'"
   fi
-  [[ "$vpath" != /* && "/$vpath/" != */../* ]] \
+  # The repository's own .git is no part of the tree: an edit there could point git, and so both
+  # tools, at another repository.
+  [[ "$vpath" != /* && "/$vpath/" != */../* && "/$vpath/" != */.git/* ]] \
     || die "$variants: the variant '$vname' edits '$vpath', which is no path inside the tree"
   _contains "$vname" "${variant_names[@]}" && die "$variants: the variant '$vname' is named twice"
   [[ "$(mode_of "$vrule")" != unknown ]] \
     || die "$variants: the variant '$vname' names the rule '$vrule', which the table maps no message to"
   variant_names+=("$vname") variant_rules+=("$vrule") variant_paths+=("$vpath")
-  variant_ops+=("$vop") variant_args+=("$varg")
+  variant_ops+=("$vop") variant_args+=("$varg") variant_trees+=("${vtrees:-}")
 done < "$variants"
 for rule in $(printf '%s\n' "${rules[@]}" | grep -vx -- '-' | sort -u); do
   _contains "$rule" "${variant_rules[@]}" \
@@ -304,6 +332,18 @@ for rule in $(printf '%s\n' "${rules[@]}" | grep -vx -- '-' | sort -u); do
 done
 
 failed=0
+# A tree a variant names that the corpus lacks: a moved or renamed pin would drop the comparison.
+corpus_names=()
+for entry in "${repositories[@]}"; do corpus_names+=("${entry%% *}"); done
+for i in "${!variant_names[@]}"; do
+  IFS=, read -ra named <<< "${variant_trees[i]}"
+  for tree in "${named[@]}"; do
+    if ! _contains "$tree" "${corpus_names[@]}"; then
+      echo "Parity check: variant ${variant_names[i]} — it names the tree '$tree', which the corpus lacks" >&2
+      failed=1
+    fi
+  done
+done
 for entry in "${repositories[@]}"; do
   read -r name url commit <<< "$entry"
   dir="$cache/$name"
@@ -334,6 +374,8 @@ for entry in "${repositories[@]}"; do
 
   # Every variant on this tree, on a copy of it in a directory of its own, never on the cache.
   for i in "${!variant_names[@]}"; do
+    # A variant that names its trees is for those alone.
+    [[ -z "${variant_trees[i]}" || ",${variant_trees[i]}," == *",$name,"* ]] || continue
     label="$name, variant ${variant_names[i]}"
     vdir="$work/variants/$name/${variant_names[i]}"
     if ! { mkdir -p "$(dirname "$vdir")" && cp -a "$dir" "$vdir"; }; then

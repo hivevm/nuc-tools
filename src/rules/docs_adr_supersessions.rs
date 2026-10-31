@@ -1,9 +1,13 @@
-//! Check 8 of the template's `scripts/check-docs.sh` at v0.5.0: the `**Supersedes:**` field of an
-//! ADR and the `⚪ superseded by ADR-NNNN` status line of every ADR it names agree, both ways. A
-//! name that matches no file is the reference rule's.
+//! Check 8 of the template's `scripts/check-docs.sh`: the `**Supersedes:**` field of an ADR and
+//! the `⚪ superseded by ADR-NNNN` status line of every ADR it names agree, both ways. A name that
+//! matches no file is the reference rule's. From v0.6.0 the old line flips when a human accepts
+//! the new ADR: a proposed or rejected one names old ADRs that keep their status, and an old ADR
+//! names no successor that is not accepted. One superseded in its turn counts as accepted, so a
+//! chain stays whole.
 
 use super::{Input, Inputs, Rule};
 use crate::adr::{self, Header, show};
+use crate::config::Version;
 use crate::finding::Finding;
 
 pub const RULE_ID: &str = "docs/adr-supersessions";
@@ -12,12 +16,21 @@ pub const RULE: Rule = Rule {
     id: RULE_ID,
     explain: "The '**Supersedes:**' field of a new ADR and the '⚪ superseded by ADR-NNNN' \
               status line of every old one it names, one or several it consolidates, name each \
-              other. Both are written in the same pull request but in two files, and the index \
-              check sees neither half missing. Every name of a Supersedes field counts, on \
-              whichever line it sits.",
-    reads: &[Input::Adr],
+              other. The two halves stand in two files, and the index check sees neither one \
+              missing. Every name of a Supersedes field counts, on whichever line it sits. From \
+              template release v0.6.0 the old line flips only when a human accepts the new ADR, \
+              so a proposed one leaves the old ones in force.",
+    reads: &[Input::Adr, Input::Release],
     check,
 };
+
+/// The release from which a human flips the old status lines when accepting the new ADR.
+const FLIP_ON_ACCEPTANCE: Version = Version(0, 6, 0);
+
+/// Whether the status counts as accepted for a supersession: accepted, or superseded in turn.
+fn accepted(status: &[u8]) -> bool {
+    matches!(adr::status_emoji(status).0, Some("🟢" | "⚪"))
+}
 
 /// The key a `superseded by [ADR-<key>` status line names, the bracket optional.
 fn successor(status: &[u8]) -> Option<String> {
@@ -51,10 +64,12 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
         line: None,
         message,
     };
+    let on_acceptance = inputs.carries_at_least(FLIP_ON_ACCEPTANCE);
     let mut found = Vec::new();
     for (name, header) in &headers {
         let key = adr::key_of(name);
-        for target in superseded(header) {
+        let flips = !on_acceptance || accepted(header.field("Status").unwrap_or(b""));
+        for target in superseded(header).into_iter().filter(|_| flips) {
             let Some(&target_name) = by_key.get(target.as_str()) else {
                 continue;
             };
@@ -83,6 +98,11 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
                         "{name} says it supersedes, but it carries no '**Supersedes:**' field naming ADR-{key}"
                     )));
                 }
+                if on_acceptance && !accepted(headers[next_name].field("Status").unwrap_or(b"")) {
+                    found.push(at(name, format!(
+                        "superseded by ADR-{next}, which is not accepted — the status line flips when the human accepts ADR-{next}"
+                    )));
+                }
             }
         }
     }
@@ -99,8 +119,16 @@ mod tests {
         format!("{}-{key}", "ADR")
     }
 
+    /// The findings on a tree of template release v0.5.0, whose cases these tests copy.
     fn found(adrs: &[(&str, String)]) -> Vec<(String, String)> {
-        let mut inputs = Inputs::default();
+        found_at(Some(Version(0, 5, 0)), adrs)
+    }
+
+    fn found_at(release: Option<Version>, adrs: &[(&str, String)]) -> Vec<(String, String)> {
+        let mut inputs = Inputs {
+            release,
+            ..Inputs::default()
+        };
         for (name, text) in adrs {
             inputs
                 .adr
@@ -251,5 +279,94 @@ mod tests {
             ("draft-next.md", adr("🟡 proposed", &field)),
         ];
         assert_eq!(found(&adrs), []);
+    }
+
+    /// ADR 2, proposed, superseding ADR 1, whose status line reads as given.
+    fn proposed_supersession(old: &str) -> [(&'static str, String); 2] {
+        let field = format!("- **Supersedes:** [{}](0001-a.md)\n", id("0001"));
+        [
+            ("0001-a.md", adr(old, "")),
+            ("0002-b.md", adr("🟡 proposed", &field)),
+        ]
+    }
+
+    /// Verifies: ADR-0021
+    #[test]
+    fn from_v0_6_0_a_proposed_supersession_leaves_the_old_adr_in_force() {
+        let v0_6 = Some(FLIP_ON_ACCEPTANCE);
+        assert_eq!(found_at(v0_6, &proposed_supersession("🟢 accepted")), []);
+        let early = proposed_supersession(&format!("⚪ superseded by {}", id("0002")));
+        assert_eq!(
+            found_at(v0_6, &early),
+            [(
+                "docs/adr/0001-a.md".to_owned(),
+                format!(
+                    "superseded by {}, which is not accepted — the status line flips when the human accepts {}",
+                    id("0002"),
+                    id("0002")
+                )
+            )]
+        );
+        // The same trees on v0.5.x and on 'unreleased', the newest release.
+        assert_eq!(found(&early), []);
+        assert_eq!(found(&proposed_supersession("🟢 accepted")).len(), 1);
+        assert_eq!(found_at(None, &early).len(), 1);
+    }
+
+    /// Verifies: ADR-0021
+    #[test]
+    fn from_v0_6_0_a_chain_of_supersessions_passes() {
+        let adrs = [
+            (
+                "0001-a.md",
+                adr(&format!("⚪ superseded by {}", id("0002")), ""),
+            ),
+            (
+                "0002-b.md",
+                adr(
+                    &format!("⚪ superseded by {}", id("0003")),
+                    &format!("- **Supersedes:** [{}](0001-a.md)\n", id("0001")),
+                ),
+            ),
+            (
+                "0003-c.md",
+                adr(
+                    "🟢 accepted",
+                    &format!("- **Supersedes:** [{}](0002-b.md)\n", id("0002")),
+                ),
+            ),
+        ];
+        assert_eq!(found_at(Some(FLIP_ON_ACCEPTANCE), &adrs), []);
+    }
+
+    /// Verifies: ADR-0021
+    #[test]
+    fn from_v0_6_0_an_old_adr_flipped_for_a_draft_still_proposed_fails() {
+        let status = format!("⚪ superseded by [{}](draft-next.md)", id("draft-next"));
+        let field = format!("- **Supersedes:** [{}](0001-a.md)\n", id("0001"));
+        let adrs = [
+            ("0001-a.md", adr(&status, "")),
+            ("draft-next.md", adr("🟡 proposed", &field)),
+        ];
+        assert_eq!(found_at(Some(Version(0, 7, 2)), &adrs).len(), 1);
+    }
+
+    /// Verifies: ADR-0021
+    #[test]
+    fn from_v0_6_0_a_rejected_successor_leaves_the_old_adr_in_force() {
+        let field = format!("- **Supersedes:** [{}](0001-a.md)\n", id("0001"));
+        let kept = [
+            ("0001-a.md", adr("🟢 accepted", "")),
+            ("0002-b.md", adr("🔴 rejected", &field)),
+        ];
+        assert_eq!(found_at(Some(FLIP_ON_ACCEPTANCE), &kept), []);
+        let flipped = [
+            (
+                "0001-a.md",
+                adr(&format!("⚪ superseded by {}", id("0002")), ""),
+            ),
+            ("0002-b.md", adr("🔴 rejected", &field)),
+        ];
+        assert_eq!(found_at(Some(FLIP_ON_ACCEPTANCE), &flipped).len(), 1);
     }
 }
