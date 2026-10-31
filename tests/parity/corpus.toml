@@ -16,12 +16,6 @@ name = "nuc-v0-6-0"
 url = "https://github.com/hivevm/nuc.git"
 commit = "f9d3c56b9bc238c975ee4d1b4f5a9bb4cfdc8f33"
 
-# A derived repository on template release v0.5.0, at a fixed commit of its main.
-[[repository]]
-name = "opamp-fleet"
-url = "https://github.com/mbrigl/opamp-fleet.git"
-commit = "2afdce057985ac06a28811f174499489bbcdc1ea"
-
 # A derived repository on template release v0.6.0, at a fixed commit of its main.
 [[repository]]
 name = "nectar"

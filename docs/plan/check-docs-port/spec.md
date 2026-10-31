@@ -71,11 +71,11 @@ trees as pinned and on variants of them that make each ported check fire.
   exemptions and oddities ([conventions](../../CONVENTIONS.md)).
 - **Messages.** The wording may differ from the bash's; the rule ID, file, and line are what the
   normalization table maps and compares (ADR-0019).
-- **Corpus.** Every repository on template release v0.5.0 or later, each at a fixed commit: the
-  template at v0.5.0, `mbrigl/opamp-fleet`, `hivevm/nectar`, and this repository,
-  `hivevm/nuc-tools`. Each entry names its template release, and the harness refuses a tree whose
-  README names a release before v0.5.0. A later release whose bash
-  differs shows as a difference, and its behaviour becomes a rule ID of its own.
+- **Corpus.** Every repository on template release v0.5.0 or later whose checks are the bash of
+  its release, each at a fixed commit: the template at v0.5.0 and at v0.6.0, `hivevm/nectar`,
+  `hivevm/ocelli`, and this repository, `hivevm/nuc-tools`. Each entry names its template
+  release, and the harness refuses a tree whose README names a release before v0.5.0. A rule
+  checks each tree as the release it carries (ADR-draft-rules-follow-the-carried-release).
 - **Variants.** For each ported rule, the harness derives one or more variants of a corpus tree
   by a scripted edit, such as a broken link or a missing index row, and compares bash and `nuc`
   on each as on the tree itself.
