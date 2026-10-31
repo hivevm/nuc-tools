@@ -33,8 +33,11 @@ tree as the bash check of that release does, and refuse a tree whose release it 
   knows. The `nuc.toml` of a release that changes a check raises its minimum to a `nuc` that
   ports the change ([ADR-0013](0013-version-coupling.md)).
 - **`unreleased`:** checked as the newest release this `nuc` knows.
-- **Not decided:** a rule that reads the release refuses a tree with no `Template release` line,
-  a line that names no release, or a release before v0.5.0, the earliest the rules port.
+- **Not decided:** a rule that reads the release refuses a tree whose release is before v0.5.0,
+  the earliest the rules port. It also refuses a tree with no `Template release` line, or with
+  a line that names no release, unless `docs/template-release` is turned on. That rule then
+  fails the run with the finding the bash reports, and the tree is checked as the newest
+  release.
 - **The corpus:** for each release at which a ported check changed, the parity corpus pins a
   tree that carries it.
 
@@ -66,8 +69,8 @@ releases (G-4).
   keeps its ID across releases.
 - Negative / trade-offs:
   - A rule that changed carries both behaviours, together with tests and corpus trees for each.
-  - A tree without a readable release line is not decided by those rules, so it exits 2 rather
-    than 1.
+  - Without `docs/template-release` turned on, a tree with no readable release line is not
+    decided by those rules, so it exits 2 rather than 1.
 - Follow-ups: when no derived project carries an old release any more, the behaviour of that
   release can go, with its corpus tree.
 
