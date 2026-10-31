@@ -445,3 +445,90 @@ fn links_into_a_submodule_a_directory_and_with_a_title_resolve_as_for_the_bash()
         stderr(&output)
     );
 }
+
+/// A file beside the fixture, outside its repository, and the path from the fixture's root to it.
+fn outside(name: &str, file: &str, contents: &str) -> (Fixture, String) {
+    let probe = Fixture::new(name);
+    std::fs::write(probe.root().join(file), contents).expect("written");
+    let dir = probe
+        .root()
+        .file_name()
+        .and_then(|n| n.to_str())
+        .expect("a name");
+    let up = format!("../{dir}/{file}");
+    (probe, up)
+}
+
+#[cfg(unix)]
+#[test]
+fn an_agents_md_that_links_outside_the_repository_is_not_decided() {
+    let (_probe, up) = outside("agents-outside-probe", "outside.md", "## 1. Secret\n");
+    let config = "minimum = \"0.0.0\"\nrules = [\"docs/section-refs\"]\n";
+    let fixture = Fixture::project("agents-outside", config, README);
+    std::os::unix::fs::symlink(&up, fixture.root().join("AGENTS.md")).expect("linked");
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(2), "{}", stdout(&output));
+    assert!(!stdout(&output).contains("secret"), "{}", stdout(&output));
+    assert!(
+        stderr(&output).contains("AGENTS.md: resolves outside the repository"),
+        "{}",
+        stderr(&output)
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn a_text_file_that_links_outside_the_repository_is_not_decided() {
+    let (_probe, up) = outside("text-outside-probe", "outside.md", "Secret\n");
+    let fixture = references("text-outside");
+    std::os::unix::fs::symlink(&up, fixture.root().join("leak.md")).expect("linked");
+    fixture.git(&["add", "leak.md"]);
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(2), "{}", stdout(&output));
+    assert!(
+        stderr(&output).contains("leak.md: resolves outside the repository"),
+        "{}",
+        stderr(&output)
+    );
+}
+
+#[test]
+fn links_the_bash_reads_no_file_for_are_decided_without_one() {
+    let (_md, up_md) = outside("links-unread-md", "outside.md", "# Outside\n");
+    let (_txt, up_txt) = outside("links-unread-txt", "outside.txt", "a\n");
+    let config = "minimum = \"0.0.0\"\nrules = [\"docs/links\"]\n";
+    let fixture = Fixture::project("links-unread", config, README);
+    // A superseded ADR is not read; an anchor that names no lines is not checked in a file
+    // that is no Markdown, so neither file outside is read.
+    fixture.write(
+        "docs/adr/0001-a.md",
+        &format!("# ADR-0001\n\n- **Status:** ⚪ superseded\n\n[x](../../{up_md}#L1)\n"),
+    );
+    fixture.write("docs/x.md", &format!("[t](../{up_txt}#main)\n"));
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(
+        code(&output),
+        Some(0),
+        "{}{}",
+        stdout(&output),
+        stderr(&output)
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn a_link_path_that_is_no_utf8_is_not_decided() {
+    use std::os::unix::ffi::OsStrExt;
+    let config = "minimum = \"0.0.0\"\nrules = [\"docs/links\"]\n";
+    let fixture = Fixture::project("links-bytes", config, README);
+    let name = std::ffi::OsStr::from_bytes(b"caf\xe9.txt");
+    std::fs::write(fixture.root().join(name), "a\n").expect("written");
+    std::fs::write(fixture.root().join("x.md"), b"[c](caf\xe9.txt)\n").expect("written");
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(2), "{}", stdout(&output));
+    assert!(
+        stderr(&output).contains("x.md:1: a link names a path that is no UTF-8"),
+        "{}",
+        stderr(&output)
+    );
+}

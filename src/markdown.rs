@@ -221,27 +221,48 @@ fn strip_closing(text: &[u8]) -> &[u8] {
     }
 }
 
-/// Whether a fragment `Lnn` or `Lnn-Lmm` names lines of the file, a last line without a newline
-/// counted; none when the fragment is no line anchor.
-pub fn line_anchor_resolves(fragment: &[u8], text: &[u8]) -> Option<bool> {
-    let numbers = |s: &[u8]| {
-        (!s.is_empty() && s.iter().all(u8::is_ascii_digit))
-            .then(|| String::from_utf8_lossy(s).parse::<u64>().ok())
-            .flatten()
-    };
+/// Whether a fragment is a line anchor `Lnn` or `Lnn-Lmm`, as the bash's pattern
+/// `^L([0-9]+)(-L([0-9]+))?$` matches it.
+pub fn is_line_anchor(fragment: &[u8]) -> bool {
+    line_numbers(fragment).is_some()
+}
+
+/// The digits of a line anchor's start and end, the end the start's when the anchor names one
+/// line.
+fn line_numbers(fragment: &[u8]) -> Option<(&[u8], &[u8])> {
+    let digits = |s: &[u8]| !s.is_empty() && s.iter().all(u8::is_ascii_digit);
     let rest = fragment.strip_prefix(b"L")?;
     let (start, end) = match rest.iter().position(|&b| b == b'-') {
-        Some(dash) => (
-            numbers(&rest[..dash])?,
-            numbers(rest[dash + 1..].strip_prefix(b"L")?)?,
-        ),
-        None => {
-            let n = numbers(rest)?;
-            (n, n)
-        }
+        Some(dash) => (&rest[..dash], rest[dash + 1..].strip_prefix(b"L")?),
+        None => (rest, rest),
     };
-    let lines = text.iter().filter(|&&b| b == b'\n').count() as u64;
-    Some(start >= 1 && end >= start && end <= lines + 1)
+    (digits(start) && digits(end)).then_some((start, end))
+}
+
+/// The value bash's arithmetic gives the digits: octal after a leading zero, decimal otherwise,
+/// wrapping at 64 bits as bash does; none for a digit the base lacks, which bash reports as an
+/// error that makes the whole test false.
+fn bash_number(digits: &[u8]) -> Option<i64> {
+    let base: i64 = if digits.len() > 1 && digits[0] == b'0' {
+        8
+    } else {
+        10
+    };
+    digits.iter().try_fold(0i64, |value, &b| {
+        let digit = i64::from(b - b'0');
+        (digit < base).then(|| value.wrapping_mul(base).wrapping_add(digit))
+    })
+}
+
+/// Whether a fragment `Lnn` or `Lnn-Lmm` names lines of the file, a last line without a newline
+/// counted, compared as bash's `((…))` compares them; none when the fragment is no line anchor.
+pub fn line_anchor_resolves(fragment: &[u8], text: &[u8]) -> Option<bool> {
+    let (start, end) = line_numbers(fragment)?;
+    let (Some(start), Some(end)) = (bash_number(start), bash_number(end)) else {
+        return Some(false);
+    };
+    let lines = text.iter().filter(|&&b| b == b'\n').count() as i64;
+    Some(start >= 1 && end >= start && end <= lines.wrapping_add(1))
 }
 
 #[cfg(test)]
@@ -295,6 +316,19 @@ mod tests {
         assert_eq!(line_anchor_resolves(b"L3-L2", b"a\nb\nc\n"), Some(false));
         assert_eq!(line_anchor_resolves(b"L0", b"a\n"), Some(false));
         assert_eq!(line_anchor_resolves(b"top", b"a\n"), None);
+        let eight = b"1\n2\n3\n4\n5\n6\n7\n8\n";
+        assert_eq!(line_anchor_resolves(b"L010", eight), Some(true));
+        assert_eq!(line_anchor_resolves(b"L012", eight), Some(false));
+        assert_eq!(line_anchor_resolves(b"L09", eight), Some(false));
+        assert_eq!(line_anchor_resolves(b"L5-L09", eight), Some(false));
+        assert_eq!(
+            line_anchor_resolves(b"L99999999999999999999", eight),
+            Some(false)
+        );
+        assert_eq!(
+            line_anchor_resolves(b"L18446744073709551617", eight),
+            Some(true)
+        );
     }
 
     #[test]

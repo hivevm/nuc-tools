@@ -241,7 +241,8 @@ fn markdown_refs(
             let fragment = target
                 .iter()
                 .position(|&b| b == b'#')
-                .map(|i| show(&target[i + 1..]));
+                .map(|i| show(&target[i + 1..]))
+                .filter(|f| !f.is_empty());
             match fragment {
                 None => found.push(at(format!(
                     "'§{s}' is cited without an anchor — point the link at '#{}'",
@@ -307,6 +308,14 @@ mod tests {
             ("x.rs", "// §9 is a statute\n"),
         ];
         assert_eq!(texts(Some(AGENTS), &files), Vec::<String>::new());
+    }
+
+    #[test]
+    fn an_empty_anchor_is_cited_without_one() {
+        assert_eq!(
+            texts(Some(AGENTS), &[("README.md", "[§3](AGENTS.md#)\n")]),
+            ["'§3' is cited without an anchor — point the link at '#3-adr-rules'"]
+        );
     }
 
     #[test]
