@@ -71,17 +71,38 @@ mod stand_in {
     ];
     const SHELL_ADDED: &[&str] = &["PWD", "OLDPWD", "SHLVL", "_"];
 
-    /// A `git` in `dir` that writes its environment and arguments beside itself and answers
-    /// `rev-parse --show-toplevel` with `root`.
+    /// The separator the stand-in writes after each call, a line no environment or argument has.
+    const END: &str = "--- end of call ---";
+
+    /// A `git` in `dir` that appends its environment and arguments beside itself, each call ended
+    /// by [`END`], and answers `rev-parse --show-toplevel` with `root`.
     fn stand_in(dir: &Path, root: &Path) {
         let d = dir.display();
         let script = format!(
-            "#!/bin/sh\n/usr/bin/env > '{d}/env'\nfor arg in \"$@\"; do printf '%s\\n' \"$arg\"; done > '{d}/args'\nprintf '%s\\n' '{}'\n",
+            "#!/bin/sh\n{{ /usr/bin/env; printf '%s\\n' '{END}'; }} >> '{d}/env'\n{{ for arg in \"$@\"; do printf '%s\\n' \"$arg\"; done; printf '%s\\n' '{END}'; }} >> '{d}/args'\nprintf '%s\\n' '{}'\n",
             root.display()
         );
         let git = dir.join("git");
         fs::write(&git, script).expect("the stand-in is written");
         fs::set_permissions(&git, fs::Permissions::from_mode(0o755)).expect("it is executable");
+    }
+
+    /// What the stand-in wrote to `file`, one list of lines per call.
+    fn calls(dir: &Path, file: &str) -> Vec<Vec<String>> {
+        let text = fs::read_to_string(dir.join(file)).expect("the stand-in ran");
+        let mut calls = vec![Vec::new()];
+        for line in text.lines() {
+            if line == END {
+                calls.push(Vec::new());
+            } else {
+                calls
+                    .last_mut()
+                    .expect("one call is open")
+                    .push(line.to_owned());
+            }
+        }
+        calls.pop();
+        calls
     }
 
     #[test]
@@ -104,36 +125,42 @@ mod stand_in {
             .expect("nuc runs");
         assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
 
-        let env = fs::read_to_string(bin.root().join("env")).expect("the stand-in ran");
-        for line in env.lines() {
-            let name = line.split('=').next().unwrap_or_default();
-            assert!(
-                ALLOWED.contains(&name) || SHELL_ADDED.contains(&name),
-                "git got '{name}', outside the allowlist"
-            );
-        }
-        for set in ["LC_ALL=C", "GIT_TERMINAL_PROMPT=0", "GIT_OPTIONAL_LOCKS=0"] {
-            assert!(env.lines().any(|line| line == set), "git did not get {set}");
-        }
-
-        let args = fs::read_to_string(bin.root().join("args")).expect("the stand-in ran");
-        let args: Vec<&str> = args.lines().collect();
-        assert_eq!(
-            args.first(),
-            Some(&"-C"),
-            "the call does not open with -C: {args:?}"
-        );
+        let envs = calls(bin.root(), "env");
+        let argses = calls(bin.root(), "args");
+        assert!(!envs.is_empty(), "nuc made no git call");
+        assert_eq!(envs.len(), argses.len());
         let keys: Vec<&str> = NEUTRALIZED
             .lines()
             .map(str::trim)
             .filter(|line| !line.is_empty() && !line.starts_with('#'))
             .collect();
         assert!(!keys.is_empty());
-        for key in keys {
-            assert!(
-                args.windows(2).any(|pair| pair == ["-c", key]),
-                "the call lacks -c {key}: {args:?}"
+        for (env, args) in envs.iter().zip(&argses) {
+            for line in env {
+                let name = line.split('=').next().unwrap_or_default();
+                assert!(
+                    ALLOWED.contains(&name) || SHELL_ADDED.contains(&name),
+                    "git got '{name}', outside the allowlist, in the call {args:?}"
+                );
+            }
+            for set in ["LC_ALL=C", "GIT_TERMINAL_PROMPT=0", "GIT_OPTIONAL_LOCKS=0"] {
+                assert!(
+                    env.iter().any(|line| line == set),
+                    "git did not get {set}: {args:?}"
+                );
+            }
+            assert_eq!(
+                args.first().map(String::as_str),
+                Some("-C"),
+                "no -C: {args:?}"
             );
+            for key in &keys {
+                assert!(
+                    args.windows(2)
+                        .any(|pair| pair[0] == "-c" && pair[1] == *key),
+                    "the call lacks -c {key}: {args:?}"
+                );
+            }
         }
     }
 }

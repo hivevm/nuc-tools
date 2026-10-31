@@ -150,8 +150,7 @@ fn a_known_rule_that_is_not_listed_reports_nothing() {
 
 #[test]
 fn outside_a_repository_it_refuses() {
-    // Under the system's temporary directory: the fixtures lie inside this repository, where git
-    // would find it above a directory without a repository of its own.
+    // A directory of its own beside the fixtures, without a repository.
     let dir = std::env::temp_dir().join(format!("nuc-not-a-repo-{}", std::process::id()));
     std::fs::create_dir_all(&dir).expect("the directory is created");
     let output = support::cleared(&mut std::process::Command::new(support::NUC))

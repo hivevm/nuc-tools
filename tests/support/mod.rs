@@ -1,5 +1,6 @@
 //! The fixture repositories of the tests (ADR-draft-fixture-repositories): each a fresh directory
-//! of its own under cargo's temporary directory for the tests, built through the real git CLI.
+//! of its own under the system's temporary directory, outside this repository, so that no git
+//! command of a test can reach it, built through the real git CLI.
 //! git and `nuc` run under a cleared environment with the allowlist the shell passes, a fixed
 //! author, committer, and date, and the hooks path on the null device, so that neither the
 //! parent's `GIT_*` variables nor the user's identity or hooks change a fixture.
@@ -93,8 +94,8 @@ impl Fixture {
     pub fn new(name: &str) -> Self {
         static NEXT: AtomicUsize = AtomicUsize::new(0);
         let n = NEXT.fetch_add(1, Ordering::Relaxed);
-        let root = Path::new(env!("CARGO_TARGET_TMPDIR"))
-            .join("fixtures")
+        let root = std::env::temp_dir()
+            .join("nuc-tests")
             .join(format!("{name}-{}-{n}", process::id()));
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).expect("the fixture directory is created");
