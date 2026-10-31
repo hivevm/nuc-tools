@@ -4,5 +4,6 @@
 pub mod adr;
 pub mod config;
 pub mod finding;
+pub mod markdown;
 pub mod rules;
 pub mod shell;

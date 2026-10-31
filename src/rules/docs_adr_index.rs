@@ -4,7 +4,7 @@
 
 use std::collections::BTreeSet;
 
-use super::{Inputs, Rule};
+use super::{Input, Inputs, Rule};
 use crate::adr::{self, show};
 use crate::finding::Finding;
 
@@ -18,6 +18,7 @@ pub const RULE: Rule = Rule {
               heading, an accepted or proposed one above it. The index routes a reader from a \
               change to the ADRs that bind it, so a row that misstates what its ADR governs, or \
               stands in the wrong table, misroutes them.",
+    reads: &[Input::Adr],
     check,
 };
 

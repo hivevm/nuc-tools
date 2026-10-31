@@ -2,7 +2,7 @@
 //! as the list item `- **<Name>:** …`, its status line carries exactly one legend emoji with the
 //! word that belongs to it, and no ADR keeps the instruction paragraph of `docs/adr/template.md`.
 
-use super::{Inputs, Rule};
+use super::{Input, Inputs, Rule};
 use crate::adr::{self, show};
 use crate::finding::Finding;
 
@@ -16,6 +16,7 @@ pub const RULE: Rule = Rule {
               paragraph. A leftover list of alternatives or a word contradicting its emoji \
               survives the index check, and the word is what a reader believes; a field in \
               another form is skipped by every script that reads the header.",
+    reads: &[Input::Adr],
     check,
 };
 
