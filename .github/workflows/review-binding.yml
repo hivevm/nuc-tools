@@ -13,7 +13,7 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, edited]
 
-# Each job names the permissions it needs; the workflow grants none (ADR-draft-no-stored-secrets).
+# Each job names the permissions it needs; the workflow grants none (ADR-0016).
 permissions: {}
 
 # A later push or edit makes the previous run's report stale.

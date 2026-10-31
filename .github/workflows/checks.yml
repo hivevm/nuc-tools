@@ -9,14 +9,14 @@ name: Checks
 # holds.
 #
 # The sensors report for the reviewer and fail on nothing they count, except the action
-# references, which this project checks with --require sha (ADR-draft-action-references-by-sha);
+# references, which this project checks with --require sha (ADR-0015);
 # their self-tests fail like any check's. The sensors job checks out the full history because
 # three sensors read it. The review binding sensor runs in review-binding.yml, the repository
 # settings sensor on a human's instruction (ADR-0002); this workflow runs the self-test of each.
 #
 # The build job runs the toolchain's build, test, and lint, and the deps job the dependency audit
-# (ADR-draft-toolchain); the parity job builds nuc for the parity harness
-# (ADR-draft-parity-harness). The same build runs on Linux arm64, macOS, and Windows in
+# (ADR-0008); the parity job builds nuc for the parity harness
+# (ADR-0012). The same build runs on Linux arm64, macOS, and Windows in
 # portability.yml, which is no required check (Q-4).
 #
 # Every job is bounded by a timeout — a hung step would otherwise occupy a runner until the
@@ -40,7 +40,7 @@ on:
   schedule:
     - cron: "17 5 * * 1"
 
-# Each job names the permissions it needs; the workflow grants none (ADR-draft-no-stored-secrets).
+# Each job names the permissions it needs; the workflow grants none (ADR-0016).
 permissions: {}
 
 # Cancel a pull request's superseded runs: a new push makes the previous run's verdict irrelevant,
@@ -150,7 +150,7 @@ jobs:
       - name: Self-test the action references sensor
         run: bash scripts/test-sensor-action-refs.sh
       # The decided form of the action references, a commit SHA with its version comment.
-      # Verifies: ADR-draft-action-references-by-sha
+      # Verifies: ADR-0015
       - name: Check that every action is referenced by commit SHA
         run: bash scripts/sensor-action-refs.sh --require sha
       - name: Self-test the review binding sensor
@@ -178,8 +178,8 @@ jobs:
         run: bash scripts/check-shell.sh
 
   # The rules of the gates themselves: the workflows store no secret and set permissions per job
-  # (ADR-draft-no-stored-secrets), and no gate runs a build of the working tree
-  # (ADR-draft-gates-never-run-the-build).
+  # (ADR-0016), and no gate runs a build of the working tree
+  # (ADR-0018).
   gates:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -199,7 +199,7 @@ jobs:
       - name: Check that no gate runs a build of the working tree
         run: bash scripts/check-gates.sh
 
-  # The toolchain's job (ADR-draft-toolchain): the runner image ships rustup, which installs the
+  # The toolchain's job (ADR-0008): the runner image ships rustup, which installs the
   # toolchain rust-toolchain.toml pins on the first cargo call.
   build:
     runs-on: ubuntu-latest
@@ -213,11 +213,11 @@ jobs:
       - name: Format, lint, build, and test
         run: bash scripts/check-build.sh
       # The release tooling under release/, with stub binaries; release-test.yml builds the real
-      # ones (ADR-draft-distribution).
+      # ones (ADR-0014).
       - name: Self-test the release tooling
         run: bash scripts/test-release.sh
 
-  # The dependency audit (ADR-draft-toolchain, Q-3): both tools are built from crates.io at the
+  # The dependency audit (ADR-0008, Q-3): both tools are built from crates.io at the
   # versions named here and fetch the RustSec advisory database.
   deps:
     runs-on: ubuntu-latest
@@ -233,7 +233,7 @@ jobs:
       - name: Audit the dependencies
         run: bash scripts/check-deps.sh
 
-  # The parity harness (ADR-draft-parity-harness, Q-2): the bash checks of each repository of the
+  # The parity harness (ADR-0012, Q-2): the bash checks of each repository of the
   # corpus and nuc on the same tree, any difference a failure. It fetches the corpus and builds nuc
   # with the toolchain rust-toolchain.toml pins; Linux only.
   parity:

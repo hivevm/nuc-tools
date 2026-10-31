@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Parity harness (ADR-draft-parity-harness, Q-2).
+# Parity harness (ADR-0012, Q-2).
 #
 # Runs the bash checks a repository of the corpus carries and nuc on the same tree, and fails on
 # any difference in their findings or their exit status. The corpus is tests/parity/corpus.toml:
@@ -20,7 +20,7 @@
 # The tree of the corpus runs its own bash scripts: the corpus is pinned by commit, and a pull
 # request that moves a pin is reviewed like code. nuc is built from the working tree by
 # 'cargo build --locked'; the harness is a test of the build, as scripts/check-build.sh is
-# (ADR-draft-gates-never-run-the-build).
+# (ADR-0018).
 #
 # Pure bash + coreutils/git/awk, and cargo for the build. Usage:
 #     scripts/check-parity.sh [--corpus <file>] [--cache <dir>] [--nuc <binary>]

@@ -1,4 +1,4 @@
-# What cargo deny allows (ADR-draft-toolchain, Q-3). scripts/check-deps.sh runs 'cargo deny check'
+# What cargo deny allows (ADR-0008, Q-3). scripts/check-deps.sh runs 'cargo deny check'
 # against this file. An ignored advisory names its reason beside its id.
 
 [graph]
@@ -16,7 +16,7 @@ ignore = []
 multiple-versions = "warn"
 wildcards = "deny"
 # Crates that would bring a second way to reach git than its CLI (constraints of the
-# specification, ADR-draft-git-cli-cleared-environment).
+# specification, ADR-0010).
 deny = [
   { crate = "git2", reason = "git is reached only through its CLI" },
   { crate = "gix", reason = "git is reached only through its CLI" },

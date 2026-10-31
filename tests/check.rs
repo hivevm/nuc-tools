@@ -1,5 +1,5 @@
 //! `nuc check` and `nuc explain` end to end, on fixture repositories, the golden path.
-//! Verifies: ADR-draft-version-coupling ADR-draft-toolchain
+//! Verifies: ADR-0013 ADR-0008
 //!
 //! The golden path of the project: a fixture built through git, `nuc` run as a process on it, its
 //! exit code and output asserted. A run that could not decide exits 2 and names its cause on the

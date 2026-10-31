@@ -1,5 +1,5 @@
 //! The rules: one module each, with one rule ID, unique across the crate (G-6,
-//! ADR-draft-functional-core). A rule is a pure function from the [`Inputs`] the shell gathered
+//! ADR-0009). A rule is a pure function from the [`Inputs`] the shell gathered
 //! to its findings.
 
 use crate::finding::Finding;

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Writes the release into the files the Action and the Feature install from
-# (ADR-draft-distribution): SHA256SUMS and VERSION under release/pinned/ for the Action, and the
+# (ADR-0014): SHA256SUMS and VERSION under release/pinned/ for the Action, and the
 # installer, SHA256SUMS, and VERSION beside the Feature's install.sh, its devcontainer-feature.json
 # set to the version. The release workflow commits the result as the release commit.
 #

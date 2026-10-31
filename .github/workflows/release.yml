@@ -1,7 +1,7 @@
 name: Release
 
 # Builds, attests, and publishes a release when a human pushes a tag vX.Y.Z
-# (ADR-draft-distribution). release/version.sh first refuses a tag that is not the version of
+# (ADR-0014). release/version.sh first refuses a tag that is not the version of
 # Cargo.toml. The build job builds one binary per target with release/build.sh. The publish job
 # writes SHA256SUMS, attests every binary and verifies that this workflow signed each attestation,
 # creates the GitHub Release as a draft, and writes the release commit: release/pin.sh puts the
@@ -11,7 +11,7 @@ name: Release
 # the release commit. The tag vX.Y.Z keeps naming the source commit the attestations name.
 #
 # The workflow uses no stored secret, only the workflow token and its OIDC token, each job with
-# the permissions it names (ADR-draft-no-stored-secrets); no checkout keeps its credentials, and
+# the permissions it names (ADR-0016); no checkout keeps its credentials, and
 # the two tag pushes pass the token as a header of their own. Two releases may run at once: the
 # push of the major tag leases on what it named, so a release that moved it meanwhile is not
 # overwritten; a concurrency group would drop every pending run but the latest.

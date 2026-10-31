@@ -1,5 +1,5 @@
 //! The imperative shell: the only module that spawns processes, touches the file system, reads
-//! the environment, or prints (ADR-draft-functional-core). It reads the command line and the
+//! the environment, or prints (ADR-0009). It reads the command line and the
 //! repository, calls the rules, and reports what they return.
 
 pub mod git;

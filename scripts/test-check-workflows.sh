@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Self-test of scripts/check-workflows.sh. Verifies: ADR-draft-no-stored-secrets
+# Self-test of scripts/check-workflows.sh. Verifies: ADR-0016
 #
 # Each case builds a fixture under a temporary directory — one workflow whose two jobs each set
 # their permissions and use only secrets.GITHUB_TOKEN — runs the check against it, and asserts the

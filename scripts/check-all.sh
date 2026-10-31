@@ -179,7 +179,7 @@ run "Plan frontier sensor self-test" scripts/test-sensor-plan-frontier.sh
 run "Plan frontier sensor" scripts/sensor-plan-frontier.sh
 run "Action references sensor self-test" scripts/test-sensor-action-refs.sh
 # The decided form of the action references, a commit SHA with its version comment.
-# Verifies: ADR-draft-action-references-by-sha
+# Verifies: ADR-0015
 run "Action references check" scripts/sensor-action-refs.sh --require sha
 run "Review binding sensor self-test" scripts/test-sensor-review-binding.sh
 run "Review binding sensor" scripts/sensor-review-binding.sh

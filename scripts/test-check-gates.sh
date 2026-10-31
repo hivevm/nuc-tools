@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Self-test of scripts/check-gates.sh. Verifies: ADR-draft-gates-never-run-the-build
+# Self-test of scripts/check-gates.sh. Verifies: ADR-0018
 #
 # Each case builds a fixture under a temporary directory — a check-all.sh, a hook, and a
 # checks.yml that run the bash checks and scripts/check-build.sh — runs the check against it, and

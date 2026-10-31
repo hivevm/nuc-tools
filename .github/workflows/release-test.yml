@@ -1,13 +1,13 @@
 name: Release test
 
-# The release workflow's own test (ADR-draft-distribution), on every pull request that changes
+# The release workflow's own test (ADR-0014), on every pull request that changes
 # what it runs: each target is built with release/build.sh as the release builds it, SHA256SUMS
 # is written with release/sums.sh, and the installer the Action and the Feature run installs the
 # binary through file:// and refuses it once one byte of it differs. Nothing is published. It is
 # no required check: it runs only when these paths change, and a required check that does not
 # run blocks the merge.
 #
-# Verifies: ADR-draft-distribution
+# Verifies: ADR-0014
 
 on:
   pull_request:

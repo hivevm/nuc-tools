@@ -51,7 +51,7 @@ live in [`docs/SPECIFICATION.md`](docs/SPECIFICATION.md), the vocabulary in
 - **Lint:** `cargo fmt --check` and `cargo clippy --all-targets --locked -- -D warnings`
 - **Run:** `cargo run --locked -- <command>`, such as `cargo run --locked -- check`; for
   development only, since the gates never run the build
-  ([ADR-draft-gates-never-run-the-build](docs/adr/draft-gates-never-run-the-build.md))
+  ([ADR-0018](docs/adr/0018-gates-never-run-the-build.md))
 
 [`scripts/check-build.sh`](scripts/check-build.sh) runs the lint, the build, and the tests;
 [`scripts/check-deps.sh`](scripts/check-deps.sh) audits the dependencies.
@@ -68,7 +68,7 @@ No release of `nuc` exists yet; built from source, it checks a repository:
 
 `nuc.toml`, at the root of the repository, names the minimum version of `nuc` and the rules
 turned on
-([ADR-draft-version-coupling](docs/adr/draft-version-coupling.md)):
+([ADR-0013](docs/adr/0013-version-coupling.md)):
 
 ```toml
 minimum = "0.0.0"

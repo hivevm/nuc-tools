@@ -1,7 +1,7 @@
 name: Portability
 
 # Runs the build, test, and lint of scripts/check-build.sh on the platforms beyond the build job of
-# checks.yml: Linux arm64, macOS arm64, and Windows x64 (Q-4, ADR-draft-toolchain). It is no
+# checks.yml: Linux arm64, macOS arm64, and Windows x64 (Q-4, ADR-0008). It is no
 # required check: a matrix job carries one check name per platform, and the slower runners would
 # gate every push. The runner images ship rustup, which installs the toolchain rust-toolchain.toml
 # pins; on Windows the script runs in the Git Bash the image ships.
@@ -12,7 +12,7 @@ on:
     branches: [main]
   workflow_dispatch:
 
-# Each job names the permissions it needs; the workflow grants none (ADR-draft-no-stored-secrets).
+# Each job names the permissions it needs; the workflow grants none (ADR-0016).
 permissions: {}
 
 concurrency:

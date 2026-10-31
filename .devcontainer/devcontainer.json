@@ -54,7 +54,7 @@
     // (AGENTS.md, section 6).
     "ghcr.io/devcontainers/features/github-cli:1": {},
     // Rust through rustup; the toolchain itself is the one rust-toolchain.toml pins, installed on
-    // the first cargo call (ADR-draft-dev-container-with-rust).
+    // the first cargo call (ADR-0017).
     "ghcr.io/devcontainers/features/rust:1": {}
   },
 

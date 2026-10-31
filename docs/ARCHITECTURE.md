@@ -27,21 +27,21 @@ golden path and the test pattern an agent copies from are named here.
 - **Rules** — one module each under `src/rules/`, a pure function from the inputs the shell read
   to the findings, with one rule ID and the reason `nuc explain` gives; the list of every rule is
   `rules::ALL`. A rule reads no file and runs no process
-  ([ADR-draft-functional-core](adr/draft-functional-core.md)).
+  ([ADR-0009](adr/0009-functional-core.md)).
 - **Configuration** — `config` reads `nuc.toml` and selects the rules it turns on, or says why
   `nuc` refuses: missing, unreadable, a minimum above the running version, an unknown rule ID
-  ([ADR-draft-version-coupling](adr/draft-version-coupling.md)).
+  ([ADR-0013](adr/0013-version-coupling.md)).
 - **Shell** — `src/shell/` reads the command line and the repository, runs git under a cleared
   environment in `shell::git`, calls the rules, prints the findings, and sets the exit code
-  ([ADR-draft-git-cli-cleared-environment](adr/draft-git-cli-cleared-environment.md)).
+  ([ADR-0010](adr/0010-git-cli-cleared-environment.md)).
 - **Binary** — `src/main.rs` calls the shell and nothing else.
 - **Parity harness** — `scripts/check-parity.sh` runs the bash checks of each repository of the
   corpus and `nuc` on the same tree and compares their findings
-  ([ADR-draft-parity-harness](adr/draft-parity-harness.md)).
+  ([ADR-0012](adr/0012-parity-harness.md)).
 - **Release tooling** — `release/` builds a binary per target, writes `SHA256SUMS`, checks the
   tag against the crate's version, writes the release commit, and moves the major tag;
   `release/install-nuc.sh` is the one installer, run by the Action and the Feature, and refuses a
-  binary whose checksum differs ([ADR-draft-distribution](adr/draft-distribution.md)).
+  binary whose checksum differs ([ADR-0014](adr/0014-distribution.md)).
 - **Action and Feature** — `action.yml` and `feature/src/nuc/` install the `nuc` of the release
   their release commit carries; at any other commit they install nothing.
 - **The golden path** — the rule `docs/template-release`, check 14 of the template's
@@ -53,7 +53,7 @@ golden path and the test pattern an agent copies from are named here.
 - **The test pattern** — `tests/check.rs`: a fixture repository built through git by
   `tests/support/`, `nuc` run on it as a process under a cleared environment, and its exit code
   and output asserted. The structural test `tests/functional_core.rs` holds the shape
-  ([ADR-draft-fixture-repositories](adr/draft-fixture-repositories.md)).
+  ([ADR-0011](adr/0011-fixture-repositories.md)).
 
 ## How it runs
 

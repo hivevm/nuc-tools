@@ -1,4 +1,4 @@
-# The GitHub Action of nuc (ADR-draft-distribution): installs the nuc of the release this commit
+# The GitHub Action of nuc (ADR-0014): installs the nuc of the release this commit
 # carries, verified against its checksums, and runs it with the given arguments. The release
 # workflow's release/pin.sh writes release/pinned/ into the release commit the major tag vN names;
 # at any other commit the installation fails and nothing runs.
