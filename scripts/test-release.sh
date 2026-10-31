@@ -57,7 +57,7 @@ release() {
 
 # install <release directory> <installer arguments...> — the installer, fetching from the
 # directory through file://; on Windows the Git Bash path becomes a URL through its drive letter.
-# shellcheck disable=SC2317 # run through expect
+# shellcheck disable=SC2317,SC2329 # run through expect
 install() {
   local dir="$1" base="$1"; shift
   command -v cygpath > /dev/null && base="/$(cygpath -m "$dir")"
