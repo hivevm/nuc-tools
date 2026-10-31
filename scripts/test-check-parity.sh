@@ -289,6 +289,13 @@ v="$(variants "$work/v-link.tsv" $'unlinked\tdocs/template-release\tREADME.md\td
 expect pass "a variant deletes a symbolic link itself" "" run "$(corpus "$work/linked.toml" linked)" "$(reactive_nuc)" "$v"
 check "the target of the deleted link stays" test -f "$work/src-linked/docs/real.md"
 
+v="$(variants "$work/v-new.tsv" "$DELETE" $'written\tdocs/template-release\tNEW.md\twrite\tA new file')"
+expect fail "a variant that writes a new file applies, and is compared" "variant written — bash reports no finding" \
+  run "$c" "$(reactive_nuc)" "$v"
+v="$(variants "$work/v-overwrite.tsv" "$DELETE" $'overwrite\tdocs/template-release\tREADME.md\twrite\tGone')"
+expect fail "a variant that would write over a file does not apply" "variant overwrite — its edit of README.md does not apply" \
+  run "$c" "$(reactive_nuc)" "$v"
+
 v="$(variants "$work/v-escape.tsv" "$DELETE" $'escape\tdocs/template-release\t../agree/README.md\tdelete\t-')"
 expect fail "a variant whose path leaves the tree is refused" "no path inside the tree" run "$c" "$(reactive_nuc)" "$v"
 v="$(variants "$work/v-absolute.tsv" "$DELETE" $'absolute\tdocs/template-release\t/etc/hostname\tdelete\t-')"

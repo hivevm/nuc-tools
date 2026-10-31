@@ -14,6 +14,7 @@ pub mod docs_adr_supersessions;
 pub mod docs_check_lists;
 pub mod docs_inherited_adrs;
 pub mod docs_links;
+pub mod docs_no_draft_on_main;
 pub mod docs_project_layout;
 pub mod docs_section_refs;
 pub mod docs_skill_pointers;
@@ -51,6 +52,8 @@ pub struct Inputs {
     pub setup_file: bool,
     /// The files check 13 reads for the template's placeholders, by path, each that is a file.
     pub identity: std::collections::BTreeMap<String, Vec<u8>>,
+    /// What CI says about the change, and the drafts of the record.
+    pub landing: docs_no_draft_on_main::Landing,
 }
 
 /// The files check 9 compares, each as `-f` finds it.
@@ -154,6 +157,8 @@ pub enum Input {
     SetupFile,
     /// The files the template's placeholders stand in.
     Identity,
+    /// The environment CI sets for the change, and the draft files of `docs/adr/`.
+    Landing,
 }
 
 /// A path a relative link names, as the bash tests it: whether it exists, as `-e` finds it, and
@@ -188,6 +193,7 @@ pub const ALL: &[Rule] = &[
     docs_skill_pointers::RULE,
     docs_inherited_adrs::RULE,
     docs_template_identity::RULE,
+    docs_no_draft_on_main::RULE,
     docs_template_release::RULE,
 ];
 

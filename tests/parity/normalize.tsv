@@ -92,3 +92,6 @@
 ^CODE_OF_CONDUCT\.md: the reporting contact is still the placeholder$	docs/template-identity	-
 ^\.github/CODEOWNERS: (no active rule|the instruction to add a code owner is still there)	docs/template-identity	-
 ^docs/[A-Z]+\.md: (the title still carries '<Project Name>'|a criterion is still the scaffold's placeholder|the scaffold's (building block|entry) is still listed)	docs/template-identity	-
+
+# check-docs.sh, check 16: no draft on main.
+^[^ :]+: a draft lands on main — give it its number first with scripts/number-adrs\.sh \(ADR-0002\)$	docs/no-draft-on-main	-	+docs/adr/
