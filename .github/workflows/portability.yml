@@ -12,8 +12,8 @@ on:
     branches: [main]
   workflow_dispatch:
 
-permissions:
-  contents: read
+# Each job names the permissions it needs; the workflow grants none (ADR-draft-no-stored-secrets).
+permissions: {}
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
@@ -27,6 +27,8 @@ jobs:
         os: [ubuntu-24.04-arm, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

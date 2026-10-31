@@ -192,6 +192,10 @@ run "Check runner self-test" scripts/test-check-all.sh
 run "Git hooks self-test" scripts/test-git-hooks.sh
 run "Shell lint self-test" scripts/test-check-shell.sh
 run "Shell lint" scripts/check-shell.sh
+run "Workflow credentials self-test" scripts/test-check-workflows.sh
+run "Workflow credentials" scripts/check-workflows.sh
+run "Gates self-test" scripts/test-check-gates.sh
+run "Gates" scripts/check-gates.sh
 run "Build, test, and lint" scripts/check-build.sh
 run "Dependency audit" scripts/check-deps.sh
 

@@ -39,8 +39,8 @@ on:
   schedule:
     - cron: "17 5 * * 1"
 
-permissions:
-  contents: read
+# Each job names the permissions it needs; the workflow grants none (ADR-draft-no-stored-secrets).
+permissions: {}
 
 # Cancel a pull request's superseded runs: a new push makes the previous run's verdict irrelevant,
 # while a queued run keeps a required check pending. Runs on 'main' are never cancelled — every
@@ -54,6 +54,8 @@ jobs:
   docs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: read
     steps:
       # Submodules are checked out because the link check resolves relative targets against the
       # working tree: a documentation link into a submodule would otherwise break in CI while
@@ -89,6 +91,8 @@ jobs:
   traceability:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -102,6 +106,8 @@ jobs:
   devcontainer:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -115,6 +121,8 @@ jobs:
   sensors:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -157,6 +165,8 @@ jobs:
   shell:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -170,11 +180,35 @@ jobs:
       - name: Lint shell scripts with ShellCheck
         run: bash scripts/check-shell.sh
 
+  # The rules of the gates themselves: the workflows store no secret and set permissions per job
+  # (ADR-draft-no-stored-secrets), and no gate runs a build of the working tree
+  # (ADR-draft-gates-never-run-the-build).
+  gates:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # The check's own tests run first: a check that is wrong passes nothing worth trusting.
+      - name: Self-test the workflow credentials check
+        run: bash scripts/test-check-workflows.sh
+      - name: Check that the workflows use no stored secret and set permissions per job
+        run: bash scripts/check-workflows.sh
+      - name: Self-test the gates check
+        run: bash scripts/test-check-gates.sh
+      - name: Check that no gate runs a build of the working tree
+        run: bash scripts/check-gates.sh
+
   # The toolchain's job (ADR-draft-toolchain): the runner image ships rustup, which installs the
   # toolchain rust-toolchain.toml pins on the first cargo call.
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -187,6 +221,8 @@ jobs:
   deps:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

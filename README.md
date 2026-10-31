@@ -259,7 +259,7 @@ configured once by a maintainer and worth re-checking after a repository move or
   only, since squash and rebase discard the merges a `feat/` branch carries and the commits it
   was reworked into ([`AGENTS.md` §6](AGENTS.md#6-project-rules)); requires the
   <!-- required-checks begin — compared with the workflow's jobs by scripts/check-docs.sh -->
-  `docs`, `traceability`, `devcontainer`, `sensors`, `shell`, `build`, and `deps`
+  `docs`, `traceability`, `devcontainer`, `sensors`, `shell`, `gates`, `build`, and `deps`
   <!-- required-checks end -->
   jobs of the **Checks** workflow as required status checks (rulesets list checks by their job
   name) and a branch up to date with `main` before it merges, so that the checks see what the
