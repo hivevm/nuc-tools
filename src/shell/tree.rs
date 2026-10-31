@@ -30,7 +30,8 @@ impl Tree {
 
     /// The path as the file system resolves it, or the error it gives; a path that resolves
     /// outside the repository is refused as not decided, with the message `outside` writes. Every
-    /// reader that resolves a path to read or list it does so here.
+    /// file is read and every directory but `docs/adr` listed through it; `read_adr` lists that one
+    /// directly and reads each file of it through [`Tree::read_bytes`].
     fn resolve(
         &self,
         path: &Path,

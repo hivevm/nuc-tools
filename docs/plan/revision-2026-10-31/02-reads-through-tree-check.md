@@ -22,7 +22,12 @@ functions of the tree module that test the path first. A test of existence, as t
 - [ ] Given a shell source that calls `fs::read` or `fs::read_dir` outside the guarded
   functions, when the structural test runs on it, then it fails and names the function.
 - [ ] Given the shell as it stands after ticket 01, when the structural test runs, then it
-  passes.
+  passes. Ticket 01 left one listing outside the guard: `Tree::read_adr` lists `docs/adr` with
+  `fs::read_dir` directly, so a `docs/adr` linked to a directory outside the repository is
+  listed, not refused; each file it reads is still refused there. The human decides whether
+  this ticket routes it through `Tree::resolve`, which changes that case to a refusal, or the
+  list allows it. `Tree::read_skills` canonicalizes the pointers to compare and show them, never
+  to read, which the list allows.
 - [ ] Given the allowed functions, when the test lists them, then the list is kept beside the
   test, as `functional_core.forbidden` is.
 
