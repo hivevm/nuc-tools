@@ -13,8 +13,8 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, edited]
 
-permissions:
-  contents: read
+# Each job names the permissions it needs; the workflow grants none (ADR-0016).
+permissions: {}
 
 # A later push or edit makes the previous run's report stale.
 concurrency:
@@ -25,9 +25,11 @@ jobs:
   review-binding:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: read
     steps:
       # The full history: the sensor reads the merges and commits between the base and the head.
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           fetch-depth: 0

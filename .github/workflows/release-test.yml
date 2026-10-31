@@ -1,0 +1,79 @@
+name: Release test
+
+# The release workflow's own test (ADR-0014), on every pull request that changes
+# what it runs: each target is built with release/build.sh as the release builds it, SHA256SUMS
+# is written with release/sums.sh, and the installer the Action and the Feature run installs the
+# binary through file:// and refuses it once one byte of it differs. Nothing is published. It is
+# no required check: it runs only when these paths change, and a required check that does not
+# run blocks the merge.
+#
+# Verifies: ADR-0014
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/release.yml
+      - .github/workflows/release-test.yml
+      - release/**
+      - scripts/test-release.sh
+      - scripts/lib/**
+      - feature/**
+      - action.yml
+      - Cargo.toml
+      - Cargo.lock
+      - rust-toolchain.toml
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { target: x86_64-unknown-linux-musl, os: ubuntu-24.04 }
+          - { target: aarch64-unknown-linux-musl, os: ubuntu-24.04-arm }
+          - { target: aarch64-apple-darwin, os: macos-latest }
+          - { target: x86_64-pc-windows-msvc, os: windows-latest }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # The release tooling's own tests run first: a tool that is wrong publishes nothing worth
+      # trusting.
+      - name: Self-test the release tooling
+        shell: bash
+        run: bash scripts/test-release.sh
+      - name: Build the release binary
+        shell: bash
+        run: bash release/build.sh "$TARGET" "$RUNNER_TEMP/release/v0.0.0"
+        env:
+          TARGET: ${{ matrix.target }}
+      - name: Install it through the installer, and refuse it once it differs
+        shell: bash
+        run: |
+          dir="$RUNNER_TEMP/release"
+          bash release/sums.sh "$dir/v0.0.0"
+          echo 0.0.0 > "$dir/VERSION"
+          # On Windows the Git Bash path becomes a file:// URL through its drive letter.
+          base="$dir"
+          command -v cygpath > /dev/null && base="/$(cygpath -m "$dir")"
+          export NUC_RELEASE_BASE="file://$base" NUC_TARGET="$TARGET"
+          sh release/install-nuc.sh "$dir/v0.0.0/SHA256SUMS" "$dir/VERSION" "$dir/bin"
+          "$dir/bin/nuc" --version
+          printf 'x' >> "$dir/v0.0.0/nuc-$TARGET"*
+          if sh release/install-nuc.sh "$dir/v0.0.0/SHA256SUMS" "$dir/VERSION" "$dir/bin-tampered"; then
+            echo "the installer accepted a binary whose checksum differs" >&2
+            exit 1
+          fi
+        env:
+          TARGET: ${{ matrix.target }}

@@ -1,0 +1,22 @@
+# What the library outside src/shell/ may not name (ADR-0009), read by
+# tests/functional_core.rs. One entry per line: a path, matched wherever its segments appear in a
+# path of the source ('std::fs' in 'std::fs::read', 'io::stdout' in 'std::io::stdout'), or a
+# macro ending in '!'. A crate that does I/O is added here by its name, as 'tokio'.
+
+# The file system, processes, the environment, and the network.
+std::fs
+std::process
+std::env
+std::net
+
+# The standard streams.
+io::stdin
+io::stdout
+io::stderr
+
+# The printing macros.
+print!
+println!
+eprint!
+eprintln!
+dbg!

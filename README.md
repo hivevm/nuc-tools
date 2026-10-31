@@ -1,60 +1,29 @@
-# NUC — an Agentic, Specification-Oriented Starter Template
+# nuc-tools
 
-[![Checks](https://github.com/hivevm/nuc/actions/workflows/checks.yml/badge.svg)](https://github.com/hivevm/nuc/actions/workflows/checks.yml)
-[![Release](https://img.shields.io/github/v/release/hivevm/nuc)](https://github.com/hivevm/nuc/releases/latest)
-[![License](https://img.shields.io/github/license/hivevm/nuc)](LICENSE)
+[![Checks](https://github.com/hivevm/nuc-tools/actions/workflows/checks.yml/badge.svg)](https://github.com/hivevm/nuc-tools/actions/workflows/checks.yml)
+[![Release](https://img.shields.io/github/v/release/hivevm/nuc-tools)](https://github.com/hivevm/nuc-tools/releases/latest)
+[![License](https://img.shields.io/github/license/hivevm/nuc-tools)](LICENSE)
 
-**NUC** is named after the small *nucleus colony* a full hive grows from in beekeeping. It is a
-starting point for building software **with coding agents** inside a ready-to-use Dev Container.
-The work is driven by a written **specification**
+**nuc-tools** builds `nuc`, a Rust CLI that takes over the mechanical logic of the
+[NUC](https://github.com/hivevm/nuc) template's bash scripts — checks, sensors, git hooks, the
+ADR index merge driver, and the scripts run by hand — and ships it as one pinned binary for every
+project derived from the template. The template keeps the rules; `nuc` decides only what is
+mechanical. The work is driven by a written **specification**
 ([`docs/SPECIFICATION.md`](docs/SPECIFICATION.md)) and **Architecture Decision Records**
-([`docs/adr/`](docs/adr/)), so intent and the reasoning behind every structural choice stay
-explicit and reviewable.
+([`docs/adr/`](docs/adr/)).
 
 > For agent instructions, see [`AGENTS.md`](AGENTS.md), the single source of truth for all coding
 > agents.
 
-> [!NOTE]
-> **This project still carries its template setup.** The one-time steps that turn the scaffold
-> into your own project are in [`TEMPLATE-SETUP.md`](TEMPLATE-SETUP.md); ask your agent to run the
-> `setup-project` skill to be walked through them, one question at a time. Once you are through
-> them, `scripts/test-template-setup.sh --close` removes that file and this note.
-
-## Why NUC
-
-NUC is a paved road for agentic coding: a repository template, not a tool to install, for how
-humans and agents decide, review, and enforce. It ships no toolchain. A project starts from it
-with what a codebase built by several humans and agents over years needs on day one:
-
-- **One rule file for every agent.** [`AGENTS.md`](AGENTS.md) and the Agent Skills under
-  [`.agents/skills/`](.agents/skills/) are read by Claude Code, Codex, Gemini CLI, Cursor, and
-  others alike. No vendor's CLI or IDE is required.
-- **Intent and decisions on record.** The specification is the constitution. Every structural
-  choice is an ADR that a human accepts, and a normalization keeps the record readable as it
-  grows.
-- **Rules with teeth.** Git hooks and CI refuse what breaks the record: an accepted ADR no test
-  cites, a broken link, a placeholder left behind, a commit or push on `main`.
-- **Proportionate.** A small project takes a short path through the setup. A complex one grows
-  to tickets worked by agents in parallel, each in a worktree of its own.
-
-How it compares with other spec-driven approaches, as of October 2026:
-
-| | NUC | [Spec Kit](https://github.com/github/spec-kit) | [Kiro](https://kiro.dev) | [OpenSpec](https://github.com/Fission-AI/OpenSpec) | [BMAD Method](https://github.com/bmad-code-org/BMAD-METHOD) |
-|---|---|---|---|---|---|
-| Form | repository template | CLI and templates | IDE | CLI | agent personas |
-| Agents | any that reads `AGENTS.md` | many, by slash commands | its own | several | several |
-| Unit of work | specification, ADRs, tickets | spec, plan, tasks per feature | requirements, design, tasks per feature | change proposal with spec deltas | PRD, architecture, stories |
-| Decisions kept as | ADRs with a lifecycle | constitution and plans | design documents | specs, updated by each change | architecture document |
-| Enforced by | git hooks and CI checks | the agent's commands | IDE hooks | a validate command | the agent's workflow |
-
-Where another fits better: OpenSpec is lighter for small changes to existing code. Spec Kit and
-Kiro generate the spec, plan, and tasks of a feature by command. NUC asks for more setup in
-exchange for checks that hold for every agent and every human, and it assumes GitHub.
-
 ## Overview
 
-Describe what this project does, who it is for, and its main goals. The full problem statement and
-goals live in [`docs/SPECIFICATION.md`](docs/SPECIFICATION.md), the vocabulary in
+`nuc` takes over the mechanics of the NUC template — its checks, sensors, git hooks, ADR index
+merge driver, and the scripts run by hand — so that a project derived from the template carries
+its rules and a thin shim per hook instead of a copy of ~8,000 lines of bash. It is for the
+maintainers of those projects and the agents working in them. The main goals: the same findings
+as the bash checks of the template release a project carries, gates that fail closed, and one
+pinned binary on Linux, macOS, and Windows without bash. The full problem statement and goals
+live in [`docs/SPECIFICATION.md`](docs/SPECIFICATION.md), the vocabulary in
 [`docs/GLOSSARY.md`](docs/GLOSSARY.md).
 
 ## Prerequisites
@@ -68,13 +37,6 @@ goals live in [`docs/SPECIFICATION.md`](docs/SPECIFICATION.md), the vocabulary i
 
 ## Getting Started
 
-> Setting the project up for the first time? Create the repository from the template, with
-> **Use this template** on GitHub or with
-> `gh repo create <owner>/<name> --template hivevm/nuc --public --clone`. A private repository
-> needs a paid GitHub plan for the rulesets of [Repository settings](#repository-settings).
-> The one-time steps are in [`TEMPLATE-SETUP.md`](TEMPLATE-SETUP.md); the close of the setup
-> removes this paragraph with that file.
-
 1. Open the repository in VS Code and choose **Reopen in Container**. The Dev Container and the
    preconfigured agent extensions build automatically, and the container enables the repository's
    git hooks with the merge settings they rely on ([Git hooks](#git-hooks)). Working outside the
@@ -84,27 +46,44 @@ goals live in [`docs/SPECIFICATION.md`](docs/SPECIFICATION.md), the vocabulary i
 
 ## Build, Test & Run
 
-<!-- Fill in once the toolchain is chosen. This section is the single source for
-     build/test/lint/run commands; both humans and agents rely on it, and the rule file names
-     it. -->
+- **Build:** `cargo build --locked`
+- **Test:** `cargo test --locked`
+- **Lint:** `cargo fmt --check` and `cargo clippy --all-targets --locked -- -D warnings`
+- **Run:** `cargo run --locked -- <command>`, such as `cargo run --locked -- check`; for
+  development only, since the gates never run the build
+  ([ADR-0018](docs/adr/0018-gates-never-run-the-build.md))
 
-- **Build:** TODO <!-- e.g. `make build` -->
-- **Test:** TODO <!-- e.g. `make test` -->
-- **Lint:** TODO <!-- e.g. `make lint` -->
-- **Run:** TODO <!-- e.g. `make run` -->
+[`scripts/check-build.sh`](scripts/check-build.sh) runs the lint, the build, and the tests;
+[`scripts/check-deps.sh`](scripts/check-deps.sh) audits the dependencies.
 
 ## Usage
 
-<!-- Once there is something to use, show how to use the built software: the primary commands or
-     API, a minimal example, and the expected output. Keep build/test/run mechanics in the section
-     above; this section is about using the result, not producing it. -->
+No release of `nuc` exists yet; built from source, it checks a repository:
 
-TODO — show a minimal example of using the project.
+- `nuc check [--repo <path>]` runs the rules the `nuc.toml` of the repository turns on, over the
+  repository that contains the current directory or `<path>`. Each finding is a line
+  `<file>[:<line>]: <rule ID>: <message>`. The exit code is 0 without a finding, 1 with one, and 2
+  when `nuc` could not decide, as without a readable `nuc.toml` or below its minimum version.
+- `nuc explain <rule ID>` gives the reason of a rule.
+
+`nuc.toml`, at the root of the repository, names the minimum version of `nuc` and the rules
+turned on
+([ADR-0013](docs/adr/0013-version-coupling.md)):
+
+```toml
+minimum = "0.0.0"
+rules = ["docs/template-release"]
+```
+
+A `nuc` built from source is version 0.0.0 until the first release, so a higher minimum refuses
+it.
+
+The one rule so far is `docs/template-release`, check 14 of the template's `check-docs.sh`.
+`nuc hook <name>` follows with the port of the hooks.
 
 ## Project Layout
 
 ```
-TEMPLATE-SETUP.md     # one-time template setup; delete it when the project is yours
 README.md             # overview & setup for humans
 AGENTS.md             # single source of truth for coding agents
 CONTRIBUTING.md       # how to contribute, pointing at the rules
@@ -126,13 +105,25 @@ scripts/lib/          # what the scripts share: the ADR header, git, the ticket 
 scripts/*.sh          # run by hand, steps 7 and 8 of the integration branches: number-adrs.sh,
                       # ready-for-main.sh, drop-merged-branch.sh
 .githooks/            # git hooks: nothing lands on main locally; checks before a merge and a push
-.github/workflows/    # checks.yml runs the checks; review-binding.yml reads each pull request's hand-off
+.github/workflows/    # checks.yml runs the checks; review-binding.yml reads each pull request's hand-off;
+                      # portability.yml runs the build on Linux arm64, macOS, and Windows;
+                      # release.yml publishes a release, release-test.yml tests what it runs
 .github/              # Dependabot, issue & pull request templates, code owners
 .devcontainer/        # Dev Container definition (base image + Features)
 .vscode/              # shared editor settings
 .editorconfig         # editor-neutral formatting baseline
 .gitattributes        # line-ending normalization (LF everywhere), the ADR index merged by its driver
 .gitignore            # what git leaves out, .scratch/ for session artifacts among it
+Cargo.toml            # the crate: the library nuc and the binary nuc, and its lints
+Cargo.lock            # the resolved dependencies, built with --locked
+rust-toolchain.toml   # the pinned Rust toolchain
+deny.toml             # what cargo deny allows: advisories, bans, licenses, sources
+src/                  # the library's functional core, its shell in src/shell/, and the binary
+action.yml            # the GitHub Action: installs the nuc of its release and runs it
+release/              # the release tooling: build, checksums, the installer, and the release commit
+feature/              # the Dev Container Feature ghcr.io/hivevm/nuc-tools/nuc
+tests/                # the integration tests, their fixture helpers in tests/support/, and the
+                      # corpus and normalization table of the parity harness in tests/parity/
 .agents/skills/       # the procedures of AGENTS.md as Agent Skills, one directory each (ADR-0003),
                       # with the scripts and templates they carry (claim.sh, remap.sh, ticket.md)
 .claude/CLAUDE.md     # pointer for Claude Code to read AGENTS.md
@@ -280,7 +271,7 @@ configured once by a maintainer and worth re-checking after a repository move or
   only, since squash and rebase discard the merges a `feat/` branch carries and the commits it
   was reworked into ([`AGENTS.md` §6](AGENTS.md#6-project-rules)); requires the
   <!-- required-checks begin — compared with the workflow's jobs by scripts/check-docs.sh -->
-  `docs`, `traceability`, `devcontainer`, `sensors`, and `shell`
+  `docs`, `traceability`, `devcontainer`, `sensors`, `shell`, `gates`, `build`, `deps`, and `parity`
   <!-- required-checks end -->
   jobs of the **Checks** workflow as required status checks (rulesets list checks by their job
   name) and a branch up to date with `main` before it merges, so that the checks see what the
