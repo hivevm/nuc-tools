@@ -1,11 +1,12 @@
-# The variants of the parity harness (ADR-0020), read by
+# The variants of the parity harness (ADR-draft-parity-variants-name-their-trees), read by
 # scripts/check-parity.sh: edits that make a ported rule fire, applied to a copy of every corpus
-# tree they fit and compared there as on the tree itself. One row per variant, five fields
-# separated by tabs: a name of [a-z0-9-], the rule ID it makes fire, the path it edits, and
+# tree they are for and compared there as on the tree itself. One row per variant, five or six
+# fields separated by tabs: a name of [a-z0-9-], the rule ID it makes fire, the path it edits,
 # "sed" with an extended sed expression or "delete" with "-", which deletes a file or a symbolic
-# link itself. A sed edit fits a tree when it
-# changes the file; a variant that fits no tree fails the harness, and so does one on which
-# bash reports no finding of its rule.
+# link itself, and optionally the corpus trees it is for, by name and separated by commas; a
+# variant without them is for every tree. A variant fails the harness on a tree it is for where
+# its edit changes nothing or bash reports no finding of its rule, and when it names a tree the
+# corpus lacks.
 
 # docs/template-release: check 14 of check-docs.sh.
 template-release-deleted	docs/template-release	README.md	sed	/^[[:space:]]*([-*] )?\*\*Template release:\*\*/d
@@ -36,3 +37,7 @@ adr-numbering-gap	docs/adr-numbering	docs/adr/0003-procedures-as-skills.md	delet
 check-lists-job-unnamed	docs/check-lists	.github/workflows/checks.yml	sed	$s/$/\n  variant:\n    steps:\n      - run: bash scripts\/check-docs.sh/
 project-layout-missing	docs/project-layout	README.md	sed	/^## Project Layout$/,/^(```|~~~)/s/^(```|~~~).*$/&\nmissing-variant.txt/
 skill-pointers-missing	docs/skill-pointers	.claude/skills/review	delete	-
+
+# docs/inherited-adrs, docs/template-identity: checks 12 and 13 of check-docs.sh.
+inherited-adrs-undecided	docs/inherited-adrs	docs/adr/0001-agent-governance-model.md	sed	s/^(- \*\*Deciders:\*\*) NUC maintainer, Markus Brigl$/\1 NUC maintainer/	nectar,nuc-tools,ocelli,opamp-fleet
+template-identity-badge	docs/template-identity	README.md	sed	0,/^\[!\[/s/^\[!\[/[![Checks](https:\/\/github.com\/hivevm\/nuc\/actions\/workflows\/checks.yml\/badge.svg)](https:\/\/github.com\/hivevm\/nuc)\n&/	nectar,nuc-tools,ocelli,opamp-fleet

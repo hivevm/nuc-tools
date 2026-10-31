@@ -80,3 +80,15 @@
 
 # check-docs.sh, check 11: the skill pointers.
 ^\.claude/skills/[^:]+: (is a copy of the skill|no pointer|is not a symlink into|dangles|points at )	docs/skill-pointers	-
+
+# check-docs.sh, check 12: the inherited ADRs decided.
+^[^ :]+: inherited from the template and (not decided by this project|still proposed after setup) — 	docs/inherited-adrs	-	+docs/adr/
+
+# check-docs.sh, check 13: the template's identity replaced.
+^README\.md: (the title is still the template's|the intro still explains the template's name|the Why NUC section still presents the template|the Overview is still the scaffold's sentence|the Usage section is still TODO|a badge still points at the template's repository|a Build, Test, Lint, or Run command is still TODO)	docs/template-identity	-
+^\.devcontainer/devcontainer\.json: the Dev Container still carries the template's name$	docs/template-identity	-
+^LICENSE: the copyright holder is still the placeholder	docs/template-identity	-
+^SECURITY\.md: the security contact is still the placeholder$	docs/template-identity	-
+^CODE_OF_CONDUCT\.md: the reporting contact is still the placeholder$	docs/template-identity	-
+^\.github/CODEOWNERS: (no active rule|the instruction to add a code owner is still there)	docs/template-identity	-
+^docs/[A-Z]+\.md: (the title still carries '<Project Name>'|a criterion is still the scaffold's placeholder|the scaffold's (building block|entry) is still listed)	docs/template-identity	-

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Parity harness (ADR-0020, Q-2).
+# Parity harness (ADR-draft-parity-variants-name-their-trees, Q-2).
 #
 # Runs the bash checks a repository of the corpus carries and nuc on the same tree, and fails on
 # any difference in their findings or their exit status. The corpus is tests/parity/corpus.toml:
@@ -8,10 +8,12 @@
 # cache that cannot be filled fails the harness, never skips the repository (Q-1). A tree whose
 # README names a template release before v0.5.0, or none, is refused and never compared.
 #
-# Each tree is compared as pinned and on each variant of tests/parity/variants.tsv it fits: an
-# edit that makes a ported rule fire, applied to a copy in a directory of the harness's own, never
-# to the cache. A variant that fits no tree fails, and so does one on which bash reports no
-# finding of its rule, since agreement on a rule that never fires decides nothing.
+# Each tree is compared as pinned and on each variant of tests/parity/variants.tsv that is for it:
+# an edit that makes a ported rule fire, applied to a copy in a directory of the harness's own,
+# never to the cache. A variant is for the trees it names, or for every tree when it names none.
+# It fails on a tree it is for where its edit does not apply, or where bash reports no finding of
+# its rule, since agreement on a rule that never fires decides nothing; so does one that names a
+# tree the corpus lacks.
 #
 # For each repository and each variant:
 #   1. The bash scripts with a ported rule run in the tree, with the environment cleared to PATH,
@@ -288,15 +290,17 @@ fires() {
 }
 
 # The variants, one row each: name, rule, path in the tree, 'sed' with an extended expression or
-# 'delete' with '-', separated by tabs. The path stays inside the tree; every ported rule brings
-# one at least.
-variant_names=() variant_rules=() variant_paths=() variant_ops=() variant_args=()
+# 'delete' with '-', and optionally the names of the corpus trees it is for, separated by commas,
+# all separated by tabs. Without names it is for every tree. The path stays inside the tree; every
+# ported rule brings one at least.
+variant_names=() variant_rules=() variant_paths=() variant_ops=() variant_args=() variant_trees=()
 [[ -r "$variants" ]] || die "$variants: unreadable"
-while IFS=$'\t' read -r vname vrule vpath vop varg extra || [[ -n "$vname" ]]; do
+while IFS=$'\t' read -r vname vrule vpath vop varg vtrees extra || [[ -n "$vname" ]]; do
   [[ -z "$vname" || "$vname" == \#* ]] && continue
   if ! [[ "$vname" =~ ^[a-z0-9-]+$ && -n "$vpath" && -z "${extra:-}" ]] \
+    || ! [[ -z "${vtrees:-}" || "$vtrees" =~ ^[a-z0-9-]+(,[a-z0-9-]+)*$ ]] \
     || ! [[ ( "$vop" == sed && -n "$varg" ) || ( "$vop" == delete && "$varg" == - ) ]]; then
-    die "$variants: the row '$vname' is not 'name<TAB>rule<TAB>path<TAB>sed|delete<TAB>argument'"
+    die "$variants: the row '$vname' is not 'name<TAB>rule<TAB>path<TAB>sed|delete<TAB>argument[<TAB>tree,…]'"
   fi
   [[ "$vpath" != /* && "/$vpath/" != */../* ]] \
     || die "$variants: the variant '$vname' edits '$vpath', which is no path inside the tree"
@@ -304,7 +308,7 @@ while IFS=$'\t' read -r vname vrule vpath vop varg extra || [[ -n "$vname" ]]; d
   [[ "$(mode_of "$vrule")" != unknown ]] \
     || die "$variants: the variant '$vname' names the rule '$vrule', which the table maps no message to"
   variant_names+=("$vname") variant_rules+=("$vrule") variant_paths+=("$vpath")
-  variant_ops+=("$vop") variant_args+=("$varg")
+  variant_ops+=("$vop") variant_args+=("$varg") variant_trees+=("${vtrees:-}")
 done < "$variants"
 for rule in $(printf '%s\n' "${rules[@]}" | grep -vx -- '-' | sort -u); do
   _contains "$rule" "${variant_rules[@]}" \
@@ -312,6 +316,18 @@ for rule in $(printf '%s\n' "${rules[@]}" | grep -vx -- '-' | sort -u); do
 done
 
 failed=0
+# A tree a variant names that the corpus lacks: a moved or renamed pin would drop the comparison.
+corpus_names=()
+for entry in "${repositories[@]}"; do corpus_names+=("${entry%% *}"); done
+for i in "${!variant_names[@]}"; do
+  IFS=, read -ra named <<< "${variant_trees[i]}"
+  for tree in "${named[@]}"; do
+    if ! _contains "$tree" "${corpus_names[@]}"; then
+      echo "Parity check: variant ${variant_names[i]} — it names the tree '$tree', which the corpus lacks" >&2
+      failed=1
+    fi
+  done
+done
 for entry in "${repositories[@]}"; do
   read -r name url commit <<< "$entry"
   dir="$cache/$name"
@@ -342,6 +358,8 @@ for entry in "${repositories[@]}"; do
 
   # Every variant on this tree, on a copy of it in a directory of its own, never on the cache.
   for i in "${!variant_names[@]}"; do
+    # A variant that names its trees is for those alone.
+    [[ -z "${variant_trees[i]}" || ",${variant_trees[i]}," == *",$name,"* ]] || continue
     label="$name, variant ${variant_names[i]}"
     vdir="$work/variants/$name/${variant_names[i]}"
     if ! { mkdir -p "$(dirname "$vdir")" && cp -a "$dir" "$vdir"; }; then

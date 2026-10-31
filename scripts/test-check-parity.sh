@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Self-test of scripts/check-parity.sh. Verifies: ADR-0020
+# Self-test of scripts/check-parity.sh. Verifies: ADR-0020 ADR-draft-parity-variants-name-their-trees
 #
 # The comparison cases feed the harness pairs of outputs through '--compare': pairs that differ in
 # one finding, in one exit status, by one bash message the table does not know, or by a line nuc
@@ -243,6 +243,14 @@ two="$(corpus "$work/two.toml" agree other)"
 v="$(variants "$work/v-one.tsv" "$DELETE" $'other-only\tdocs/template-release\tREADME.md\tsed\t/^Other$/d')"
 expect fail "a variant that does not apply to one tree of the corpus fails and names it" \
   "agree, variant other-only — its edit of README.md does not apply" run "$two" "$(reactive_nuc)" "$v"
+v="$(variants "$work/v-named.tsv" "$DELETE" $'other-only\tdocs/template-release\tREADME.md\tsed\t/Template release:/{N;/\\nOther$/d}\tother')"
+expect pass "a variant that names its trees is for those alone" "" run "$two" "$(reactive_nuc)" "$v"
+v="$(variants "$work/v-named-unfit.tsv" "$DELETE" $'other-only\tdocs/template-release\tREADME.md\tsed\t/Template release:/{N;/\\nOther$/d}\tagree,other')"
+expect fail "a variant that does not apply to a tree it names fails" \
+  "agree, variant other-only — its edit of README.md does not apply" run "$two" "$(reactive_nuc)" "$v"
+v="$(variants "$work/v-lacks.tsv" "$DELETE" $'other-only\tdocs/template-release\tREADME.md\tsed\t/Template release:/{N;/\\nOther$/d}\tother,gone')"
+expect fail "a variant that names a tree the corpus lacks fails" "names the tree 'gone', which the corpus lacks" \
+  run "$two" "$(reactive_nuc)" "$v"
 
 v="$(variants "$work/v-missing-file.tsv" "$DELETE" $'gone\tdocs/template-release\tNO-SUCH.md\tdelete\t-')"
 expect fail "a variant of a file the tree lacks fails" "variant gone — its edit of NO-SUCH.md does not apply" \
