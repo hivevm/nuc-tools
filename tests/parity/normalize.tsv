@@ -95,3 +95,6 @@
 
 # check-docs.sh, check 15: the prose width.
 ^[^:]+:[0-9]+: [0-9]+ columns — wrap the prose at 100 \(a link that does not fit stands on a line of its own\)$	docs/prose-width	line
+
+# check-docs.sh, check 16: no draft on main.
+^[^ :]+: a draft lands on main — give it its number first with scripts/number-adrs\.sh \(ADR-0002\)$	docs/no-draft-on-main	-	+docs/adr/

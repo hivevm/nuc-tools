@@ -14,6 +14,7 @@ pub mod docs_adr_supersessions;
 pub mod docs_check_lists;
 pub mod docs_inherited_adrs;
 pub mod docs_links;
+pub mod docs_no_draft_on_main;
 pub mod docs_project_layout;
 pub mod docs_prose_width;
 pub mod docs_section_refs;
@@ -55,6 +56,8 @@ pub struct Inputs {
     /// The Markdown files with a line over 100 bytes that git's attributes mark
     /// `linguist-generated`, as `set` or `true`.
     pub generated: std::collections::BTreeSet<String>,
+    /// What CI says about the change, and the drafts of the record.
+    pub landing: docs_no_draft_on_main::Landing,
 }
 
 /// The files check 9 compares, each as `-f` finds it.
@@ -160,6 +163,8 @@ pub enum Input {
     Identity,
     /// The Markdown files git's attributes mark generated.
     Generated,
+    /// The environment CI sets for the change, and the draft files of `docs/adr/`.
+    Landing,
 }
 
 /// A path a relative link names, as the bash tests it: whether it exists, as `-e` finds it, and
@@ -195,6 +200,7 @@ pub const ALL: &[Rule] = &[
     docs_inherited_adrs::RULE,
     docs_template_identity::RULE,
     docs_prose_width::RULE,
+    docs_no_draft_on_main::RULE,
     docs_template_release::RULE,
 ];
 

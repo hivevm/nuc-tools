@@ -125,6 +125,9 @@ fn check(repo: Option<&Path>) -> Result<u8, String> {
         inputs.generated = generated(&tree, &inputs.text_files)?;
         undecided_widths(&inputs)?;
     }
+    if needs(Input::Landing) {
+        inputs.landing = tree.read_landing()?;
+    }
     // While the setup file exists the identity rule is silent, so it reads nothing (check 13).
     if needs(Input::Identity) && !inputs.setup_file {
         for &file in rules::docs_template_identity::FILES {
@@ -664,6 +667,45 @@ impl Tree {
             current = next;
         }
         Ok(!current.is_empty())
+    }
+
+    /// What CI says about the change, from the variables the bash reads, and the drafts as
+    /// `find docs/adr -maxdepth 1 -type f -name 'draft-*.md'` lists them: regular files only,
+    /// and none when `docs/adr` is itself a symbolic link, which `find` does not follow. A
+    /// variable that is no UTF-8 is not decided.
+    fn read_landing(&self) -> Result<rules::docs_no_draft_on_main::Landing, String> {
+        let var = |key: &str| match env::var(key) {
+            Ok(value) => Ok(Some(value)),
+            Err(env::VarError::NotPresent) => Ok(None),
+            Err(env::VarError::NotUnicode(_)) => {
+                Err(format!("{key}: holds no UTF-8 — not decided"))
+            }
+        };
+        let dir = self.root.join("docs/adr");
+        let is_dir = fs::symlink_metadata(&dir).is_ok_and(|m| m.is_dir());
+        let mut drafts = Vec::new();
+        if is_dir {
+            for name in self.list(&dir)? {
+                let regular = fs::symlink_metadata(dir.join(&name)).is_ok_and(|m| m.is_file());
+                if regular && name.starts_with("draft-") && name.ends_with(".md") {
+                    // The bash reads find's list by lines, so a newline splits such a name in two.
+                    if name.contains('\n') {
+                        return Err(format!(
+                            "docs/adr/{}: a draft whose name holds a newline, which the bash reads as two — not decided",
+                            name.escape_debug()
+                        ));
+                    }
+                    drafts.push(name);
+                }
+            }
+        }
+        Ok(rules::docs_no_draft_on_main::Landing {
+            base_ref: var("GITHUB_BASE_REF")?,
+            actions: var("GITHUB_ACTIONS")?.as_deref() == Some("true"),
+            ref_name: var("GITHUB_REF_NAME")?,
+            draft_pull_request: var("PULL_REQUEST_DRAFT")?.as_deref() == Some("true"),
+            drafts,
+        })
     }
 
     /// What check 11 tests: each skill and what stands at its pointer, and each entry of the

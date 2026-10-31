@@ -949,3 +949,46 @@ fn a_wide_line_the_bash_counts_otherwise_is_not_decided() {
         stderr(&output)
     );
 }
+
+#[test]
+fn a_draft_fails_where_ci_says_a_ready_change_lands_on_main() {
+    let fixture = only("no-draft", "docs/no-draft-on-main", README);
+    fixture.write("docs/adr/draft-next.md", "# Next\n");
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(
+        "draft-next.md",
+        fixture.root().join("docs/adr/draft-link.md"),
+    )
+    .expect("linked");
+    let ready = [("GITHUB_BASE_REF", "main"), ("PULL_REQUEST_DRAFT", "false")];
+    let output = fixture.nuc_with(&ready, &["check"]);
+    assert_eq!(
+        stdout(&output).trim_end(),
+        "docs/adr/draft-next.md: docs/no-draft-on-main: a draft lands on main — give it its number first with scripts/number-adrs.sh (ADR-0002)",
+        "{}",
+        stderr(&output)
+    );
+    for vars in [
+        &[("GITHUB_BASE_REF", "main"), ("PULL_REQUEST_DRAFT", "true")][..],
+        &[("GITHUB_BASE_REF", "feat/topic")][..],
+        &[][..],
+    ] {
+        let output = fixture.nuc_with(vars, &["check"]);
+        assert_eq!(code(&output), Some(0), "{vars:?}: {}", stdout(&output));
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn a_draft_whose_name_holds_a_newline_is_not_decided() {
+    let fixture = only("no-draft-newline", "docs/no-draft-on-main", README);
+    fixture.write("docs/adr/draft-a\nb.md", "# A\n");
+    let ready = [("GITHUB_BASE_REF", "main"), ("PULL_REQUEST_DRAFT", "false")];
+    let output = fixture.nuc_with(&ready, &["check"]);
+    assert_eq!(code(&output), Some(2), "{}", stdout(&output));
+    assert!(
+        stderr(&output).contains("holds a newline"),
+        "{}",
+        stderr(&output)
+    );
+}

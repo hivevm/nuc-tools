@@ -2,8 +2,9 @@
 # scripts/check-parity.sh: edits that make a ported rule fire, applied to a copy of every corpus
 # tree they are for and compared there as on the tree itself. One row per variant, five or six
 # fields separated by tabs: a name of [a-z0-9-], the rule ID it makes fire, the path it edits,
-# "sed" with an extended sed expression or "delete" with "-", which deletes a file or a symbolic
-# link itself, and optionally the corpus trees it is for, by name and separated by commas; a
+# "sed" with an extended sed expression, "delete" with "-", which deletes a file or a symbolic link
+# itself, or "write" with a line, which creates the file the path names and must not find it, and
+# optionally the corpus trees it is for, by name and separated by commas; a
 # variant without them is for every tree. A variant fails the harness on a tree it is for where
 # its edit changes nothing or bash reports no finding of its rule, and when it names a tree the
 # corpus lacks.
@@ -44,3 +45,6 @@ template-identity-badge	docs/template-identity	README.md	sed	0,/^\[!\[/s/^\[!\[/
 
 # docs/prose-width: check 15 of check-docs.sh.
 prose-width-101	docs/prose-width	README.md	sed	$s/$/\n\nword word word word word word word word word word word word word word word word word word word word w/
+
+# docs/no-draft-on-main: check 16 of check-docs.sh, run as a pull request into main marked ready.
+no-draft-on-main-draft	docs/no-draft-on-main	docs/adr/draft-parity-variant.md	write	# A draft the variant writes

@@ -78,12 +78,12 @@ rules = ["docs/template-release"]
 A `nuc` built from source is version 0.0.0 until the first release, so a higher minimum refuses
 it.
 
-The rules so far port checks 1 to 15 of the template's `check-docs.sh`, each as the release a tree
+The rules port every check of the template's `check-docs.sh`, 1 to 16, each as the release a tree
 carries checks it, v0.5.0 or later: `docs/adr-index`, `docs/adr-numbering`, `docs/links`,
 `docs/section-refs`, `docs/adr-refs`, `docs/adr-link-targets`, `docs/adr-header`,
 `docs/adr-supersessions`, `docs/check-lists`, `docs/project-layout`, `docs/skill-pointers`,
-`docs/inherited-adrs`, `docs/template-identity`, `docs/prose-width`, and `docs/template-release`;
-`nuc explain <rule ID>` gives each one's reason.
+`docs/inherited-adrs`, `docs/template-identity`, `docs/prose-width`, `docs/no-draft-on-main`, and
+`docs/template-release`; `nuc explain <rule ID>` gives each one's reason.
 `nuc hook <name>` follows with the port of the hooks.
 
 ## Project Layout
