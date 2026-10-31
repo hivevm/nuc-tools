@@ -17,8 +17,6 @@ request as the bash reads them from the environment, which the shell reads and p
 
 - [ ] Given each case of `test-check-docs.sh` for check 16, when the rule runs on the values the
   shell read, then it reports the same finding or none.
-- [ ] Given a release of the corpus whose `check-docs.sh` has no check 16, when the harness
-  compares a tree of it, then the rule is not turned on for it.
 - [ ] Given the environment of a pull request into `main` marked ready and a tree with a draft,
   when the harness runs bash and `nuc` with it, then it reports no difference.
 
@@ -28,7 +26,7 @@ request as the bash reads them from the environment, which the shell reads and p
 - The golden path and the test pattern in `docs/ARCHITECTURE.md`; the conventions on the shell
   reading for the rules and on porting the bash with its quirks.
 - The checks this ticket ports in the template's `scripts/check-docs.sh` and their cases in
-  `scripts/test-check-docs.sh`, at each release of the corpus.
+  `scripts/test-check-docs.sh`, at v0.5.0.
 
 ## Blocked by
 

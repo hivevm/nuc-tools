@@ -31,7 +31,7 @@ releases of the corpus differ.
 - The golden path and the test pattern in `docs/ARCHITECTURE.md`; the conventions on the shell
   reading for the rules and on porting the bash with its quirks.
 - The checks this ticket ports in the template's `scripts/check-docs.sh` and their cases in
-  `scripts/test-check-docs.sh`, at each release of the corpus.
+  `scripts/test-check-docs.sh`, at v0.5.0.
 - Glossary: rule ID, finding.
 
 ## Blocked by

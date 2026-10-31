@@ -17,11 +17,11 @@ the Template release line.
 
 ## Solution
 
-A maintainer of a derived project runs `nuc check` and gets the same findings, by rule ID and
-`file:line`, as the `check-docs.sh` of the template release the project carries, on any of the
+A maintainer of a derived project on template release v0.5.0 or later runs `nuc check` and gets
+the same findings, by rule ID and `file:line`, as the `check-docs.sh` of v0.5.0, on any of the
 platforms of Q-4. Each check is one rule that `nuc explain` gives the reason of. The parity
-harness shows it on the template and on five derived repositories, on their trees as pinned and
-on variants of them that make each ported check fire.
+harness shows it on the template at v0.5.0 and on a derived repository of that release, on their
+trees as pinned and on variants of them that make each ported check fire.
 
 ## Existing behaviour
 
@@ -40,25 +40,25 @@ on variants of them that make each ported check fire.
 
 ## User stories
 
-1. As the maintainer of a derived project, I want `nuc check` to report what `check-docs.sh` of
-   my template release reports, so that I can rely on either.
+1. As the maintainer of a derived project on v0.5.0, I want `nuc check` to report what
+   `check-docs.sh` of that release reports, so that I can rely on either.
 2. As that maintainer, I want each finding to name its rule ID and `file:line`, and
    `nuc explain` to give the rule's reason, so that I can fix it without reading the bash.
 3. As that maintainer on macOS or Windows, I want the checks to run without bash 4.4, so that the
    local gate works where my machine does.
 4. As the maintainer of nuc-tools, I want the parity harness to compare bash and `nuc` on
    failing trees too, so that agreement means more than both passing a clean tree.
-5. As the maintainer of nuc-tools, I want each repository of the corpus compared with the bash of
-   its own template release, so that a project on an older release keeps its findings.
+5. As the maintainer of nuc-tools, I want the harness to refuse a corpus tree of a release before
+   v0.5.0, so that a pin moved to an older release cannot slip into the comparison.
 6. As the reviewer of a ticket, I want each ported check to arrive with the bash self-test's cases
    as its unit tests, so that the port is decided case by case.
 
 ## Implementation decisions
 
-- **One rule per check and behaviour.** Each check of `check-docs.sh` becomes one rule module with
-  an `area/name` ID in the area `docs`. Where a check behaves differently between template
-  releases v0.1.0 and v0.5.0, each behaviour is a rule ID of its own, since a rule ID never
-  changes meaning; the `nuc.toml` a release ships turns on the IDs of that release (ADR-0013).
+- **One rule per check, as of v0.5.0.** Each check of `check-docs.sh` at v0.5.0 becomes one rule
+  module with an `area/name` ID in the area `docs`. A later release that changes a check brings a
+  rule ID of its own, since a rule ID never changes meaning, and its `nuc.toml` turns it on
+  (ADR-0013).
 - **Inputs read by the shell.** The shell reads what a check needs, before any rule runs, as
   values: the tracked and untracked, not ignored, files of the tree through git; the texts of the
   Markdown files, the ADRs, the README, the workflows, and `scripts/check-all.sh`; the skill
@@ -71,10 +71,10 @@ on variants of them that make each ported check fire.
   exemptions and oddities ([conventions](../../CONVENTIONS.md)).
 - **Messages.** The wording may differ from the bash's; the rule ID, file, and line are what the
   normalization table maps and compares (ADR-0019).
-- **Corpus.** The template at v0.5.0 and five derived repositories, each at a fixed commit:
-  `hivevm/nectar` (v0.3.0), `hivevm/forager` and `hivevm/comb` (v0.2.0), `hivevm/ocelli` (v0.1.0),
-  and `mbrigl/opamp-fleet` (v0.5.0). Each entry names its template release and the rule IDs that
-  release has, which the harness writes into the `nuc.toml` of that tree.
+- **Corpus.** Only repositories on template release v0.5.0 or later: the template at v0.5.0 and
+  `mbrigl/opamp-fleet` (v0.5.0) at a fixed commit. Each entry names its template release, and the
+  harness refuses a tree whose README names a release before v0.5.0. A later release whose bash
+  differs shows as a difference, and its behaviour becomes a rule ID of its own.
 - **Variants.** For each ported rule, the harness derives one or more variants of a corpus tree
   by a scripted edit, such as a broken link or a missing index row, and compares bash and `nuc`
   on each as on the tree itself.
@@ -87,7 +87,7 @@ on variants of them that make each ported check fire.
   on it as a process, where a check reads git or the file system in a way a unit test cannot show.
 - Parity on the corpus and its variants decides each ticket: a ticket is done when the harness
   shows no difference for the rules it ports. The harness's self-test gains cases for the
-  per-release rule lists and for variants.
+  release an entry names and for variants.
 
 ## Out of scope
 
@@ -96,13 +96,13 @@ on variants of them that make each ported check fire.
   is a spec of its own, in the order the setup named.
 - Switching this repository's gates or a derived project's to `nuc` (ADR-0018).
 - `--format json` and `--format sarif` (G-7); `nuc upgrade` (G-4).
+- Projects on template releases before v0.5.0, and their behaviour of a check.
 - Shipping `nuc.toml` with a template release; that is the template's change.
 
 ## ADR impact
 
 - Binding: ADR-0009 (the shape), ADR-0010 (git), ADR-0011 (fixtures), ADR-0012 (parity),
   ADR-0013 (version coupling), ADR-0018 (the gates), ADR-0019 (the contract).
-- Rules per release follow from ADR-0013 and the glossary's rule ID; no new decision.
 - **Variants:** ADR-0012 compares bash and `nuc` on "the same trees of a corpus pinned by
   commit". Whether a tree the harness derives from a pinned tree by a scripted edit is such a
   tree is for the maintainer to say before ticket 01 starts; if it is not, ticket 01 opens by
