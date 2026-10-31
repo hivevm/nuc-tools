@@ -131,16 +131,12 @@ fn check(repo: Option<&Path>) -> Result<u8, String> {
     if needs(Input::Specification) {
         inputs.specification = tree.read_specification()?;
     }
+    if needs(Input::Markers) {
+        inputs.markers = tree.read_markers()?;
+    }
     // While the setup file exists the identity rule is silent, so it reads nothing (check 13).
     if needs(Input::Identity) && !inputs.setup_file {
-        for &file in rules::docs_template_identity::FILES {
-            let path = tree.root.join(file);
-            if path.is_file()
-                && let Some(bytes) = tree.read_record_file(&path)?
-            {
-                inputs.identity.insert(file.to_owned(), bytes);
-            }
-        }
+        inputs.identity = tree.read_identity()?;
     }
     let findings: Vec<Finding> = selected
         .iter()
@@ -317,6 +313,72 @@ impl Tree {
     fn read_checked(&self, path: &Path) -> Result<Option<String>, String> {
         self.read_record_file(path)
             .map(|bytes| bytes.map(|bytes| String::from_utf8_lossy(&bytes).into_owned()))
+    }
+
+    /// The files check 13 reads for the template's placeholders, each that is a file.
+    fn read_identity(&self) -> Result<BTreeMap<String, Vec<u8>>, String> {
+        let mut identity = BTreeMap::new();
+        for &file in rules::docs_template_identity::FILES {
+            let path = self.root.join(file);
+            if path.is_file()
+                && let Some(bytes) = self.read_record_file(&path)?
+            {
+                identity.insert(file.to_owned(), bytes);
+            }
+        }
+        Ok(identity)
+    }
+
+    /// The files that carry a `Verifies:` marker, as the traceability check reads them: each path
+    /// git lists as tracked or new and not ignored, separated by NUL bytes so that no path is
+    /// quoted, that is a file as `-f` finds it and not Markdown. A NUL byte in the first buffer
+    /// grep reads makes the file binary to `grep -I`, which leaves it out; a later one, in a file
+    /// that holds the marker, is binary to grep or not depending on its buffers, and not decided.
+    fn read_markers(&self) -> Result<BTreeMap<String, Vec<u8>>, String> {
+        let listing = git::run_bytes(
+            &self.root,
+            &[
+                "ls-files",
+                "--cached",
+                "--others",
+                "--exclude-standard",
+                "-z",
+            ],
+        )?;
+        let mut files = BTreeMap::new();
+        for raw in listing.split(|&b| b == 0).filter(|path| !path.is_empty()) {
+            let Some(full) = path_of(&self.root, raw) else {
+                continue;
+            };
+            if raw.ends_with(b".md") || !full.is_file() {
+                continue;
+            }
+            let Some(bytes) = self.read_bytes(&full)? else {
+                continue;
+            };
+            if !adr::contains(&bytes, b"Verifies:") {
+                continue;
+            }
+            // A path a finding could not name is read only where it holds no marker.
+            let Ok(path) = std::str::from_utf8(raw) else {
+                return Err(format!(
+                    "{}: a path that is no UTF-8 holds a 'Verifies:' marker, which a finding could not name — not decided",
+                    String::from_utf8_lossy(raw)
+                ));
+            };
+            match bytes.iter().position(|&b| b == 0) {
+                Some(at) if at < GREP_FIRST_BUFFER => {}
+                Some(_) => {
+                    return Err(format!(
+                        "{path}: holds a 'Verifies:' marker and a NUL byte past its first {GREP_FIRST_BUFFER} bytes, which grep reads as text or as binary depending on its buffers — not decided"
+                    ));
+                }
+                None => {
+                    files.insert(path.to_owned(), bytes);
+                }
+            }
+        }
+        Ok(files)
     }
 
     /// The bytes of the specification when it is a file, as `-f` finds it, read as `read` reads
@@ -509,6 +571,20 @@ fn unit_separator_free(path: &Path, bytes: Vec<u8>) -> Result<Vec<u8>, String> {
 /// The bytes within which `grep -I` finds a NUL byte however its buffers fall: GNU grep reads
 /// at least this much before it decides.
 const GREP_FIRST_BUFFER: usize = 32 * 1024;
+
+/// The path under the root of the bytes git names: on Unix any bytes, elsewhere only UTF-8,
+/// which is what git writes there.
+fn path_of(root: &Path, raw: &[u8]) -> Option<PathBuf> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::ffi::OsStrExt;
+        Some(root.join(std::ffi::OsStr::from_bytes(raw)))
+    }
+    #[cfg(not(unix))]
+    {
+        std::str::from_utf8(raw).ok().map(|path| root.join(path))
+    }
+}
 
 /// The names of the directory's entries, sorted by their bytes as a glob in the C locale sorts
 /// them; empty when it is no directory. A name that is no UTF-8 is not decided.

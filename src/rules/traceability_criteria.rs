@@ -3,6 +3,7 @@
 //! and no identifier appears twice (ADR-0023).
 
 use super::{Input, Inputs, Rule};
+use crate::adr;
 use crate::finding::Finding;
 
 pub const RULE_ID: &str = "traceability/criteria";
@@ -44,9 +45,9 @@ pub fn read(specification: Option<&[u8]>) -> Criteria {
         return criteria;
     };
     let mut section = None;
-    for (i, line) in lines(text).enumerate() {
+    for (i, line) in adr::awk_lines(text).into_iter().enumerate() {
         if let Some(rest) = line.strip_prefix(b"##")
-            && rest.first().copied().is_some_and(is_space)
+            && rest.first().copied().is_some_and(adr::is_space)
         {
             section = if line.starts_with(b"## Goals / Success Criteria") {
                 Some(b'G')
@@ -106,24 +107,10 @@ fn finding(line: Option<usize>, message: String) -> Finding {
     }
 }
 
-/// The lines as `read` gives them: split at each newline, the last one kept when it has bytes.
-fn lines(text: &[u8]) -> impl Iterator<Item = &[u8]> {
-    let body = text.strip_suffix(b"\n").unwrap_or(text);
-    (!text.is_empty())
-        .then(|| body.split(|&b| b == b'\n'))
-        .into_iter()
-        .flatten()
-}
-
-/// The space class of the C locale, which the bash matches with `[[:space:]]`.
-fn is_space(b: u8) -> bool {
-    matches!(b, b' ' | b'\t' | b'\n' | b'\x0B' | b'\x0C' | b'\r')
-}
-
 /// The text of a list item after its marker and the space that follows it, as
 /// `^[[:space:]]*([-*+]|[0-9]+\.)[[:space:]]+(.*)$` captures it; none for any other line.
 fn item_body(line: &[u8]) -> Option<&[u8]> {
-    let start = line.iter().position(|&b| !is_space(b))?;
+    let start = line.iter().position(|&b| !adr::is_space(b))?;
     let rest = &line[start..];
     let rest = match rest.first()? {
         b'-' | b'*' | b'+' => &rest[1..],
@@ -133,7 +120,7 @@ fn item_body(line: &[u8]) -> Option<&[u8]> {
         }
         _ => return None,
     };
-    let spaces = rest.iter().take_while(|&&b| is_space(b)).count();
+    let spaces = rest.iter().take_while(|&&b| adr::is_space(b)).count();
     (spaces > 0).then(|| &rest[spaces..])
 }
 

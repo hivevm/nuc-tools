@@ -21,6 +21,7 @@ pub mod docs_section_refs;
 pub mod docs_skill_pointers;
 pub mod docs_template_identity;
 pub mod docs_template_release;
+pub mod traceability_citations;
 pub mod traceability_criteria;
 
 /// What the shell reads from the repository for the rules, before any of them runs.
@@ -61,6 +62,10 @@ pub struct Inputs {
     pub landing: docs_no_draft_on_main::Landing,
     /// The bytes of `docs/SPECIFICATION.md`, if it is a file.
     pub specification: Option<Vec<u8>>,
+    /// Every file that may carry a `Verifies:` marker, by its path, as the bash's traceability
+    /// check reads them: listed by git as tracked or new and not ignored, a file, not Markdown,
+    /// not binary to `grep -I`, and holding the marker.
+    pub markers: std::collections::BTreeMap<String, Vec<u8>>,
 }
 
 /// The files check 9 compares, each as `-f` finds it.
@@ -170,6 +175,8 @@ pub enum Input {
     Landing,
     /// `docs/SPECIFICATION.md`.
     Specification,
+    /// The files that carry a `Verifies:` marker.
+    Markers,
 }
 
 /// A path a relative link names, as the bash tests it: whether it exists, as `-e` finds it, and
@@ -208,6 +215,7 @@ pub const ALL: &[Rule] = &[
     docs_no_draft_on_main::RULE,
     docs_template_release::RULE,
     traceability_criteria::RULE,
+    traceability_citations::RULE,
 ];
 
 /// The rule with the ID, if this `nuc` knows it.
