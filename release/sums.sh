@@ -14,9 +14,10 @@ cd "$1"
 shopt -s nullglob
 binaries=(nuc-*)
 ((${#binaries[@]})) || { echo "release/sums.sh: no nuc-* binary in $1" >&2; exit 1; }
+# sha256sum in Git Bash marks a binary-mode line with '*'; the file is the same on every platform.
 if command -v sha256sum > /dev/null; then
-  sha256sum "${binaries[@]}" | sort -k2 > SHA256SUMS
+  sha256sum "${binaries[@]}"
 else
-  shasum -a 256 "${binaries[@]}" | sort -k2 > SHA256SUMS
-fi
+  shasum -a 256 "${binaries[@]}"
+fi | sed -E 's/^([0-9a-f]{64}) [ *]/\1  /' | LC_ALL=C sort -k2 > SHA256SUMS
 cat SHA256SUMS
