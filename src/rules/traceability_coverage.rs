@@ -250,7 +250,7 @@ mod tests {
     }
 
     #[test]
-    fn two_files_of_one_number_are_reported_once_each_and_exempt_together() {
+    fn two_files_of_one_number_are_exempt_together_and_reported_once_each() {
         let mut adrs: adr::Dir = [adr_file(1, "🟢 accepted", "Review only.")]
             .into_iter()
             .collect();
@@ -266,5 +266,35 @@ mod tests {
             ..Inputs::default()
         };
         assert!(messages(&inputs).is_empty());
+    }
+
+    #[test]
+    fn two_uncited_files_of_one_number_are_reported_once_each() {
+        let mut adrs: adr::Dir = [adr_file(1, "🟢 accepted", "Review only.")]
+            .into_iter()
+            .collect();
+        adrs.insert(
+            "0001-twin.md".to_owned(),
+            "# ADR-0001: twin\n\n- **Status:** 🟢 accepted\n"
+                .as_bytes()
+                .to_vec(),
+        );
+        let inputs = Inputs {
+            specification: Some(SPEC.as_bytes().to_vec()),
+            adr: adrs,
+            ..Inputs::default()
+        };
+        assert_eq!(messages(&inputs), [uncited(1), uncited(1)]);
+    }
+
+    #[test]
+    fn an_accepted_adr_only_a_proposed_adr_s_test_cites_is_uncited() {
+        let review = "Review only.";
+        let inputs = inputs(
+            SPEC,
+            &[(1, "🟢 accepted", review), (2, "🟡 proposed", review)],
+            &mark(&adr_id(2)),
+        );
+        assert_eq!(messages(&inputs), [uncited(1)]);
     }
 }
