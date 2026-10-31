@@ -30,3 +30,8 @@ links-broken	docs/links	README.md	sed	$s/$/\n\nSee [the missing file](missing-va
 links-anchor	docs/links	README.md	sed	$s/$/\n\nSee [the rules](AGENTS.md#no-such-section)./
 section-refs-bare	docs/section-refs	README.md	sed	$s/$/\n\nSee §3 of the agents file./
 adr-numbering-gap	docs/adr-numbering	docs/adr/0003-procedures-as-skills.md	delete	-
+
+# docs/check-lists, docs/project-layout, docs/skill-pointers: checks 9, 10, and 11 of check-docs.sh.
+check-lists-job-unnamed	docs/check-lists	.github/workflows/checks.yml	sed	$s/$/\n  variant:\n    steps:\n      - run: bash scripts\/check-docs.sh/
+project-layout-missing	docs/project-layout	README.md	sed	/^## Project Layout$/,/^(```|~~~)/s/^(```|~~~).*$/&\nmissing-variant.txt/
+skill-pointers-missing	docs/skill-pointers	.agents/skills/review/SKILL.md	delete	-

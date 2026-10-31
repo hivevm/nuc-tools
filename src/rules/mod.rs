@@ -11,8 +11,11 @@ pub mod docs_adr_link_targets;
 pub mod docs_adr_numbering;
 pub mod docs_adr_refs;
 pub mod docs_adr_supersessions;
+pub mod docs_check_lists;
 pub mod docs_links;
+pub mod docs_project_layout;
 pub mod docs_section_refs;
+pub mod docs_skill_pointers;
 pub mod docs_template_release;
 
 /// What the shell reads from the repository for the rules, before any of them runs.
@@ -36,6 +39,76 @@ pub struct Inputs {
     /// The template release the tree carries, for a rule whose bash check changed between
     /// releases; none for `unreleased`, which is checked as the newest release this `nuc` knows.
     pub release: Option<Version>,
+    /// The files of the check lists.
+    pub check_lists: CheckLists,
+    /// What the paths of the README's Project Layout name, and the top-level parts of the tree.
+    pub layout: Layout,
+    /// The skills and their pointers.
+    pub skills: Skills,
+}
+
+/// The files check 9 compares, each as `-f` finds it.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CheckLists {
+    /// `.github/workflows/checks.yml`.
+    pub checks: Option<Vec<u8>>,
+    /// `scripts/check-all.sh`.
+    pub check_all: Option<Vec<u8>>,
+    /// The workflows the bash's globs list, `*.yml` and then `*.yaml`, each sorted, by path.
+    pub workflows: Vec<(String, Vec<u8>)>,
+    /// The name of every file directly under `.github/workflows/`.
+    pub workflow_files: std::collections::BTreeSet<String>,
+    /// The name of every regular file `scripts/*.sh`, sorted, as `find -type f` lists them.
+    pub scripts: Vec<String>,
+}
+
+/// What check 10 tests on the tree.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Layout {
+    /// Each path the Project Layout block lists, by its text: whether it names what is there,
+    /// a match of a pattern with `*`, a directory for a trailing `/`, or else a file.
+    pub found: std::collections::BTreeMap<String, bool>,
+    /// The first part of every path git tracks, sorted and each once, as `cut -d/ -f1 | sort -u`
+    /// gives them.
+    pub top_level: Vec<String>,
+}
+
+/// What check 11 tests on `.agents/skills/` and `.claude/skills/`.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Skills {
+    /// Each skill, a directory of `.agents/skills/` with a file `SKILL.md`, sorted by name, with
+    /// what stands at its pointer.
+    pub skills: Vec<(String, Pointer)>,
+    /// Each entry of `.claude/skills/`, sorted by name.
+    pub pointers: Vec<(String, Entry)>,
+}
+
+/// What stands at a skill's pointer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Pointer {
+    Symlink,
+    Other,
+    Missing,
+}
+
+/// An entry of `.claude/skills/`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Entry {
+    /// No symlink; `skill` when `.agents/skills/<name>/SKILL.md` is a file.
+    NotSymlink { skill: bool },
+    /// A symlink that resolves to no directory.
+    Dangles,
+    /// A symlink to the directory `target`, shown relative to the root when it is inside;
+    /// `at_skill` when that is the skill of its name.
+    Points { target: String, at_skill: bool },
+}
+
+/// The lines `while IFS= read -r line` reads: each one ended by a newline; a last line without
+/// one is not read.
+pub fn read_lines(text: &[u8]) -> Vec<&[u8]> {
+    let mut lines: Vec<&[u8]> = text.split(|&b| b == b'\n').collect();
+    lines.pop();
+    lines
 }
 
 impl Inputs {
@@ -44,6 +117,10 @@ impl Inputs {
         self.release.is_none_or(|carried| carried >= release)
     }
 }
+
+/// The template releases at which a ported bash check changed, the earliest first: a rule checks
+/// a tree as the latest of them at or before the release it carries.
+pub const RELEASES: &[Version] = &[Version(0, 5, 0), Version(0, 6, 0)];
 
 /// The template release a README names on its `Template release` line.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -67,6 +144,12 @@ pub enum Input {
     Agents,
     /// The template release `README.md` names, which the shell refuses when it cannot place it.
     Release,
+    /// The workflows, `scripts/check-all.sh`, and the scripts under `scripts/`.
+    CheckLists,
+    /// The paths of the README's Project Layout, tested, and the tracked top-level parts.
+    Layout,
+    /// The skills and their pointers.
+    Skills,
 }
 
 /// A path a relative link names, as the bash tests it: whether it exists, as `-e` finds it, and
@@ -96,6 +179,9 @@ pub const ALL: &[Rule] = &[
     docs_adr_link_targets::RULE,
     docs_links::RULE,
     docs_section_refs::RULE,
+    docs_check_lists::RULE,
+    docs_project_layout::RULE,
+    docs_skill_pointers::RULE,
     docs_template_release::RULE,
 ];
 
