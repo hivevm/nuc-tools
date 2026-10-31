@@ -42,6 +42,9 @@ set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TABLE="${PARITY_TABLE:-$ROOT/tests/parity/normalize.tsv}"
 
+# shellcheck source-path=SCRIPTDIR source=lib/check.sh
+source "$ROOT/scripts/lib/check.sh"
+
 # Git hands a hook its repository through variables that would bind the cache's git commands to
 # this repository; they are not the harness's (scripts/lib/selftest.sh does the same).
 # shellcheck disable=SC2046 # one variable name per word
@@ -146,7 +149,7 @@ while (($#)); do
     --corpus) corpus="${2:-}"; shift 2 || die "--corpus takes a file" ;;
     --cache) cache="${2:-}"; shift 2 || die "--cache takes a directory" ;;
     --nuc) nuc="${2:-}"; shift 2 || die "--nuc takes a binary" ;;
-    --variants) variants="${2:-}"; shift 2 || die "--variants takes a file" ;;
+    --variants) [[ -n "${2:-}" ]] || die "--variants takes a file"; variants="$2"; shift 2 ;;
     *) die "unknown argument '$1'" ;;
   esac
 done
@@ -184,10 +187,19 @@ work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 cgit() { git -c core.hooksPath=/dev/null -c core.fsmonitor=false -C "$@"; }
 
-# release_of <README> — the vX.Y.Z of its first Template release line, or nothing.
+# release_of <README> — the release its first Template release line names, read as check 14 of
+# check-docs.sh reads it: a vX.Y.Z at the start of the value, after one opening bracket or
+# backquote at most, followed by the end, a space, a punctuation mark, or a full stop that ends
+# the sentence; nothing for 'unreleased', a pre-release, or any other value.
 release_of() {
-  grep -m1 -E '^[[:space:]]*([-*] )?\*\*Template release:\*\*' "$1" 2>/dev/null \
-    | grep -oE 'v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)' | head -1
+  local line value num='(0|[1-9][0-9]*)'
+  line="$(grep -m1 -E '^[[:space:]]*([-*] )?\*\*Template release:\*\*' "$1" 2>/dev/null)" || return 0
+  value="${line#*\*\*Template release:\*\*}"
+  value="${value#"${value%%[![:space:]]*}"}"
+  case "$value" in '['* | '`'*) value="${value:1}" ;; esac
+  # shellcheck disable=SC2016 # the backquote is Markdown to match, not a command substitution
+  local re='^(v'"$num"'\.'"$num"'\.'"$num"')($|[][:space:],;:)`]|\.([[:space:]]|$))'
+  [[ "$value" =~ $re ]] && echo "${BASH_REMATCH[1]}"
 }
 
 # at_least_floor <vX.Y.Z> — whether the release is FLOOR or later.
@@ -205,54 +217,68 @@ run_pair() {
   compare "$label" "$out.bash" "$bash_rc" "$out.nuc" "$nuc_rc"
 }
 
-# apply_variant <tree> <path> <sed|delete> <argument> — apply the edit to the copy; fails when
-# the edit does not fit the tree: the file is missing, or the sed expression changes nothing.
+# apply_variant <copy> <path> <sed|delete> <argument> — apply the edit to the copy of a tree. It
+# fails when the edit does not apply: the file is missing, resolves outside the copy, or the sed
+# expression fails or changes nothing. sed runs sandboxed, so an expression runs no command and
+# reads or writes no other file.
 apply_variant() {
-  local file="$1/$2"
+  local copy="$1" file="$1/$2"
   [[ -f "$file" ]] || return 1
+  [[ "$(realpath -m "$file")" == "$(realpath "$copy")"/* ]] || return 1
   case "$3" in
     delete) rm -f "$file" ;;
     sed)
-      sed -E "$4" "$file" > "$file.after" || { rm -f "$file.after"; return 1; }
+      sed --sandbox -E "$4" "$file" > "$file.after" 2>/dev/null || { rm -f "$file.after"; return 1; }
       if cmp -s "$file" "$file.after"; then rm -f "$file.after"; return 1; fi
       mv "$file.after" "$file"
       ;;
   esac
 }
 
-# fires <bash output> <rule> — whether bash reported a finding the table maps to the rule.
-fires() {
+# rule_messages <bash output> <rule> — the bash messages the table maps to the rule, sorted.
+rule_messages() {
   local line msg i
   while IFS= read -r line; do
     [[ "$line" == "  - "* ]] || continue
     msg="${line#  - }"
     for i in "${!patterns[@]}"; do
       if [[ "$msg" =~ ${patterns[i]} ]]; then
-        [[ "${rules[i]}" == "$2" ]] && return 0
+        [[ "${rules[i]}" == "$2" ]] && printf '%s\n' "$msg"
         break
       fi
     done
-  done < "$1"
-  return 1
+  done < "$1" | sort -u
+}
+
+# fires <tree's bash output> <variant's bash output> <rule> — whether bash reports a finding of
+# the rule on the variant that it does not report on the tree itself.
+fires() {
+  [[ -n "$(comm -13 <(rule_messages "$1" "$3") <(rule_messages "$2" "$3"))" ]]
 }
 
 # The variants, one row each: name, rule, path in the tree, 'sed' with an extended expression or
-# 'delete' with '-', separated by tabs.
-variant_names=() variant_rules=() variant_paths=() variant_ops=() variant_args=() variant_applied=()
-if [[ -n "$variants" ]]; then
-  [[ -r "$variants" ]] || die "$variants: unreadable"
-  while IFS=$'\t' read -r vname vrule vpath vop varg extra; do
-    [[ -z "$vname" || "$vname" == \#* ]] && continue
-    if ! [[ "$vname" =~ ^[a-z0-9-]+$ && -n "$vpath" && -z "${extra:-}" ]] \
-      || ! [[ ( "$vop" == sed && -n "$varg" ) || ( "$vop" == delete && "$varg" == - ) ]]; then
-      die "$variants: the row '$vname' is not 'name<TAB>rule<TAB>path<TAB>sed|delete<TAB>argument'"
-    fi
-    [[ "$(mode_of "$vrule")" != unknown ]] \
-      || die "$variants: the variant '$vname' names the rule '$vrule', which the table maps no message to"
-    variant_names+=("$vname") variant_rules+=("$vrule") variant_paths+=("$vpath")
-    variant_ops+=("$vop") variant_args+=("$varg") variant_applied+=(0)
-  done < "$variants"
-fi
+# 'delete' with '-', separated by tabs. The path stays inside the tree; every ported rule brings
+# one at least.
+variant_names=() variant_rules=() variant_paths=() variant_ops=() variant_args=()
+[[ -r "$variants" ]] || die "$variants: unreadable"
+while IFS=$'\t' read -r vname vrule vpath vop varg extra || [[ -n "$vname" ]]; do
+  [[ -z "$vname" || "$vname" == \#* ]] && continue
+  if ! [[ "$vname" =~ ^[a-z0-9-]+$ && -n "$vpath" && -z "${extra:-}" ]] \
+    || ! [[ ( "$vop" == sed && -n "$varg" ) || ( "$vop" == delete && "$varg" == - ) ]]; then
+    die "$variants: the row '$vname' is not 'name<TAB>rule<TAB>path<TAB>sed|delete<TAB>argument'"
+  fi
+  [[ "$vpath" != /* && "/$vpath/" != */../* ]] \
+    || die "$variants: the variant '$vname' edits '$vpath', which is no path inside the tree"
+  _contains "$vname" "${variant_names[@]}" && die "$variants: the variant '$vname' is named twice"
+  [[ "$(mode_of "$vrule")" != unknown ]] \
+    || die "$variants: the variant '$vname' names the rule '$vrule', which the table maps no message to"
+  variant_names+=("$vname") variant_rules+=("$vrule") variant_paths+=("$vpath")
+  variant_ops+=("$vop") variant_args+=("$varg")
+done < "$variants"
+for rule in $(printf '%s\n' "${rules[@]}" | grep -vx -- '-' | sort -u); do
+  _contains "$rule" "${variant_rules[@]}" \
+    || die "$variants: the ported rule '$rule' brings no variant; a rule that never fires agrees on every clean tree"
+done
 
 failed=0
 for entry in "${repositories[@]}"; do
@@ -283,27 +309,29 @@ for entry in "${repositories[@]}"; do
 
   run_pair "$name at ${commit:0:12}" "$dir" "$work/$name" || failed=1
 
-  # Each variant that fits this tree, on a copy of it in a directory of its own.
+  # Every variant on this tree, on a copy of it in a directory of its own, never on the cache.
   for i in "${!variant_names[@]}"; do
+    label="$name, variant ${variant_names[i]}"
     vdir="$work/variants/$name/${variant_names[i]}"
-    mkdir -p "$(dirname "$vdir")" && cp -a "$dir" "$vdir"
-    apply_variant "$vdir" "${variant_paths[i]}" "${variant_ops[i]}" "${variant_args[i]}" || { rm -rf "$vdir"; continue; }
-    variant_applied[i]=$((variant_applied[i] + 1))
+    if ! { mkdir -p "$(dirname "$vdir")" && cp -a "$dir" "$vdir"; }; then
+      echo "Parity check: $label — the tree could not be copied" >&2
+      failed=1
+      continue
+    fi
+    if ! apply_variant "$vdir" "${variant_paths[i]}" "${variant_ops[i]}" "${variant_args[i]}"; then
+      echo "Parity check: $label — its edit of ${variant_paths[i]} does not apply to this tree" >&2
+      failed=1
+      rm -rf "$vdir"
+      continue
+    fi
     out="$work/$name.${variant_names[i]}"
     run_pair "$name at ${commit:0:12}, variant ${variant_names[i]}" "$vdir" "$out" || failed=1
-    if ! fires "$out.bash" "${variant_rules[i]}"; then
-      echo "Parity check: $name, variant ${variant_names[i]} — bash reports no finding of ${variant_rules[i]}; the variant does not make its rule fire" >&2
+    if ! fires "$work/$name.bash" "$out.bash" "${variant_rules[i]}"; then
+      echo "Parity check: $label — bash reports no finding of ${variant_rules[i]} beyond the tree's own; the variant does not make its rule fire" >&2
       failed=1
     fi
     rm -rf "$vdir"
   done
-done
-
-for i in "${!variant_names[@]}"; do
-  if ((variant_applied[i] == 0)); then
-    echo "Parity check: variant ${variant_names[i]} applies to no tree of the corpus — its edit of ${variant_paths[i]} changes nothing there" >&2
-    failed=1
-  fi
 done
 
 if ((failed)); then
