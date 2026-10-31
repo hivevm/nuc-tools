@@ -56,9 +56,10 @@ golden path and the test pattern an agent copies from are named here.
   the bash would read differently from its bytes alone, as not decided.
 - **Binary** — `src/main.rs` calls the shell and nothing else.
 - **Parity harness** — `scripts/check-parity.sh` runs the bash checks of each repository of the
-  corpus, all on template release v0.5.0 or later, and `nuc` on the same tree and on each variant
-  of `tests/parity/variants.tsv` that is for it, both as a pull request into `main` marked ready,
-  and compares their findings by `tests/parity/normalize.tsv`. A variant edits, deletes, or
+  corpus, `check-docs.sh` and `check-traceability.sh`, all on template release v0.5.0 or later,
+  and `nuc` on the same tree and on each variant of `tests/parity/variants.tsv` that is for it,
+  both as a pull request into `main` marked ready, and compares their findings by
+  `tests/parity/normalize.tsv`. A variant edits, deletes, or
   writes one path inside a copy of the tree, never under its `.git`
   ([ADR-0022](adr/0022-parity-variants-name-their-trees.md)).
 - **Release tooling** — `release/` builds a binary per target, writes `SHA256SUMS`, checks the

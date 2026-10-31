@@ -16,9 +16,11 @@
 # tree the corpus lacks.
 #
 # For each repository and each variant:
-#   1. The bash scripts with a ported rule run in the tree, with the environment cleared to PATH,
-#      HOME, LC_ALL=C, and that of a pull request into main marked ready (CI_ENV): today
-#      scripts/check-docs.sh, whose findings are its '  - ' lines.
+#   1. The bash scripts with a ported rule run in the tree, one after the other, with the
+#      environment cleared to PATH, HOME, LC_ALL=C, and that of a pull request into main marked
+#      ready (CI_ENV): scripts/check-docs.sh and scripts/check-traceability.sh (BASH_CHECKS),
+#      whose findings are their '  - ' lines. Their outputs are read as one, and bash fails when
+#      either fails; a tree that lacks one of them fails the harness.
 #   2. nuc runs 'check' on the tree, with a nuc.toml the harness writes beside it, ignored through
 #      the cache's .git/info/exclude, that turns on every rule the table maps to.
 #   3. The findings are normalized to (rule ID, file, line) by tests/parity/normalize.tsv and
@@ -123,7 +125,8 @@ compare() {
           bash_keys+=("$(key "$rule" "$file" "$n" "$text")")
         fi
         ;;
-      "" | "Documentation checks FAILED:" | "Documentation checks passed.") ;;
+      "" | "Documentation checks FAILED:" | "Documentation checks passed." \
+        | "Traceability check FAILED:" | "Traceability check passed ("*")." ) ;;
       *) [[ "$line" =~ ^[0-9]+\ problem\(s\)\ found\.$ ]] || diffs+=("bash output not understood: $line") ;;
     esac
   done < "$bash_out"
@@ -237,11 +240,22 @@ at_least_floor() {
 # that reads where a change lands (check 16) speaks as it does in CI.
 CI_ENV=(GITHUB_BASE_REF=main PULL_REQUEST_DRAFT=false)
 
+# The bash scripts whose rules nuc ports, run in this order.
+BASH_CHECKS=(scripts/check-docs.sh scripts/check-traceability.sh)
+
 # run_pair <label> <tree> <output prefix> — run bash and nuc on the tree and compare them.
 run_pair() {
-  local label="$1" dir="$2" out="$3" bash_rc nuc_rc
-  (cd "$dir" && env -i PATH="$PATH" HOME="$HOME" LC_ALL=C "${CI_ENV[@]}" bash scripts/check-docs.sh) > "$out.bash" 2>&1
-  bash_rc=$?
+  local label="$1" dir="$2" out="$3" bash_rc=0 rc script nuc_rc
+  : > "$out.bash"
+  for script in "${BASH_CHECKS[@]}"; do
+    if [[ ! -f "$dir/$script" ]]; then
+      echo "Parity check: $label — the tree has no $script" >&2
+      return 1
+    fi
+    (cd "$dir" && env -i PATH="$PATH" HOME="$HOME" LC_ALL=C "${CI_ENV[@]}" bash "$script") >> "$out.bash" 2>&1
+    rc=$?
+    ((bash_rc)) || bash_rc=$rc
+  done
   env -i PATH="$PATH" HOME="$HOME" "${CI_ENV[@]}" "$nuc" check --repo "$dir" > "$out.nuc" 2> "$out.nuc.err"
   nuc_rc=$?
   compare "$label" "$out.bash" "$bash_rc" "$out.nuc" "$nuc_rc"

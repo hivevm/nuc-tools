@@ -128,6 +128,9 @@ fn check(repo: Option<&Path>) -> Result<u8, String> {
     if needs(Input::Landing) {
         inputs.landing = tree.read_landing()?;
     }
+    if needs(Input::Specification) {
+        inputs.specification = tree.read_specification()?;
+    }
     // While the setup file exists the identity rule is silent, so it reads nothing (check 13).
     if needs(Input::Identity) && !inputs.setup_file {
         for &file in rules::docs_template_identity::FILES {
@@ -314,6 +317,17 @@ impl Tree {
     fn read_checked(&self, path: &Path) -> Result<Option<String>, String> {
         self.read_record_file(path)
             .map(|bytes| bytes.map(|bytes| String::from_utf8_lossy(&bytes).into_owned()))
+    }
+
+    /// The bytes of the specification when it is a file, as `-f` finds it, read as `read` reads
+    /// it.
+    fn read_specification(&self) -> Result<Option<Vec<u8>>, String> {
+        let path = self.root.join(rules::traceability_criteria::SPECIFICATION);
+        if path.is_file() {
+            self.read_record_file(&path)
+        } else {
+            Ok(None)
+        }
     }
 
     /// The bytes of a file awk or `read` reads for a rule of the record, `None` when it is

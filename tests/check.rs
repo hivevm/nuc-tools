@@ -992,3 +992,59 @@ fn a_draft_whose_name_holds_a_newline_is_not_decided() {
         stderr(&output)
     );
 }
+
+const TRACEABILITY: &str = "minimum = \"0.0.0\"\nrules = [\"traceability/criteria\"]\n";
+
+#[test]
+fn the_criteria_of_the_specification_are_checked_where_the_bash_finds_them() {
+    let fixture = Fixture::project("criteria", TRACEABILITY, README);
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(1), "{}", stderr(&output));
+    assert_eq!(
+        stdout(&output),
+        "docs/SPECIFICATION.md: traceability/criteria: not found — the criteria cannot be read\n"
+    );
+    // A directory in its place is no file, as `-f` finds it.
+    std::fs::create_dir_all(fixture.root().join("docs/SPECIFICATION.md")).unwrap();
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(1), "{}", stderr(&output));
+    std::fs::remove_dir(fixture.root().join("docs/SPECIFICATION.md")).unwrap();
+    fixture.write(
+        "docs/SPECIFICATION.md",
+        "## Goals / Success Criteria\n\n- **G-1** — it works.\n- **G-1** — again.\n",
+    );
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(1), "{}", stderr(&output));
+    assert_eq!(
+        stdout(&output),
+        "docs/SPECIFICATION.md:4: traceability/criteria: identifier 'G-1' appears twice — \
+         identifiers are never reused\n"
+    );
+    fixture.write(
+        "docs/SPECIFICATION.md",
+        "## Goals / Success Criteria\n\n- **G-1** — it works.\n",
+    );
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(0), "{}", stderr(&output));
+}
+
+#[test]
+fn a_specification_the_bash_reads_as_binary_is_not_decided() {
+    let fixture = Fixture::project("criteria-nul", TRACEABILITY, README);
+    fixture.write("docs/SPECIFICATION.md", "## Quality Goals\n- **Q-1** \0\n");
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(2));
+    assert!(stderr(&output).contains("NUL byte"), "{}", stderr(&output));
+}
+
+#[test]
+fn the_criteria_rule_is_explained() {
+    let fixture = Fixture::project("criteria-explain", TRACEABILITY, README);
+    let output = fixture.nuc(&["explain", "traceability/criteria"]);
+    assert_eq!(code(&output), Some(0));
+    assert!(
+        stdout(&output).contains("**G-n** under Goals"),
+        "{}",
+        stdout(&output)
+    );
+}

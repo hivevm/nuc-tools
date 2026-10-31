@@ -48,3 +48,6 @@ prose-width-101	docs/prose-width	README.md	sed	$s/$/\n\nword word word word word
 
 # docs/no-draft-on-main: check 16 of check-docs.sh, run as a pull request into main marked ready.
 no-draft-on-main-draft	docs/no-draft-on-main	docs/adr/draft-parity-variant.md	write	# A draft the variant writes
+
+# traceability/criteria: part 1 of check-traceability.sh.
+criteria-no-identifier	traceability/criteria	docs/SPECIFICATION.md	sed	s/^1\. \*\*G-1\*\*/1. G-1/
