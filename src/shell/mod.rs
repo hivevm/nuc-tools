@@ -66,7 +66,7 @@ fn check(repo: Option<&Path>) -> Result<u8, String> {
     let config = config::parse(&text).map_err(|refusal| refusal.to_string())?;
     let selected = config::select(&config, running(), rules::ALL).map_err(|r| r.to_string())?;
     let inputs = Inputs {
-        readme: read(&root.join("README.md"))?,
+        readme: read_checked(&root.join("README.md"))?,
     };
     let findings: Vec<Finding> = selected
         .iter()
@@ -91,13 +91,39 @@ fn explain(id: &str) -> Result<u8, String> {
     Ok(PASSED)
 }
 
-/// The text of the file, `None` when it does not exist, or why it cannot be read.
-fn read(path: &Path) -> Result<Option<String>, String> {
+/// The bytes of the file, `None` when it does not exist, or why it cannot be read.
+fn read_bytes(path: &Path) -> Result<Option<Vec<u8>>, String> {
     match fs::read(path) {
-        Ok(bytes) => String::from_utf8(bytes)
-            .map(Some)
-            .map_err(|_| format!("{}: unreadable — not UTF-8", path.display())),
+        Ok(bytes) => Ok(Some(bytes)),
         Err(e) if e.kind() == ErrorKind::NotFound => Ok(None),
         Err(e) => Err(format!("{}: unreadable — {e}", path.display())),
     }
+}
+
+/// The text of a file `nuc` itself reads, which must be UTF-8.
+fn read(path: &Path) -> Result<Option<String>, String> {
+    read_bytes(path)?
+        .map(|bytes| {
+            String::from_utf8(bytes)
+                .map_err(|_| format!("{}: unreadable — not UTF-8", path.display()))
+        })
+        .transpose()
+}
+
+/// The text of a file the rules read as the bash checks do, byte by byte: a byte that is no
+/// UTF-8 stands for itself, as for grep in the C locale. A NUL byte makes grep read the file as
+/// binary, which it reports or not depending on where the byte falls; `nuc` does not decide
+/// such a file (Q-1).
+fn read_checked(path: &Path) -> Result<Option<String>, String> {
+    read_bytes(path)?
+        .map(|bytes| {
+            if bytes.contains(&0) {
+                return Err(format!(
+                    "{}: holds a NUL byte, which the bash checks read as binary — not decided",
+                    path.display()
+                ));
+            }
+            Ok(String::from_utf8_lossy(&bytes).into_owned())
+        })
+        .transpose()
 }

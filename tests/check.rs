@@ -191,3 +191,22 @@ fn an_unknown_command_refuses_with_the_usage() {
         assert!(stderr(&output).contains("usage: nuc check"), "{args:?}");
     }
 }
+
+#[test]
+fn a_readme_that_is_no_utf8_is_read_byte_by_byte() {
+    let fixture = Fixture::project("latin-1", CONFIG, README);
+    let bytes = b"Caf\xe9\n\n- **Template release:** v0.5.0\n";
+    std::fs::write(fixture.root().join("README.md"), bytes).expect("written");
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(0), "{}", stderr(&output));
+}
+
+#[test]
+fn a_readme_with_a_nul_byte_is_not_decided() {
+    let fixture = Fixture::project("nul", CONFIG, README);
+    let bytes = b"- **Template release:** v0.5.0\n\0\n";
+    std::fs::write(fixture.root().join("README.md"), bytes).expect("written");
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(2));
+    assert!(stderr(&output).contains("NUL byte"), "{}", stderr(&output));
+}
