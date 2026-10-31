@@ -50,4 +50,4 @@ prose-width-101	docs/prose-width	README.md	sed	$s/$/\n\nword word word word word
 no-draft-on-main-draft	docs/no-draft-on-main	docs/adr/draft-parity-variant.md	write	# A draft the variant writes
 
 # traceability/criteria: part 1 of check-traceability.sh.
-criteria-no-identifier	traceability/criteria	docs/SPECIFICATION.md	sed	s/^1\. \*\*G-1\*\*/1. G-1/
+criteria-no-identifier	traceability/criteria	docs/SPECIFICATION.md	sed	s/^([0-9]+\.|[-*+]) \*\*G-1\*\*/\1 G-1/

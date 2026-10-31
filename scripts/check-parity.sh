@@ -20,7 +20,8 @@
 #      environment cleared to PATH, HOME, LC_ALL=C, and that of a pull request into main marked
 #      ready (CI_ENV): scripts/check-docs.sh and scripts/check-traceability.sh (BASH_CHECKS),
 #      whose findings are their '  - ' lines. Their outputs are read as one, and bash fails when
-#      either fails; a tree that lacks one of them fails the harness.
+#      either fails; a tree that lacks one of them, or a script that fails without a finding,
+#      fails the harness.
 #   2. nuc runs 'check' on the tree, with a nuc.toml the harness writes beside it, ignored through
 #      the cache's .git/info/exclude, that turns on every rule the table maps to.
 #   3. The findings are normalized to (rule ID, file, line) by tests/parity/normalize.tsv and
@@ -252,8 +253,14 @@ run_pair() {
       echo "Parity check: $label — the tree has no $script" >&2
       return 1
     fi
-    (cd "$dir" && env -i PATH="$PATH" HOME="$HOME" LC_ALL=C "${CI_ENV[@]}" bash "$script") >> "$out.bash" 2>&1
+    (cd "$dir" && env -i PATH="$PATH" HOME="$HOME" LC_ALL=C "${CI_ENV[@]}" bash "$script") > "$out.script" 2>&1
     rc=$?
+    # Each script that fails names a finding: the joined output cannot tell which one failed.
+    if ((rc)) && ! grep -q '^  - ' "$out.script"; then
+      echo "Parity check: $label — bash: $script exited $rc without a finding" >&2
+      return 1
+    fi
+    cat "$out.script" >> "$out.bash"
     ((bash_rc)) || bash_rc=$rc
   done
   env -i PATH="$PATH" HOME="$HOME" "${CI_ENV[@]}" "$nuc" check --repo "$dir" > "$out.nuc" 2> "$out.nuc.err"

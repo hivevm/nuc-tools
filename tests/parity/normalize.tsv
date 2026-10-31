@@ -107,5 +107,5 @@
 
 # check-traceability.sh, parts 2 to 4: not ported yet, left out of the comparison.
 ^docs/adr/[^ :]+: 'Not mechanically decidable' declared without a reason — 	-	-
-^[^ :]+:[0-9]+: cites '[^']+', which (does not exist in docs/adr/|is superseded or rejected — |is not a criterion of docs/SPECIFICATION\.md)	-	-
-^ADR-[0-9]{4} is accepted but no test cites it — 	-	-
+^.+:[0-9]+: cites '[^']+', which (does not exist in docs/adr/|is superseded or rejected — |is not a criterion of docs/SPECIFICATION\.md)	-	-
+^ADR-([0-9]{4}|draft-[a-z0-9-]+) is accepted but no test cites it — 	-	-
