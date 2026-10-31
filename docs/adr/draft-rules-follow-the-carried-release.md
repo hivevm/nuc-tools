@@ -38,7 +38,8 @@ cannot place.
   is before v0.5.0, the earliest the rules port. It also refuses a tree without a `README.md`,
   and one whose README has no `Template release` line or a line that names no release, unless
   `docs/template-release` is turned on. That rule then fails the run with the finding the bash
-  reports, and the tree is checked as the newest release.
+  reports, and a rule that reads the release reports only the findings it reports on every
+  release it knows: those no release could take back.
 - **The corpus:** for each release at which a ported check changed, the parity corpus pins a
   tree that carries it.
 
