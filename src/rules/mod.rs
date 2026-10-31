@@ -21,6 +21,7 @@ pub mod docs_section_refs;
 pub mod docs_skill_pointers;
 pub mod docs_template_identity;
 pub mod docs_template_release;
+pub mod traceability_criteria;
 
 /// What the shell reads from the repository for the rules, before any of them runs.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -58,6 +59,8 @@ pub struct Inputs {
     pub generated: std::collections::BTreeSet<String>,
     /// What CI says about the change, and the drafts of the record.
     pub landing: docs_no_draft_on_main::Landing,
+    /// The bytes of `docs/SPECIFICATION.md`, if it is a file.
+    pub specification: Option<Vec<u8>>,
 }
 
 /// The files check 9 compares, each as `-f` finds it.
@@ -165,6 +168,8 @@ pub enum Input {
     Generated,
     /// The environment CI sets for the change, and the draft files of `docs/adr/`.
     Landing,
+    /// `docs/SPECIFICATION.md`.
+    Specification,
 }
 
 /// A path a relative link names, as the bash tests it: whether it exists, as `-e` finds it, and
@@ -202,6 +207,7 @@ pub const ALL: &[Rule] = &[
     docs_prose_width::RULE,
     docs_no_draft_on_main::RULE,
     docs_template_release::RULE,
+    traceability_criteria::RULE,
 ];
 
 /// The rule with the ID, if this `nuc` knows it.
