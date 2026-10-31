@@ -1,6 +1,6 @@
 # ADR-draft-parity-harness-with-variants: A parity harness compares `nuc` with the bash scripts on the pinned trees of a corpus of releases v0.5.0 and later and on variants derived from them, as a required check that fails on any difference
 
-- **Status:** 🟡 proposed
+- **Status:** 🟢 accepted
 - **Date:** 2026-10-31
 - **Deciders:** Markus Brigl
 - **Applies to:** `tests/parity/`, its manifest `tests/parity/corpus.toml`, the variants kept beside it, `scripts/check-parity.sh`, its job in `.github/workflows/checks.yml`, and the map from bash messages to rule IDs
