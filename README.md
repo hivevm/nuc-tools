@@ -84,7 +84,8 @@ carries checks it, v0.5.0 or later: `docs/adr-index`, `docs/adr-numbering`, `doc
 `docs/adr-supersessions`, `docs/check-lists`, `docs/project-layout`, `docs/skill-pointers`,
 `docs/inherited-adrs`, `docs/template-identity`, `docs/prose-width`, `docs/no-draft-on-main`, and
 `docs/template-release`. From the template's `check-traceability.sh` they port the criteria of
-the specification, `traceability/criteria`. `nuc explain <rule ID>` gives each rule's reason.
+the specification, `traceability/criteria`, and the citations of the `Verifies` markers,
+`traceability/citations`. `nuc explain <rule ID>` gives each rule's reason.
 `nuc hook <name>` follows with the port of the hooks.
 
 ## Project Layout

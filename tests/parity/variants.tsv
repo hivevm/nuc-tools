@@ -51,3 +51,10 @@ no-draft-on-main-draft	docs/no-draft-on-main	docs/adr/draft-parity-variant.md	wr
 
 # traceability/criteria: part 1 of check-traceability.sh.
 criteria-no-identifier	traceability/criteria	docs/SPECIFICATION.md	sed	s/^([0-9]+\.|[-*+]) \*\*G-1\*\*/\1 G-1/
+
+# traceability/citations: part 3 of check-traceability.sh. The markers are written with \x3a for
+# the colon and \x2d for the hyphen of ADR-, so that this file carries no marker or reference the
+# checks would read.
+citations-missing-adr	traceability/citations	scripts/check-all.sh	sed	$s/$/\n# Verifies\x3a ADR\x2d9999/
+citations-unknown-criterion	traceability/citations	scripts/check-all.sh	sed	$s/$/\n# Verifies\x3a Q-999/
+citations-superseded	traceability/citations	docs/adr/0001-agent-governance-model.md	sed	s/^- \*\*Status:\*\* .*/- **Status:** ⚪ superseded by ADR-0002/

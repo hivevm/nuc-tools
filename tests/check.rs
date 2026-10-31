@@ -1048,3 +1048,51 @@ fn the_criteria_rule_is_explained() {
         stdout(&output)
     );
 }
+
+const CITATIONS: &str = "minimum = \"0.0.0\"\nrules = [\"traceability/citations\"]\n";
+
+/// A marker citing the identifier, assembled so that this file carries no literal one.
+fn mark(id: &str) -> String {
+    format!("{}: {id}\n", "Verifies")
+}
+
+#[test]
+fn citations_are_read_from_the_files_the_bash_reads_them_from() {
+    let fixture = Fixture::project("citations", CITATIONS, README);
+    fixture.write(
+        "docs/SPECIFICATION.md",
+        "## Goals / Success Criteria\n\n- **G-1** — it works.\n",
+    );
+    fixture.write(".gitignore", "ignored.txt\n");
+    fixture.write("notes.md", &mark("G-7"));
+    fixture.write("ignored.txt", &mark("G-7"));
+    let mut binary = b"\0".to_vec();
+    binary.extend_from_slice(mark("G-7").as_bytes());
+    std::fs::write(fixture.root().join("binary.bin"), binary).unwrap();
+    fixture.write("tests/ok.txt", &mark("G-1"));
+    fixture.commit("fixture");
+    // A new file git does not ignore is read, and so is a path git would quote.
+    fixture.write("new.txt", &format!("x\n{}", mark("G-8")));
+    fixture.write("tests/é.txt", &mark("Q-3"));
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(1), "{}", stderr(&output));
+    assert_eq!(
+        stdout(&output),
+        "new.txt:2: traceability/citations: cites 'G-8', which is not a criterion of \
+         docs/SPECIFICATION.md\n\
+         tests/é.txt:1: traceability/citations: cites 'Q-3', which is not a criterion of \
+         docs/SPECIFICATION.md\n"
+    );
+}
+
+#[test]
+fn a_marker_beside_a_nul_byte_past_the_first_buffer_is_not_decided() {
+    let fixture = Fixture::project("citations-nul", CITATIONS, README);
+    let mut bytes = mark("G-1").into_bytes();
+    bytes.extend(std::iter::repeat_n(b'x', 40 * 1024));
+    bytes.push(0);
+    std::fs::write(fixture.root().join("late.bin"), bytes).unwrap();
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(2), "{}", stdout(&output));
+    assert!(stderr(&output).contains("late.bin"), "{}", stderr(&output));
+}

@@ -131,16 +131,12 @@ fn check(repo: Option<&Path>) -> Result<u8, String> {
     if needs(Input::Specification) {
         inputs.specification = tree.read_specification()?;
     }
+    if needs(Input::Markers) {
+        inputs.markers = tree.read_markers()?;
+    }
     // While the setup file exists the identity rule is silent, so it reads nothing (check 13).
     if needs(Input::Identity) && !inputs.setup_file {
-        for &file in rules::docs_template_identity::FILES {
-            let path = tree.root.join(file);
-            if path.is_file()
-                && let Some(bytes) = tree.read_record_file(&path)?
-            {
-                inputs.identity.insert(file.to_owned(), bytes);
-            }
-        }
+        inputs.identity = tree.read_identity()?;
     }
     let findings: Vec<Finding> = selected
         .iter()
@@ -317,6 +313,63 @@ impl Tree {
     fn read_checked(&self, path: &Path) -> Result<Option<String>, String> {
         self.read_record_file(path)
             .map(|bytes| bytes.map(|bytes| String::from_utf8_lossy(&bytes).into_owned()))
+    }
+
+    /// The files check 13 reads for the template's placeholders, each that is a file.
+    fn read_identity(&self) -> Result<BTreeMap<String, Vec<u8>>, String> {
+        let mut identity = BTreeMap::new();
+        for &file in rules::docs_template_identity::FILES {
+            let path = self.root.join(file);
+            if path.is_file()
+                && let Some(bytes) = self.read_record_file(&path)?
+            {
+                identity.insert(file.to_owned(), bytes);
+            }
+        }
+        Ok(identity)
+    }
+
+    /// The files that carry a `Verifies:` marker, as the traceability check reads them: each path
+    /// git lists as tracked or new and not ignored, separated by NUL bytes so that no path is
+    /// quoted, that is a file as `-f` finds it and not Markdown. A NUL byte in the first buffer
+    /// grep reads makes the file binary to `grep -I`, which leaves it out; a later one, in a file
+    /// that holds the marker, is binary to grep or not depending on its buffers, and not decided.
+    fn read_markers(&self) -> Result<BTreeMap<String, Vec<u8>>, String> {
+        let listing = git::run(
+            &self.root,
+            &[
+                "ls-files",
+                "--cached",
+                "--others",
+                "--exclude-standard",
+                "-z",
+            ],
+        )?;
+        let mut files = BTreeMap::new();
+        for path in listing.split('\0').filter(|path| !path.is_empty()) {
+            let full = self.root.join(path);
+            if path.ends_with(".md") || !full.is_file() {
+                continue;
+            }
+            let Some(bytes) = self.read_bytes(&full)? else {
+                continue;
+            };
+            if !adr::contains(&bytes, b"Verifies:") {
+                continue;
+            }
+            match bytes.iter().position(|&b| b == 0) {
+                Some(at) if at < GREP_FIRST_BUFFER => {}
+                Some(_) => {
+                    return Err(format!(
+                        "{path}: holds a 'Verifies:' marker and a NUL byte past its first {GREP_FIRST_BUFFER} bytes, which grep reads as text or as binary depending on its buffers — not decided"
+                    ));
+                }
+                None => {
+                    files.insert(path.to_owned(), bytes);
+                }
+            }
+        }
+        Ok(files)
     }
 
     /// The bytes of the specification when it is a file, as `-f` finds it, read as `read` reads
