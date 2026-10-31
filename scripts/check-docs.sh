@@ -1166,7 +1166,7 @@ check_template_identity() {
   placeholder README.md '^TODO — show a minimal example' "the Usage section is still TODO; show how the project is used, or say there is nothing to use yet"
   # Anchored to a badge line: the Template section links the template's repository on purpose,
   # and that link stays.
-  placeholder README.md '^\[!\[[^]]*\]\([^)]*hivevm/nuc' "a badge still points at the template's repository; repoint or delete it"
+  placeholder README.md '^\[!\[[^]]*\]\([^)]*hivevm/nuc([/)?#]|$)' "a badge still points at the template's repository; repoint or delete it"
   placeholder .devcontainer/devcontainer.json '"name": "NUC DevContainer"' "the Dev Container still carries the template's name"
   placeholder LICENSE '^Copyright\b.*\bMaintainer\b' "the copyright holder is still the placeholder; name the maintainer"
   placeholder SECURITY.md 'TODO: add a security contact' "the security contact is still the placeholder"

@@ -36,7 +36,12 @@ fn a_decoy_in_the_environment_is_neither_read_nor_touched() {
     let before = snapshot(decoy.root());
     let output = check_with_decoy(&target, &decoy);
     assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
-    assert_eq!(snapshot(decoy.root()), before, "the decoy changed");
+    let after = snapshot(decoy.root());
+    assert!(
+        after == before,
+        "the decoy changed: {:?}",
+        support::changed(&before, &after)
+    );
 }
 
 #[test]
@@ -47,7 +52,12 @@ fn the_repository_run_in_is_the_one_reported() {
     let output = check_with_decoy(&target, &decoy);
     assert_eq!(output.status.code(), Some(1), "{}", stderr(&output));
     assert!(stdout(&output).starts_with("README.md: docs/template-release: "));
-    assert_eq!(snapshot(decoy.root()), before, "the decoy changed");
+    let after = snapshot(decoy.root());
+    assert!(
+        after == before,
+        "the decoy changed: {:?}",
+        support::changed(&before, &after)
+    );
 }
 
 #[cfg(unix)]

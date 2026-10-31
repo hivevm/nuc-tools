@@ -1,5 +1,5 @@
-//! The command-line contract of `nuc`, clause by clause, on fixture repositories. Verifies:
-//! ADR-draft-command-line-contract
+//! The command-line contract of `nuc`, clause by clause, on fixture repositories.
+//! Verifies: ADR-draft-command-line-contract
 
 mod support;
 
@@ -101,4 +101,19 @@ fn the_exit_codes_are_zero_one_and_two() {
     assert_eq!(code(&finding.nuc(&["check"])), Some(1));
     assert_eq!(code(&refusal.nuc(&["check"])), Some(2));
     assert_eq!(code(&clean.nuc(&["no-such-command"])), Some(2));
+}
+
+#[test]
+fn a_command_a_newer_nuc_may_know_refuses_with_the_install_hint() {
+    let fixture = Fixture::project("contract-command", CONFIG, README);
+    for args in [&["hook", "pre-commit"][..], &["check", "--format", "json"]] {
+        let output = fixture.nuc(args);
+        assert_eq!(code(&output), Some(2), "{args:?}");
+        assert!(stderr(&output).contains("usage: nuc check"), "{args:?}");
+        assert!(
+            stderr(&output).contains("install or update nuc"),
+            "{args:?}: {}",
+            stderr(&output)
+        );
+    }
 }

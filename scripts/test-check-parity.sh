@@ -59,7 +59,7 @@ expect() {
   while IFS= read -r l; do printf '    %s\n' "$l"; done <<< "$out" >&2
 }
 
-# shellcheck disable=SC2317 # run through expect
+# shellcheck disable=SC2317,SC2329 # run through expect
 compare() { bash "$HARNESS" --compare "$@"; }
 
 # --- cases: one pair ----------------------------------------------------------------------
@@ -132,7 +132,7 @@ stand_in() {
   echo "$f"
 }
 
-# shellcheck disable=SC2317 # run through expect
+# shellcheck disable=SC2317,SC2329 # run through expect
 run() { bash "$HARNESS" --corpus "$1" --cache "$work/cache" --nuc "$2"; }
 
 src="$(source_repo agree "$MISSING")"
