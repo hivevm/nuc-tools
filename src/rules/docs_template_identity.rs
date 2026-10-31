@@ -181,7 +181,8 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
     found
 }
 
-/// `^\[!\[[^]]*\]\([^)]*hivevm/nuc([/)?#]|$)`: a badge whose link names the template's repository.
+/// `^\[!\[[^]]*\]\([^)]*hivevm/nuc([/)?#&]|\.svg|$)`: a badge whose link names the template's
+/// repository.
 fn template_badge(line: &[u8]) -> bool {
     let Some(rest) = line.strip_prefix(b"[![") else {
         return false;
@@ -200,9 +201,10 @@ fn template_badge(line: &[u8]) -> bool {
     (0..=end.saturating_sub(name.len())).any(|at| {
         at + name.len() <= end
             && target[at..].starts_with(name)
-            && target
-                .get(at + name.len())
-                .is_none_or(|b| matches!(b, b'/' | b')' | b'?' | b'#'))
+            && (target[at + name.len()..].starts_with(b".svg")
+                || target
+                    .get(at + name.len())
+                    .is_none_or(|b| matches!(b, b'/' | b')' | b'?' | b'#' | b'&')))
     })
 }
 
@@ -454,6 +456,13 @@ mod tests {
         assert!(!copyright_placeholder(b" Copyright Maintainer"));
         assert!(template_badge(b"[![x](a hivevm/nuc)"));
         assert!(!template_badge(b"[![x](hivevm/nucleus)"));
+        assert!(template_badge(
+            b"[![x](https://img.shields.io/github/stars/hivevm/nuc.svg)"
+        ));
+        assert!(template_badge(
+            b"[![x](https://x.invalid/?repo=hivevm/nuc&style=flat)"
+        ));
+
         assert!(!template_badge(b"[![x] (hivevm/nuc)"));
     }
 }
