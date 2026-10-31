@@ -6,7 +6,10 @@ use crate::finding::Finding;
 
 pub mod docs_adr_header;
 pub mod docs_adr_index;
+pub mod docs_adr_link_targets;
 pub mod docs_adr_numbering;
+pub mod docs_adr_refs;
+pub mod docs_adr_supersessions;
 pub mod docs_template_release;
 
 /// What the shell reads from the repository for the rules, before any of them runs.
@@ -19,12 +22,28 @@ pub struct Inputs {
     /// Each file a row of the index links, by its target as the row writes it: its bytes when
     /// it is a file, as `-f` finds it, or none.
     pub adr_targets: std::collections::BTreeMap<String, Option<Vec<u8>>>,
+    /// Every text file of the repository by its path, as the bash lists them: the files git
+    /// lists as tracked or new and not ignored that are files, have a line, and hold no NUL byte.
+    pub text_files: std::collections::BTreeMap<String, Vec<u8>>,
 }
 
-/// One rule: its ID, the reason `nuc explain` gives, and the check.
+/// What the shell reads from the repository for a rule.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Input {
+    /// `README.md` at the root.
+    Readme,
+    /// The files of `docs/adr/` and the targets of the index.
+    Adr,
+    /// Every text file of the repository.
+    TextFiles,
+}
+
+/// One rule: its ID, the reason `nuc explain` gives, what it reads, and the check.
 pub struct Rule {
     pub id: &'static str,
     pub explain: &'static str,
+    /// The inputs the check reads; the shell reads only those a rule turned on needs.
+    pub reads: &'static [Input],
     pub check: fn(&Inputs) -> Vec<Finding>,
 }
 
@@ -33,6 +52,9 @@ pub const ALL: &[Rule] = &[
     docs_adr_index::RULE,
     docs_adr_numbering::RULE,
     docs_adr_header::RULE,
+    docs_adr_supersessions::RULE,
+    docs_adr_refs::RULE,
+    docs_adr_link_targets::RULE,
     docs_template_release::RULE,
 ];
 

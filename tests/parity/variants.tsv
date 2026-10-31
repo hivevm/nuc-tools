@@ -17,3 +17,9 @@ adr-header-two-emoji	docs/adr-header	docs/adr/0001-agent-governance-model.md	sed
 adr-index-applies-changed	docs/adr-index	docs/adr/0001-agent-governance-model.md	sed	s/^(- \*\*Applies to:\*\*) /\1 changed: /
 adr-header-wrong-word	docs/adr-header	docs/adr/0001-agent-governance-model.md	sed	s/^(- \*\*Status:\*\* 🟢) accepted$/\1 proposed/
 adr-header-stray-field	docs/adr-header	docs/adr/0002-decisions-verified-by-tests.md	sed	s/^- (\*\*Date:\*\*)/\1/
+
+# docs/adr-refs, docs/adr-link-targets, docs/adr-supersessions: checks 5, 6, and 8 of check-docs.sh.
+adr-refs-missing	docs/adr-refs	README.md	sed	1s/$/ ADR-09\x399/
+adr-link-targets-other	docs/adr-link-targets	docs/adr/0001-agent-governance-model.md	sed	$s/$/\n\nSee [ADR-0002](0003-procedures-as-skills.md)./
+adr-supersessions-no-successor	docs/adr-supersessions	docs/adr/0001-agent-governance-model.md	sed	s/^(- \*\*Status:\*\*) 🟢 accepted$/\1 ⚪ superseded/
+adr-supersessions-unflipped	docs/adr-supersessions	docs/adr/0002-decisions-verified-by-tests.md	sed	s/^(- \*\*Applies to:\*\*)/- **Supersedes:** ADR-0001\n\1/

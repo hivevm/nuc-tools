@@ -57,6 +57,9 @@ pub struct Header {
     /// Whether the file still carries the template's instruction paragraph, or a field
     /// `- **needle:**`.
     pub needle: bool,
+    /// The Supersedes field with its continuation lines, each ended by a newline, as the bash
+    /// collects it.
+    pub supersedes: Vec<u8>,
 }
 
 impl Header {
@@ -64,6 +67,13 @@ impl Header {
     pub fn field(&self, name: &str) -> Option<&[u8]> {
         self.fields.get(name).map(Vec::as_slice)
     }
+}
+
+/// A field whose continuation lines the awk reads.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Continued {
+    Supersedes,
+    Deciders,
 }
 
 /// The lines of the text as awk reads them: split at newlines, an unterminated last line kept.
@@ -89,6 +99,7 @@ pub fn header(text: &[u8], needle: Option<&[u8]>) -> Header {
     let mut header = Header::default();
     let mut seen: BTreeSet<Vec<u8>> = BTreeSet::new();
     let mut head = true;
+    let mut continuing: Option<Continued> = None;
     for (i, line) in awk_lines(text).into_iter().enumerate() {
         if head && line.starts_with(b"## ") {
             head = false;
@@ -106,12 +117,31 @@ pub fn header(text: &[u8], needle: Option<&[u8]>) -> Header {
         if line.starts_with(b"# ADR-") && seen.insert(b"heading".to_vec()) {
             header.heading = Some(line.to_vec());
         }
+        // A field the awk continues, Supersedes or Deciders, on lines that open with space; only
+        // the Supersedes text is kept.
+        if continuing.is_some() && continues(line) {
+            if continuing == Some(Continued::Supersedes) {
+                header.supersedes.extend_from_slice(line);
+                header.supersedes.push(b'\n');
+            }
+            continue;
+        }
+        continuing = None;
         if let Some(name) = list_item_field(line).filter(|name| seen.insert(name.to_vec())) {
             match name {
                 b"heading" => header.heading = Some(line.to_vec()),
                 b"needle" => header.needle = true,
                 b"stray" => header.stray.push(line.to_vec()),
                 _ => {
+                    continuing = match name {
+                        b"Supersedes" => Some(Continued::Supersedes),
+                        b"Deciders" => Some(Continued::Deciders),
+                        _ => None,
+                    };
+                    if continuing == Some(Continued::Supersedes) {
+                        header.supersedes.extend_from_slice(line);
+                        header.supersedes.push(b'\n');
+                    }
                     let name = String::from_utf8_lossy(name).into_owned();
                     header.fields.insert(name, line.to_vec());
                 }
@@ -121,19 +151,19 @@ pub fn header(text: &[u8], needle: Option<&[u8]>) -> Header {
     header
 }
 
-/// The position of the first occurrence of the needle in the bytes.
+/// The position of the first occurrence of the needle in the bytes; an empty needle is at 0.
 pub fn find(haystack: &[u8], needle: &[u8]) -> Option<usize> {
+    if needle.is_empty() {
+        return Some(0);
+    }
     haystack
-        .windows(needle.len().max(1))
+        .windows(needle.len())
         .position(|window| window == needle)
 }
 
 /// Whether the needle occurs in the bytes.
 pub fn contains(haystack: &[u8], needle: &[u8]) -> bool {
-    needle.is_empty()
-        || haystack
-            .windows(needle.len())
-            .any(|window| window == needle)
+    find(haystack, needle).is_some()
 }
 
 /// Whether the line holds `**<field>:**` for a field of the template, anywhere on it.
@@ -256,6 +286,84 @@ pub fn first_word(text: &[u8]) -> &[u8] {
         .position(ifs)
         .map_or(text.len(), |i| start + i);
     &text[start..end]
+}
+
+/// Whether the line continues a field: POSIX space, then something else.
+fn continues(line: &[u8]) -> bool {
+    let spaces = line.iter().take_while(|&&b| is_space(b)).count();
+    spaces > 0 && spaces < line.len()
+}
+
+/// The length of the ADR reference that starts at the bytes, as `ADR-([0-9]{4}|draft-<slug>)`
+/// matches there, longest first: four digits, or `draft-` and the longest slug.
+pub fn reference_at(text: &[u8]) -> Option<usize> {
+    let rest = text.strip_prefix(b"ADR-")?;
+    if rest.len() >= 4 && rest[..4].iter().all(u8::is_ascii_digit) {
+        return Some(8);
+    }
+    let slug = rest.strip_prefix(b"draft-")?;
+    let length = slug_length(slug);
+    (length > 0).then_some(b"ADR-draft-".len() + length)
+}
+
+/// The length of the longest slug at the start of the bytes: lower case letters and digits in
+/// runs joined by single hyphens.
+pub fn slug_length(text: &[u8]) -> usize {
+    let word = |b: &u8| b.is_ascii_lowercase() || b.is_ascii_digit();
+    let mut end = text.iter().take_while(|b| word(b)).count();
+    if end == 0 {
+        return 0;
+    }
+    while text.get(end) == Some(&b'-') && text.get(end + 1).is_some_and(word) {
+        end += 1 + text[end + 1..].iter().take_while(|b| word(b)).count();
+    }
+    end
+}
+
+/// Every ADR reference of the bytes, in order, as `grep -o` and a loop over `=~` find them:
+/// leftmost first, each the longest, the search going on after it. Each is the position and the
+/// reference, `ADR-NNNN` or `ADR-draft-<slug>`.
+pub fn references(text: &[u8]) -> Vec<(usize, &[u8])> {
+    let mut found = Vec::new();
+    let mut i = 0;
+    while let Some(at) = find(&text[i..], b"ADR-") {
+        let start = i + at;
+        match reference_at(&text[start..]) {
+            Some(length) => {
+                found.push((start, &text[start..start + length]));
+                i = start + length;
+            }
+            None => i = start + 1,
+        }
+    }
+    found
+}
+
+/// The key after `ADR-` of a reference: its number, or `draft-<slug>`.
+pub fn reference_key(reference: &[u8]) -> &[u8] {
+    reference.strip_prefix(b"ADR-").unwrap_or(reference)
+}
+
+/// The paths of the ADRs whose status line carries ⚪ or 🔴, which the bash's reference checks
+/// pass over.
+pub fn inactive_paths(dir: &Dir) -> BTreeSet<String> {
+    headers(dir)
+        .into_iter()
+        .filter(|(_, header)| {
+            let status = header.field("Status").unwrap_or(b"");
+            contains(status, "⚪".as_bytes()) || contains(status, "🔴".as_bytes())
+        })
+        .map(|(name, _)| format!("docs/adr/{name}"))
+        .collect()
+}
+
+/// The first file of the record for each key, as the bash fills ADR_BY_KEY.
+pub fn by_key(dir: &Dir) -> BTreeMap<&str, &str> {
+    let mut keys = BTreeMap::new();
+    for name in adr_names(dir) {
+        keys.entry(key_of(name)).or_insert(name);
+    }
+    keys
 }
 
 /// The bytes as text for a message, a byte that is no UTF-8 shown as U+FFFD.

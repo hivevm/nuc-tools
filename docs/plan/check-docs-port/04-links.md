@@ -21,6 +21,8 @@ reference matches a numbered heading of `AGENTS.md`, whose headings run 1..N.
   a fixture repository, then it resolves them as the bash does.
 - [ ] Given the corpus and a variant per check (a link to a deleted file, a reference to a section
   that does not exist), when the harness runs, then it reports no difference.
+- [ ] Given the variant that deletes ADR-0003, the gap in the numbering tickets 02 and 03 left for
+  the links it breaks, when the harness runs, then it reports no difference.
 
 ## Read first
 

@@ -1,7 +1,7 @@
 //! Check 14 of the template's `scripts/check-docs.sh`: `README.md` carries a
 //! `**Template release:**` line naming a `vX.Y.Z` tag or `unreleased` (ADR-0005 of the template).
 
-use super::{Inputs, Rule};
+use super::{Input, Inputs, Rule};
 use crate::finding::Finding;
 
 pub const RULE_ID: &str = "docs/template-release";
@@ -13,6 +13,7 @@ pub const RULE: Rule = Rule {
               with GitHub's template mechanism, so the line is the one thing that tells a derived \
               project which release it carries; a release moves it, and a project that takes a \
               release up moves it.",
+    reads: &[Input::Readme],
     check,
 };
 
