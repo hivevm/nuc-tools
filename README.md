@@ -78,7 +78,9 @@ rules = ["docs/template-release"]
 A `nuc` built from source is version 0.0.0 until the first release, so a higher minimum refuses
 it.
 
-The one rule so far is `docs/template-release`, check 14 of the template's `check-docs.sh`.
+The rules so far port checks of the template's `check-docs.sh` at v0.5.0: `docs/adr-index`,
+`docs/adr-numbering`, and `docs/adr-header` (checks 1, 2, and 7), and `docs/template-release`
+(check 14); `nuc explain <rule ID>` gives each one's reason.
 `nuc hook <name>` follows with the port of the hooks.
 
 ## Project Layout

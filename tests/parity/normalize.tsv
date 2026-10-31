@@ -1,10 +1,35 @@
 # The normalization table of the parity harness (ADR-draft-parity-harness-with-variants), read by
-# scripts/check-parity.sh. One row per bash message, three fields separated by tabs: an extended
-# regular expression the message after "  - " matches, the rule ID of nuc it maps to, and
+# scripts/check-parity.sh. One row per bash message, three or four fields separated by tabs: an
+# extended regular expression the message after "  - " matches; the rule ID of nuc it maps to;
 # "line" when the bash message names a line, "-" when it names none and the comparison leaves the
-# line out. A bash message no row matches is a difference, so a ported rule brings its rows, and
-# a check that is not ported yet is caught when it fires on a tree of the corpus.
+# line out; and "=<path>" for the file nuc names in place of the bash's location, or "+<prefix>"
+# before it. A rule's first row sets the mode for all its findings. A bash message no row matches
+# is a difference, so a ported rule brings its rows, and a check that is not ported yet is caught
+# when it fires on a tree of the corpus.
 
 # check-docs.sh, check 14: the template release named.
 ^README\.md: no '\*\*Template release:\*\*' line	docs/template-release	-
 ^README\.md: the Template release line names neither	docs/template-release	-
+
+# check-docs.sh, check 1: the ADR index.
+^ADR index not found: docs/adr/README\.md$	docs/adr-index	-	=docs/adr/README.md
+^ADR index: row for [^ ]+ links to 	docs/adr-index	-	=docs/adr/README.md
+^ADR index: row for [^ ]+ is .+ but sits (above|below) the 'Superseded and rejected' heading	docs/adr-index	-	=docs/adr/README.md
+^ADR index: lists '.*' twice	docs/adr-index	-	=docs/adr/README.md
+^ADR index: file '.*' exists but is not listed in the index$	docs/adr-index	-	=docs/adr/README.md
+^ADR index: lists '.*', but no such ADR file exists$	docs/adr-index	-	=docs/adr/README.md
+^ADR index: status for '.*' is .* in the index but .* in the file$	docs/adr-index	-	=docs/adr/README.md
+^ADR index: 'Applies to' for '.*' is '.*' in the index but '.*' in the file$	docs/adr-index	-	=docs/adr/README.md
+^[^ :]+: no '\*\*Status:\*\*' line with a status emoji found$	docs/adr-index	-	+docs/adr/
+^[^ :]+: no '\*\*Applies to:\*\*' line naming what the decision constrains$	docs/adr-index	-	+docs/adr/
+
+# check-docs.sh, check 2: the ADR numbering.
+^ADR numbering: expected '[0-9]{4}-\*\.md' at position [0-9]+, found 	docs/adr-numbering	-	=docs/adr
+^[^ :]+: heading says '.*', but the filename says ADR-	docs/adr-numbering	-	+docs/adr/
+^[^ :]+: a draft's slug is lower case letters and digits joined by single hyphens$	docs/adr-numbering	-	+docs/adr/
+
+# check-docs.sh, check 7: the ADR headers; the stray field names its line, the others none.
+^[^ :]+:[0-9]+: a header field not written as the list item 	docs/adr-header	line	+docs/adr/
+^[^ :]+: status line carries [0-9]+ status emoji	docs/adr-header	line	+docs/adr/
+^[^ :]+: status line reads 	docs/adr-header	line	+docs/adr/
+^[^ :]+: still carries the instruction paragraph from template\.md	docs/adr-header	line	+docs/adr/

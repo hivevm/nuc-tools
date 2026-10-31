@@ -9,3 +9,11 @@
 # docs/template-release: check 14 of check-docs.sh.
 template-release-deleted	docs/template-release	README.md	sed	/^[[:space:]]*([-*] )?\*\*Template release:\*\*/d
 template-release-latest	docs/template-release	README.md	sed	s/^([[:space:]]*([-*] )?\*\*Template release:\*\*).*/\1 latest/
+
+# docs/adr-index, docs/adr-numbering, docs/adr-header: checks 1, 2, and 7 of check-docs.sh.
+adr-index-row-deleted	docs/adr-index	docs/adr/README.md	sed	/^\| \[0001\]/d
+adr-numbering-heading	docs/adr-numbering	docs/adr/0002-decisions-verified-by-tests.md	sed	s/^# ADR-0002:/# ADR:/
+adr-header-two-emoji	docs/adr-header	docs/adr/0001-agent-governance-model.md	sed	s/^(- \*\*Status:\*\* 🟢 accepted)$/\1 | 🟡 proposed/
+adr-index-applies-changed	docs/adr-index	docs/adr/0001-agent-governance-model.md	sed	s/^(- \*\*Applies to:\*\*) /\1 changed: /
+adr-header-wrong-word	docs/adr-header	docs/adr/0001-agent-governance-model.md	sed	s/^(- \*\*Status:\*\* 🟢) accepted$/\1 proposed/
+adr-header-stray-field	docs/adr-header	docs/adr/0002-decisions-verified-by-tests.md	sed	s/^- (\*\*Date:\*\*)/\1/
