@@ -36,8 +36,9 @@ golden path and the test pattern an agent copies from are named here.
   ([ADR-0010](adr/0010-git-cli-cleared-environment.md)).
 - **Binary** — `src/main.rs` calls the shell and nothing else.
 - **Parity harness** — `scripts/check-parity.sh` runs the bash checks of each repository of the
-  corpus and `nuc` on the same tree and compares their findings
-  ([ADR-0012](adr/0012-parity-harness.md)).
+  corpus, all on template release v0.5.0 or later, and `nuc` on the same tree and on each variant
+  of `tests/parity/variants.tsv` that fits it, and compares their findings
+  ([ADR-draft-parity-harness-with-variants](adr/draft-parity-harness-with-variants.md)).
 - **Release tooling** — `release/` builds a binary per target, writes `SHA256SUMS`, checks the
   tag against the crate's version, writes the release commit, and moves the major tag;
   `release/install-nuc.sh` is the one installer, run by the Action and the Feature, and refuses a
