@@ -277,10 +277,11 @@ configured once by a maintainer and worth re-checking after a repository move or
   <!-- required-checks begin — compared with the workflow's jobs by scripts/check-docs.sh -->
   `docs`, `traceability`, `devcontainer`, `sensors`, `shell`, `gates`, `build`, `deps`, and `parity`
   <!-- required-checks end -->
-  jobs of the **Checks** workflow as required status checks (rulesets list checks by their job
-  name) and a branch up to date with `main` before it merges, so that the checks see what the
-  merge produces, such as two ADRs proposed in parallel under one number, and blocks force
-  pushes and branch deletion;
+  jobs of the **Checks** workflow as required status checks (rulesets list checks as they report:
+  a job by its name, a job with a matrix by one check run per entry, such as
+  `build (ubuntu-latest)`, which this list then names instead of the job) and a branch up to date
+  with `main` before it merges, so that the checks see what the merge produces, such as two ADRs
+  proposed in parallel under one number, and blocks force pushes and branch deletion;
 - enable **require a review from Code Owners** on that ruleset, so the two artifacts only a human
   decides, [`docs/SPECIFICATION.md`](docs/SPECIFICATION.md) and everything under
   [`docs/adr/`](docs/adr/) ([`AGENTS.md` §3](AGENTS.md#3-adr-rules)), cannot be merged without the
@@ -296,7 +297,7 @@ instruction ([ADR-0002](docs/adr/0002-decisions-verified-by-tests.md)).
 
 ## Template
 
-- **Template release:** v0.5.0 — the release of [NUC](https://github.com/hivevm/nuc) this
+- **Template release:** v0.6.0 — the release of [NUC](https://github.com/hivevm/nuc) this
   repository carries; a project moves the line when it takes up a later one
   ([ADR-0005](docs/adr/0005-template-releases.md)).
 
