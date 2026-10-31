@@ -1,4 +1,4 @@
-# ADR-draft-parity-harness-with-variants: A parity harness compares `nuc` with the bash scripts on the pinned trees of a corpus of releases v0.5.0 and later and on variants derived from them, as a required check that fails on any difference
+# ADR-0020: A parity harness compares `nuc` with the bash scripts on the pinned trees of a corpus of releases v0.5.0 and later and on variants derived from them, as a required check that fails on any difference
 
 - **Status:** 🟢 accepted
 - **Date:** 2026-10-31
@@ -92,7 +92,7 @@ template.
 
 ## Enforcement
 
-The harness's own self-test, cited with `Verifies: ADR-draft-parity-harness-with-variants`, feeds
+The harness's own self-test, cited with `Verifies: ADR-0020`, feeds
 it a pair of outputs that differ in one finding, one exit status, and one unknown bash message,
 and checks that each fails, and a pair that agrees, and checks that it passes; it runs it on a
 corpus entry of a release before v0.5.0 and checks that it fails, and on a variant that applies,
