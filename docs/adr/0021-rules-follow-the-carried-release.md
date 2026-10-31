@@ -1,4 +1,4 @@
-# ADR-draft-rules-follow-the-carried-release: A rule checks a tree as the bash check of the template release the tree carries
+# ADR-0021: A rule checks a tree as the bash check of the template release the tree carries
 
 - **Status:** 🟡 proposed
 - **Date:** 2026-10-31
