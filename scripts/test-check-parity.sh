@@ -7,8 +7,11 @@
 # writes that is no finding fail; pairs that agree pass, a check not ported yet included. The run
 # cases build a corpus from a fixture repository, fetched through file://, whose check-docs.sh is a
 # stub, and run the harness with a stand-in for nuc: agreeing outputs pass, differing ones fail, a
-# corpus whose cache cannot be filled fails, and a malformed corpus is refused. No network and no
-# build.
+# corpus whose cache cannot be filled fails, and a malformed corpus is refused. The floor cases
+# refuse a tree of a release before v0.5.0 or of none, and compare a later one. The variant cases
+# use a stub that reports the missing release line as check 14 does: a variant that fits is
+# compared, one that fits no tree, one on which bash and nuc differ, one that does not make its
+# rule fire, and a malformed or unmapped row each fail. No network and no build.
 #
 # Inputs: scripts/check-parity.sh tests/parity/ scripts/lib/
 #
@@ -111,7 +114,7 @@ source_repo() {
   printf '#!/usr/bin/env bash\ncat %q\n[[ -s %q ]] && grep -q "^  - " %q && exit 1\nexit 0\n' \
     "$work/stub-$(basename "$dir").bash" "$work/stub-$(basename "$dir").bash" "$work/stub-$(basename "$dir").bash" \
     > "$dir/scripts/check-docs.sh"
-  echo "# Fixture" > "$dir/README.md"
+  printf '# Fixture\n\n- **Template release:** %s\n' "${RELEASE:-v0.5.0}" > "$dir/README.md"
   git -C "$dir" add -A
   git -C "$dir" -c user.name=F -c user.email=f@example.invalid -c core.hooksPath=/dev/null commit -q -m fixture
   git -C "$dir" rev-parse HEAD > "$work/$(basename "$dir").commit"
@@ -127,13 +130,15 @@ corpus() {
 # stand_in <name> <lines...> — a nuc that prints the lines and exits 1 when there are any.
 stand_in() {
   local f="$work/nuc-$1"; shift
-  { echo '#!/usr/bin/env bash'; printf 'printf "%%s\\n" %q\n' "$@"; (($#)) && echo 'exit 1'; echo 'exit 0'; } > "$f"
+  { echo '#!/usr/bin/env bash'; (($#)) && printf 'printf "%%s\\n" %q\n' "$@"; (($#)) && echo 'exit 1'; echo 'exit 0'; } > "$f"
   chmod +x "$f"
   echo "$f"
 }
 
+: > "$work/no-variants.tsv"
+# run <corpus> <nuc> [variants] — the harness on the corpus, with no variants unless given.
 # shellcheck disable=SC2317,SC2329 # run through expect
-run() { bash "$HARNESS" --corpus "$1" --cache "$work/cache" --nuc "$2"; }
+run() { bash "$HARNESS" --corpus "$1" --cache "$work/cache" --nuc "$2" --variants "${3:-$work/no-variants.tsv}"; }
 
 src="$(source_repo agree "$MISSING")"
 c="$(corpus "$work/agree.toml" agree "file://$src" "$(cat "$work/src-agree.commit")")"
@@ -152,5 +157,76 @@ expect fail "a commit that is no full SHA is refused" "a 40-hex commit" run "$wo
 
 printf '[[repository]]\nname = "x"\nbranch = "main"\n' > "$work/key.toml"
 expect fail "a key the corpus does not have is refused" "a 40-hex commit" run "$work/key.toml" "$(stand_in key)"
+
+# --- cases: the release floor -------------------------------------------------------------
+
+for release in v0.4.9 "unreleased"; do
+  src="$(RELEASE="$release" source_repo "old-${release//[^a-z0-9]/}")"
+  c="$(corpus "$work/old.toml" old "file://$src" "$(cat "$work/src-old-${release//[^a-z0-9]/}.commit")")"
+  expect fail "a tree of the release '$release', before v0.5.0, is refused" "not v0.5.0 or later" \
+    run "$c" "$(stand_in "old-${release//[^a-z0-9]/}")"
+done
+
+src="$(RELEASE=v0.6.0 source_repo later)"
+c="$(corpus "$work/later.toml" later "file://$src" "$(cat "$work/src-later.commit")")"
+expect pass "a tree of a later release is compared" "" run "$c" "$(stand_in later)"
+
+# --- cases: variants ----------------------------------------------------------------------
+
+# reactive_repo <name> — a repository whose check-docs.sh reports the missing release line when
+# the README lacks it, as check 14 does, printed as its path.
+reactive_repo() {
+  local dir
+  dir="$(source_repo "$1")"
+  # shellcheck disable=SC2016 # the script is the stub's
+  printf '%s\n' '#!/usr/bin/env bash' \
+    'if grep -q "^- \*\*Template release:\*\* v" README.md; then echo "Documentation checks passed."; exit 0; fi' \
+    "printf 'Documentation checks FAILED:\\n\\n  - %s\\n\\n1 problem(s) found.\\n' \"$MISSING\"" \
+    'exit 1' > "$dir/scripts/check-docs.sh"
+  git -C "$dir" add -A
+  git -C "$dir" -c user.name=F -c user.email=f@example.invalid -c core.hooksPath=/dev/null commit -q -m reactive
+  git -C "$dir" rev-parse HEAD > "$work/src-$1.commit"
+  echo "$dir"
+}
+
+# reactive_nuc — a nuc that reports the missing release line of the tree given by --repo.
+reactive_nuc() {
+  local f="$work/nuc-reactive"
+  # shellcheck disable=SC2016 # the script is the stand-in's
+  printf '%s\n' '#!/usr/bin/env bash' \
+    'grep -q "^- \*\*Template release:\*\* v" "$3/README.md" && exit 0' \
+    'echo "README.md: docs/template-release: no line"; exit 1' > "$f"
+  chmod +x "$f"
+  echo "$f"
+}
+
+# variants <file> <rows...> — a variants file with the rows, printed as its path.
+variants() { local f="$1"; shift; printf '%s\n' "$@" > "$f"; echo "$f"; }
+
+src="$(reactive_repo react)"
+c="$(corpus "$work/react.toml" react "file://$src" "$(cat "$work/src-react.commit")")"
+DELETE=$'deleted\tdocs/template-release\tREADME.md\tsed\t/Template release:/d'
+v="$(variants "$work/v-applies.tsv" "# A comment." "$DELETE")"
+expect pass "a variant that fits is compared, and both report its finding" "" run "$c" "$(reactive_nuc)" "$v"
+check "the run names the variant it compared" \
+  bash -c "bash \"$HARNESS\" --corpus \"$c\" --cache \"$work/cache\" --nuc \"$(reactive_nuc)\" --variants \"$v\" | grep -q 'variant deleted — 1 finding'"
+
+v="$(variants "$work/v-nowhere.tsv" $'nowhere\tdocs/template-release\tREADME.md\tsed\t/No such line/d')"
+expect fail "a variant that fits no tree fails" "variant nowhere applies to no tree" run "$c" "$(reactive_nuc)" "$v"
+
+v="$(variants "$work/v-missing-file.tsv" $'gone\tdocs/template-release\tNO-SUCH.md\tdelete\t-')"
+expect fail "a variant of a file no tree has fails" "variant gone applies to no tree" run "$c" "$(reactive_nuc)" "$v"
+
+v="$(variants "$work/v-differ.tsv" "$DELETE")"
+expect fail "a variant on which bash and nuc differ fails" "variant deleted — 2 difference" run "$c" "$(stand_in silent)" "$v"
+
+v="$(variants "$work/v-silent.tsv" $'silent\tdocs/template-release\tREADME.md\tsed\ts/Fixture/Changed/')"
+expect fail "a variant that does not make its rule fire fails" "does not make its rule fire" run "$c" "$(reactive_nuc)" "$v"
+
+v="$(variants "$work/v-malformed.tsv" $'bad name\tdocs/template-release\tREADME.md\tsed')"
+expect fail "a malformed variant row is refused" "is not 'name<TAB>rule" run "$c" "$(reactive_nuc)" "$v"
+
+v="$(variants "$work/v-unmapped.tsv" $'odd\tdocs/no-such-rule\tREADME.md\tdelete\t-')"
+expect fail "a variant of a rule the table maps nothing to is refused" "maps no message to" run "$c" "$(reactive_nuc)" "$v"
 
 summary "Parity harness self-test"

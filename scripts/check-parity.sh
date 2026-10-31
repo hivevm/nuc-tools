@@ -1,13 +1,19 @@
 #!/usr/bin/env bash
 #
-# Parity harness (ADR-0012, Q-2).
+# Parity harness (ADR-draft-parity-harness-with-variants, Q-2).
 #
 # Runs the bash checks a repository of the corpus carries and nuc on the same tree, and fails on
 # any difference in their findings or their exit status. The corpus is tests/parity/corpus.toml:
 # each repository by URL and commit, fetched into an ignored cache under .scratch/parity/; a
-# cache that cannot be filled fails the harness, never skips the repository (Q-1).
+# cache that cannot be filled fails the harness, never skips the repository (Q-1). A tree whose
+# README names a template release before v0.5.0, or none, is refused and never compared.
 #
-# For each repository:
+# Each tree is compared as pinned and on each variant of tests/parity/variants.tsv it fits: an
+# edit that makes a ported rule fire, applied to a copy in a directory of the harness's own, never
+# to the cache. A variant that fits no tree fails, and so does one on which bash reports no
+# finding of its rule, since agreement on a rule that never fires decides nothing.
+#
+# For each repository and each variant:
 #   1. The bash scripts with a ported rule run in the tree, with the environment cleared to PATH,
 #      HOME, and LC_ALL=C: today scripts/check-docs.sh, whose findings are its '  - ' lines.
 #   2. nuc runs 'check' on the tree, with a nuc.toml the harness writes beside it, ignored through
@@ -23,12 +29,13 @@
 # (ADR-0018).
 #
 # Pure bash + coreutils/git/awk, and cargo for the build. Usage:
-#     scripts/check-parity.sh [--corpus <file>] [--cache <dir>] [--nuc <binary>]
+#     scripts/check-parity.sh [--corpus <file>] [--cache <dir>] [--nuc <binary>] [--variants <file>]
 #     scripts/check-parity.sh --compare <bash output> <bash exit> <nuc output> <nuc exit>
 # --nuc runs the given binary instead of building one; --compare compares one pair of outputs,
 # for scripts/test-check-parity.sh. PARITY_TABLE names another normalization table.
-# Exit code 0 when every repository agrees, 1 on a difference or a cache that cannot be filled,
-# 2 on a malformed corpus or table or an unknown argument.
+# Exit code 0 when every repository and variant agrees, 1 on a difference, a refused tree, a
+# variant that fits no tree or does not fire, or a cache that cannot be filled, 2 on a malformed
+# corpus, table, or variants file or an unknown argument.
 
 set -uo pipefail
 
@@ -131,11 +138,15 @@ if [[ "${1:-}" == "--compare" ]]; then
 fi
 
 corpus="$ROOT/tests/parity/corpus.toml" cache="$ROOT/.scratch/parity" nuc=""
+variants="$ROOT/tests/parity/variants.tsv"
+# The earliest template release a tree of the corpus may carry.
+FLOOR=v0.5.0
 while (($#)); do
   case "$1" in
     --corpus) corpus="${2:-}"; shift 2 || die "--corpus takes a file" ;;
     --cache) cache="${2:-}"; shift 2 || die "--cache takes a directory" ;;
     --nuc) nuc="${2:-}"; shift 2 || die "--nuc takes a binary" ;;
+    --variants) variants="${2:-}"; shift 2 || die "--variants takes a file" ;;
     *) die "unknown argument '$1'" ;;
   esac
 done
@@ -173,6 +184,76 @@ work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 cgit() { git -c core.hooksPath=/dev/null -c core.fsmonitor=false -C "$@"; }
 
+# release_of <README> — the vX.Y.Z of its first Template release line, or nothing.
+release_of() {
+  grep -m1 -E '^[[:space:]]*([-*] )?\*\*Template release:\*\*' "$1" 2>/dev/null \
+    | grep -oE 'v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)' | head -1
+}
+
+# at_least_floor <vX.Y.Z> — whether the release is FLOOR or later.
+at_least_floor() {
+  [[ -n "$1" ]] && [[ "$(printf '%s\n%s\n' "$FLOOR" "$1" | sort -V | head -1)" == "$FLOOR" ]]
+}
+
+# run_pair <label> <tree> <output prefix> — run bash and nuc on the tree and compare them.
+run_pair() {
+  local label="$1" dir="$2" out="$3" bash_rc nuc_rc
+  (cd "$dir" && env -i PATH="$PATH" HOME="$HOME" LC_ALL=C bash scripts/check-docs.sh) > "$out.bash" 2>&1
+  bash_rc=$?
+  env -i PATH="$PATH" HOME="$HOME" "$nuc" check --repo "$dir" > "$out.nuc" 2> "$out.nuc.err"
+  nuc_rc=$?
+  compare "$label" "$out.bash" "$bash_rc" "$out.nuc" "$nuc_rc"
+}
+
+# apply_variant <tree> <path> <sed|delete> <argument> — apply the edit to the copy; fails when
+# the edit does not fit the tree: the file is missing, or the sed expression changes nothing.
+apply_variant() {
+  local file="$1/$2"
+  [[ -f "$file" ]] || return 1
+  case "$3" in
+    delete) rm -f "$file" ;;
+    sed)
+      sed -E "$4" "$file" > "$file.after" || { rm -f "$file.after"; return 1; }
+      if cmp -s "$file" "$file.after"; then rm -f "$file.after"; return 1; fi
+      mv "$file.after" "$file"
+      ;;
+  esac
+}
+
+# fires <bash output> <rule> — whether bash reported a finding the table maps to the rule.
+fires() {
+  local line msg i
+  while IFS= read -r line; do
+    [[ "$line" == "  - "* ]] || continue
+    msg="${line#  - }"
+    for i in "${!patterns[@]}"; do
+      if [[ "$msg" =~ ${patterns[i]} ]]; then
+        [[ "${rules[i]}" == "$2" ]] && return 0
+        break
+      fi
+    done
+  done < "$1"
+  return 1
+}
+
+# The variants, one row each: name, rule, path in the tree, 'sed' with an extended expression or
+# 'delete' with '-', separated by tabs.
+variant_names=() variant_rules=() variant_paths=() variant_ops=() variant_args=() variant_applied=()
+if [[ -n "$variants" ]]; then
+  [[ -r "$variants" ]] || die "$variants: unreadable"
+  while IFS=$'\t' read -r vname vrule vpath vop varg extra; do
+    [[ -z "$vname" || "$vname" == \#* ]] && continue
+    if ! [[ "$vname" =~ ^[a-z0-9-]+$ && -n "$vpath" && -z "${extra:-}" ]] \
+      || ! [[ ( "$vop" == sed && -n "$varg" ) || ( "$vop" == delete && "$varg" == - ) ]]; then
+      die "$variants: the row '$vname' is not 'name<TAB>rule<TAB>path<TAB>sed|delete<TAB>argument'"
+    fi
+    [[ "$(mode_of "$vrule")" != unknown ]] \
+      || die "$variants: the variant '$vname' names the rule '$vrule', which the table maps no message to"
+    variant_names+=("$vname") variant_rules+=("$vrule") variant_paths+=("$vpath")
+    variant_ops+=("$vop") variant_args+=("$varg") variant_applied+=(0)
+  done < "$variants"
+fi
+
 failed=0
 for entry in "${repositories[@]}"; do
   read -r name url commit <<< "$entry"
@@ -191,18 +272,42 @@ for entry in "${repositories[@]}"; do
     failed=1
     continue
   fi
+  release="$(release_of "$dir/README.md")"
+  if ! at_least_floor "$release"; then
+    echo "Parity check: $name — its tree carries template release '${release:-none}', not $FLOOR or later; the corpus holds none earlier" >&2
+    failed=1
+    continue
+  fi
   printf '%s\n' "$config" > "$dir/nuc.toml"
   grep -qx '/nuc.toml' "$dir/.git/info/exclude" 2>/dev/null || echo '/nuc.toml' >> "$dir/.git/info/exclude"
 
-  (cd "$dir" && env -i PATH="$PATH" HOME="$HOME" LC_ALL=C bash scripts/check-docs.sh) > "$work/$name.bash" 2>&1
-  bash_rc=$?
-  env -i PATH="$PATH" HOME="$HOME" "$nuc" check --repo "$dir" > "$work/$name.nuc" 2> "$work/$name.nuc.err"
-  nuc_rc=$?
-  compare "$name at ${commit:0:12}" "$work/$name.bash" "$bash_rc" "$work/$name.nuc" "$nuc_rc" || failed=1
+  run_pair "$name at ${commit:0:12}" "$dir" "$work/$name" || failed=1
+
+  # Each variant that fits this tree, on a copy of it in a directory of its own.
+  for i in "${!variant_names[@]}"; do
+    vdir="$work/variants/$name/${variant_names[i]}"
+    mkdir -p "$(dirname "$vdir")" && cp -a "$dir" "$vdir"
+    apply_variant "$vdir" "${variant_paths[i]}" "${variant_ops[i]}" "${variant_args[i]}" || { rm -rf "$vdir"; continue; }
+    variant_applied[i]=$((variant_applied[i] + 1))
+    out="$work/$name.${variant_names[i]}"
+    run_pair "$name at ${commit:0:12}, variant ${variant_names[i]}" "$vdir" "$out" || failed=1
+    if ! fires "$out.bash" "${variant_rules[i]}"; then
+      echo "Parity check: $name, variant ${variant_names[i]} — bash reports no finding of ${variant_rules[i]}; the variant does not make its rule fire" >&2
+      failed=1
+    fi
+    rm -rf "$vdir"
+  done
+done
+
+for i in "${!variant_names[@]}"; do
+  if ((variant_applied[i] == 0)); then
+    echo "Parity check: variant ${variant_names[i]} applies to no tree of the corpus — its edit of ${variant_paths[i]} changes nothing there" >&2
+    failed=1
+  fi
 done
 
 if ((failed)); then
   echo "Parity check FAILED." >&2
   exit 1
 fi
-echo "Parity check passed (${#repositories[@]} repositories, rules: ${ported:-none})."
+echo "Parity check passed (${#repositories[@]} repositories, ${#variant_names[@]} variants, rules: ${ported:-none})."
