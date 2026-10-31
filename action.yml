@@ -1,0 +1,29 @@
+# The GitHub Action of nuc (ADR-draft-distribution): installs the nuc of the release this commit
+# carries, verified against its checksums, and runs it with the given arguments. The release
+# workflow's release/pin.sh writes release/pinned/ into the release commit the major tag vN names;
+# at any other commit the installation fails and nothing runs.
+name: nuc
+description: Run nuc, the mechanics of the NUC template, from a release verified by its checksums.
+inputs:
+  args:
+    description: The arguments of nuc, split at whitespace, such as "check".
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Install nuc
+      shell: bash
+      env:
+        ACTION_PATH: ${{ github.action_path }}
+      run: |
+        sh "$ACTION_PATH/release/install-nuc.sh" "$ACTION_PATH/release/pinned/SHA256SUMS" \
+          "$ACTION_PATH/release/pinned/VERSION" "$RUNNER_TEMP/nuc-bin"
+        echo "$RUNNER_TEMP/nuc-bin" >> "$GITHUB_PATH"
+    # The arguments pass through the environment, never through the script's text.
+    - name: Run nuc
+      shell: bash
+      env:
+        NUC_ARGS: ${{ inputs.args }}
+      run: |
+        read -r -a args <<< "$NUC_ARGS"
+        nuc "${args[@]}"

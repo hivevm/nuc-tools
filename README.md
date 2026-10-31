@@ -120,7 +120,8 @@ scripts/*.sh          # run by hand, steps 7 and 8 of the integration branches: 
                       # ready-for-main.sh, drop-merged-branch.sh
 .githooks/            # git hooks: nothing lands on main locally; checks before a merge and a push
 .github/workflows/    # checks.yml runs the checks; review-binding.yml reads each pull request's hand-off;
-                      # portability.yml runs the build on Linux arm64, macOS, and Windows
+                      # portability.yml runs the build on Linux arm64, macOS, and Windows;
+                      # release.yml publishes a release, release-test.yml tests what it runs
 .github/              # Dependabot, issue & pull request templates, code owners
 .devcontainer/        # Dev Container definition (base image + Features)
 .vscode/              # shared editor settings
@@ -132,6 +133,9 @@ Cargo.lock            # the resolved dependencies, built with --locked
 rust-toolchain.toml   # the pinned Rust toolchain
 deny.toml             # what cargo deny allows: advisories, bans, licenses, sources
 src/                  # the library's functional core, its shell in src/shell/, and the binary
+action.yml            # the GitHub Action: installs the nuc of its release and runs it
+release/              # the release tooling: build, checksums, the installer, and the release commit
+feature/              # the Dev Container Feature ghcr.io/hivevm/nuc-tools/nuc
 tests/                # the integration tests, their fixture helpers in tests/support/, and the
                       # corpus and normalization table of the parity harness in tests/parity/
 .agents/skills/       # the procedures of AGENTS.md as Agent Skills, one directory each (ADR-0003),

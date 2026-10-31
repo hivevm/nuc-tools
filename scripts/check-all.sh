@@ -200,6 +200,7 @@ run "Build, test, and lint" scripts/check-build.sh
 run "Dependency audit" scripts/check-deps.sh
 run "Parity harness self-test" scripts/test-check-parity.sh
 run "Parity" scripts/check-parity.sh
+run "Release tooling self-test" scripts/test-release.sh
 
 wait
 

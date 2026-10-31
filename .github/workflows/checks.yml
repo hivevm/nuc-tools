@@ -216,6 +216,10 @@ jobs:
           persist-credentials: false
       - name: Format, lint, build, and test
         run: bash scripts/check-build.sh
+      # The release tooling under release/, with stub binaries; release-test.yml builds the real
+      # ones (ADR-draft-distribution).
+      - name: Self-test the release tooling
+        run: bash scripts/test-release.sh
 
   # The dependency audit (ADR-draft-toolchain, Q-3): both tools are built from crates.io at the
   # versions named here and fetch the RustSec advisory database.
