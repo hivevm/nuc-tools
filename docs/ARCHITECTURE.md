@@ -45,7 +45,7 @@ golden path and the test pattern an agent copies from are named here.
   patterns as bash's pathname expansion does through `src/glob.rs`. A rule whose bash check
   changed between template releases, today `docs/adr-supersessions` and `docs/check-lists`,
   reads the release the tree carries and checks as that release does
-  (ADR-draft-rules-follow-the-carried-release).
+  (ADR-0021).
 - **Configuration** — `config` reads `nuc.toml` and selects the rules it turns on, or says why
   `nuc` refuses: missing, unreadable, a minimum above the running version, an unknown rule ID
   ([ADR-0013](adr/0013-version-coupling.md)).
@@ -61,7 +61,7 @@ golden path and the test pattern an agent copies from are named here.
   and compares their findings by `tests/parity/normalize.tsv`. A variant edits, deletes, or
   writes one path inside a copy of the tree, never under its `.git`
   ([ADR-0020](adr/0020-parity-harness-with-variants.md),
-  ADR-draft-parity-variants-name-their-trees).
+  ADR-0022).
 - **Release tooling** — `release/` builds a binary per target, writes `SHA256SUMS`, checks the
   tag against the crate's version, writes the release commit, and moves the major tag;
   `release/install-nuc.sh` is the one installer, run by the Action and the Feature, and refuses a

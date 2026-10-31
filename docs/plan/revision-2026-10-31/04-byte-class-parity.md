@@ -17,7 +17,7 @@ harness cannot see them. Decide with the human how parity tries them, then build
 last line, a line anchor with a leading zero, 0x1F outside the record), and, where `nuc` refuses
 instead (invalid UTF-8 in a wide line, 0x1F in an ADR), a way to state that refusal as the
 expected result. The harness today fails on any exit 2 of `nuc`, so the second part may need a
-revision of ADR-draft-parity-variants-name-their-trees.
+revision of ADR-0022.
 
 ## Acceptance criteria
 
@@ -29,7 +29,7 @@ revision of ADR-draft-parity-variants-name-their-trees.
 
 ## Read first
 
-- ADR-0020 and ADR-draft-parity-variants-name-their-trees.
+- ADR-0020 and ADR-0022.
 - The conventions on porting the bash with its quirks.
 - The refusals of `src/shell/` whose messages say the bash reads a byte otherwise, and the
   tests in `tests/check.rs` that pin them.

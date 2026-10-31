@@ -235,7 +235,7 @@ fn on_every_release(rule: &rules::Rule, inputs: &Inputs) -> Vec<Finding> {
 /// releases: none for `unreleased`, checked as the newest release. A release before the earliest
 /// is not decided; so is a README that names none, unless the rule `reported` on, the Template
 /// release rule, fails the run on it: then a rule reports only what it reports on every release
-/// (ADR-draft-rules-follow-the-carried-release). The outer none is that case, a release the
+/// (ADR-0021). The outer none is that case, a release the
 /// README does not name.
 fn carried_release(tree: &Tree, reported: bool) -> Result<Option<Option<Version>>, String> {
     let readme = tree.read_checked(&tree.root.join("README.md"))?;

@@ -13,7 +13,7 @@ The port uses terms the glossary does not define, against rule 6 of
 [`AGENTS.md` §3](../../../AGENTS.md#3-adr-rules): **variant**, an edit that makes a ported rule fire
 on a copy of a corpus tree, used by ADR-0020, the draft that supersedes it, the harness, and its
 files; the **carried release**, the template release a tree names, which
-ADR-draft-rules-follow-the-carried-release turns into a behaviour; and **not decided**, the wording
+ADR-0021 turns into a behaviour; and **not decided**, the wording
 of every refusal of the shell. The entry **parity harness** still says it runs on "the same tree"
 only. Add the entries, correct the stale one, and move code and documents to the chosen words where
 they use a synonym.
@@ -28,8 +28,8 @@ they use a synonym.
 ## Read first
 
 - ADR-0001 (the glossary's role); `docs/GLOSSARY.md`.
-- ADR-0020, ADR-draft-parity-variants-name-their-trees,
-  ADR-draft-rules-follow-the-carried-release.
+- ADR-0020, ADR-0022,
+  ADR-0021.
 
 ## Blocked by
 

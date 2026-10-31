@@ -13,21 +13,21 @@ Three findings on the proposed ADRs on `feat/check-docs-port`, for the human to 
 back before accepting either. Each that is taken lands as a revision, a commit of ADRs only
 ([`AGENTS.md` §3](../../../AGENTS.md#3-adr-rules), rule 4); no status changes here.
 
-1. **ADR-draft-rules-follow-the-carried-release, Context.** It says the template and this
+1. **ADR-0021, Context.** It says the template and this
    repository carry v0.6.0 while the other derived projects of the corpus still carry v0.5.x.
    The corpus as pinned is the reverse: the trees of v0.5.0 are the template at that tag and this
    repository at its setup; `hivevm/nectar` and `hivevm/ocelli` carry v0.6.0, and the one derived
    project on v0.5.x left the corpus. Proposed wording: "The projects do not move at once: the
    corpus pins trees of v0.5.0, the template at that tag and this repository at its setup, beside
    trees of v0.6.0, the template at that tag and two derived projects."
-2. **ADR-draft-parity-variants-name-their-trees, Decision.** The harness runs bash and `nuc`
+2. **ADR-0022, Decision.** The harness runs bash and `nuc`
    with the environment of a pull request into `main` marked ready, every tree and every variant,
    so the check of drafts on `main` is compared in that one environment only. The draft does not
    say so; a reader would take a gap in the comparison for a mistake. Proposed: one sentence under
    **Comparison** naming the environment both sides run in, or under **Out of scope** that other
    environments are not compared.
 3. **Consolidation.** ADR-0013 has `nuc` read the release from the README;
-   ADR-draft-rules-follow-the-carried-release decides what a rule does with it. Said in one
+   ADR-0021 decides what a rule does with it. Said in one
    sentence: a project's `nuc.toml` turns rules on and each checks the tree as the release its
    README names. The human may prefer one ADR that supersedes ADR-0013 and carries both, instead
    of a second ADR beside it.

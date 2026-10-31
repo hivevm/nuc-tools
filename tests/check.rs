@@ -551,7 +551,7 @@ fn flipped_early(name: &str, release_line: &str) -> Fixture {
     fixture
 }
 
-/// Verifies: ADR-draft-rules-follow-the-carried-release
+/// Verifies: ADR-0021
 #[test]
 fn a_rule_checks_a_tree_as_the_release_it_carries() {
     let old = flipped_early("release-0.5", "- **Template release:** v0.5.1");
@@ -606,7 +606,7 @@ fn a_rule_that_checks_by_the_release_refuses_a_tree_it_cannot_place() {
     }
 }
 
-/// Verifies: ADR-draft-rules-follow-the-carried-release
+/// Verifies: ADR-0021
 #[test]
 fn without_a_release_line_the_template_release_rule_fails_the_run_and_a_rule_reports_what_every_release_does()
  {

@@ -715,7 +715,7 @@ mod tests {
         );
     }
 
-    /// Verifies: ADR-draft-rules-follow-the-carried-release
+    /// Verifies: ADR-0021
     #[test]
     fn before_v0_6_0_every_workflow_is_a_gate_and_a_check_run_is_no_name() {
         let mut tree = matrix_tree(RUNS, BLOCK);
