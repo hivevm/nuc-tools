@@ -98,3 +98,16 @@
 
 # check-docs.sh, check 16: no draft on main.
 ^[^ :]+: a draft lands on main — give it its number first with scripts/number-adrs\.sh \(ADR-0002\)$	docs/no-draft-on-main	-	+docs/adr/
+
+# check-traceability.sh, part 1: the criteria of the specification.
+^docs/SPECIFICATION\.md: not found — the criteria cannot be read$	traceability/criteria	-
+^docs/SPECIFICATION\.md: '[GQ]-[0-9]+' is listed under the wrong section — 	traceability/criteria	-
+^docs/SPECIFICATION\.md: identifier '[GQ]-[0-9]+' appears twice — 	traceability/criteria	-
+^docs/SPECIFICATION\.md: list item without a bold [GQ]-n identifier: 	traceability/criteria	-
+
+# check-traceability.sh, part 3: the citations of the markers.
+^.+:[0-9]+: cites '[^']+', which (does not exist in docs/adr/|is superseded or rejected — |is not a criterion of docs/SPECIFICATION\.md)	traceability/citations	line
+
+# check-traceability.sh, parts 2 and 4: the coverage of the accepted ADRs.
+^docs/adr/.+: 'Not mechanically decidable' declared without a reason — 	traceability/coverage	-
+^ADR-[^ ]+ is accepted but no test cites it — 	traceability/coverage	-	=docs/adr
