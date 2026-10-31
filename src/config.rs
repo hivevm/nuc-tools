@@ -202,19 +202,9 @@ fn parse_rules<'a>(
         .collect()
 }
 
-/// The rules of `known` that `config` turns on, in the order of `known`, or why `nuc` refuses:
-/// a minimum above `running`, or a rule ID `known` lacks. A rule not listed stays off.
-pub fn select<'a>(
-    config: &Config,
-    running: Version,
-    known: &'a [Rule],
-) -> Result<Vec<&'a Rule>, Refusal> {
-    if config.minimum > running {
-        return Err(Refusal::TooOld {
-            minimum: config.minimum,
-            running,
-        });
-    }
+/// The rules of `known` that `config` turns on, in the order of `known`, or the rule ID `known`
+/// lacks. A rule not listed stays off. The minimum is [`load`]'s to hold.
+pub fn select<'a>(config: &Config, known: &'a [Rule]) -> Result<Vec<&'a Rule>, Refusal> {
     if let Some(unknown) = config
         .rules
         .iter()
@@ -309,28 +299,21 @@ mod tests {
     }
 
     #[test]
-    fn selection_refuses_a_newer_minimum_and_an_unknown_rule() {
+    fn selection_turns_on_the_listed_rules_and_refuses_an_unknown_one() {
         let rule = |id| Rule {
             id,
             explain: "",
             check: |_| Vec::new(),
         };
         let known = [rule("docs/a"), rule("docs/b")];
-        let config = |minimum, rules: &[&str]| Config {
-            minimum,
+        let config = |rules: &[&str]| Config {
+            minimum: V,
             rules: rules.iter().map(|r| (*r).to_owned()).collect(),
         };
-        let picked = select(&config(V, &["docs/b"]), V, &known).unwrap();
+        let picked = select(&config(&["docs/b"]), &known).unwrap();
         assert_eq!(picked.iter().map(|r| r.id).collect::<Vec<_>>(), ["docs/b"]);
         assert_eq!(
-            select(&config(Version(0, 2, 0), &[]), V, &known).err(),
-            Some(Refusal::TooOld {
-                minimum: Version(0, 2, 0),
-                running: V
-            })
-        );
-        assert_eq!(
-            select(&config(V, &["docs/c"]), V, &known).err(),
+            select(&config(&["docs/c"]), &known).err(),
             Some(Refusal::UnknownRule("docs/c".to_owned()))
         );
     }
