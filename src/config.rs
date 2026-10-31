@@ -60,9 +60,13 @@ impl fmt::Display for Refusal {
         match self {
             Self::Missing => write!(
                 f,
-                "nuc.toml: not found at the root of the repository — the template release ships it"
+                "nuc.toml: not found at the root of the repository — the template release ships it; take \
+                 it up, or {INSTALL} if this one predates it"
             ),
-            Self::Unreadable(line, why) => write!(f, "nuc.toml:{line}: unreadable — {why}"),
+            Self::Unreadable(line, why) => write!(
+                f,
+                "nuc.toml:{line}: unreadable — {why}; a newer nuc may read it: {INSTALL}"
+            ),
             Self::TooOld { minimum, running } => write!(
                 f,
                 "nuc.toml: requires nuc {minimum} or later, this is {running} — {INSTALL}"

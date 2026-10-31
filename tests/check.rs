@@ -60,6 +60,11 @@ fn a_missing_nuc_toml_refuses() {
         "{}",
         stderr(&output)
     );
+    assert!(
+        stderr(&output).contains("install or update nuc"),
+        "{}",
+        stderr(&output)
+    );
 }
 
 #[test]
@@ -85,6 +90,7 @@ fn an_unreadable_nuc_toml_refuses() {
             "{name}: {}",
             stderr(&output)
         );
+        assert!(stderr(&output).contains("install or update nuc"), "{name}");
     }
 }
 
