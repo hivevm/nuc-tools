@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Gates check for this repository (ADR-draft-gates-never-run-the-build).
+# Gates check for this repository (ADR-0018).
 #
 # This repository builds the tool that derived projects run as their gates; its own gates never
 # run the 'nuc' built from the change they judge. This check reads the gates and what they run —

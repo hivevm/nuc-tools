@@ -1,4 +1,4 @@
-//! The fixture repositories of the tests (ADR-draft-fixture-repositories): each a fresh directory
+//! The fixture repositories of the tests (ADR-0011): each a fresh directory
 //! of its own under the system's temporary directory, outside this repository, so that no git
 //! command of a test can reach it, built through the real git CLI.
 //! git and `nuc` run under a cleared environment with the allowlist the shell passes, a fixed

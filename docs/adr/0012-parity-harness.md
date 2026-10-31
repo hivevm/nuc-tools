@@ -1,7 +1,7 @@
-# ADR-draft-parity-harness: A parity harness compares `nuc` with the bash scripts of a pinned corpus on the same trees, as a required check that fails on any difference
+# ADR-0012: A parity harness compares `nuc` with the bash scripts of a pinned corpus on the same trees, as a required check that fails on any difference
 
-- **Status:** 🟡 proposed
-- **Date:** 2026-10-30
+- **Status:** 🟢 accepted
+- **Date:** 2026-10-31
 - **Deciders:** Markus Brigl
 - **Applies to:** `tests/parity/`, its manifest `tests/parity/corpus.toml`, `scripts/check-parity.sh`, its job in `.github/workflows/checks.yml`, and the map from bash messages to rule IDs
 
@@ -63,7 +63,7 @@ planned; when the harness is retired, once the bash leaves the template.
 
 ## Enforcement
 
-The harness's own self-test, cited with `Verifies: ADR-draft-parity-harness`, feeds it a pair of
+The harness's own self-test, cited with `Verifies: ADR-0012`, feeds it a pair of
 outputs that differ in one finding, one exit status, and one unknown bash message, and checks
 that each fails, and a pair that agrees, and checks that it passes. Check 9 of
 [`scripts/check-docs.sh`](../../scripts/check-docs.sh) holds the `parity` job, its `run` line, and

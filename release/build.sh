@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Builds the release binary of nuc for one target into a directory, named as the release names
-# it: nuc-<target>, with .exe on Windows (ADR-draft-distribution). The toolchain is the one
+# it: nuc-<target>, with .exe on Windows (ADR-0014). The toolchain is the one
 # rust-toolchain.toml pins; the target is added to it.
 #
 # Usage:

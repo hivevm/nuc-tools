@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Moves the major tag vN to the release commit at HEAD, unless vN already names a later release
-# (ADR-draft-distribution): a release of an older line, cut after a newer one, must not move the
+# (ADR-0014): a release of an older line, cut after a newer one, must not move the
 # projects on @vN back. Prints 'kept', or 'moved <object>' with the object vN named before, empty
 # when vN is new, so that the push can lease on it and a release that moved vN meanwhile is not
 # overwritten.

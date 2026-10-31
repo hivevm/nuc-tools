@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# The Dev Container Feature's installer (ADR-draft-distribution): installs nuc into
+# The Dev Container Feature's installer (ADR-0014): installs nuc into
 # /usr/local/bin from the release this Feature version carries. The release workflow's
 # release/pin.sh puts install-nuc.sh, SHA256SUMS, and VERSION beside this file; without them, as
 # on main, the installation fails.

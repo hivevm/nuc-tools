@@ -1,7 +1,7 @@
-# ADR-draft-distribution: `nuc` ships as attested GitHub Release binaries, a Dev Container Feature, and a GitHub Action, pinned by major tag and updated by Dependabot
+# ADR-0014: `nuc` ships as attested GitHub Release binaries, a Dev Container Feature, and a GitHub Action, pinned by major tag and updated by Dependabot
 
-- **Status:** 🟡 proposed
-- **Date:** 2026-10-30
+- **Status:** 🟢 accepted
+- **Date:** 2026-10-31
 - **Deciders:** Markus Brigl
 - **Applies to:** the release workflow, the release tags of this repository, the release artifacts and their checksums and attestations, the Dev Container Feature and its publication, and the GitHub Action
 
@@ -39,7 +39,7 @@ each install the binary of their own release after verifying its checksum.
   `vX.Y.Z` source commit, which, like `main`, carries no checksums, installs nothing, and says so.
 - **In the projects:** the Feature and the Action are referenced by major tag and updated by
   Dependabot; the minimum in `nuc.toml` holds the floor
-  ([ADR-draft-version-coupling](draft-version-coupling.md)).
+  ([ADR-0013](0013-version-coupling.md)).
 
 **Out of scope:** crates.io, Homebrew, winget, and other channels; macOS on x64; signing beyond
 the attestation; how this repository references the actions it runs, a decision of its own.
@@ -81,7 +81,7 @@ the attestation; how this repository references the actions it runs, a decision 
 
 ## Enforcement
 
-The release workflow's own test, cited with `Verifies: ADR-draft-distribution`, runs on every
+The release workflow's own test, cited with `Verifies: ADR-0014`, runs on every
 pull request that changes it: it builds each target, writes `SHA256SUMS`, and checks that the
 Feature's and the Action's installers reject a binary whose checksum differs. That the published
 release carries an attestation `gh attestation verify` accepts is checked by the release workflow

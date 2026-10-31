@@ -1,5 +1,5 @@
 //! `nuc.toml`: the minimum version of `nuc` a project requires and the rule IDs it turns on
-//! (ADR-draft-version-coupling).
+//! (ADR-0013).
 //!
 //! The file is a subset of TOML, read without a TOML crate: comments, blank lines, and the two
 //! keys `minimum`, a string `"X.Y.Z"`, and `rules`, an array of strings that may span lines.
@@ -81,7 +81,7 @@ impl fmt::Display for Refusal {
 
 /// The configuration in `text` for a `nuc` of version `running`. The minimum is read before
 /// anything else, so that a newer file, with a key this `nuc` does not know, refuses it as too
-/// old rather than as unreadable (ADR-draft-command-line-contract).
+/// old rather than as unreadable (ADR-0019).
 pub fn load(text: &str, running: Version) -> Result<Config, Refusal> {
     if let Some(minimum) = minimum_first(text).filter(|&minimum| minimum > running) {
         return Err(Refusal::TooOld { minimum, running });

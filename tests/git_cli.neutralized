@@ -1,4 +1,4 @@
-# The configuration keys every git call of nuc sets with '-c' (ADR-draft-git-cli-cleared-environment),
+# The configuration keys every git call of nuc sets with '-c' (ADR-0010),
 # read by tests/git_cli.rs. A key that makes a git command nuc starts using run another command
 # joins the list in the change that starts using that command. The values are those on Linux and
 # macOS, where the test runs.

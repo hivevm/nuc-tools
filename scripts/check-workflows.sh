@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Workflow credentials check for this repository (ADR-draft-no-stored-secrets).
+# Workflow credentials check for this repository (ADR-0016).
 #
 # The workflows authenticate only with GITHUB_TOKEN and OIDC, each job with the permissions it
 # names. This check reads every workflow under .github/workflows/ and fails on what would break

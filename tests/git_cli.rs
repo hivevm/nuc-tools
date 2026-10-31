@@ -1,4 +1,4 @@
-//! git under a cleared environment. Verifies: ADR-draft-git-cli-cleared-environment Q-9
+//! git under a cleared environment. Verifies: ADR-0010 Q-9
 //!
 //! With `GIT_DIR`, `GIT_WORK_TREE`, `GIT_INDEX_FILE`, and `GIT_CONFIG_PARAMETERS` pointing at a
 //! decoy repository, `nuc` reports on the repository it runs in and leaves the decoy untouched.

@@ -1,7 +1,7 @@
-# ADR-draft-toolchain: Rust stable pinned in `rust-toolchain.toml`, cargo's build, test, fmt, and clippy behind `scripts/check-build.sh`, and the dependency audit behind `scripts/check-deps.sh`
+# ADR-0008: Rust stable pinned in `rust-toolchain.toml`, cargo's build, test, fmt, and clippy behind `scripts/check-build.sh`, and the dependency audit behind `scripts/check-deps.sh`
 
-- **Status:** 🟡 proposed
-- **Date:** 2026-10-30
+- **Status:** 🟢 accepted
+- **Date:** 2026-10-31
 - **Deciders:** Markus Brigl
 - **Applies to:** `rust-toolchain.toml`, `Cargo.toml`, `Cargo.lock`, `deny.toml`, `scripts/check-build.sh`, `scripts/check-deps.sh`, their jobs in `.github/workflows/checks.yml`, the benchmark workflow, and the Build, Test & Run section of `README.md`
 
@@ -12,7 +12,7 @@ The supply chain asks for dependencies audited by `cargo deny` and `cargo audit`
 request, every ignored advisory with its reason (Q-3); the integrity of the gates asks that
 nothing passes when it could not decide (Q-1); hook latency is measured over 1,000 calls (Q-5).
 The project is small: one maintainer, agents working the tickets
-([ADR-draft-harness](draft-harness.md)).
+([ADR-0007](0007-harness.md)).
 
 The catalogue entry *Toolchain* offers three forms. *The linter's own rules first* fits a
 one-person tool, and the design revision adds what the mistakes call for. *One tool per kind*

@@ -1,7 +1,7 @@
 #!/bin/sh
 #
 # Installs the nuc of one release, verified against the checksums the caller carries
-# (ADR-draft-distribution). The GitHub Action and the Dev Container Feature run it with the
+# (ADR-0014). The GitHub Action and the Dev Container Feature run it with the
 # SHA256SUMS and the VERSION their release commit holds; a binary whose checksum differs is
 # deleted and the installation fails.
 #

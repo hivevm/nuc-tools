@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Dependency audit for this repository (ADR-draft-toolchain).
+# Dependency audit for this repository (ADR-0008).
 #
 # Runs 'cargo deny check' against deny.toml — advisories, bans, licenses, and sources — and
 # 'cargo audit' against Cargo.lock. Both fetch the RustSec advisory database, so the check needs

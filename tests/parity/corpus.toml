@@ -1,4 +1,4 @@
-# The corpus of the parity harness (ADR-draft-parity-harness), read by scripts/check-parity.sh:
+# The corpus of the parity harness (ADR-0012), read by scripts/check-parity.sh:
 # each repository by URL and commit, run with the bash checks it carries and with nuc. A pull
 # request moves a pin. The format is one '[[repository]]' table per entry with the three keys
 # below, each a string on a line of its own.

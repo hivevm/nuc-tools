@@ -1,4 +1,4 @@
-//! The structural test of the shape of the code. Verifies: ADR-draft-functional-core
+//! The structural test of the shape of the code. Verifies: ADR-0009
 //!
 //! The library outside `src/shell/` names nothing of `functional_core.forbidden`, the list kept
 //! beside this test, and `src/main.rs` does nothing but call the shell. The source is read as

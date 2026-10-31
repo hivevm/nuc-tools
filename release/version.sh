@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Checks that a release tag names the version the crate carries, and prints the version
-# (ADR-draft-distribution): a tag vX.Y.Z over a Cargo.toml of another version would publish a
+# (ADR-0014): a tag vX.Y.Z over a Cargo.toml of another version would publish a
 # nuc that reports, and is held to, a version other than its release's.
 #
 # Usage:

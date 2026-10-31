@@ -9,7 +9,7 @@ description = "The mechanics of the NUC template as one binary: checks, sensors,
 publish = false
 
 # The rules are a functional core in the library; every effect is in src/shell/, and the binary
-# only calls into it (ADR-draft-functional-core).
+# only calls into it (ADR-0009).
 [lib]
 name = "nuc"
 path = "src/lib.rs"
@@ -18,7 +18,7 @@ path = "src/lib.rs"
 name = "nuc"
 path = "src/main.rs"
 
-# Maintainability sensors of the toolchain (ADR-draft-toolchain): clippy's size and complexity
+# Maintainability sensors of the toolchain (ADR-0008): clippy's size and complexity
 # lints are errors, and every warning, rustc's dead_code among them, fails under -D warnings.
 [lints.clippy]
 too_many_lines = "deny"

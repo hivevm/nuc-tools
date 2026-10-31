@@ -1,4 +1,4 @@
-//! The fixture helpers under an inherited decoy. Verifies: ADR-draft-fixture-repositories
+//! The fixture helpers under an inherited decoy. Verifies: ADR-0011
 //!
 //! The test runs itself again as a child process with `GIT_DIR`, `GIT_WORK_TREE`, and
 //! `GIT_CONFIG_PARAMETERS` set to a decoy repository, and the child builds a fixture through the

@@ -1,14 +1,14 @@
-# ADR-draft-fixture-repositories: Tests build their repositories through the real git CLI in fresh temporary directories, under a cleared environment
+# ADR-0011: Tests build their repositories through the real git CLI in fresh temporary directories, under a cleared environment
 
-- **Status:** 🟡 proposed
-- **Date:** 2026-10-30
+- **Status:** 🟢 accepted
+- **Date:** 2026-10-31
 - **Deciders:** Markus Brigl
 - **Applies to:** every test that needs a git repository, the test helpers that build one, and the environment the tests run under
 
 ## Context
 
 `nuc` reaches git only through its CLI, so that it behaves as git does
-([ADR-draft-git-cli-cleared-environment](draft-git-cli-cleared-environment.md)); a test that
+([ADR-0010](0010-git-cli-cleared-environment.md)); a test that
 mocks git would test the mock. The template's self-tests showed what an inherited environment
 does to fixtures: a `GIT_DIR` leaked from a hook into them, and they acted on the wrong
 repository (*Problem*). The tests of this project run from the pre-push hook as well
@@ -57,7 +57,7 @@ and crates.
 
 ## Enforcement
 
-A test cited with `Verifies: ADR-draft-fixture-repositories` runs the fixture helpers with
+A test cited with `Verifies: ADR-0011` runs the fixture helpers with
 `GIT_DIR`, `GIT_WORK_TREE`, and `GIT_CONFIG_PARAMETERS` set to a decoy and checks that the decoy
 is untouched and the fixture is built where the helper said. Check 10 of
 [`scripts/check-docs.sh`](../../scripts/check-docs.sh) names every top-level entry, so a committed
