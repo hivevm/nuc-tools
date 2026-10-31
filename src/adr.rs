@@ -60,12 +60,25 @@ pub struct Header {
     /// The Supersedes field with its continuation lines, each ended by a newline, as the bash
     /// collects it.
     pub supersedes: Vec<u8>,
+    /// The Deciders field with its continuation lines, each ended by a newline, as the bash
+    /// collects it.
+    pub deciders: Vec<u8>,
 }
 
 impl Header {
     /// The first line of the field, as `grep -m1 '^- **<name>:**'` finds it.
     pub fn field(&self, name: &str) -> Option<&[u8]> {
         self.fields.get(name).map(Vec::as_slice)
+    }
+
+    /// Adds a line of a field the awk continues, ended by a newline.
+    fn continued(&mut self, field: Continued, line: &[u8]) {
+        let text = match field {
+            Continued::Supersedes => &mut self.supersedes,
+            Continued::Deciders => &mut self.deciders,
+        };
+        text.extend_from_slice(line);
+        text.push(b'\n');
     }
 }
 
@@ -117,13 +130,9 @@ pub fn header(text: &[u8], needle: Option<&[u8]>) -> Header {
         if line.starts_with(b"# ADR-") && seen.insert(b"heading".to_vec()) {
             header.heading = Some(line.to_vec());
         }
-        // A field the awk continues, Supersedes or Deciders, on lines that open with space; only
-        // the Supersedes text is kept.
-        if continuing.is_some() && continues(line) {
-            if continuing == Some(Continued::Supersedes) {
-                header.supersedes.extend_from_slice(line);
-                header.supersedes.push(b'\n');
-            }
+        // A field the awk continues, Supersedes or Deciders, on lines that open with space.
+        if let Some(field) = continuing.filter(|_| continues(line)) {
+            header.continued(field, line);
             continue;
         }
         continuing = None;
@@ -138,9 +147,8 @@ pub fn header(text: &[u8], needle: Option<&[u8]>) -> Header {
                         b"Deciders" => Some(Continued::Deciders),
                         _ => None,
                     };
-                    if continuing == Some(Continued::Supersedes) {
-                        header.supersedes.extend_from_slice(line);
-                        header.supersedes.push(b'\n');
+                    if let Some(field) = continuing {
+                        header.continued(field, line);
                     }
                     let name = String::from_utf8_lossy(name).into_owned();
                     header.fields.insert(name, line.to_vec());

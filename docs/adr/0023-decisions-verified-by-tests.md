@@ -1,4 +1,4 @@
-# ADR-draft-decisions-verified-by-tests: Every accepted decision and every success criterion is verified by a test that cites it, and the checks that hold the decisions are bash scripts under `scripts/`
+# ADR-0023: Every accepted decision and every success criterion is verified by a test that cites it, and the checks that hold the decisions are bash scripts under `scripts/`
 
 - **Status:** 🟡 proposed
 - **Date:** 2026-10-31

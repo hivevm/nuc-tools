@@ -154,6 +154,16 @@ impl Fixture {
     pub fn nuc(&self, args: &[&str]) -> Output {
         self.nuc_in("", args)
     }
+
+    /// `nuc` with `args`, run at the root under the cleared environment and the variables given.
+    pub fn nuc_with(&self, vars: &[(&str, &str)], args: &[&str]) -> Output {
+        cleared(&mut Command::new(NUC))
+            .current_dir(&self.root)
+            .envs(vars.iter().copied())
+            .args(args)
+            .output()
+            .expect("nuc runs")
+    }
 }
 
 impl Drop for Fixture {

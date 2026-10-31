@@ -21,9 +21,16 @@ skimmed. The design revision drops what prevented nothing
 - **The shell reads, the rules decide** — the shell reads every file a rule needs once, into the
   inputs, before any rule runs, and a rule gets text, never a path. A rule's tests are then cases
   of text without a repository, and a file `nuc` cannot read ends the run before a rule could
-  pass on less than it should have seen (Q-1).
+  pass on less than it should have seen (Q-1). Every file the shell reads and every directory it
+  lists resolves inside the repository, or the run is not decided, so that no link, symbolic link,
+  or absolute path in the tree makes `nuc` read what the tree does not hold; each new reading goes
+  through the shell's `Tree`, which tests that. A test of existence, as the bash's `-e`, `-f`, and
+  `-d`, follows the path wherever it leads and reads nothing.
 - **A port copies the bash, quirks included** — a rule reports what its bash check reports on
   inputs the corpus lacks as well, its exemptions and oddities with it: only the first Template
   release line counts, and a missing README is the finding of another rule. Its unit tests copy
   the cases of the bash self-test. Where the bash result depends on more than the input, as grep's
-  on a file with a NUL byte, `nuc` refuses instead of guessing.
+  on a file with a NUL byte, `nuc` refuses instead of guessing. Each port is tried on the bytes
+  the bash reads otherwise than Rust: a byte of no valid UTF-8, the byte 0x1F its awk passes split
+  fields on, a last line without a newline (`read` drops it, awk and `sed` keep it), and numbers
+  in bash arithmetic (octal after a leading zero, 64-bit wrap).

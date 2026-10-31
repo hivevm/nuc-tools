@@ -1,4 +1,4 @@
-# ADR-draft-template-releases: The template is released as SemVer tags on `main`, and every repository names the release it carries
+# ADR-0024: The template is released as SemVer tags on `main`, and every repository names the release it carries
 
 - **Status:** 🟡 proposed
 - **Date:** 2026-10-31
