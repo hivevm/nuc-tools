@@ -408,3 +408,40 @@ fn a_rule_that_reads_no_text_files_is_not_held_up_by_one() {
     let output = fixture.nuc(&["check"]);
     assert_eq!(code(&output), Some(0), "{}", stderr(&output));
 }
+
+#[test]
+fn links_into_a_submodule_a_directory_and_with_a_title_resolve_as_for_the_bash() {
+    let module = Fixture::new("links-module");
+    module
+        .write("guide.md", "# Guide\n\n## Setup\n")
+        .commit("A module");
+    let config = "minimum = \"0.0.0\"\nrules = [\"docs/links\"]\n";
+    let fixture = Fixture::project("links", config, README);
+    let url = module.root().to_str().expect("a UTF-8 path");
+    fixture.git(&[
+        "-c",
+        "protocol.file.allow=always",
+        "submodule",
+        "add",
+        "-q",
+        url,
+        "vendor/module",
+    ]);
+    fixture.write("docs/tools/x.sh", "a\nb\n");
+    fixture.write(
+        "docs/links.md",
+        "[m](../vendor/module/guide.md#setup) [d](tools/) [t](tools/x.sh \"A title\") [l](tools/x.sh#L2)\n\n[x](../vendor/module/guide.md#nope) [y](missing/)\n",
+    );
+    let output = fixture.nuc(&["check"]);
+    let out = stdout(&output);
+    let lines: Vec<&str> = out.lines().collect();
+    assert_eq!(
+        lines,
+        [
+            "docs/links.md:3: docs/links: link '../vendor/module/guide.md#nope' has no matching anchor '#nope' in docs/../vendor/module/guide.md",
+            "docs/links.md:3: docs/links: broken relative link -> 'missing/'",
+        ],
+        "{}",
+        stderr(&output)
+    );
+}

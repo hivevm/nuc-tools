@@ -8,12 +8,13 @@ use std::collections::BTreeMap;
 use std::env;
 use std::fs;
 use std::io::ErrorKind;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use crate::adr;
 use crate::config::{self, Version};
 use crate::finding::Finding;
+use crate::markdown;
 use crate::rules::{self, Input, Inputs};
 
 /// Exit code of a run that found nothing.
@@ -82,6 +83,17 @@ fn check(repo: Option<&Path>) -> Result<u8, String> {
     }
     if needs(Input::TextFiles) {
         inputs.text_files = read_text_files(&root)?;
+    }
+    if needs(Input::LinkTargets) {
+        inputs.link_targets = read_link_targets(&root, &inputs.text_files)?;
+    }
+    if needs(Input::Agents) {
+        let agents = root.join("AGENTS.md");
+        inputs.agents = if agents.is_file() {
+            read_bytes(&agents)?
+        } else {
+            None
+        };
     }
     let findings: Vec<Finding> = selected
         .iter()
@@ -266,3 +278,36 @@ fn read_text_files(root: &Path) -> Result<BTreeMap<String, Vec<u8>>, String> {
 /// The bytes within which `grep -I` finds a NUL byte however its buffers fall: GNU grep reads
 /// at least this much before it decides.
 const GREP_FIRST_BUFFER: usize = 32 * 1024;
+
+/// Each path a relative link of a Markdown file names, tested as the bash tests it: the path is
+/// the root and the text the link names joined, never resolved by `nuc`, so that the file system
+/// resolves `..` and links as `-e` does; a file is read only for a link with an anchor. A file
+/// outside the repository is not read, and an anchor into one is not decided.
+fn read_link_targets(
+    root: &Path,
+    text_files: &BTreeMap<String, Vec<u8>>,
+) -> Result<BTreeMap<String, rules::Resolved>, String> {
+    let inside =
+        fs::canonicalize(root).map_err(|e| format!("{}: unreadable — {e}", root.display()))?;
+    let mut resolved: BTreeMap<String, rules::Resolved> = BTreeMap::new();
+    for (file, text) in text_files.iter().filter(|(file, _)| file.ends_with(".md")) {
+        for target in markdown::relative_targets(file, text) {
+            let Some(path) = target.path else { continue };
+            let full = PathBuf::from(format!("{}/{path}", root.display()));
+            let entry = resolved.entry(path.clone()).or_default();
+            entry.exists = fs::metadata(&full).is_ok();
+            let wants_file = target.fragment.is_some_and(|f| !f.is_empty()) && full.is_file();
+            if !wants_file || entry.file.is_some() {
+                continue;
+            }
+            let real = fs::canonicalize(&full).map_err(|e| format!("{path}: unreadable — {e}"))?;
+            if !real.starts_with(&inside) {
+                return Err(format!(
+                    "{file}: a link's anchor looks into '{path}', outside the repository — not decided"
+                ));
+            }
+            entry.file = read_bytes(&real)?;
+        }
+    }
+    Ok(resolved)
+}

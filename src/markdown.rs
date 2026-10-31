@@ -98,6 +98,152 @@ pub fn link_target(link: &[u8]) -> &[u8] {
     }
 }
 
+/// The leftmost link of the line, as its start and length, for a check that cuts a line at its
+/// links.
+pub fn leftmost_link(line: &[u8]) -> Option<(usize, usize)> {
+    first_link(line)
+}
+
+/// Whether the line is read for links: outside a fence, and no fence line itself. The lines of
+/// the file, each with whether `scan_markdown` reads it.
+pub fn read_lines(text: &[u8]) -> Vec<(usize, &[u8], bool)> {
+    let mut fence = false;
+    awk_lines(text)
+        .into_iter()
+        .enumerate()
+        .map(|(i, line)| {
+            if toggles_fence(line) {
+                fence = !fence;
+                (i + 1, line, false)
+            } else {
+                (i + 1, line, !fence)
+            }
+        })
+        .collect()
+}
+
+/// A relative link of a Markdown file, as check 3 reads it: its line, its target, the path the
+/// bash tests for it, joined to the file's directory as text and not resolved, and its fragment.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Target {
+    pub line: usize,
+    pub target: Vec<u8>,
+    /// The path relative to the root, as `${dir}/${path}` with the root's prefix taken off;
+    /// none for an anchor into the file itself.
+    pub path: Option<String>,
+    pub fragment: Option<Vec<u8>>,
+}
+
+/// The relative links of the Markdown file at `file`, a path from the root: every link outside
+/// fences but those to `http://`, `https://`, and `mailto:`, and those whose target carries the
+/// template's placeholder `NNNN`.
+pub fn relative_targets(file: &str, text: &[u8]) -> Vec<Target> {
+    let dir = file.rsplit_once('/').map(|(dir, _)| dir);
+    links(text)
+        .into_iter()
+        .filter_map(|(line, link)| {
+            let target = link_target(link);
+            let skipped = [&b"http://"[..], b"https://", b"mailto:"]
+                .iter()
+                .any(|p| target.starts_with(p))
+                || crate::adr::contains(target, b"NNNN");
+            if skipped {
+                return None;
+            }
+            let hash = target.iter().position(|&b| b == b'#');
+            let path_part = &target[..hash.unwrap_or(target.len())];
+            let fragment = hash.map(|at| target[at + 1..].to_vec());
+            let path = (!path_part.is_empty()).then(|| {
+                let path_part = String::from_utf8_lossy(path_part);
+                match dir {
+                    Some(dir) => format!("{dir}/{path_part}"),
+                    None => path_part.into_owned(),
+                }
+            });
+            Some(Target {
+                line,
+                target: target.to_vec(),
+                path,
+                fragment,
+            })
+        })
+        .collect()
+}
+
+/// The anchor of each ATX heading of the file, as the bash's extract_heading_slugs makes it:
+/// lower case, every byte but `a-z 0-9 space _ -` dropped, then a hyphen for each space.
+pub fn heading_slugs(text: &[u8]) -> Vec<Vec<u8>> {
+    awk_lines(text)
+        .into_iter()
+        .filter_map(|line| {
+            let hashes = line.iter().take_while(|&&b| b == b'#').count();
+            let spaces = line[hashes..].iter().take_while(|&&b| is_space(b)).count();
+            if hashes == 0 || spaces == 0 || hashes > 6 {
+                return None;
+            }
+            let text = strip_closing(&line[hashes + spaces..]);
+            Some(
+                text.iter()
+                    .map(u8::to_ascii_lowercase)
+                    .filter(|b| {
+                        b.is_ascii_lowercase()
+                            || b.is_ascii_digit()
+                            || matches!(b, b' ' | b'_' | b'-')
+                    })
+                    .map(|b| if b == b' ' { b'-' } else { b })
+                    .collect(),
+            )
+        })
+        .collect()
+}
+
+/// The heading text without a closing run, as `sub(/[[:space:]]+#*[[:space:]]*$/, "")` takes the
+/// leftmost such run that reaches the end.
+fn strip_closing(text: &[u8]) -> &[u8] {
+    let after_spaces = text
+        .iter()
+        .rposition(|&b| !is_space(b))
+        .map_or(0, |i| i + 1);
+    let after_hashes = text[..after_spaces]
+        .iter()
+        .rposition(|&b| b != b'#')
+        .map_or(0, |i| i + 1);
+    let before = text[..after_hashes]
+        .iter()
+        .rposition(|&b| !is_space(b))
+        .map_or(0, |i| i + 1);
+    if after_hashes < after_spaces && before < after_hashes {
+        &text[..before]
+    } else if after_spaces < text.len() {
+        &text[..after_spaces]
+    } else {
+        text
+    }
+}
+
+/// Whether a fragment `Lnn` or `Lnn-Lmm` names lines of the file, a last line without a newline
+/// counted; none when the fragment is no line anchor.
+pub fn line_anchor_resolves(fragment: &[u8], text: &[u8]) -> Option<bool> {
+    let numbers = |s: &[u8]| {
+        (!s.is_empty() && s.iter().all(u8::is_ascii_digit))
+            .then(|| String::from_utf8_lossy(s).parse::<u64>().ok())
+            .flatten()
+    };
+    let rest = fragment.strip_prefix(b"L")?;
+    let (start, end) = match rest.iter().position(|&b| b == b'-') {
+        Some(dash) => (
+            numbers(&rest[..dash])?,
+            numbers(rest[dash + 1..].strip_prefix(b"L")?)?,
+        ),
+        None => {
+            let n = numbers(rest)?;
+            (n, n)
+        }
+    };
+    let lines = text.iter().filter(|&&b| b == b'\n').count() as u64;
+    Some(start >= 1 && end >= start && end <= lines + 1)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -123,5 +269,46 @@ mod tests {
         assert_eq!(link_target(b"[a](x.md 'The title')"), b"x.md");
         assert_eq!(link_target(b"[a](x.md title)"), b"x.md title");
         assert_eq!(link_text(b"[ADR-x](y.md)"), b"ADR-x");
+    }
+    #[test]
+    fn heading_slugs_are_made_as_the_awk_makes_them() {
+        let text = b"# Title ##\n## Bar & Done ##\n### C#\n#### C# \n##### Title#\n####### Seven\n#NoSpace\n## 3. ADR rules\n#\tTab\n## \xc3\x9cber\n";
+        let slugs: Vec<Vec<u8>> = heading_slugs(text);
+        let expected: [&[u8]; 8] = [
+            b"title",
+            b"bar--done",
+            b"c",
+            b"c",
+            b"title",
+            b"3-adr-rules",
+            b"tab",
+            b"ber",
+        ];
+        assert_eq!(slugs, expected.map(<[u8]>::to_vec));
+    }
+
+    #[test]
+    fn a_line_anchor_names_lines_a_last_one_without_newline_counted() {
+        assert_eq!(line_anchor_resolves(b"L2", b"a\nb\nc"), Some(true));
+        assert_eq!(line_anchor_resolves(b"L1-L3", b"a\nb\nc"), Some(true));
+        assert_eq!(line_anchor_resolves(b"L4", b"a\nb\nc"), Some(false));
+        assert_eq!(line_anchor_resolves(b"L3-L2", b"a\nb\nc\n"), Some(false));
+        assert_eq!(line_anchor_resolves(b"L0", b"a\n"), Some(false));
+        assert_eq!(line_anchor_resolves(b"top", b"a\n"), None);
+    }
+
+    #[test]
+    fn relative_targets_join_the_directory_and_skip_the_web_and_placeholders() {
+        let text = b"[a](../x.md#s) [b](#top) [c](https://e.invalid) [d](mailto:m) [e](NNNN-x.md) [f](y/)\n";
+        let found = relative_targets("docs/adr/0001-a.md", text);
+        let paths: Vec<Option<&str>> = found.iter().map(|t| t.path.as_deref()).collect();
+        assert_eq!(paths, [Some("docs/adr/../x.md"), None, Some("docs/adr/y/")]);
+        assert_eq!(found[0].fragment.as_deref(), Some(&b"s"[..]));
+        assert_eq!(
+            relative_targets("README.md", b"[a](x.md)\n")[0]
+                .path
+                .as_deref(),
+            Some("x.md")
+        );
     }
 }
