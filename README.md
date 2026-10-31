@@ -15,12 +15,6 @@ mechanical. The work is driven by a written **specification**
 > For agent instructions, see [`AGENTS.md`](AGENTS.md), the single source of truth for all coding
 > agents.
 
-> [!NOTE]
-> **This project still carries its template setup.** The one-time steps that turn the scaffold
-> into your own project are in [`TEMPLATE-SETUP.md`](TEMPLATE-SETUP.md); ask your agent to run the
-> `setup-project` skill to be walked through them, one question at a time. Once you are through
-> them, `scripts/test-template-setup.sh --close` removes that file and this note.
-
 ## Overview
 
 `nuc` takes over the mechanics of the NUC template — its checks, sensors, git hooks, ADR index
@@ -42,13 +36,6 @@ live in [`docs/SPECIFICATION.md`](docs/SPECIFICATION.md), the vocabulary in
   ([ADR-0002](docs/adr/0002-decisions-verified-by-tests.md)); macOS ships 3.2
 
 ## Getting Started
-
-> Setting the project up for the first time? Create the repository from the template, with
-> **Use this template** on GitHub or with
-> `gh repo create <owner>/<name> --template hivevm/nuc --public --clone`. A private repository
-> needs a paid GitHub plan for the rulesets of [Repository settings](#repository-settings).
-> The one-time steps are in [`TEMPLATE-SETUP.md`](TEMPLATE-SETUP.md); the close of the setup
-> removes this paragraph with that file.
 
 1. Open the repository in VS Code and choose **Reopen in Container**. The Dev Container and the
    preconfigured agent extensions build automatically, and the container enables the repository's
@@ -97,7 +84,6 @@ The one rule so far is `docs/template-release`, check 14 of the template's `chec
 ## Project Layout
 
 ```
-TEMPLATE-SETUP.md     # one-time template setup; delete it when the project is yours
 README.md             # overview & setup for humans
 AGENTS.md             # single source of truth for coding agents
 CONTRIBUTING.md       # how to contribute, pointing at the rules
