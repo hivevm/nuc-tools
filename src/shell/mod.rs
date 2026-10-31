@@ -63,7 +63,7 @@ fn check(repo: Option<&Path>) -> Result<u8, String> {
     };
     let root = git::toplevel(&start)?;
     let text = read(&root.join("nuc.toml"))?.ok_or_else(|| config::Refusal::Missing.to_string())?;
-    let config = config::parse(&text).map_err(|refusal| refusal.to_string())?;
+    let config = config::load(&text, running()).map_err(|refusal| refusal.to_string())?;
     let selected = config::select(&config, running(), rules::ALL).map_err(|r| r.to_string())?;
     let inputs = Inputs {
         readme: read_checked(&root.join("README.md"))?,

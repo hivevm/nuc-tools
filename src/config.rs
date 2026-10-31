@@ -79,6 +79,26 @@ impl fmt::Display for Refusal {
     }
 }
 
+/// The configuration in `text` for a `nuc` of version `running`. The minimum is read before
+/// anything else, so that a newer file, with a key this `nuc` does not know, refuses it as too
+/// old rather than as unreadable (ADR-draft-command-line-contract).
+pub fn load(text: &str, running: Version) -> Result<Config, Refusal> {
+    if let Some(minimum) = minimum_first(text).filter(|&minimum| minimum > running) {
+        return Err(Refusal::TooOld { minimum, running });
+    }
+    parse(text)
+}
+
+/// The version of the first line that sets `minimum` to a readable `"X.Y.Z"`, if one does.
+fn minimum_first(text: &str) -> Option<Version> {
+    text.split('\n').find_map(|line| {
+        let (key, value) = strip_comment(line).split_once('=')?;
+        (key.trim() == "minimum")
+            .then(|| string(value.trim()).and_then(Version::parse))
+            .flatten()
+    })
+}
+
 /// The configuration in `text`, or why it cannot be read.
 pub fn parse(text: &str) -> Result<Config, Refusal> {
     let mut minimum = None;
@@ -266,6 +286,26 @@ mod tests {
         for text in ["1.2", "1.2.3.4", "v1.2.3", "1.-2.3", "1.2.x", "", "1..2"] {
             assert_eq!(Version::parse(text), None, "{text}");
         }
+    }
+
+    #[test]
+    fn a_newer_minimum_refuses_before_a_key_this_nuc_does_not_know() {
+        let text = "level = \"strict\"\nminimum = \"0.2.0\" # floor\nrules = []\n";
+        assert_eq!(
+            load(text, V),
+            Err(Refusal::TooOld {
+                minimum: Version(0, 2, 0),
+                running: V
+            })
+        );
+        assert!(matches!(
+            load(text, Version(0, 2, 0)),
+            Err(Refusal::Unreadable(1, _))
+        ));
+        assert!(matches!(
+            load("minimum = \"x\"\nrules = []", V),
+            Err(Refusal::Unreadable(1, _))
+        ));
     }
 
     #[test]
