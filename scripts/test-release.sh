@@ -78,6 +78,8 @@ d="$(release good 1.2.3)"
 expect pass "the binary SHA256SUMS names is installed" "nuc 1.2.3 installed" \
   install "$d" "$d/SHA256SUMS" "$d/VERSION" "$work/bin-good"
 expect pass "the installed binary runs" "stub nuc 1.2.3 $TARGET" "$work/bin-good/nuc"
+expect pass "a destination with a backslash, as on Windows, installs the same" "nuc 1.2.3 installed" \
+  install "$d" "$d/SHA256SUMS" "$d/VERSION" "$work/bin\\slash"
 NUC_TARGET=x86_64-pc-windows-msvc expect pass "on Windows the binary keeps its .exe" "nuc.exe" \
   install "$d" "$d/SHA256SUMS" "$d/VERSION" "$work/bin-windows"
 

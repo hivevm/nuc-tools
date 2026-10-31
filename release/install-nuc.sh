@@ -57,10 +57,12 @@ else
   fail "neither curl nor wget is on the PATH"
 fi
 
+# Through stdin, so that no path reaches the output: a backslash in one, as on Windows, makes
+# sha256sum escape the line with a leading backslash.
 if command -v sha256sum > /dev/null 2>&1; then
-  actual="$(sha256sum "$partial" | awk '{ print $1 }')"
+  actual="$(sha256sum < "$partial" | awk '{ print $1 }')"
 elif command -v shasum > /dev/null 2>&1; then
-  actual="$(shasum -a 256 "$partial" | awk '{ print $1 }')"
+  actual="$(shasum -a 256 < "$partial" | awk '{ print $1 }')"
 else
   fail "neither sha256sum nor shasum is on the PATH"
 fi
