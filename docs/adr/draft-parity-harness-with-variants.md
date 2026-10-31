@@ -36,9 +36,12 @@ difference, run by `scripts/check-parity.sh` as a required job on Linux and from
   moves a pin. Each pinned tree carries template release v0.5.0 or later; the harness refuses an
   entry whose tree names an earlier release or none, and never compares it.
 - **Variants:** beside the harness, each ported rule brings one or more edits that make it fire,
-  such as a deleted line or a broken link; the harness applies each to every corpus tree it fits
-  and compares on the result as on the tree itself. An edit that applies to no tree fails the
-  harness, so a moved pin cannot silently drop a comparison (Q-1).
+  such as a deleted line or a broken link; the harness applies each to every corpus tree and
+  compares on the result as on the tree itself. An edit that does not apply to a tree, a ported
+  rule without an edit, and an edit on which the bash reports no finding of its rule beyond the
+  tree's own each fail the harness, so that a moved pin cannot silently drop a comparison (Q-1).
+  An edit stays inside the copy it is applied to: it names a path within the tree, and runs no
+  command and writes no other file.
 - **Cache:** the harness fetches the corpus into an ignored cache under `.scratch/`; when it
   cannot fill the cache, it fails (Q-1). It derives the variants in a directory of its own and
   never writes to the cached trees.
@@ -92,7 +95,9 @@ template.
 The harness's own self-test, cited with `Verifies: ADR-draft-parity-harness-with-variants`, feeds
 it a pair of outputs that differ in one finding, one exit status, and one unknown bash message,
 and checks that each fails, and a pair that agrees, and checks that it passes; it runs it on a
-corpus entry of a release before v0.5.0 and checks that it fails, and on a variant that applies
-and one that applies to no tree, and checks that the first is compared and the second fails.
+corpus entry of a release before v0.5.0 and checks that it fails, and on a variant that applies,
+one that does not apply to one of the trees, one that does not make its rule fire, a ported rule
+without a variant, and a variant that reaches outside its copy, and checks that the first is
+compared and the others fail.
 Check 9 of [`scripts/check-docs.sh`](../../scripts/check-docs.sh) holds the `parity` job, its
 `run` line, and the README's required checks together.
