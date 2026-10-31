@@ -123,6 +123,7 @@ fn check(repo: Option<&Path>) -> Result<u8, String> {
     }
     if needs(Input::Generated) {
         inputs.generated = generated(&tree, &inputs.text_files)?;
+        undecided_widths(&inputs)?;
     }
     // While the setup file exists the identity rule is silent, so it reads nothing (check 13).
     if needs(Input::Identity) && !inputs.setup_file {
@@ -185,6 +186,22 @@ fn generated(
             })
         })
         .collect())
+}
+
+/// Refuses a wide line the prose rule would measure but cannot count as the bash does (Q-1).
+fn undecided_widths(inputs: &Inputs) -> Result<(), String> {
+    let inactive = adr::inactive_paths(&inputs.adr);
+    for (file, text) in &inputs.text_files {
+        if !file.ends_with(".md") || inactive.contains(file) || inputs.generated.contains(file) {
+            continue;
+        }
+        if let Some(n) = rules::docs_prose_width::undecided_lines(text).first() {
+            return Err(format!(
+                "{file}:{n}: a line over 100 bytes holds a byte of no valid UTF-8 or the byte 0x1F, which the bash counts otherwise — not decided"
+            ));
+        }
+    }
+    Ok(())
 }
 
 /// The earliest template release whose bash checks the rules port.

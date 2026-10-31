@@ -902,6 +902,17 @@ fn a_markdown_file_git_marks_generated_is_not_read_for_its_width() {
             "CHANGELOG.md -linguist-generated\n",
             1,
         ),
+        (
+            "width-generated-true",
+            "CHANGELOG.md linguist-generated=true\n",
+            0,
+        ),
+        ("width-generated-pattern", "*.md linguist-generated\n", 0),
+        (
+            "width-generated-false",
+            "CHANGELOG.md linguist-generated=false\n",
+            1,
+        ),
     ] {
         let fixture = only(name, "docs/prose-width", README);
         fixture.write("CHANGELOG.md", &long);
@@ -921,4 +932,20 @@ fn a_markdown_file_git_marks_generated_is_not_read_for_its_width() {
             );
         }
     }
+}
+
+#[test]
+fn a_wide_line_the_bash_counts_otherwise_is_not_decided() {
+    let fixture = only("width-bytes", "docs/prose-width", README);
+    let mut line = b"[a\xff b](https://example.invalid/".to_vec();
+    line.extend(b"a".repeat(100));
+    line.extend(b")\n");
+    std::fs::write(fixture.root().join("odd.md"), &line).expect("written");
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(2), "{}", stdout(&output));
+    assert!(
+        stderr(&output).contains("odd.md:1: a line over 100 bytes"),
+        "{}",
+        stderr(&output)
+    );
 }

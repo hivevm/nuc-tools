@@ -68,40 +68,34 @@ fn opens(line: &[u8]) -> Option<&[u8]> {
 /// Whether the line, `^[[:space:]]*[`~]+[[:space:]]*$`, closes the fence opened by `open`: its
 /// marks without the spaces start with the opening run.
 fn closes(line: &[u8], open: &[u8]) -> bool {
-    let marks: Vec<u8> = line.iter().copied().filter(|&b| !is_space(b)).collect();
     let indent = line.iter().take_while(|&&b| is_space(b)).count();
     let run = line[indent..]
         .iter()
         .take_while(|&&b| b == b'`' || b == b'~')
         .count();
     let shaped = line[indent + run..].iter().all(|&b| is_space(b)) && run > 0;
-    shaped && marks.len() >= 3 && marks.starts_with(open)
+    shaped && run >= 3 && line[indent..indent + run].starts_with(open)
 }
 
-/// The characters of the line as bash counts them in `C.UTF-8`: a valid UTF-8 sequence is one,
-/// and so is each byte that begins none.
+/// The characters of the line as bash counts them in `C.UTF-8`, for a line [`undecided`] passes.
 pub fn columns(line: &[u8]) -> usize {
-    let mut count = 0;
-    let mut rest = line;
-    while !rest.is_empty() {
-        let step = match std::str::from_utf8(rest) {
-            Ok(_) => {
-                count += String::from_utf8_lossy(rest).chars().count();
-                break;
-            }
-            Err(e) if e.valid_up_to() > 0 => {
-                count +=
-                    std::str::from_utf8(&rest[..e.valid_up_to()]).map_or(0, |s| s.chars().count());
-                e.valid_up_to()
-            }
-            Err(e) => {
-                count += 1;
-                e.error_len().unwrap_or(1).min(1)
-            }
-        };
-        rest = &rest[step..];
-    }
-    count
+    std::str::from_utf8(line).map_or(line.len(), |text| text.chars().count())
+}
+
+/// Whether a wide line holds what the bash reads otherwise than its characters: a byte of no
+/// valid UTF-8, which glibc and Rust count apart and `read` may join to the next line, or the
+/// unit separator 0x1F, which the bash splits its record pass on. Such a line is not decided.
+pub fn undecided(line: &[u8]) -> bool {
+    std::str::from_utf8(line).is_err() || line.contains(&0x1F)
+}
+
+/// The wide lines a file the rule reads holds that [`undecided`] refuses, by number.
+pub fn undecided_lines(text: &[u8]) -> Vec<usize> {
+    wide_lines(text)
+        .into_iter()
+        .filter(|(_, line)| undecided(line))
+        .map(|(n, _)| n)
+        .collect()
 }
 
 /// Whether a line of prose can break: a space outside the text of its links, after its indent.
@@ -251,8 +245,11 @@ mod tests {
             found("README.md", &format!("{}\n", "é ".repeat(40))),
             Vec::<String>::new()
         );
-        assert_eq!(columns(b"a\xff\xfeb"), 4);
-        assert_eq!(columns(b"\xe2\x80"), 2);
+        assert!(undecided(b"a\xff b"));
+        assert!(undecided(b"\xe2\x80"));
+        assert!(undecided(b"\xf4\x90\x80\x80"));
+        assert!(undecided(b"a\x1f"));
+        assert!(!undecided("é —".as_bytes()));
     }
 
     #[test]
