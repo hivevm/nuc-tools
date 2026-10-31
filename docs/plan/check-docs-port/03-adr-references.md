@@ -21,6 +21,9 @@ Superseded and rejected ADRs are skipped where the bash skips them.
 - [ ] Given the corpus and a variant per check (a reference to a number that does not exist, a
   link to another ADR's file, a Supersedes field without its counterpart), when the harness
   runs, then it reports no difference.
+- [ ] Given the variant that deletes ADR-0003, a gap in the numbering that ticket 02 left for the
+  references it breaks, when the harness runs with checks 3 and 5 ported, then it reports no
+  difference; it lands here or with ticket 04, whichever ports the last of them.
 
 ## Read first
 

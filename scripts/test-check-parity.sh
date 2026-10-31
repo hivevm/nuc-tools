@@ -105,6 +105,21 @@ expect fail "a line of nuc that is no finding" "nuc output not understood" \
 expect fail "a rule of nuc the table maps nothing to" "which the table maps no message to" \
   compare "$(bash_out unmapped)" 0 "$(nuc_out unmapped "README.md:1: docs/other: x")" 1
 
+# A table whose rows place a bash location at the file nuc names, by path and by prefix.
+printf '%s\n' $'^ADR index: lists \tdocs/x\t-\t=docs/adr/README.md' $'^[^ :]+:[0-9]+: a field\tdocs/y\t-\t+docs/adr/' \
+  > "$work/places.tsv"
+# shellcheck disable=SC2317,SC2329 # run through expect
+placed() { env PARITY_TABLE="$work/places.tsv" bash "$HARNESS" --compare "$@"; }
+expect pass "a place '=' names the file nuc names" "" \
+  placed "$(bash_out place-eq "ADR index: lists 'a.md' twice")" 1 "$(nuc_out place-eq "docs/adr/README.md:4: docs/x: lists")" 1
+expect pass "a place '+' prefixes the bash location, its line left out under '-'" "" \
+  placed "$(bash_out place-plus "0001-a.md:3: a field")" 1 "$(nuc_out place-plus "docs/adr/0001-a.md:3: docs/y: field")" 1
+expect fail "a place that does not name nuc's file is a difference" "only bash reports: docs/x docs/adr/README.md" \
+  placed "$(bash_out place-other "ADR index: lists 'a.md' twice")" 1 "$(nuc_out place-other "README.md: docs/x: lists")" 1
+printf '%s\n' $'^x\tdocs/x\t-\tdocs/adr/' > "$work/bad-place.tsv"
+expect fail "a place that is neither '=' nor '+' is refused" "is not 'pattern<TAB>rule ID" \
+  env PARITY_TABLE="$work/bad-place.tsv" bash "$HARNESS" --compare "$(bash_out bad-place)" 0 "$(nuc_out bad-place)" 0
+
 # --- cases: a run over a corpus -----------------------------------------------------------
 
 # source_repo <name> [README line] — a repository whose check-docs.sh reports the missing
@@ -165,16 +180,23 @@ variants() { local f="$1"; shift; printf '%s\n' "$@" > "$f"; echo "$f"; }
 DELETE=$'deleted\tdocs/template-release\tREADME.md\tsed\t/Template release:/d'
 DEFAULT="$(variants "$work/default.tsv" "# The variant of the one ported rule." "$DELETE")"
 
+# The table of the repository with the rows of docs/template-release alone, the one rule the
+# fixtures carry.
+grep -E $'^#|\tdocs/template-release\t' "$ROOT/tests/parity/normalize.tsv" > "$work/one-rule.tsv"
+
 # run <corpus> <nuc> [variants] — the harness on the corpus, with the default variant unless given.
 # shellcheck disable=SC2317,SC2329 # run through expect
-run() { bash "$HARNESS" --corpus "$1" --cache "$work/cache" --nuc "$2" --variants "${3:-$DEFAULT}"; }
+run() {
+  env PARITY_TABLE="$work/one-rule.tsv" bash "$HARNESS" --corpus "$1" --cache "$work/cache" --nuc "$2" \
+    --variants "${3:-$DEFAULT}"
+}
 
 source_repo agree > /dev/null
 c="$(corpus "$work/agree.toml" agree)"
 expect pass "a corpus on which bash and nuc agree, on the tree and on its variant" "" run "$c" "$(reactive_nuc)"
 expect pass "the filled cache is used again, the tree reset" "" run "$c" "$(reactive_nuc)"
 check "the run names the variant it compared" \
-  bash -c "bash \"$HARNESS\" --corpus \"$c\" --cache \"$work/cache\" --nuc \"$(reactive_nuc)\" --variants \"$DEFAULT\" | grep -q 'variant deleted — 1 finding'"
+  bash -c "PARITY_TABLE=\"$work/one-rule.tsv\" bash \"$HARNESS\" --corpus \"$c\" --cache \"$work/cache\" --nuc \"$(reactive_nuc)\" --variants \"$DEFAULT\" | grep -q 'variant deleted — 1 finding'"
 check "the variant leaves the cached tree as pinned" \
   bash -c "test -z \"\$(git -C \"$work/cache/agree\" status --porcelain --untracked-files=no)\""
 

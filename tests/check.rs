@@ -209,3 +209,53 @@ fn a_readme_with_a_nul_byte_is_not_decided() {
     assert_eq!(code(&output), Some(2));
     assert!(stderr(&output).contains("NUL byte"), "{}", stderr(&output));
 }
+
+#[test]
+fn an_adr_with_a_nul_byte_is_not_decided_and_names_the_file() {
+    let config = "minimum = \"0.0.0\"\nrules = [\"docs/adr-header\"]\n";
+    let fixture = Fixture::project("adr-nul", config, README);
+    fixture.write(
+        "docs/adr/0001-a.md",
+        "# ADR-0001: A\n\n- **Status:** 🟢 accepted\n",
+    );
+    std::fs::write(
+        fixture.root().join("docs/adr/0002-b.md"),
+        b"# ADR-0002\n\0\n",
+    )
+    .expect("written");
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(2));
+    assert!(
+        stderr(&output).contains("0002-b.md: holds a NUL byte"),
+        "{}",
+        stderr(&output)
+    );
+}
+
+#[test]
+fn the_rules_of_the_record_report_end_to_end() {
+    let config = "minimum = \"0.0.0\"\nrules = [\"docs/adr-index\", \"docs/adr-numbering\", \"docs/adr-header\"]\n";
+    let fixture = Fixture::project("adr-record", config, README);
+    fixture.write("docs/adr/README.md", "| ADR | Title | Applies to | Status |\n|---|---|---|---|\n| [0001](0001-a.md) | A | every commit | 🟢 accepted |\n");
+    fixture.write(
+        "docs/adr/0001-a.md",
+        "# ADR-0001: A\n\n- **Status:** 🟢 proposed\n- **Applies to:** every commit\n",
+    );
+    fixture.write(
+        "docs/adr/0003-c.md",
+        "# ADR-0003: C\n\n- **Status:** 🟢 accepted\n- **Applies to:** x\n",
+    );
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(1), "{}", stderr(&output));
+    let out = stdout(&output);
+    for line in [
+        "docs/adr/README.md: docs/adr-index: ADR index: file '0003-c.md' exists but is not listed in the index",
+        "docs/adr: docs/adr-numbering: ADR numbering: expected '0002-*.md' at position 2, found '0003-c.md'",
+        "docs/adr/0001-a.md: docs/adr-header: 0001-a.md: status line reads '🟢 proposed', but 🟢 means 'accepted'",
+    ] {
+        assert!(
+            out.lines().any(|l| l.starts_with(line)),
+            "missing {line}:\n{out}"
+        );
+    }
+}

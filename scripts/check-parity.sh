@@ -52,12 +52,14 @@ unset $(git rev-parse --local-env-vars)
 
 die() { echo "Parity check: $1" >&2; exit 2; }
 
-patterns=() rules=() modes=()
-while IFS=$'\t' read -r pattern rule mode extra; do
+patterns=() rules=() modes=() places=()
+while IFS=$'\t' read -r pattern rule mode place extra; do
   [[ -z "$pattern" || "$pattern" == \#* ]] && continue
-  [[ -n "$rule" && ( "$mode" == "line" || "$mode" == "-" ) && -z "${extra:-}" ]] \
-    || die "$TABLE: the row '$pattern' is not 'pattern<TAB>rule ID<TAB>line|-'"
-  patterns+=("$pattern") rules+=("$rule") modes+=("$mode")
+  if ! [[ -n "$rule" && ( "$mode" == "line" || "$mode" == "-" ) && -z "${extra:-}" ]] \
+    || ! [[ -z "${place:-}" || "$place" == =?* || "$place" == +?* ]]; then
+    die "$TABLE: the row '$pattern' is not 'pattern<TAB>rule ID<TAB>line|-[<TAB>=path|+prefix]'"
+  fi
+  patterns+=("$pattern") rules+=("$rule") modes+=("$mode") places+=("${place:-}")
 done < "$TABLE" || die "$TABLE: unreadable"
 
 # mode_of <rule> — whether the comparison keeps the line of the rule's findings: line or '-'.
@@ -91,9 +93,14 @@ compare() {
           diffs+=("bash message the table does not know: $msg")
         elif [[ "$rule" != "-" ]]; then
           file="${msg%%: *}" n=""
-          if [[ "${modes[i]}" == "line" && "$file" =~ ^(.*):([0-9]+)$ ]]; then
-            file="${BASH_REMATCH[1]}" n="${BASH_REMATCH[2]}"
+          if [[ "$file" =~ ^(.*):([0-9]+)$ ]]; then
+            file="${BASH_REMATCH[1]}"
+            [[ "${modes[i]}" == "line" ]] && n="${BASH_REMATCH[2]}"
           fi
+          case "${places[i]}" in
+            =*) file="${places[i]#=}" ;;
+            +*) file="${places[i]#+}$file" ;;
+          esac
           bash_keys+=("$(key "$rule" "$file" "$n")")
         fi
         ;;

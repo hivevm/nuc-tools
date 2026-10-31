@@ -10,6 +10,7 @@ use std::io::ErrorKind;
 use std::path::Path;
 use std::process::ExitCode;
 
+use crate::adr;
 use crate::config::{self, Version};
 use crate::finding::Finding;
 use crate::rules::{self, Inputs};
@@ -70,6 +71,7 @@ fn check(repo: Option<&Path>) -> Result<u8, String> {
     let selected = config::select(&config, rules::ALL).map_err(|r| r.to_string())?;
     let inputs = Inputs {
         readme: read_checked(&root.join("README.md"))?,
+        adr: read_adr(&root.join("docs/adr"))?,
     };
     let findings: Vec<Finding> = selected
         .iter()
@@ -129,4 +131,33 @@ fn read_checked(path: &Path) -> Result<Option<String>, String> {
             Ok(String::from_utf8_lossy(&bytes).into_owned())
         })
         .transpose()
+}
+
+/// The files directly in the directory that are files or links to files, read as the bash checks
+/// read them; empty when the directory does not exist. A file of its own is listed as an ADR
+/// candidate, as `find -type f` lists it; a link only answers whether a row's target exists.
+fn read_adr(dir: &Path) -> Result<adr::Dir, String> {
+    let entries = match fs::read_dir(dir) {
+        Ok(entries) => entries,
+        Err(e) if e.kind() == ErrorKind::NotFound => return Ok(adr::Dir::new()),
+        Err(e) => return Err(format!("{}: unreadable — {e}", dir.display())),
+    };
+    let mut files = adr::Dir::new();
+    for entry in entries {
+        let entry = entry.map_err(|e| format!("{}: unreadable — {e}", dir.display()))?;
+        let path = entry.path();
+        if !path.is_file() {
+            continue;
+        }
+        let Some(name) = entry.file_name().to_str().map(str::to_owned) else {
+            return Err(format!(
+                "{}: a file name that is no UTF-8 — not decided",
+                path.display()
+            ));
+        };
+        let listed = entry.file_type().is_ok_and(|kind| kind.is_file());
+        let text = read_checked(&path)?.unwrap_or_default();
+        files.insert(name, adr::File { text, listed });
+    }
+    Ok(files)
 }
