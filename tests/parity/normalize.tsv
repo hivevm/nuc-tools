@@ -44,3 +44,17 @@
 ^[^ :]+: [^ :]+ supersedes it, but its status line does not say 'superseded by ADR-	docs/adr-supersessions	-	+docs/adr/
 ^[^ :]+: status is ⚪ but the line names no superseding ADR$	docs/adr-supersessions	-	+docs/adr/
 ^[^ :]+: [^ :]+ says it supersedes, but it carries no '\*\*Supersedes:\*\*' field naming ADR-	docs/adr-supersessions	-	+docs/adr/
+
+# check-docs.sh, check 3: the relative links.
+^[^:]+: broken relative link -> '.*'$	docs/links	-
+^[^:]+: link '.*' has no matching anchor '#.*' in .*$	docs/links	-
+
+# check-docs.sh, check 4: the section references; the findings of AGENTS.md itself name no line.
+^[^:]+:[0-9]+: reference 'AGENTS\.md, section [0-9]+' matches no numbered section in AGENTS\.md$	docs/section-refs	line
+^[^:]+:[0-9]+: reference '§[0-9]+' matches no numbered section in AGENTS\.md$	docs/section-refs	line
+^[^:]+:[0-9]+: '§[0-9]+' is cited without an anchor	docs/section-refs	line
+^[^:]+:[0-9]+: '§[0-9]+' links to anchor 	docs/section-refs	line
+^[^:]+:[0-9]+: '§[0-9]+' stands outside a link	docs/section-refs	line
+^AGENTS\.md not found in the repository root$	docs/section-refs	line	=AGENTS.md
+^AGENTS\.md: no numbered '## N\.' section headings found$	docs/section-refs	line	=AGENTS.md
+^AGENTS\.md: numbered sections must run 1\.\.N in order	docs/section-refs	line	=AGENTS.md

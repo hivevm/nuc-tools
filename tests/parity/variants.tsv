@@ -23,3 +23,10 @@ adr-refs-missing	docs/adr-refs	README.md	sed	1s/$/ ADR-09\x399/
 adr-link-targets-other	docs/adr-link-targets	docs/adr/0001-agent-governance-model.md	sed	$s/$/\n\nSee [ADR-0002](0003-procedures-as-skills.md)./
 adr-supersessions-no-successor	docs/adr-supersessions	docs/adr/0001-agent-governance-model.md	sed	s/^(- \*\*Status:\*\*) 🟢 accepted$/\1 ⚪ superseded/
 adr-supersessions-unflipped	docs/adr-supersessions	docs/adr/0002-decisions-verified-by-tests.md	sed	s/^(- \*\*Applies to:\*\*)/- **Supersedes:** ADR-0001\n\1/
+
+# docs/links, docs/section-refs: checks 3 and 4 of check-docs.sh; and the gap in the numbering,
+# which fires checks 1, 2, 3, and 5.
+links-broken	docs/links	README.md	sed	$s/$/\n\nSee [the missing file](missing-variant.md)./
+links-anchor	docs/links	README.md	sed	$s/$/\n\nSee [the rules](AGENTS.md#no-such-section)./
+section-refs-bare	docs/section-refs	README.md	sed	$s/$/\n\nSee §3 of the agents file./
+adr-numbering-gap	docs/adr-numbering	docs/adr/0003-procedures-as-skills.md	delete	-
