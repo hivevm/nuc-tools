@@ -19,11 +19,12 @@ runs:
         sh "$ACTION_PATH/release/install-nuc.sh" "$ACTION_PATH/release/pinned/SHA256SUMS" \
           "$ACTION_PATH/release/pinned/VERSION" "$RUNNER_TEMP/nuc-bin"
         echo "$RUNNER_TEMP/nuc-bin" >> "$GITHUB_PATH"
-    # The arguments pass through the environment, never through the script's text.
+    # The arguments pass through the environment, never through the script's text, and are split
+    # at every space, tab, and newline, so that a block scalar keeps all its lines.
     - name: Run nuc
       shell: bash
       env:
         NUC_ARGS: ${{ inputs.args }}
       run: |
-        read -r -a args <<< "$NUC_ARGS"
+        read -r -d '' -a args <<< "$NUC_ARGS" || true
         nuc "${args[@]}"

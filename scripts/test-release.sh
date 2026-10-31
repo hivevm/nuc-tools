@@ -8,8 +8,10 @@
 # checksum SHA256SUMS names and refuses one that differs, one SHA256SUMS does not name, a commit
 # without SHA256SUMS, and a VERSION that is no X.Y.Z, leaving nothing behind; release/pin.sh
 # writes the release into a copy of the Action's and the Feature's files and refuses a version
-# that is no X.Y.Z; and the Feature's install.sh refuses to run without a pinned release. That
-# the installers reject a real binary of each target that differs is the release-test workflow's.
+# that is no X.Y.Z; release/version.sh refuses a tag other than the crate's version;
+# release/move-major.sh moves the major tag to a later release and keeps it from an earlier one;
+# and the Feature's install.sh refuses to run without a pinned release. That the installers
+# reject a real binary of each target that differs is the release-test workflow's.
 #
 # Inputs: release/ feature/ action.yml scripts/lib/
 #
@@ -94,10 +96,12 @@ d="$(release missing 1.2.3)"
 expect fail "a commit without SHA256SUMS installs nothing" "no release commit" \
   install "$d" "$d/no-SHA256SUMS" "$d/VERSION" "$work/bin-missing"
 
-d="$(release bad-version 1.2.3)"
-echo "latest" > "$d/VERSION"
-expect fail "a VERSION that is no X.Y.Z is refused" "not X.Y.Z" \
-  install "$d" "$d/SHA256SUMS" "$d/VERSION" "$work/bin-bad-version"
+for bad in latest "1.2.3/../v1.2.3" "1x.2.3" "01.2.3" "1.2.3-rc1"; do
+  d="$(release "bad-version-${bad//[^a-z0-9]/_}" 1.2.3)"
+  echo "$bad" > "$d/VERSION"
+  expect fail "a VERSION '$bad', which is no X.Y.Z, is refused" "not X.Y.Z" \
+    install "$d" "$d/SHA256SUMS" "$d/VERSION" "$work/bin-bad-version"
+done
 
 d="$(release absent 1.2.3)"
 rm "$d/v1.2.3/nuc-$TARGET"
@@ -130,5 +134,43 @@ expect fail "the Feature refuses to install without a pinned release" "carries n
 check "the Action names the pinned files it installs from" grep -q 'release/pinned/SHA256SUMS' "$ROOT/action.yml"
 # shellcheck disable=SC2016 # the expression is the Action's
 check "the Action passes its arguments through the environment" grep -q 'NUC_ARGS: \${{ inputs.args }}' "$ROOT/action.yml"
+
+# --- cases: the tag and the version of the crate -----------------------------------------
+
+crate="$work/crate"
+mkdir -p "$crate"
+printf '[package]\nname = "x"\nversion = "1.4.0"\n\n[dependencies]\nversion = "9.9.9"\n' > "$crate/Cargo.toml"
+expect pass "a tag of the crate's version passes and prints it" "1.4.0" bash "$ROOT/release/version.sh" v1.4.0 "$crate"
+expect fail "a tag of another version is refused" "not the version 1.4.0" bash "$ROOT/release/version.sh" v1.4.1 "$crate"
+for bad in 1.4.0 v01.4.0 v1.4 v1.4.0-rc1; do
+  expect fail "a tag '$bad', which is no vX.Y.Z, is refused" "no tag vX.Y.Z" bash "$ROOT/release/version.sh" "$bad" "$crate"
+done
+
+# --- cases: moving the major tag ----------------------------------------------------------
+
+# release_commit <repo> <version> — a commit carrying release/pinned/VERSION.
+release_commit() {
+  mkdir -p "$1/release/pinned"
+  echo "$2" > "$1/release/pinned/VERSION"
+  git -C "$1" add -A
+  git -C "$1" -c user.name=F -c user.email=f@example.invalid -c core.hooksPath=/dev/null commit -q -m "pin $2"
+}
+repo="$work/tags"
+mkdir -p "$repo" && git -C "$repo" init -q
+move() { (cd "$repo" && bash "$ROOT/release/move-major.sh" "$1"); }
+release_commit "$repo" 1.2.0
+expect pass "a new major tag is moved, with nothing named before" "moved" move 1.2.0
+check "the new major tag names the release commit" test "$(git -C "$repo" rev-parse v1)" = "$(git -C "$repo" rev-parse HEAD)"
+first="$(git -C "$repo" rev-parse v1)"
+release_commit "$repo" 1.3.0
+check "a later release moves it and names what it named before" test "$(move 1.3.0 2>/dev/null)" = "moved $first"
+later="$(git -C "$repo" rev-parse v1)"
+release_commit "$repo" 1.2.4
+expect pass "an earlier release keeps it" "kept" move 1.2.4
+check "the kept major tag still names the later release" test "$(git -C "$repo" rev-parse v1)" = "$later"
+release_commit "$repo" 2.0.0
+expect pass "another major is a tag of its own" "moved" move 2.0.0
+check "the first major is untouched by the second" test "$(git -C "$repo" rev-parse v1)" = "$later"
+expect fail "move-major.sh refuses a version that is no X.Y.Z" "no version X.Y.Z" move v2.0.0
 
 summary "Release tooling self-test"

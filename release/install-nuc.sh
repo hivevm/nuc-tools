@@ -9,8 +9,8 @@
 # Usage:
 #     install-nuc.sh <SHA256SUMS> <VERSION file> <destination directory>
 # NUC_RELEASE_BASE replaces https://github.com/hivevm/nuc-tools/releases/download, the base the
-# binary is fetched from, as release/test.sh does with a file:// URL; NUC_TARGET replaces the
-# target read from uname. Neither can pass a binary the checksums do not name.
+# binary is fetched from, as scripts/test-release.sh does with a file:// URL; NUC_TARGET replaces
+# the target read from uname. Neither can pass a binary the checksums do not name.
 # Exit code 0 when nuc is installed, 1 otherwise.
 
 set -eu
@@ -23,10 +23,8 @@ if [ ! -f "$sums" ] || [ ! -f "$version_file" ]; then
   fail "no SHA256SUMS or VERSION beside the installer — this commit is no release commit; reference the major tag vN of a release"
 fi
 version="$(tr -d '[:space:]' < "$version_file")"
-case "$version" in
-  [0-9]*.[0-9]*.[0-9]*) ;;
-  *) fail "VERSION holds '$version', not X.Y.Z" ;;
-esac
+printf '%s\n' "$version" | grep -Eqx '(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)' \
+  || fail "VERSION holds '$version', not X.Y.Z"
 
 target="${NUC_TARGET:-}"
 if [ -z "$target" ]; then
