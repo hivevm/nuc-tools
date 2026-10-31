@@ -54,9 +54,10 @@ golden path and the test pattern an agent copies from are named here.
   ([ADR-0013](adr/0013-version-coupling.md)).
 - **Shell** — `src/shell/` reads the command line and the repository, runs git under a cleared
   environment in `shell::git`, calls the rules, prints the findings, and sets the exit code
-  ([ADR-0010](adr/0010-git-cli-cleared-environment.md)). Its `Tree` reads every file and lists
-  every directory the rules need, and refuses one that resolves outside the repository, or that
-  the bash would read differently from its bytes alone, as not decided.
+  ([ADR-0010](adr/0010-git-cli-cleared-environment.md)). Its `Tree`, in `shell::tree`, reads
+  every file and lists every directory the rules need, each resolved through one function that
+  refuses a path outside the repository, and refuses as well, as not decided, one the bash would
+  read differently from its bytes alone.
 - **Binary** — `src/main.rs` calls the shell and nothing else.
 - **Parity harness** — `scripts/check-parity.sh` runs the bash checks of each repository of the
   corpus, `check-docs.sh` and `check-traceability.sh`, all on template release v0.5.0 or later,
