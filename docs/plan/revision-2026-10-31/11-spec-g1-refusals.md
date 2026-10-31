@@ -14,9 +14,13 @@ A drafted specification change, for the human to decide and land
 findings as the bash checks on the same tree. The tests decide more: on a tree the bash reads by its
 locale or its buffers rather than by the bytes alone, `nuc` exits 2 where the bash passes or
 reports, as for a NUL byte past grep's first buffer, a wide line holding a byte of no valid UTF-8 or
-0x1F, an ADR holding 0x1F, and a draft name holding a newline. Q-1 outranks G-1, so the behaviour is
-right, but G-1's text no longer says what the tests decide, and a reader comparing the two would
-take the refusals for a defect.
+0x1F, an ADR holding 0x1F, and a draft name holding a newline. The port of
+`check-traceability.sh` added four: a specification that exists but cannot be read, which the
+bash passes over; a file holding a marker and a NUL byte past grep's first buffer; a path of no
+UTF-8 whose file holds a marker; and a symbolic link in git's listing that leads outside the
+repository, refused before its content is known, where the bash reads it. Q-1 outranks G-1, so
+the behaviour is right, but G-1's text no longer says what the tests decide, and a reader
+comparing the two would take the refusals for a defect.
 
 Drafted text for G-1:
 

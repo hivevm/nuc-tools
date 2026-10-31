@@ -18,6 +18,11 @@ splits in `docs_section_refs`. The gate caught each case, so no further check is
 is one way to write such a literal. Give the unit tests and the integration tests one helper each
 side can reach, as the template's self-tests do with `adr_id`, and use it everywhere.
 
+The port of `check-traceability.sh` added more: `mark` and `adr_id`, written in the unit tests of
+both `traceability_citations` and `traceability_coverage`, and a substitution of `V:` and `@` in
+the first. The variants in `tests/parity/variants.tsv` write the colon and the hyphen as `\x3a`
+and `\x2d` for the same reason; a table cannot call a helper, and they stay.
+
 ## Acceptance criteria
 
 - [ ] Given the tests, when one names an ADR identifier, a draft identifier, or a section

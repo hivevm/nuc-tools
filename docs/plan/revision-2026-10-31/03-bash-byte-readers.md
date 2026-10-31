@@ -18,12 +18,20 @@ byte divergences the reviews found, a last line `read` drops, the space class, w
 one of these copies. Gather them into one module named for the bash's tools, with one test each
 of the bytes it reads otherwise than Rust, and leave `src/adr.rs` the reading of the record.
 
+The port of `check-traceability.sh` wrote `lines` and `is_space` a second time, in
+`traceability_criteria` and `traceability_citations`, and its review moved them back to
+`adr::awk_lines` and `adr::is_space`. Each port writes such a copy, so the module comes with the
+check that holds it: the structural test of `tests/functional_core.rs` fails on a function of
+one of these names defined outside it.
+
 ## Acceptance criteria
 
 - [ ] Given the suite as it stands, when the readers have moved, then every test passes unchanged
   and the parity harness shows no difference.
 - [ ] Given the crate, when a rule needs lines as awk, `read`, or `sed` split them, or POSIX
   space, then it takes them from the one module, and `src/adr.rs` defines none of them.
+- [ ] Given a function named like one of the readers outside the module, when the structural
+  test runs, then it fails and names the function.
 - [ ] Given `docs/ARCHITECTURE.md`, when the module lands, then the Rules block names it.
 
 ## Read first

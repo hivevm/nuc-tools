@@ -48,7 +48,7 @@ template until `nuc` reaches parity, then the template switches over.
 Acceptance criteria a test can decide, where it helps in the form *When <trigger>, the system
 shall <response>*. Each starts with a bold `G-n`, which a test cites with `Verifies: G-n`. Until
 that test exists the criterion is pending work, and the traceability check lists it
-([ADR-0002](adr/0002-decisions-verified-by-tests.md)). Identifiers are never reused.
+([ADR-0023](adr/0023-decisions-verified-by-tests.md)). Identifiers are never reused.
 Only a normalization renumbers them ([`AGENTS.md` §3](../AGENTS.md#3-adr-rules), rule 5).
 
 1. **G-1** — When a derived project runs `nuc check`, it reports the same findings as the bash

@@ -992,3 +992,165 @@ fn a_draft_whose_name_holds_a_newline_is_not_decided() {
         stderr(&output)
     );
 }
+
+const TRACEABILITY: &str = "minimum = \"0.0.0\"\nrules = [\"traceability/criteria\"]\n";
+
+#[test]
+fn the_criteria_of_the_specification_are_checked_where_the_bash_finds_them() {
+    let fixture = Fixture::project("criteria", TRACEABILITY, README);
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(1), "{}", stderr(&output));
+    assert_eq!(
+        stdout(&output),
+        "docs/SPECIFICATION.md: traceability/criteria: not found — the criteria cannot be read\n"
+    );
+    // A directory in its place is no file, as `-f` finds it.
+    std::fs::create_dir_all(fixture.root().join("docs/SPECIFICATION.md")).unwrap();
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(1), "{}", stderr(&output));
+    std::fs::remove_dir(fixture.root().join("docs/SPECIFICATION.md")).unwrap();
+    fixture.write(
+        "docs/SPECIFICATION.md",
+        "## Goals / Success Criteria\n\n- **G-1** — it works.\n- **G-1** — again.\n",
+    );
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(1), "{}", stderr(&output));
+    assert_eq!(
+        stdout(&output),
+        "docs/SPECIFICATION.md:4: traceability/criteria: identifier 'G-1' appears twice — \
+         identifiers are never reused\n"
+    );
+    fixture.write(
+        "docs/SPECIFICATION.md",
+        "## Goals / Success Criteria\n\n- **G-1** — it works.\n",
+    );
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(0), "{}", stderr(&output));
+}
+
+#[test]
+fn a_specification_the_bash_reads_as_binary_is_not_decided() {
+    let fixture = Fixture::project("criteria-nul", TRACEABILITY, README);
+    fixture.write("docs/SPECIFICATION.md", "## Quality Goals\n- **Q-1** \0\n");
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(2));
+    assert!(stderr(&output).contains("NUL byte"), "{}", stderr(&output));
+}
+
+#[test]
+fn the_criteria_rule_is_explained() {
+    let fixture = Fixture::project("criteria-explain", TRACEABILITY, README);
+    let output = fixture.nuc(&["explain", "traceability/criteria"]);
+    assert_eq!(code(&output), Some(0));
+    assert!(
+        stdout(&output).contains("**G-n** under Goals"),
+        "{}",
+        stdout(&output)
+    );
+}
+
+const CITATIONS: &str = "minimum = \"0.0.0\"\nrules = [\"traceability/citations\"]\n";
+
+/// A marker citing the identifier, assembled so that this file carries no literal one.
+fn mark(id: &str) -> String {
+    format!("{}: {id}\n", "Verifies")
+}
+
+#[test]
+fn citations_are_read_from_the_files_the_bash_reads_them_from() {
+    let fixture = Fixture::project("citations", CITATIONS, README);
+    fixture.write(
+        "docs/SPECIFICATION.md",
+        "## Goals / Success Criteria\n\n- **G-1** — it works.\n",
+    );
+    fixture.write(".gitignore", "ignored.txt\n");
+    fixture.write("notes.md", &mark("G-7"));
+    fixture.write("ignored.txt", &mark("G-7"));
+    let mut binary = b"\0".to_vec();
+    binary.extend_from_slice(mark("G-7").as_bytes());
+    std::fs::write(fixture.root().join("binary.bin"), binary).unwrap();
+    fixture.write("tests/ok.txt", &mark("G-1"));
+    fixture.commit("fixture");
+    // A new file git does not ignore is read, and so is a path git would quote.
+    fixture.write("new.txt", &format!("x\n{}", mark("G-8")));
+    fixture.write("tests/é.txt", &mark("Q-3"));
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(1), "{}", stderr(&output));
+    assert_eq!(
+        stdout(&output),
+        "new.txt:2: traceability/citations: cites 'G-8', which is not a criterion of \
+         docs/SPECIFICATION.md\n\
+         tests/é.txt:1: traceability/citations: cites 'Q-3', which is not a criterion of \
+         docs/SPECIFICATION.md\n"
+    );
+}
+
+#[test]
+fn a_marker_beside_a_nul_byte_past_the_first_buffer_is_not_decided() {
+    let fixture = Fixture::project("citations-nul", CITATIONS, README);
+    let mut bytes = mark("G-1").into_bytes();
+    bytes.extend(std::iter::repeat_n(b'x', 40 * 1024));
+    bytes.push(0);
+    std::fs::write(fixture.root().join("late.bin"), bytes).unwrap();
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(2), "{}", stdout(&output));
+    assert!(stderr(&output).contains("late.bin"), "{}", stderr(&output));
+}
+
+#[cfg(unix)]
+#[test]
+fn a_path_that_is_no_utf8_is_read_and_refused_only_where_it_holds_a_marker() {
+    use std::os::unix::ffi::OsStrExt;
+    let fixture = Fixture::project("citations-bytes", CITATIONS, README);
+    fixture.write(
+        "docs/SPECIFICATION.md",
+        "## Goals / Success Criteria\n\n- **G-1** — it works.\n",
+    );
+    let name = fixture
+        .root()
+        .join(std::ffi::OsStr::from_bytes(b"n\xffo.txt"));
+    std::fs::write(&name, "nothing here\n").unwrap();
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(0), "{}", stderr(&output));
+    std::fs::write(&name, mark("G-1")).unwrap();
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(2), "{}", stdout(&output));
+    assert!(
+        stderr(&output).contains("n\u{FFFD}o.txt"),
+        "{}",
+        stderr(&output)
+    );
+}
+
+#[test]
+fn the_criteria_without_a_test_are_named_in_the_summary_and_never_fail_the_run() {
+    let config = "minimum = \"0.0.0\"\nrules = [\"traceability/coverage\"]\n";
+    let fixture = Fixture::project("coverage", config, README);
+    fixture.write(
+        "docs/SPECIFICATION.md",
+        "## Goals / Success Criteria\n\n- **G-1** — a.\n- **G-2** — b.\n\n## Quality Goals\n\n\
+         - **Q-1** — c.\n",
+    );
+    fixture.write("tests/t.txt", &mark("G-2"));
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(0), "{}", stdout(&output));
+    assert_eq!(
+        stderr(&output),
+        "nuc check passed (1 rules); 2 criteria without a test: G-1 Q-1.\n"
+    );
+    fixture.write(
+        "docs/adr/0001-decision.md",
+        "# ADR-0001: decision\n\n- **Status:** 🟢 accepted\n",
+    );
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(1), "{}", stderr(&output));
+    assert!(
+        stdout(&output).starts_with("docs/adr: traceability/coverage: ADR-0001 is accepted"),
+        "{}",
+        stdout(&output)
+    );
+    assert_eq!(
+        stderr(&output),
+        "nuc check: 1 finding(s); 2 criteria without a test: G-1 Q-1.\n"
+    );
+}

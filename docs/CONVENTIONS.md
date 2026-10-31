@@ -32,5 +32,6 @@ skimmed. The design revision drops what prevented nothing
   the cases of the bash self-test. Where the bash result depends on more than the input, as grep's
   on a file with a NUL byte, `nuc` refuses instead of guessing. Each port is tried on the bytes
   the bash reads otherwise than Rust: a byte of no valid UTF-8, the byte 0x1F its awk passes split
-  fields on, a last line without a newline (`read` drops it, awk and `sed` keep it), and numbers
-  in bash arithmetic (octal after a leading zero, 64-bit wrap).
+  fields on, a last line without a newline (`read` drops it, awk and `sed` keep it), numbers in
+  bash arithmetic (octal after a leading zero, 64-bit wrap), and a path git lists that is no
+  UTF-8, which the bash opens and Rust's strings do not hold.

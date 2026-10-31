@@ -7,9 +7,12 @@
 # writes that is no finding fail; pairs that agree pass, a check not ported yet included.
 #
 # The run cases build a corpus from fixture repositories, fetched through file://, whose
-# check-docs.sh is a stub that reports the missing release line as check 14 does, and run the
-# harness with a stand-in for nuc. Agreeing trees and variants pass and leave the cache as pinned;
-# differing ones, a cache that cannot be filled, and a malformed corpus fail. The floor cases
+# check-docs.sh is a stub that reports the missing release line as check 14 does, beside a
+# check-traceability.sh that passes, and run the harness with a stand-in for nuc. Agreeing trees
+# and variants pass and leave the cache as pinned; differing ones, a cache that cannot be filled,
+# and a malformed corpus fail, and so do a tree whose check-traceability.sh fails without a
+# finding while its check-docs.sh passes and a tree without check-traceability.sh. A comparison
+# case reads the outputs of both scripts as one. The floor cases
 # refuse a tree whose release line names a release before v0.5.0, a pre-release, 'unreleased',
 # or none, read as check 14 reads it, and compare a later one. The variant cases fail a variant
 # that does not apply to one tree, one that does not make its rule fire beyond the tree's own
@@ -125,15 +128,28 @@ printf '%s\n' $'^x\tdocs/x\t-\tdocs/adr/' > "$work/bad-place.tsv"
 expect fail "a place that is neither '=' nor '+' is refused" "is not 'pattern<TAB>rule ID" \
   env PARITY_TABLE="$work/bad-place.tsv" bash "$HARNESS" --compare "$(bash_out bad-place)" 0 "$(nuc_out bad-place)" 0
 
+# The two scripts' outputs read as one: a finding of check-traceability.sh beside a passing
+# check-docs.sh is understood and compared.
+UNCITED="ADR-0001 is accepted but no test cites it — add a 'Verifies' marker"
+printf '%s\n' "Documentation checks passed." "Traceability check FAILED:" "  - $UNCITED" > "$work/joined.bash"
+expect pass "the outputs of both scripts are understood" "" \
+  compare "$work/joined.bash" 1 "$(nuc_out joined "docs/adr: traceability/coverage: $UNCITED")" 1
+
 # --- cases: a run over a corpus -----------------------------------------------------------
 
-# source_repo <name> [README line] — a repository whose check-docs.sh reports the missing
-# release line as check 14 does whenever the README lacks a line '- **Template release:** v…',
-# printed as its path; its commit is in $work/src-<name>.commit. The README carries the line given,
-# by default one naming v0.5.0.
+# The check-traceability.sh of a passing tree.
+TRACE_PASSES='echo "Traceability check passed (0 accepted ADRs, 0 criteria, 0 citations)."'
+
+# source_repo <name> [README line] [traceability] — a repository whose check-docs.sh reports the
+# missing release line as check 14 does whenever the README lacks a line
+# '- **Template release:** v…', printed as its path; its commit is in $work/src-<name>.commit. The
+# README carries the line given, by default one naming v0.5.0. Its check-traceability.sh runs the
+# shell code given, by default a pass; 'none' leaves the script out.
 source_repo() {
   local dir="$work/src-$1" line="${2:-- **Template release:** v0.5.0}"
+  local trace="${3:-$TRACE_PASSES}"
   mkdir -p "$dir/scripts"
+  [[ "$trace" == none ]] || printf '%s\n' '#!/usr/bin/env bash' "$trace" > "$dir/scripts/check-traceability.sh"
   git -C "$dir" init -q
   git -C "$dir" config uploadpack.allowAnySHA1InWant true
   # shellcheck disable=SC2016 # the script is the stub's
@@ -206,6 +222,15 @@ check "the variant leaves the cached tree as pinned" \
   bash -c "test -z \"\$(git -C \"$work/cache/agree\" status --porcelain --untracked-files=no)\""
 
 expect fail "a corpus on which they differ" "variant deleted — 2 difference" run "$c" "$(stand_in silent)"
+
+source_repo trace-fails "" 'echo "Traceability check FAILED:"; exit 1' > /dev/null
+expect fail "a script that fails without a finding fails the harness, though the other passes" \
+  "bash: scripts/check-traceability.sh exited 1 without a finding" \
+  run "$(corpus "$work/trace-fails.toml" trace-fails)" "$(reactive_nuc)"
+
+source_repo no-trace "" none > /dev/null
+expect fail "a tree without check-traceability.sh fails" "the tree has no scripts/check-traceability.sh" \
+  run "$(corpus "$work/no-trace.toml" no-trace)" "$(reactive_nuc)"
 
 printf '[[repository]]\nname = "gone"\nurl = "file://%s"\ncommit = "%s"\n' "$work/no-such-repository" \
   "$(cat "$work/src-agree.commit")" > "$work/gone.toml"

@@ -68,7 +68,7 @@ Then it is an entry in [`docs/CONVENTIONS.md`](../../../docs/CONVENTIONS.md).
 
 Then the reverse: a convention or a check that prevented nothing during the work in scope is
 dropped, unless an ADR or a criterion cites it
-([ADR-0002](../../../docs/adr/0002-decisions-verified-by-tests.md)).
+([ADR-0023](../../../docs/adr/0023-decisions-verified-by-tests.md)).
 
 Then the rules added since the last revision: every rule written into
 [`AGENTS.md`](../../../AGENTS.md), the [README](../../../README.md), or the
