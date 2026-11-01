@@ -429,6 +429,17 @@ fn an_unquoted_path_that_is_no_utf8_is_read_and_refused_only_where_a_finding_nam
     assert!(err.contains("n\u{FFFD}o.txt"), "{err}");
     assert!(err.contains("no UTF-8"), "{err}");
     assert!(err.contains("not decided"), "{err}");
+    // The bash resolves the links and the attributes of a Markdown file from its path's bytes,
+    // which nuc cannot spell: such a file is not decided, finding or not.
+    std::fs::write(&name, "nothing here\n").expect("written");
+    let dir = fixture.root().join(std::ffi::OsStr::from_bytes(b"d\xff"));
+    std::fs::create_dir_all(&dir).expect("created");
+    std::fs::write(dir.join("a.md"), "# A\n").expect("written");
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(2), "{}", stdout(&output));
+    let err = stderr(&output);
+    assert!(err.contains("d\u{FFFD}/a.md"), "{err}");
+    assert!(err.contains("Markdown"), "{err}");
 }
 
 #[test]

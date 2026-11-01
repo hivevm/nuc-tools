@@ -230,7 +230,8 @@ impl Tree {
     /// newline that `grep -Il .` reads as text under `LC_ALL=C`. A path that is no UTF-8, which git
     /// lists unquoted under `core.quotePath=false`, is read by its bytes and keyed by its text with
     /// each such byte replaced; those keys come back as well, since a finding cannot name them as
-    /// the bash does.
+    /// the bash does. A Markdown file of such a path is not decided: its links and attributes are
+    /// found from its path.
     pub(super) fn read_text_files(&self) -> Result<TextFiles, String> {
         let mut text = TextFiles::default();
         for raw in self.listed(Listing::Lines)? {
@@ -253,6 +254,13 @@ impl Tree {
                 }
                 Grep::Text if bytes.iter().any(|&b| b != b'\n') => {
                     if std::str::from_utf8(&raw).is_err() {
+                        // The bash resolves a Markdown file's links and attributes from its
+                        // path's bytes, which the replaced text would name otherwise.
+                        if raw.ends_with(b".md") {
+                            return Err(format!(
+                                "{path}: a Markdown file whose path is no UTF-8, from whose bytes the bash resolves its links and attributes — not decided"
+                            ));
+                        }
                         text.unspelled.insert(path.clone());
                     }
                     if text.files.insert(path.clone(), bytes).is_some() {
