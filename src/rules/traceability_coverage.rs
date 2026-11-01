@@ -2,7 +2,7 @@
 //! a `Verifies:` marker or declared not mechanically decidable with a reason, and the criteria no
 //! marker cites are pending work, named in the summary and never a finding (ADR-0023).
 
-use super::{Input, Inputs, Rule};
+use super::{Input, Inputs, Outcome, Rule};
 use crate::adr;
 use crate::bash;
 use crate::finding::Finding;
@@ -21,11 +21,30 @@ pub const RULE: Rule = Rule {
               criteria of the specification no test cites yet are listed in the summary as \
               pending work, never as a finding.",
     reads: &[Input::Markers, Input::Adr, Input::Specification],
-    check,
+    check: outcome,
 };
 
 /// The label of the exemption, at the start of a line.
 const EXEMPTION: &[u8] = b"**Not mechanically decidable:**";
+
+/// The findings of the rule, and the criteria no test cites yet as a note, the way the bash's
+/// closing line names them; they are pending work and change no exit code (ADR-0023).
+fn outcome(inputs: &Inputs) -> Outcome {
+    let pending = pending(inputs);
+    let notes = if pending.is_empty() {
+        Vec::new()
+    } else {
+        vec![format!(
+            "{} criteria without a test: {}",
+            pending.len(),
+            pending.join(" ")
+        )]
+    };
+    Outcome {
+        notes,
+        ..check(inputs).into()
+    }
+}
 
 fn check(inputs: &Inputs) -> Vec<Finding> {
     let cited = cited(inputs);
@@ -72,7 +91,7 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
 
 /// The criteria no marker cites, in the order of the specification, each as often as it is
 /// listed: the pending work the bash's closing line names.
-pub fn pending(inputs: &Inputs) -> Vec<String> {
+fn pending(inputs: &Inputs) -> Vec<String> {
     let cited = cited(inputs);
     traceability::criteria(inputs.specification.as_deref())
         .ids
@@ -298,5 +317,13 @@ mod tests {
             &mark(&adr_id(2)),
         );
         assert_eq!(messages(&inputs), [uncited(1)]);
+    }
+
+    #[test]
+    fn the_criteria_without_a_test_are_its_note_and_no_finding() {
+        let outcome = outcome(&inputs(SPEC, &[], ""));
+        assert_eq!(outcome.refusal, None);
+        assert_eq!(outcome.notes, ["2 criteria without a test: G-1 Q-1"]);
+        assert!(outcome.notes.iter().all(|note| !note.ends_with('.')));
     }
 }

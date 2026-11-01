@@ -17,7 +17,7 @@ pub const RULE: Rule = Rule {
               has gone stale. Every tracked top-level file and directory is named, by itself or \
               by a path under it; below the top level the block is a tour, not a listing.",
     reads: &[Input::Readme, Input::Layout],
-    check,
+    check: |inputs| check(inputs).into(),
 };
 
 /// What check 10 tests on the tree.

@@ -16,7 +16,7 @@ pub const RULE: Rule = Rule {
               topic, never by a number. The template and superseded or rejected ADRs are not \
               read: they describe a state of the repository that does not exist.",
     reads: &[Input::Adr, Input::TextFiles],
-    check,
+    check: |inputs| check(inputs).into(),
 };
 
 fn check(inputs: &Inputs) -> Vec<Finding> {

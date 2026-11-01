@@ -22,7 +22,7 @@ pub const RULE: Rule = Rule {
               template release v0.6.0 the old line flips only when a human accepts the new ADR, \
               so a proposed one leaves the old ones in force.",
     reads: &[Input::Adr, Input::Release],
-    check,
+    check: |inputs| check(inputs).into(),
 };
 
 /// The release from which a human flips the old status lines when accepting the new ADR.

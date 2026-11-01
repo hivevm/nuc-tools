@@ -1,6 +1,6 @@
 # ADR-0009: One library crate with the rules as a functional core, its effects in one shell module, and a thin binary
 
-- **Status:** 🟢 accepted
+- **Status:** ⚪ superseded by ADR-0025
 - **Date:** 2026-10-31
 - **Deciders:** Markus Brigl
 - **Applies to:** the source tree of the crate, `src/main.rs`, `src/shell/`, every rule module, and the structural test that holds them

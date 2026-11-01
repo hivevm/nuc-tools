@@ -19,7 +19,7 @@ pub const RULE: Rule = Rule {
               here decided is a rule nobody decided. While the setup file exists the decision \
               is pending by design.",
     reads: &[Input::Adr, Input::SetupFile],
-    check,
+    check: |inputs| check(inputs).into(),
 };
 
 /// The name the template's ADRs carry as their decider.

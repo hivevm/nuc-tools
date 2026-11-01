@@ -1051,6 +1051,31 @@ fn a_wide_line_the_bash_counts_otherwise_is_not_decided() {
     );
 }
 
+/// Verifies: ADR-0025
+#[test]
+fn a_rule_s_refusal_ends_the_run_before_the_findings_of_another_are_printed() {
+    let config = "minimum = \"0.0.0\"\nrules = [\"docs/template-release\", \"docs/prose-width\"]\n";
+    let fixture = Fixture::project("outcome-refusal", config, "# X\n");
+    let mut line = b"[a\xff b](https://example.invalid/".to_vec();
+    line.extend(b"a".repeat(100));
+    line.extend(b")\n");
+    // Without the line the template release rule reports the README; with it the run refuses.
+    assert_eq!(code(&fixture.nuc(&["check"])), Some(1));
+    std::fs::write(fixture.root().join("odd.md"), &line).expect("written");
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(2), "{}", stderr(&output));
+    assert_eq!(
+        stdout(&output),
+        "",
+        "a finding was printed beside the refusal"
+    );
+    assert!(
+        stderr(&output).contains("odd.md:1: a line over 100 bytes"),
+        "{}",
+        stderr(&output)
+    );
+}
+
 #[test]
 fn a_draft_fails_where_ci_says_a_ready_change_lands_on_main() {
     let fixture = only("no-draft", "docs/no-draft-on-main", README);

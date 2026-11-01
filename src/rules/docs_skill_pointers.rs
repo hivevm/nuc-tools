@@ -16,7 +16,7 @@ pub const RULE: Rule = Rule {
               that drifts, and a skill that lives only in the pointer directory is one no other \
               agent finds. Each message names the command that fixes it.",
     reads: &[Input::Skills],
-    check,
+    check: |inputs| check(inputs).into(),
 };
 
 /// What check 11 tests on `.agents/skills/` and `.claude/skills/`.

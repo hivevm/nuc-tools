@@ -16,7 +16,7 @@ pub const RULE: Rule = Rule {
               project which release it carries; a release moves it, and a project that takes a \
               release up moves it.",
     reads: &[Input::Readme],
-    check,
+    check: |inputs| check(inputs).into(),
 };
 
 const README: &str = "README.md";

@@ -20,7 +20,7 @@ pub const RULE: Rule = Rule {
               change to the ADRs that bind it, so a row that misstates what its ADR governs, or \
               stands in the wrong table, misroutes them.",
     reads: &[Input::Adr],
-    check,
+    check: |inputs| check(inputs).into(),
 };
 
 const INDEX: &str = "docs/adr/README.md";

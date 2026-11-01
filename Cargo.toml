@@ -9,7 +9,7 @@ description = "The mechanics of the NUC template as one binary: checks, sensors,
 publish = false
 
 # The rules are a functional core in the library; every effect is in src/shell/, and the binary
-# only calls into it (ADR-0009).
+# only calls into it (ADR-0025).
 [lib]
 name = "nuc"
 path = "src/lib.rs"

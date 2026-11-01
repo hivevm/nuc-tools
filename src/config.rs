@@ -304,7 +304,7 @@ mod tests {
             id,
             explain: "",
             reads: &[],
-            check: |_| Vec::new(),
+            check: |_| Vec::new().into(),
         };
         let known = [rule("docs/a"), rule("docs/b")];
         let config = |rules: &[&str]| Config {
