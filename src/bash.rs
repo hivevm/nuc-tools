@@ -2,7 +2,9 @@
 //! `sed` split a file, the space class of POSIX that `[[:space:]]` matches, and the word `read`
 //! splits off with the default IFS. Each reads some bytes otherwise than Rust's own readings, and
 //! a port that writes its own copy diverges where they differ; the structural test of
-//! `tests/functional_core.rs` fails on a function of one of these names defined elsewhere.
+//! `tests/functional_core.rs` fails on a function of one of these names defined elsewhere. The
+//! module also holds `find` and `contains`, the byte search the readers and the rules use, which
+//! read no byte otherwise and are no reader the test holds.
 
 /// The lines of the text as awk reads them: split at newlines, an unterminated last line kept.
 pub fn awk_lines(text: &[u8]) -> Vec<&[u8]> {

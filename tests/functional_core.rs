@@ -15,7 +15,9 @@
 //!
 //! The readings of the bash's tools that `functional_core.bash` names, as `awk_lines` and
 //! `is_space`, are defined in `src/bash.rs` and nowhere else, so that no port writes a copy of its
-//! own that reads a byte otherwise.
+//! own that reads a byte otherwise, as the convention "A port copies the bash, quirks included" of
+//! `docs/CONVENTIONS.md` asks. The test reads names: a copy under another name, or a closure,
+//! passes it.
 //!
 //! Each module under `src/rules/` is one rule: it declares exactly one `RULE_ID`, an
 //! `area/name` unique across the crate, and the list of every rule names its `RULE`.

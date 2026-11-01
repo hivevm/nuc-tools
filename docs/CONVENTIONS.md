@@ -35,4 +35,6 @@ skimmed. The design revision drops what prevented nothing
   the bash reads otherwise than Rust: a byte of no valid UTF-8, the byte 0x1F its awk passes split
   fields on, a last line without a newline (`read` drops it, awk and `sed` keep it), numbers in
   bash arithmetic (octal after a leading zero, 64-bit wrap), and a path git lists that is no
-  UTF-8, which the bash opens and Rust's strings do not hold.
+  UTF-8, which the bash opens and Rust's strings do not hold. A port reads lines and POSIX space
+  through `src/bash.rs`, never through a copy of its own, and the structural test fails on a
+  reader of `tests/functional_core.bash` defined elsewhere.
