@@ -9,6 +9,7 @@ use std::path::{Path, PathBuf};
 
 use super::git;
 use crate::adr;
+use crate::bash;
 use crate::glob;
 use crate::markdown;
 use crate::rules;
@@ -117,7 +118,7 @@ impl Tree {
             let Some(bytes) = self.read_bytes(&full)? else {
                 continue;
             };
-            if !adr::contains(&bytes, b"Verifies:") {
+            if !bash::contains(&bytes, b"Verifies:") {
                 continue;
             }
             // A path a finding could not name is read only where it holds no marker.

@@ -5,7 +5,9 @@
 //! script, and a job with a matrix is named by its check runs, `<job> (<values>)`.
 
 use super::{Input, Inputs, Rule, read_lines};
-use crate::adr::{is_space, show};
+use crate::adr::show;
+use crate::bash;
+use crate::bash::is_space;
 use crate::config::Version;
 use crate::finding::Finding;
 
@@ -123,7 +125,9 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
             ));
         }
     }
-    let on_instruction: Vec<&[u8]> = sed_lines(all).filter_map(on_instruction_script).collect();
+    let on_instruction: Vec<&[u8]> = bash::sed_lines(all)
+        .filter_map(on_instruction_script)
+        .collect();
     for name in &lists.scripts {
         let s = format!("scripts/{name}");
         if s == CHECK_ALL {
@@ -145,7 +149,7 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
 /// `checks.yml`, and a file of `.github/workflows/`.
 fn not_gate(all: &[u8], lists: &CheckLists, found: &mut Vec<Finding>) -> Vec<String> {
     let mut names = Vec::new();
-    for line in sed_lines(all) {
+    for line in bash::sed_lines(all) {
         let Some(name) = not_gate_name(line) else {
             continue;
         };
@@ -281,11 +285,11 @@ fn readme_checks(readme: &[u8], workflows: &Workflows, v0_6: bool, found: &mut V
     let mut in_block = false;
     let mut names: Vec<Vec<u8>> = Vec::new();
     for line in read_lines(readme) {
-        if crate::adr::contains(line, b"required-checks begin") {
+        if crate::bash::contains(line, b"required-checks begin") {
             in_block = true;
             continue;
         }
-        if crate::adr::contains(line, b"required-checks end") {
+        if crate::bash::contains(line, b"required-checks end") {
             in_block = false;
             continue;
         }
@@ -303,7 +307,7 @@ fn readme_checks(readme: &[u8], workflows: &Workflows, v0_6: bool, found: &mut V
     }
     let mut bases: Vec<&[u8]> = Vec::new();
     for name in &names {
-        let base = crate::adr::find(name, b" (").map_or(name.as_slice(), |at| &name[..at]);
+        let base = crate::bash::find(name, b" (").map_or(name.as_slice(), |at| &name[..at]);
         bases.push(base);
         let (shown, shown_base) = (show(name), show(base));
         let is_job = workflows.jobs.iter().any(|j| j == base);
@@ -372,13 +376,6 @@ fn check_name_at(s: &[u8], v0_6: bool) -> Option<usize> {
         }
     }
     (s.get(name) == Some(&b'`')).then_some(name + 1)
-}
-
-/// The lines `sed` reads: every line, the last one without a newline included.
-fn sed_lines(text: &[u8]) -> impl Iterator<Item = &[u8]> {
-    let text = text.strip_suffix(b"\n").unwrap_or(text);
-    text.split(|&b| b == b'\n')
-        .filter(move |_| !text.is_empty())
 }
 
 /// A job line, `^  ([a-z][a-z0-9-]*):[[:space:]]*$`: its name.

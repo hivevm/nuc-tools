@@ -7,6 +7,7 @@
 
 use super::{Input, Inputs, Rule};
 use crate::adr::{self, Header, show};
+use crate::bash;
 use crate::config::Version;
 use crate::finding::Finding;
 
@@ -36,7 +37,7 @@ fn accepted(status: &[u8]) -> bool {
 fn successor(status: &[u8]) -> Option<String> {
     let label: &[u8] = b"superseded by ";
     let mut i = 0;
-    while let Some(at) = adr::find(&status[i..], label) {
+    while let Some(at) = bash::find(&status[i..], label) {
         let after = &status[i + at + label.len()..];
         let after = after.strip_prefix(b"[").unwrap_or(after);
         if let Some(length) = adr::reference_at(after) {

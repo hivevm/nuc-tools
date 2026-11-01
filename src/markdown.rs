@@ -2,7 +2,7 @@
 //! the inline links of a file outside fenced code, as its awk pass `scan_markdown` finds them,
 //! and the target of one link, as its `link_target` reads it.
 
-use crate::adr::{awk_lines, is_space};
+use crate::bash::{awk_lines, is_space};
 
 /// Each inline link `[text](target)` of the file outside fenced code, with its line number. A
 /// line that opens with space or `>` and then three backquotes or tildes toggles the fence and
@@ -106,7 +106,7 @@ pub fn leftmost_link(line: &[u8]) -> Option<(usize, usize)> {
 
 /// Whether the line is read for links: outside a fence, and no fence line itself. The lines of
 /// the file, each with whether `scan_markdown` reads it.
-pub fn read_lines(text: &[u8]) -> Vec<(usize, &[u8], bool)> {
+pub fn scanned_lines(text: &[u8]) -> Vec<(usize, &[u8], bool)> {
     let mut fence = false;
     awk_lines(text)
         .into_iter()
@@ -146,7 +146,7 @@ pub fn relative_targets(file: &str, text: &[u8]) -> Vec<Target> {
             let skipped = [&b"http://"[..], b"https://", b"mailto:"]
                 .iter()
                 .any(|p| target.starts_with(p))
-                || crate::adr::contains(target, b"NNNN");
+                || crate::bash::contains(target, b"NNNN");
             if skipped {
                 return None;
             }

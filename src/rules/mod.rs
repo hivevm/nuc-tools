@@ -69,7 +69,7 @@ pub struct Inputs {
     pub markers: std::collections::BTreeMap<String, Vec<u8>>,
 }
 
-pub use crate::adr::read_lines;
+pub use crate::bash::read_lines;
 
 impl Inputs {
     /// Whether the tree is checked as the bash check of `release` or of a later one.

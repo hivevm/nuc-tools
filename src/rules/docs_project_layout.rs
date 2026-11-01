@@ -3,7 +3,7 @@
 //! and every tracked top-level part of the tree is named, by itself or by a path under it.
 
 use super::{Input, Inputs, Rule, read_lines};
-use crate::adr::is_space;
+use crate::bash::is_space;
 use crate::finding::Finding;
 
 pub const RULE_ID: &str = "docs/project-layout";

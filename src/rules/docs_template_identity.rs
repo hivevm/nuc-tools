@@ -7,7 +7,7 @@
 //! whose name only starts with the template's, such as `hivevm/nuc-tools`, is the project's own.
 
 use super::{Input, Inputs, Rule};
-use crate::adr::{awk_lines, contains, is_space};
+use crate::bash::{awk_lines, contains, is_space};
 use crate::finding::Finding;
 
 pub const RULE_ID: &str = "docs/template-identity";

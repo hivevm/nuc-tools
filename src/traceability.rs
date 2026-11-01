@@ -4,6 +4,7 @@
 //! rules of the record share `crate::adr` (ADR-0023).
 
 use crate::adr;
+use crate::bash;
 use std::collections::BTreeMap;
 
 pub const SPECIFICATION: &str = "docs/SPECIFICATION.md";
@@ -28,9 +29,9 @@ pub fn criteria(specification: Option<&[u8]>) -> Criteria {
         return criteria;
     };
     let mut section = None;
-    for (i, line) in adr::awk_lines(text).into_iter().enumerate() {
+    for (i, line) in bash::awk_lines(text).into_iter().enumerate() {
         if let Some(rest) = line.strip_prefix(b"##")
-            && rest.first().copied().is_some_and(adr::is_space)
+            && rest.first().copied().is_some_and(bash::is_space)
         {
             section = if line.starts_with(b"## Goals / Success Criteria") {
                 Some(b'G')
@@ -84,7 +85,7 @@ pub fn criteria(specification: Option<&[u8]>) -> Criteria {
 /// The text of a list item after its marker and the space that follows it, as
 /// `^[[:space:]]*([-*+]|[0-9]+\.)[[:space:]]+(.*)$` captures it; none for any other line.
 fn item_body(line: &[u8]) -> Option<&[u8]> {
-    let start = line.iter().position(|&b| !adr::is_space(b))?;
+    let start = line.iter().position(|&b| !bash::is_space(b))?;
     let rest = &line[start..];
     let rest = match rest.first()? {
         b'-' | b'*' | b'+' => &rest[1..],
@@ -94,7 +95,7 @@ fn item_body(line: &[u8]) -> Option<&[u8]> {
         }
         _ => return None,
     };
-    let spaces = rest.iter().take_while(|&&b| adr::is_space(b)).count();
+    let spaces = rest.iter().take_while(|&&b| bash::is_space(b)).count();
     (spaces > 0).then(|| &rest[spaces..])
 }
 
@@ -131,7 +132,7 @@ pub struct Citation {
 pub fn citations(markers: &BTreeMap<String, Vec<u8>>) -> Vec<Citation> {
     let mut found = Vec::new();
     for (file, bytes) in markers {
-        for (i, line) in adr::awk_lines(bytes).into_iter().enumerate() {
+        for (i, line) in bash::awk_lines(bytes).into_iter().enumerate() {
             for id in cited(line) {
                 found.push(Citation {
                     file: file.clone(),
@@ -150,12 +151,12 @@ pub fn citations(markers: &BTreeMap<String, Vec<u8>>) -> Vec<Citation> {
 fn cited(line: &[u8]) -> Vec<&[u8]> {
     let mut ids = Vec::new();
     let mut from = 0;
-    while let Some(at) = adr::find(&line[from..], MARKER) {
+    while let Some(at) = bash::find(&line[from..], MARKER) {
         let start = from + at + MARKER.len();
         let mut i = start
             + line[start..]
                 .iter()
-                .take_while(|&&b| adr::is_space(b))
+                .take_while(|&&b| bash::is_space(b))
                 .count();
         let Some(length) = identifier_at(&line[i..]) else {
             from += at + 1;
@@ -166,7 +167,7 @@ fn cited(line: &[u8]) -> Vec<&[u8]> {
         loop {
             let gap = line[i..]
                 .iter()
-                .take_while(|&&b| adr::is_space(b) || b == b',')
+                .take_while(|&&b| bash::is_space(b) || b == b',')
                 .count();
             match (gap > 0).then(|| identifier_at(&line[i + gap..])).flatten() {
                 Some(length) => {
