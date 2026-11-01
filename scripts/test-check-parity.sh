@@ -131,9 +131,21 @@ expect fail "a place that is neither '=' nor '+' is refused" "is not 'pattern<TA
 # The two scripts' outputs read as one: a finding of check-traceability.sh beside a passing
 # check-docs.sh is understood and compared.
 UNCITED="ADR-0001 is accepted but no test cites it — add a 'Verifies' marker"
+UNCITED_ID="${UNCITED%% *}" UNCITED_KEY="${UNCITED%% *}" UNCITED_KEY="${UNCITED_KEY#ADR-}"
 printf '%s\n' "Documentation checks passed." "Traceability check FAILED:" "  - $UNCITED" > "$work/joined.bash"
 expect pass "the outputs of both scripts are understood" "" \
-  compare "$work/joined.bash" 1 "$(nuc_out joined "docs/adr: traceability/coverage: $UNCITED")" 1
+  compare "$work/joined.bash" 1 "$(nuc_out joined "docs/adr/${UNCITED_KEY}-a.md: traceability/coverage: $UNCITED")" 1
+
+# A place '@adr' names the file of the ADR the message opens with, compared by its key. The
+# identifiers are taken from the message and assembled, so that this file cites no ADR of its own.
+expect fail "an ADR's finding at the file of another ADR is a difference" "only bash reports: traceability/coverage docs/adr/$UNCITED_KEY" \
+  compare "$work/joined.bash" 1 "$(nuc_out adr-other "docs/adr/9999-b.md: traceability/coverage: $UNCITED")" 1
+expect fail "an ADR's finding at the directory is a difference" "only nuc reports: traceability/coverage docs/adr" \
+  compare "$work/joined.bash" 1 "$(nuc_out adr-dir "docs/adr: traceability/coverage: $UNCITED")" 1
+DRAFT="$(printf '%s-%s' ADR draft-a-b)"
+printf '%s\n' "Traceability check FAILED:" "  - ${UNCITED/"$UNCITED_ID"/$DRAFT}" > "$work/draft.bash"
+expect pass "a draft's finding names the draft's file" "" \
+  compare "$work/draft.bash" 1 "$(nuc_out adr-draft "docs/adr/draft-a-b.md: traceability/coverage: ${UNCITED/"$UNCITED_ID"/$DRAFT}")" 1
 
 # --- cases: a run over a corpus -----------------------------------------------------------
 

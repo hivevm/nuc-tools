@@ -71,13 +71,14 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
                     .to_owned(),
             }),
         }
-        accepted.push(id);
+        accepted.push((id, name));
     }
-    for id in accepted {
+    // The bash's message names no file; the finding names the ADR's, where an editor can go.
+    for (id, name) in accepted {
         if !exempt.contains(&id) && !cited.contains(&id) {
             findings.push(Finding {
                 rule: RULE_ID,
-                file: "docs/adr".to_owned(),
+                file: format!("docs/adr/{name}"),
                 line: None,
                 message: format!(
                     "{id} is accepted but no test cites it — add a 'Verifies' marker or declare \
@@ -185,8 +186,8 @@ mod tests {
 
     fn uncited(n: u32) -> String {
         format!(
-            "docs/adr: {} is accepted but no test cites it — add a 'Verifies' marker or declare \
-             it not mechanically decidable in its Enforcement section",
+            "docs/adr/{n:04}-decision.md: {} is accepted but no test cites it — add a 'Verifies' \
+             marker or declare it not mechanically decidable in its Enforcement section",
             adr_id(n)
         )
     }
@@ -305,7 +306,14 @@ mod tests {
             adr: adrs,
             ..Inputs::default()
         };
-        assert_eq!(messages(&inputs), [uncited(1), uncited(1)]);
+        // The bash says the same twice; each finding names the file it is about.
+        assert_eq!(
+            messages(&inputs),
+            [
+                uncited(1),
+                uncited(1).replace("0001-decision.md", "0001-twin.md")
+            ]
+        );
     }
 
     #[test]

@@ -1274,7 +1274,8 @@ fn the_criteria_without_a_test_are_named_in_the_summary_and_never_fail_the_run()
     let output = fixture.nuc(&["check"]);
     assert_eq!(code(&output), Some(1), "{}", stderr(&output));
     assert!(
-        stdout(&output).starts_with("docs/adr: traceability/coverage: ADR-0001 is accepted"),
+        stdout(&output)
+            .starts_with("docs/adr/0001-decision.md: traceability/coverage: ADR-0001 is accepted"),
         "{}",
         stdout(&output)
     );

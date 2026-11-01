@@ -66,11 +66,18 @@ patterns=() rules=() modes=() places=()
 while IFS=$'\t' read -r pattern rule mode place extra; do
   [[ -z "$pattern" || "$pattern" == \#* ]] && continue
   if ! [[ -n "$rule" && ( "$mode" == "line" || "$mode" == "-" ) && -z "${extra:-}" ]] \
-    || ! [[ -z "${place:-}" || "$place" == =?* || "$place" == +?* ]]; then
-    die "$TABLE: the row '$pattern' is not 'pattern<TAB>rule ID<TAB>line|-[<TAB>=path|+prefix]'"
+    || ! [[ -z "${place:-}" || "$place" == =?* || "$place" == +?* || "$place" == "@adr" ]]; then
+    die "$TABLE: the row '$pattern' is not 'pattern<TAB>rule ID<TAB>line|-[<TAB>=path|+prefix|@adr]'"
   fi
   patterns+=("$pattern") rules+=("$rule") modes+=("$mode") places+=("${place:-}")
 done < "$TABLE" || die "$TABLE: unreadable"
+
+# adr_key <ADR identifier> — the key of an ADR's file, as ADR-NNNN or ADR-draft-<slug> names it:
+# NNNN, or draft-<slug>.
+adr_key() {
+  local id="${1#ADR-}"
+  echo "${id%%[!a-z0-9-]*}"
+}
 
 # mode_of <rule> — whether the comparison keeps the line of the rule's findings: line or '-'.
 mode_of() {
@@ -122,6 +129,7 @@ compare() {
           case "${places[i]}" in
             =*) file="${places[i]#=}" text="$msg" ;;
             +*) file="${places[i]#+}$file" ;;
+            @adr) file="docs/adr/$(adr_key "${msg%% *}")" text="$msg" ;;
           esac
           bash_keys+=("$(key "$rule" "$file" "$n" "$text")")
         fi
@@ -135,7 +143,17 @@ compare() {
     if [[ "$line" =~ ^([^:]+)(:([0-9]+))?:\ ([a-z0-9]+/[a-z0-9-]+):\  ]]; then
       rule="${BASH_REMATCH[4]}"
       [[ "$(mode_of "$rule")" == "unknown" ]] && diffs+=("nuc reports '$rule', which the table maps no message to")
-      nuc_keys+=("$(key "$rule" "${BASH_REMATCH[1]}" "${BASH_REMATCH[3]}" "${line#"${BASH_REMATCH[0]}"}")")
+      file="${BASH_REMATCH[1]}" n="${BASH_REMATCH[3]}" text="${line#"${BASH_REMATCH[0]}"}"
+      # Where the table places the message by its ADR, nuc's file is cut to that ADR's key.
+      for i in "${!patterns[@]}"; do
+        if [[ "${rules[i]}" == "$rule" && "${places[i]}" == "@adr" && "$text" =~ ${patterns[i]} ]]; then
+          if [[ "$file" =~ ^docs/adr/([0-9]{4})-[^/]*\.md$ || "$file" =~ ^docs/adr/(draft-[^/]+)\.md$ ]]; then
+            file="docs/adr/${BASH_REMATCH[1]}"
+          fi
+          break
+        fi
+      done
+      nuc_keys+=("$(key "$rule" "$file" "$n" "$text")")
     else
       diffs+=("nuc output not understood: $line")
     fi
