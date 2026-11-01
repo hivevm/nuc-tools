@@ -18,7 +18,7 @@ pub const RULE: Rule = Rule {
               illustrations, a target with the template's 'NNNN' is a placeholder, and \
               superseded and rejected ADRs describe a tree that no longer exists.",
     reads: &[Input::Adr, Input::TextFiles, Input::LinkTargets],
-    check,
+    check: |inputs| check(inputs).into(),
 };
 
 /// A path a relative link names, as the bash tests it: whether it exists, as `-e` finds it, and

@@ -3,7 +3,7 @@
 //! cannot break are exempt; superseded and rejected ADRs are not read, nor is a file marked
 //! `linguist-generated`. Indented code is read as prose.
 
-use super::{Input, Inputs, Rule};
+use super::{Input, Inputs, Outcome, Rule};
 use crate::adr;
 use crate::bash::{awk_lines, is_space};
 use crate::finding::Finding;
@@ -19,7 +19,7 @@ pub const RULE: Rule = Rule {
               .gitattributes marks 'linguist-generated', such as a changelog a tool writes. \
               Indented code blocks are read as prose.",
     reads: &[Input::Adr, Input::TextFiles, Input::Generated],
-    check,
+    check: outcome,
 };
 
 /// The widest a line of prose may be, in columns.
@@ -86,12 +86,12 @@ pub fn columns(line: &[u8]) -> usize {
 /// Whether a wide line holds what the bash reads otherwise than its characters: a byte of no
 /// valid UTF-8, which glibc and Rust count apart and `read` may join to the next line, or the
 /// unit separator 0x1F, which the bash splits its record pass on. Such a line is not decided.
-pub fn undecided(line: &[u8]) -> bool {
+fn undecided(line: &[u8]) -> bool {
     std::str::from_utf8(line).is_err() || line.contains(&0x1F)
 }
 
 /// The wide lines a file the rule reads holds that [`undecided`] refuses, by number.
-pub fn undecided_lines(text: &[u8]) -> Vec<usize> {
+fn undecided_lines(text: &[u8]) -> Vec<usize> {
     wide_lines(text)
         .into_iter()
         .filter(|(_, line)| undecided(line))
@@ -142,6 +142,25 @@ fn header_field(line: &[u8]) -> bool {
         .take_while(|&&b| b.is_ascii_alphabetic() || b == b' ')
         .count();
     name > 0 && rest[name..].starts_with(b":**")
+}
+
+/// The findings of the rule, or its refusal of a wide line it cannot count as the bash does (Q-1).
+fn outcome(inputs: &Inputs) -> Outcome {
+    let inactive = adr::inactive_paths(&inputs.adr);
+    for (file, text) in &inputs.text_files {
+        if !file.ends_with(".md") || inactive.contains(file) || inputs.generated.contains(file) {
+            continue;
+        }
+        if let Some(n) = undecided_lines(text).first() {
+            return Outcome {
+                refusal: Some(format!(
+                    "{file}:{n}: a line over 100 bytes holds a byte of no valid UTF-8 or the byte 0x1F, which the bash counts otherwise — not decided"
+                )),
+                ..Outcome::default()
+            };
+        }
+    }
+    check(inputs).into()
 }
 
 fn check(inputs: &Inputs) -> Vec<Finding> {
@@ -300,6 +319,21 @@ mod tests {
         assert_eq!(
             found("README.md", &format!("- **Label:** {}\n", words(110))).len(),
             1
+        );
+    }
+
+    #[test]
+    fn a_wide_line_it_cannot_count_is_its_refusal_and_no_finding() {
+        let mut line = b"[a\xff b](https://example.invalid/".to_vec();
+        line.extend(b"a".repeat(100));
+        let mut inputs = Inputs::default();
+        inputs.text_files.insert("odd.md".to_owned(), line);
+        let outcome = outcome(&inputs);
+        assert!(outcome.findings.is_empty());
+        assert!(
+            outcome
+                .refusal
+                .is_some_and(|why| why.starts_with("odd.md:1: a line over 100 bytes")),
         );
     }
 }

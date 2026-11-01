@@ -16,7 +16,7 @@ pub const RULE: Rule = Rule {
               that identifier, so an item without one can never be verified, and an identifier \
               used twice makes a citation name two criteria.",
     reads: &[Input::Specification],
-    check,
+    check: |inputs| check(inputs).into(),
 };
 
 /// The criteria the specification lists, and the findings of the list, as this rule reports

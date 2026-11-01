@@ -24,7 +24,7 @@ pub const RULE: Rule = Rule {
               template release v0.6.0 a workflow named on a '# Not a gate:' line publishes \
               rather than checks, and a job with a matrix is named by its check runs.",
     reads: &[Input::Readme, Input::CheckLists, Input::Release],
-    check,
+    check: |inputs| check(inputs).into(),
 };
 
 /// The files check 9 compares, each as `-f` finds it.

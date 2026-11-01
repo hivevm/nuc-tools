@@ -21,7 +21,9 @@ skimmed. The design revision drops what prevented nothing
 - **The shell reads, the rules decide** — the shell reads every file a rule needs once, into the
   inputs, before any rule runs, and a rule gets text, never a path. A rule's tests are then cases
   of text without a repository, and a file `nuc` cannot read ends the run before a rule could
-  pass on less than it should have seen (Q-1). Every file the shell reads and every directory it
+  pass on less than it should have seen (Q-1). What one rule cannot decide of what it read is the
+  refusal of its outcome, beside the rule, never a case in the shell; what several rules read
+  alike is refused where the shell reads it. Every file the shell reads and every directory it
   lists resolves inside the repository, or the run is not decided, so that no link, symbolic link,
   or absolute path in the tree makes `nuc` read what the tree does not hold; each new reading goes
   through the shell's `Tree`, which tests that, and the structural test fails on a read, a

@@ -18,7 +18,7 @@ pub const RULE: Rule = Rule {
               but Markdown. In Markdown a section is cited as a link to its anchor, so that a \
               renumbering breaks the link instead of leaving the number pointing elsewhere.",
     reads: &[Input::Adr, Input::TextFiles, Input::Agents],
-    check,
+    check: |inputs| check(inputs).into(),
 };
 
 const SECTION: &str = "§";

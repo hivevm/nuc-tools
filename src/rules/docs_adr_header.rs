@@ -18,7 +18,7 @@ pub const RULE: Rule = Rule {
               survives the index check, and the word is what a reader believes; a field in \
               another form is skipped by every script that reads the header.",
     reads: &[Input::Adr],
-    check,
+    check: |inputs| check(inputs).into(),
 };
 
 /// The word that belongs to each emoji of the legend.

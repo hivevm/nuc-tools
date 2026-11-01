@@ -19,7 +19,7 @@ pub const RULE: Rule = Rule {
               what does not exist, or a decision no longer in force, verifies nothing the record \
               still asks for.",
     reads: &[Input::Markers, Input::Adr, Input::Specification],
-    check,
+    check: |inputs| check(inputs).into(),
 };
 
 fn check(inputs: &Inputs) -> Vec<Finding> {

@@ -16,7 +16,7 @@ pub const RULE: Rule = Rule {
               their own, so a renumbering, a copied line, or a consolidated decision set can leave \
               them naming different ADRs. Only links into ADR files are compared.",
     reads: &[Input::Adr, Input::TextFiles],
-    check,
+    check: |inputs| check(inputs).into(),
 };
 
 fn check(inputs: &Inputs) -> Vec<Finding> {
