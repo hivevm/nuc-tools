@@ -1,4 +1,4 @@
-# Every rule ID nuc knows, read by tests/contract.rs (G-6). An ID stays once listed: nuc.toml
+# Every rule ID nuc has had, read by tests/contract.rs (G-6). An ID stays once listed: nuc.toml
 # files name it, so no rule is renamed or dropped while a project may still turn it on.
 
 docs/adr-header

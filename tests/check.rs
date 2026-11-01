@@ -191,10 +191,11 @@ fn without_git_on_the_path_it_refuses_and_names_how_to_install_it() {
 /// Verifies: Q-1
 #[cfg(debug_assertions)]
 #[test]
-fn a_panic_is_an_internal_error_that_names_its_cause_and_is_not_decided() {
+fn a_panic_is_an_internal_error_that_names_its_cause_and_never_passes() {
     let fixture = Fixture::project("panic", CONFIG, README);
     let output = fixture.nuc_with(&[("NUC_TEST_PANIC", "1")], &["check"]);
-    assert_eq!(code(&output), Some(2), "{}", stderr(&output));
+    // ADR-0019: a panic exits 101, non-zero as the refusals are.
+    assert_eq!(code(&output), Some(101), "{}", stderr(&output));
     assert_eq!(stdout(&output), "");
     let err = stderr(&output);
     assert!(err.starts_with("nuc: internal error at "), "{err}");

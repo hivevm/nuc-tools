@@ -81,7 +81,6 @@ fn a_finding_is_one_line_on_the_standard_output_and_the_summary_is_on_the_standa
     );
 }
 
-/// Verifies: G-6
 #[test]
 fn a_finding_without_a_line_omits_it() {
     let fixture = Fixture::project("contract-no-line", CONFIG, "# X\n");
@@ -121,7 +120,7 @@ fn a_command_a_newer_nuc_may_know_refuses_with_the_install_hint() {
     }
 }
 
-/// The rule IDs of every release, kept beside this test.
+/// Every rule ID `nuc` has had, kept beside this test.
 const RULE_IDS: &str = include_str!("contract.rule-ids");
 
 /// Verifies: G-6

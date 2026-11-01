@@ -5,8 +5,10 @@
 pub mod git;
 mod tree;
 
+use std::backtrace::{Backtrace, BacktraceStatus};
 use std::collections::BTreeMap;
 use std::env;
+use std::io::{self, Write};
 use std::panic;
 use std::path::Path;
 use std::process::ExitCode;
@@ -29,7 +31,7 @@ const USAGE: &str = "usage: nuc check [--repo <path>] | nuc explain <rule ID> | 
 
 /// The entry point of the binary: runs the command named on the command line and returns the
 /// exit code the process ends with. A panic is an internal error: it names its cause and where it
-/// arose, and the run is not decided (Q-1).
+/// arose, and ends the process with exit 101, never a pass (ADR-0019, Q-1).
 pub fn main() -> ExitCode {
     panic::set_hook(Box::new(|info| {
         let at = info
@@ -37,9 +39,15 @@ pub fn main() -> ExitCode {
             .map(|at| format!(" at {}:{}", at.file(), at.line()))
             .unwrap_or_default();
         let cause = info.payload_as_str().unwrap_or("a panic without a message");
-        eprintln!("nuc: internal error{at}: {cause} — not decided");
+        // Written so that a closed standard error cannot make the hook itself panic.
+        let mut err = io::stderr();
+        let _ = writeln!(err, "nuc: internal error{at}: {cause} — not decided");
+        let trace = Backtrace::capture();
+        if trace.status() == BacktraceStatus::Captured {
+            let _ = writeln!(err, "{trace}");
+        }
     }));
-    panic::catch_unwind(run).unwrap_or(ExitCode::from(UNDECIDED))
+    run()
 }
 
 /// The command named on the command line, run.
