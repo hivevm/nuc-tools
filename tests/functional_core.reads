@@ -1,0 +1,17 @@
+# What a function of src/shell/ calls to read a file, list a directory, or resolve a path, read
+# by tests/functional_core.rs: only the functions of functional_core.guarded may name it. One
+# entry per line, matched as the forbidden list matches: wherever its segments appear in a path
+# of the source, so that 'read_dir' finds 'fs::read_dir' and the method 'Path::read_dir'. A test
+# of existence, as the bash's -e, -f, and -d, is no entry.
+
+# Reading a file's bytes.
+fs::read
+read_to_string
+File
+OpenOptions
+
+# Listing a directory.
+read_dir
+
+# Resolving a path, which decides whether it lies inside the repository.
+canonicalize

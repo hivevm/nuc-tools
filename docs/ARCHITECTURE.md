@@ -55,9 +55,9 @@ golden path and the test pattern an agent copies from are named here.
 - **Shell** — `src/shell/` reads the command line and the repository, runs git under a cleared
   environment in `shell::git`, calls the rules, prints the findings, and sets the exit code
   ([ADR-0010](adr/0010-git-cli-cleared-environment.md)). Its `Tree`, in `shell::tree`, reads
-  every file and lists every directory the rules need, each file and each directory but
-  `docs/adr` resolved through one function that refuses a path outside the repository, and
-  refuses as well, as not decided, one the bash would read differently from its bytes alone.
+  every file and lists every directory the rules need, each resolved through one function that
+  refuses a path outside the repository, and refuses as well, as not decided, one the bash would
+  read differently from its bytes alone.
 - **Binary** — `src/main.rs` calls the shell and nothing else.
 - **Parity harness** — `scripts/check-parity.sh` runs the bash checks of each repository of the
   corpus, `check-docs.sh` and `check-traceability.sh`, all on template release v0.5.0 or later,
@@ -82,8 +82,9 @@ golden path and the test pattern an agent copies from are named here.
   4. a variant in `tests/parity/variants.tsv` that makes it fire.
 - **The test pattern** — `tests/check.rs`: a fixture repository built through git by
   `tests/support/`, `nuc` run on it as a process under a cleared environment, and its exit code
-  and output asserted. The structural test `tests/functional_core.rs` holds the shape
-  ([ADR-0011](adr/0011-fixture-repositories.md)).
+  and output asserted. The structural test `tests/functional_core.rs` holds the shape, and
+  inside the shell lets only the functions `tests/functional_core.guarded` names read, list, or
+  resolve a path ([ADR-0011](adr/0011-fixture-repositories.md)).
 
 ## How it runs
 

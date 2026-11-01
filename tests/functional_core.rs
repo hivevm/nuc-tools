@@ -7,6 +7,12 @@
 //! `use std::*` or a rename as `use std as s`, counts as naming every entry it can bring into
 //! scope. A rename inside a group, as `use std::{fs as f}`, is read as the path it renames.
 //!
+//! Inside `src/shell/`, a call that reads a file, lists a directory, or resolves a path, as
+//! `functional_core.reads` lists them, stands only in a function `functional_core.guarded` names
+//! for that call: those that resolve the path through `Tree::resolve` first, so that nothing
+//! outside the repository is read, as the convention "The shell reads, the rules decide" of
+//! `docs/CONVENTIONS.md` asks. A test of existence is free.
+//!
 //! Each module under `src/rules/` is one rule: it declares exactly one `RULE_ID`, an
 //! `area/name` unique across the crate, and the list of every rule names its `RULE`.
 
@@ -14,6 +20,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 const FORBIDDEN: &str = include_str!("functional_core.forbidden");
+const READS: &str = include_str!("functional_core.reads");
+const GUARDED: &str = include_str!("functional_core.guarded");
 
 /// The forms `src/main.rs` may take, with comments and whitespace removed.
 const MAIN_FORMS: [&str; 2] = [
@@ -316,6 +324,153 @@ fn listed(list: &str, module: &str) -> bool {
         .any(|entry| entry == format!("{module}::RULE"))
 }
 
+/// Whether the word stands at `i` in the code, with no identifier character on either side.
+fn word_at(chars: &[char], i: usize, word: &str) -> bool {
+    let len = word.chars().count();
+    chars
+        .get(i..i + len)
+        .is_some_and(|w| w.iter().copied().eq(word.chars()))
+        && !(i > 0 && is_ident(chars[i - 1]))
+        && !chars.get(i + len).copied().is_some_and(is_ident)
+}
+
+/// The identifier that starts at the first non-space character from `i`, and the index after it.
+fn ident_from(chars: &[char], i: usize) -> Option<(String, usize)> {
+    let start = (i..chars.len()).find(|&k| !chars[k].is_whitespace())?;
+    let end = (start..chars.len())
+        .find(|&k| !is_ident(chars[k]))
+        .unwrap_or(chars.len());
+    (end > start).then(|| (chars[start..end].iter().collect(), end))
+}
+
+/// The type an `impl` block is for, from the text between `impl` and its brace: the type after
+/// `for` when it implements a trait, without its generics, references, and lifetimes.
+fn impl_type(header: &str) -> String {
+    // The header with every generic list, however nested, left out.
+    let mut flat = String::new();
+    let mut depth = 0usize;
+    for c in header.chars() {
+        match c {
+            '<' => depth += 1,
+            '>' => depth = depth.saturating_sub(1),
+            _ if depth == 0 => flat.push(c),
+            _ => {}
+        }
+    }
+    let ty = flat.rsplit(" for ").next().unwrap_or(&flat);
+    ty.split_whitespace()
+        .map(|word| word.trim_start_matches('&'))
+        .find(|word| {
+            !word.is_empty() && !word.starts_with('\'') && *word != "mut" && *word != "dyn"
+        })
+        .unwrap_or_default()
+        .split(|c: char| !is_ident(c) && c != ':')
+        .next()
+        .unwrap_or_default()
+        .to_owned()
+}
+
+/// The code of each function of the source, its signature and body, by its name: `Type::name`
+/// inside an `impl Type` block, the bare name elsewhere. The code of a nested function is its
+/// own; the code outside every function is under `<module>`.
+fn functions(source: &str) -> Vec<(String, String)> {
+    enum Block {
+        Impl(String),
+        Fn(String),
+        Other,
+    }
+    let chars: Vec<char> = code(source).chars().collect();
+    let mut found: Vec<(String, String)> = vec![("<module>".to_owned(), String::new())];
+    let mut stack: Vec<Block> = Vec::new();
+    // The function whose signature is being read, the brackets open in it, and where an `impl`
+    // header started.
+    let mut pending: Option<String> = None;
+    let mut open = 0usize;
+    let mut header: Option<usize> = None;
+    let mut i = 0;
+    while i < chars.len() {
+        let owner = |stack: &[Block], pending: &Option<String>| {
+            pending.clone().or_else(|| {
+                stack.iter().rev().find_map(|block| match block {
+                    Block::Fn(name) => Some(name.clone()),
+                    _ => None,
+                })
+            })
+        };
+        if word_at(&chars, i, "fn")
+            && let Some((name, end)) = ident_from(&chars, i + 2)
+        {
+            let name = match stack.last() {
+                Some(Block::Impl(ty)) => format!("{ty}::{name}"),
+                _ => name,
+            };
+            found.push((name.clone(), String::new()));
+            pending = Some(name);
+            open = 0;
+            i = end;
+            continue;
+        }
+        if pending.is_none() && word_at(&chars, i, "impl") {
+            header = Some(i + 4);
+        }
+        match chars[i] {
+            '{' => {
+                stack.push(if let Some(name) = pending.take() {
+                    Block::Fn(name)
+                } else if let Some(start) = header {
+                    Block::Impl(impl_type(&chars[start..i].iter().collect::<String>()))
+                } else {
+                    Block::Other
+                });
+                header = None;
+            }
+            '}' => drop(stack.pop()),
+            '(' | '[' if pending.is_some() => open += 1,
+            ')' | ']' if pending.is_some() => open = open.saturating_sub(1),
+            // A declaration without a body ends at its `;`; one inside `[u8; 4]` is no end.
+            ';' if open == 0 => pending = None,
+            _ => {}
+        }
+        let name = owner(&stack, &pending).unwrap_or_else(|| "<module>".to_owned());
+        if let Some((_, code)) = found.iter_mut().rev().find(|(n, _)| *n == name) {
+            code.push(chars[i]);
+        }
+        i += 1;
+    }
+    found
+}
+
+/// The entries of the guarded list: the file, the function, and the calls it may make.
+fn guarded_entries(guarded: &str) -> Vec<(&str, &str, Vec<&str>)> {
+    entries(guarded)
+        .into_iter()
+        .filter_map(|line| {
+            let mut words = line.split_whitespace();
+            Some((words.next()?, words.next()?, words.collect()))
+        })
+        .collect()
+}
+
+/// The calls of a source under `src/shell/`, named `file` there, that read, list, or resolve
+/// in a function the guarded list does not allow them, each with its function.
+fn unguarded(file: &str, source: &str, guarded: &str) -> Vec<String> {
+    let allowed = guarded_entries(guarded);
+    functions(source)
+        .into_iter()
+        .flat_map(|(name, code)| {
+            let may: Vec<&str> = allowed
+                .iter()
+                .filter(|(f, n, _)| *f == file && *n == name)
+                .flat_map(|(_, _, calls)| calls.iter().copied())
+                .collect();
+            violations(&code, READS)
+                .into_iter()
+                .filter(move |entry| !may.contains(&entry.as_str()))
+                .map(move |entry| format!("{file}: {name} calls '{entry}'"))
+        })
+        .collect()
+}
+
 #[test]
 fn every_rule_module_declares_one_unique_rule_id_and_is_listed() {
     let rules = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
@@ -508,4 +663,139 @@ fn a_rule_is_listed_only_by_its_own_entry() {
     assert!(!listed(list, "release"));
     assert!(!listed(list, "template_release"));
     assert!(!listed("pubconstALL:&[Rule]=&[];", "other"));
+}
+
+#[test]
+fn the_shell_reads_only_through_the_guard() {
+    let shell = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/shell");
+    let mut files = Vec::new();
+    sources(&shell, &shell.join(".none"), &mut files);
+    assert!(!files.is_empty(), "no source under src/shell/");
+    let mut found = Vec::new();
+    let mut defined = Vec::new();
+    for path in &files {
+        let file = path
+            .strip_prefix(&shell)
+            .expect("a source lies under src/shell/")
+            .components()
+            .map(|c| c.as_os_str().to_string_lossy())
+            .collect::<Vec<_>>()
+            .join("/");
+        let source = fs::read_to_string(path).expect("a source is readable");
+        found.extend(unguarded(&file, &source, GUARDED));
+        defined.extend(
+            functions(&source)
+                .into_iter()
+                .map(|(name, _)| format!("{file} {name}")),
+        );
+    }
+    assert!(
+        found.is_empty(),
+        "the shell reads past Tree::resolve:\n{}",
+        found.join("\n")
+    );
+    for (file, name, calls) in guarded_entries(GUARDED) {
+        let entry = format!("{file} {name}");
+        let times = defined.iter().filter(|d| **d == entry).count();
+        assert_eq!(
+            times, 1,
+            "functional_core.guarded names '{entry}', which src/shell/ defines {times} times, not once"
+        );
+        for call in calls {
+            assert!(
+                entries(READS).contains(&call),
+                "functional_core.guarded lets '{entry}' call '{call}', which functional_core.reads does not list"
+            );
+        }
+    }
+}
+
+#[test]
+fn a_read_outside_the_guarded_functions_is_found_by_its_function() {
+    let guarded = "tree.rs Tree::read_bytes fs::read\n";
+    for (source, function) in [
+        ("fn reader() { std::fs::read(\"x\"); }", "reader"),
+        (
+            "impl Tree { fn other(&self) { fs::read_dir(p); } }",
+            "Tree::other",
+        ),
+        (
+            "impl Tree { fn other(&self) { p.read_dir(); } }",
+            "Tree::other",
+        ),
+        ("fn open() -> fs::File { todo!() }", "open"),
+        ("fn f() { fn inner() { fs::canonicalize(p); } }", "inner"),
+        ("use std::fs::read_to_string;", "<module>"),
+        ("use std::fs::{self, read};", "<module>"),
+        (
+            "impl<T> Show for Tree<T> { fn read_bytes(&self) { fs::read(p); } }",
+            "Tree::read_bytes",
+        ),
+        ("fn helper(x: [u8; 4]) { fs::read(p); }", "helper"),
+        (
+            "impl<T: Into<Vec<u8>>> Wrap<T> { fn get(&self) { fs::read(p); } }",
+            "Wrap::get",
+        ),
+        (
+            "impl<'a> Show for &'a Tree { fn other(&self) { fs::read(p); } }",
+            "Tree::other",
+        ),
+    ] {
+        let found = unguarded("other.rs", source, guarded);
+        assert!(
+            found
+                .iter()
+                .any(|f| f.starts_with(&format!("other.rs: {function} calls"))),
+            "{function} not found in: {source}, found {found:?}"
+        );
+    }
+    assert_eq!(
+        unguarded(
+            "tree.rs",
+            "impl Tree { fn read_bytes(&self) { fs::read(p); } }",
+            guarded
+        ),
+        Vec::<String>::new()
+    );
+    assert_eq!(
+        unguarded(
+            "tree.rs",
+            "impl Tree { fn read_bytes(&self) {} fn other(&self) { fs::read(p); } }",
+            guarded
+        ),
+        ["tree.rs: Tree::other calls 'fs::read'"]
+    );
+    // A guarded function may make only the calls its entry names.
+    assert_eq!(
+        unguarded(
+            "tree.rs",
+            "impl Tree { fn read_bytes(&self) { fs::read(p); fs::read_dir(d); } }",
+            guarded
+        ),
+        ["tree.rs: Tree::read_bytes calls 'read_dir'"]
+    );
+    // A function nested in a guarded one is not covered by its entry.
+    assert_eq!(
+        unguarded(
+            "tree.rs",
+            "impl Tree { fn read_bytes(&self) { fn h(a: [u8; 1]) { fs::read(p); } } }",
+            guarded
+        ),
+        ["tree.rs: h calls 'fs::read'"]
+    );
+}
+
+#[test]
+fn a_test_of_existence_is_no_read() {
+    for source in [
+        "fn f() { p.is_file(); p.is_dir(); fs::metadata(p); fs::symlink_metadata(p); }",
+        "fn f() { tree.read(p); tree.read_text_files(); Input::SetupFile; }",
+        "fn f() { let s = \"fs::read(x)\"; } // fs::read_dir",
+    ] {
+        assert_eq!(
+            unguarded("tree.rs", source, ""),
+            Vec::<String>::new(),
+            "in: {source}"
+        );
+    }
 }
