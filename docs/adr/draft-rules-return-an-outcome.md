@@ -106,6 +106,9 @@ the library outside `src/shell/` and fails on a use of `std::fs`, `std::process`
 `std::net`, the standard streams, or the printing macros, and on any crate the list beside the
 test names as doing I/O. It fails as well on a rule module without exactly one rule ID, on a rule
 ID used twice, on logic in `src/main.rs` beyond the call into the shell, and on a source of
-`src/shell/` that names a rule module. The list of forbidden paths is the project's, kept beside
-the test. A fixture shows that a rule's refusal ends the run with exit 2 and no finding printed.
-That the shell stays thin is review.
+`src/shell/` that calls what a rule decides: a rule's `check`, or a function of a rule module
+that the list beside the test names as part of an outcome, as the pending criteria. The shell may
+still name a rule module for the types of its inputs and for the reading of them, as the
+Template release line a rule checks by. The lists are the project's, kept beside the test. A
+fixture shows that a rule's refusal ends the run with exit 2 and no finding printed. That the
+shell stays thin is review.
