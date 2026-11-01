@@ -171,6 +171,15 @@ expect pass "a path holding ': ' is placed at the same file" "" \
 expect fail "a path holding ': ' that nuc names otherwise is a difference" "only nuc reports: docs/links docs/a: c.md" \
   compare "$(bash_out colon-other "$COLON")" 1 "$(nuc_out colon-other "docs/a: c.md: docs/links: broken relative link -> 'x.md'")" 1
 
+# A path holding ': ' at a line, and a message that quotes ': <rule ID>: ', are placed whole.
+CITED="parity: variant.txt:1: cites 'Q-999', which is not a criterion of docs/SPECIFICATION.md"
+printf '%s\n' "Traceability check FAILED:" "  - $CITED" > "$work/colon-line.bash"
+expect pass "a path holding ': ' at a line is placed at the same file and line" "" \
+  compare "$work/colon-line.bash" 1 "$(nuc_out colon-line "parity: variant.txt:1: traceability/citations: ${CITED#*:1: }")" 1
+QUOTED="README.md: broken relative link -> 'q: docs/links: z'"
+expect pass "a message quoting ': <rule ID>: ' keeps its text" "" \
+  compare "$(bash_out quoted "$QUOTED")" 1 "$(nuc_out quoted "README.md: docs/links: ${QUOTED#README.md: }")" 1
+
 # --- cases: a run over a corpus -----------------------------------------------------------
 
 # The check-traceability.sh of a passing tree.

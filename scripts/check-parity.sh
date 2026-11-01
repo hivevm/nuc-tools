@@ -102,10 +102,21 @@ compare() {
   local -a diffs=() bash_keys=() nuc_keys=() nuc_files=()
   local line msg i f best rule file n text bash_any=0
   while IFS= read -r line; do
-    # The location ends where the rule ID follows it, so that a path holding ': ' stays whole.
-    if [[ "$line" =~ ^(.+):\ ([a-z0-9]+/[a-z0-9-]+):\  ]]; then
-      rule="${BASH_REMATCH[2]}" file="${BASH_REMATCH[1]}" n=""
-      text="${line#"${BASH_REMATCH[0]}"}"
+    # The location ends before the leftmost ': <rule ID>: ' of a rule the table knows, so that a
+    # path holding ': ' stays whole and a message quoting such a pair keeps it; a line without
+    # one is read as before, its location up to the first colon.
+    rule="" file=""
+    for i in "${!rules[@]}"; do
+      f="${line%%": ${rules[i]}: "*}"
+      if [[ "$f" != "$line" ]] && [[ -z "$rule" || ${#f} -lt ${#file} ]]; then
+        rule="${rules[i]}" file="$f"
+      fi
+    done
+    if [[ -z "$rule" && "$line" =~ ^([^:]+(:[0-9]+)?):\ ([a-z0-9]+/[a-z0-9-]+):\  ]]; then
+      file="${BASH_REMATCH[1]}" rule="${BASH_REMATCH[3]}"
+    fi
+    if [[ -n "$rule" ]]; then
+      n="" text="${line#"$file: $rule: "}"
       [[ "$(mode_of "$rule")" == "unknown" ]] && diffs+=("nuc reports '$rule', which the table maps no message to")
       if [[ "$file" =~ ^(.*):([0-9]+)$ ]]; then file="${BASH_REMATCH[1]}" n="${BASH_REMATCH[2]}"; fi
       nuc_files+=("$file")
@@ -298,7 +309,8 @@ run_pair() {
 # resolves outside the copy, the sed expression fails or changes nothing, or for 'chomp' the file
 # does not end with a newline. 'write' creates the file with the argument as its one line, its
 # backslash escapes read as printf's %b reads them, as \x3a for a colon, in a directory the copy
-# already has; 'chomp' takes the newline off the file's last line, which sed cannot. sed runs sandboxed, so an expression runs no command and reads or writes no other file.
+# already has; 'chomp' takes the newline off the file's last line, which sed cannot. sed runs
+# sandboxed, so an expression runs no command and reads or writes no other file.
 apply_variant() {
   local copy="$1" file="$1/$2"
   if [[ "$3" == write ]]; then

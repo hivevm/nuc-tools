@@ -3,7 +3,8 @@
 # tree they are for and compared there as on the tree itself. One row per variant, five or six
 # fields separated by tabs: a name of [a-z0-9-], the rule ID it makes fire, the path it edits,
 # "sed" with an extended sed expression, "delete" with "-", which deletes a file or a symbolic link
-# itself, "write" with a line, which creates the file the path names and must not find it, or
+# itself, "write" with a line, which creates the file the path names and must not find it, its
+# backslash escapes read as printf's %b reads them (\x3a, \n; a backslash of its own is \\), or
 # "chomp" with "-", which takes the newline off the file's last line, and
 # optionally the corpus trees it is for, by name and separated by commas; a
 # variant without them is for every tree. A variant fails the harness on a tree it is for where
@@ -77,9 +78,14 @@ coverage-no-reason	traceability/coverage	docs/adr/0001-agent-governance-model.md
 adr-index-last-row-unterminated	docs/adr-index	docs/adr/README.md	chomp	-	nuc-tools,ocelli,opamp-fleet
 
 # Names the corpus lacks, each where a ported rule names it: a space and a colon followed by a
-# space in a Markdown file with a broken link, a space in a file that cites, and capitals and '_'
-# in an accepted draft's slug. The marker is written with \x3a for its colon.
+# space in a Markdown file with a broken link, which nuc reads as the bash does with or without
+# them; a space and ': ' in a file that cites, its finding at a line; capitals and '_' in an
+# accepted draft's slug; a space in an ADR whose exemption gives no reason; and a colon in an
+# uncited ADR's file. A marker is written with \x3a for its colon.
 links-path-space	docs/links	docs/parity variant.md	write	See [the missing file](missing-variant.md).
 links-path-colon	docs/links	docs/parity: variant.md	write	See [the missing file](missing-variant.md).
 citations-path-space	traceability/citations	parity variant.txt	write	Verifies\x3a Q-999
 coverage-draft-capitals	traceability/coverage	docs/adr/draft-Parity_Variant.md	write	- **Status:** 🟢 accepted
+citations-path-colon	traceability/citations	parity: variant.txt	write	Verifies\x3a Q-999
+coverage-no-reason-path-space	traceability/coverage	docs/adr/0998-parity variant.md	write	# ADR\x2d0998: X\n\n- **Status:** 🟢 accepted\n- **Applies to:** x\n\n## Enforcement\n\n**Not mechanically decidable:**
+coverage-uncited-path-colon	traceability/coverage	docs/adr/0997-parity:variant.md	write	- **Status:** 🟢 accepted
