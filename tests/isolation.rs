@@ -3,9 +3,13 @@
 //! A fixture carries content that would create a canary file if anything ran it: scripts,
 //! workflows, skills, hooks in both hook directories, `core.fsmonitor`, a hooks path, and git
 //! attributes whose filter, diff, and merge drivers run a command. `nuc check` with every rule
-//! turned on leaves the canary uncreated (Q-7). On Linux, the same check run in a network
-//! namespace of its own, which holds only a loopback device that is down, reports exactly what it
-//! reports with the network (Q-11).
+//! turned on reads the bait, reporting on the workflow, the check list, and the skill, and leaves
+//! the canary uncreated (Q-7). A Markdown file with a wide line makes `nuc` ask `git check-attr`
+//! as well, so that every git command `nuc` runs meets the bait. On Linux, the same check run in a
+//! network namespace of its own, which holds no device but loopback, reports exactly what it
+//! reports with the network (Q-11); CI lifts the restriction the Ubuntu runner puts on making one.
+//! macOS and Windows have no such namespace for an unprivileged process, so Q-11 is shown on
+//! Linux, x64 and arm64.
 
 mod support;
 
@@ -64,7 +68,8 @@ fn baited(name: &str) -> (Fixture, PathBuf) {
             ".gitattributes",
             "* filter=canary diff=canary merge=canary\n",
         )
-        .write("docs/notes.txt", &run_line);
+        .write("docs/notes.txt", &run_line)
+        .write("docs/wide.md", &format!("{}\n", "word ".repeat(30)));
     for hook in [
         "pre-commit",
         "post-checkout",
@@ -123,6 +128,19 @@ fn no_content_of_the_tree_is_run() {
         "the rules found nothing to report: {}",
         stderr(&output)
     );
+    // The rules read the bait: each of these files is named by a finding.
+    for bait in [
+        ".github/workflows/checks.yml: ",
+        "scripts/check-all.sh: ",
+        ".claude/skills/evil: ",
+        "docs/wide.md:",
+    ] {
+        assert!(
+            stdout(&output).lines().any(|line| line.starts_with(bait)),
+            "no finding names {bait}\n{}",
+            stdout(&output)
+        );
+    }
     assert!(
         !canary.exists(),
         "nuc check ran content of the tree: {}",
