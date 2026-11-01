@@ -21,6 +21,14 @@ pub const RULE: Rule = Rule {
     check,
 };
 
+/// A path a relative link names, as the bash tests it: whether it exists, as `-e` finds it, and
+/// the bytes of a file an anchor of the link looks into.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Resolved {
+    pub exists: bool,
+    pub file: Option<Vec<u8>>,
+}
+
 fn check(inputs: &Inputs) -> Vec<Finding> {
     let inactive = adr::inactive_paths(&inputs.adr);
     let mut found = Vec::new();
@@ -75,8 +83,8 @@ fn target_finding(inputs: &Inputs, file: &str, text: &[u8], target: &Target) -> 
 
 #[cfg(test)]
 mod tests {
+    use super::Resolved;
     use super::*;
-    use crate::rules::Resolved;
 
     fn inputs(files: &[(&str, &str)], targets: &[(&str, bool, Option<&str>)]) -> Inputs {
         let mut inputs = Inputs::default();
