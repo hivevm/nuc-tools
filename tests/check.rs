@@ -840,6 +840,24 @@ fn a_skill_directory_outside_the_repository_is_not_listed() {
     );
 }
 
+#[cfg(unix)]
+#[test]
+fn a_record_directory_outside_the_repository_is_not_listed() {
+    // A directory beside the fixture holding no file the record reads, so only its listing
+    // reaches outside.
+    let (probe, _) = outside("adr-dir-outside-probe", "notes.txt", "notes\n");
+    let fixture = only("adr-dir-outside", "docs/adr-header", README);
+    std::fs::create_dir_all(fixture.root().join("docs")).expect("created");
+    std::os::unix::fs::symlink(probe.root(), fixture.root().join("docs/adr")).expect("linked");
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(2), "{}", stdout(&output));
+    assert!(
+        stderr(&output).contains("docs/adr: resolves outside the repository"),
+        "{}",
+        stderr(&output)
+    );
+}
+
 /// Verifies: ADR-0013
 #[test]
 fn the_inherited_adrs_and_the_identity_are_checked_once_the_setup_file_is_gone() {

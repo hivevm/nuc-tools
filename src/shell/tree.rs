@@ -30,8 +30,7 @@ impl Tree {
 
     /// The path as the file system resolves it, or the error it gives; a path that resolves
     /// outside the repository is refused as not decided, with the message `outside` writes. Every
-    /// file is read and every directory but `docs/adr` listed through it; `read_adr` lists that one
-    /// directly and reads each file of it through [`Tree::read_bytes`].
+    /// file is read and every directory listed through it, which the structural test holds.
     fn resolve(
         &self,
         path: &Path,
@@ -171,9 +170,10 @@ impl Tree {
 
     /// The files of the directory the bash reads for the record: each ADR file of its own, as
     /// `find -type f` lists it, and the index and the template wherever they resolve, as `-f`
-    /// and `grep` do; empty when the directory does not exist.
+    /// and `grep` do; empty when the directory does not exist. A directory that resolves outside
+    /// the repository is not listed, and not decided.
     pub(super) fn read_adr(&self, dir: &Path) -> Result<adr::Dir, String> {
-        let entries = match fs::read_dir(dir) {
+        let entries = match self.resolve(dir, || outside(dir))?.and_then(fs::read_dir) {
             Ok(entries) => entries,
             Err(e) if e.kind() == ErrorKind::NotFound => return Ok(adr::Dir::new()),
             Err(e) => return Err(format!("{}: unreadable — {e}", dir.display())),
@@ -181,18 +181,19 @@ impl Tree {
         let mut files = adr::Dir::new();
         for entry in entries {
             let entry = entry.map_err(|e| format!("{}: unreadable — {e}", dir.display()))?;
+            let path = dir.join(entry.file_name());
             let Some(name) = entry.file_name().to_str().map(str::to_owned) else {
                 return Err(format!(
                     "{}: a file name that is no UTF-8 — not decided",
-                    entry.path().display()
+                    path.display()
                 ));
             };
             let own_file = entry.file_type().is_ok_and(|kind| kind.is_file());
             let wanted = (own_file && adr::is_adr_name(&name))
-                || ((name == "README.md" || name == "template.md") && entry.path().is_file());
+                || ((name == "README.md" || name == "template.md") && path.is_file());
             let bytes = if wanted {
-                self.read_record_file(&entry.path())?
-                    .map(|bytes| unit_separator_free(&entry.path(), bytes))
+                self.read_record_file(&path)?
+                    .map(|bytes| unit_separator_free(&path, bytes))
                     .transpose()?
             } else {
                 None
@@ -356,41 +357,36 @@ fn path_of(root: &Path, raw: &[u8]) -> Option<PathBuf> {
     }
 }
 
-/// The names of the directory's entries, sorted by their bytes as a glob in the C locale sorts
-/// them; empty when it is no directory. A name that is no UTF-8 is not decided.
-fn entry_names(dir: &Path) -> Result<Vec<String>, String> {
-    let entries = match fs::read_dir(dir) {
-        Ok(entries) => entries,
-        Err(e) if matches!(e.kind(), ErrorKind::NotFound | ErrorKind::NotADirectory) => {
-            return Ok(Vec::new());
-        }
-        Err(e) => return Err(format!("{}: unreadable — {e}", dir.display())),
-    };
-    let mut names = Vec::new();
-    for entry in entries {
-        let entry = entry.map_err(|e| format!("{}: unreadable — {e}", dir.display()))?;
-        let Some(name) = entry.file_name().to_str().map(str::to_owned) else {
-            return Err(format!(
-                "{}: a file name that is no UTF-8 — not decided",
-                entry.path().display()
-            ));
-        };
-        names.push(name);
-    }
-    names.sort();
-    Ok(names)
-}
-
 impl Tree {
-    /// The names of the entries of a directory of the repository, as [`entry_names`] gives them;
-    /// a directory that resolves outside the repository is not listed, and not decided.
+    /// The names of the entries of a directory of the repository, sorted by their bytes as a glob
+    /// in the C locale sorts them; empty when it is no directory. A directory that resolves
+    /// outside the repository is not listed, and a name that is no UTF-8 is not decided.
     fn list(&self, dir: &Path) -> Result<Vec<String>, String> {
         let real = match self.resolve(dir, || outside(dir))? {
             Ok(real) => real,
             Err(e) if e.kind() == ErrorKind::NotFound => return Ok(Vec::new()),
             Err(e) => return Err(format!("{}: unreadable — {e}", dir.display())),
         };
-        entry_names(&real)
+        let entries = match fs::read_dir(&real) {
+            Ok(entries) => entries,
+            Err(e) if matches!(e.kind(), ErrorKind::NotFound | ErrorKind::NotADirectory) => {
+                return Ok(Vec::new());
+            }
+            Err(e) => return Err(format!("{}: unreadable — {e}", real.display())),
+        };
+        let mut names = Vec::new();
+        for entry in entries {
+            let entry = entry.map_err(|e| format!("{}: unreadable — {e}", real.display()))?;
+            let Some(name) = entry.file_name().to_str().map(str::to_owned) else {
+                return Err(format!(
+                    "{}: a file name that is no UTF-8 — not decided",
+                    entry.path().display()
+                ));
+            };
+            names.push(name);
+        }
+        names.sort();
+        Ok(names)
     }
 
     /// The files of check 9: `checks.yml`, `check-all.sh`, the workflows as the bash's globs
@@ -505,7 +501,7 @@ impl Tree {
                     })?
                     .map_err(|e| format!("{}: unreadable — {e}", dir.display()))?;
                 }
-                for name in entry_names(dir)? {
+                for name in self.list(dir)? {
                     let matched = glob::matches(segment, &name).ok_or_else(|| {
                         format!(
                             "README.md: the Project Layout pattern '{pattern}' uses a bracket nuc does not read — not decided"

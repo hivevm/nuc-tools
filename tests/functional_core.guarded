@@ -1,0 +1,14 @@
+# The functions of src/shell/ that may call what functional_core.reads lists, read by
+# tests/functional_core.rs. One entry per line: the file under src/shell/, a space, and the
+# function, as `Type::name` inside an `impl Type` block.
+
+# The root, resolved once, within which every path must resolve.
+tree.rs Tree::new
+# The one test that a path resolves inside the repository.
+tree.rs Tree::resolve
+# Read or list only what they resolved through Tree::resolve first.
+tree.rs Tree::read_bytes
+tree.rs Tree::read_adr
+tree.rs Tree::list
+# Resolves the pointers of the skills as `cd -P` does, to compare and show them, never to read.
+tree.rs Tree::read_skills
