@@ -19,12 +19,14 @@ pub const RULE: Rule = Rule {
     check,
 };
 
-/// The criteria the specification lists, and what is wrong with the list.
+/// The criteria the specification lists, and the findings of the list, as this rule reports
+/// them.
 #[derive(Debug, Default, PartialEq, Eq)]
-pub struct Criteria {
+struct Criteria {
     /// Every identifier, in the order of the specification, each as often as it appears.
-    pub ids: Vec<String>,
-    pub findings: Vec<Finding>,
+    ids: Vec<String>,
+    /// Each problem of the list, as a finding of this rule.
+    findings: Vec<Finding>,
 }
 
 fn check(inputs: &Inputs) -> Vec<Finding> {
@@ -32,7 +34,7 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
 }
 
 /// The criteria of the specification and their findings, as the bash reports them.
-pub fn read(specification: Option<&[u8]>) -> Criteria {
+fn read(specification: Option<&[u8]>) -> Criteria {
     let read = traceability::criteria(specification);
     Criteria {
         ids: read.ids,
