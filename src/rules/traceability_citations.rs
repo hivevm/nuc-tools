@@ -73,15 +73,7 @@ fn record(dir: &adr::Dir) -> (BTreeSet<String>, BTreeSet<String>) {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    /// The marker for the identifiers, assembled so that this file carries no literal one.
-    fn mark(ids: &str) -> String {
-        format!("{}: {ids}", "Verifies")
-    }
-
-    fn adr_id(n: u32) -> String {
-        format!("ADR-{n:04}")
-    }
+    use crate::testing::{adr_id, draft_id, mark};
 
     fn adr_file(n: u32, status: &str) -> (String, Vec<u8>) {
         (
@@ -128,7 +120,7 @@ mod tests {
     fn the_cases_of_the_bash_self_test_report_as_it_does() {
         let g1 = spec(&["**G-1** — it works."], Q1);
         let g2 = spec(&["**G-1** — it works.", "**G-2** — it also works."], Q1);
-        let text = format!("{}\n{}\n", mark(&adr_id(1)), mark("G-1"));
+        let text = format!("{}{}", mark(&adr_id(1)), mark("G-1"));
         assert!(
             messages(&inputs(
                 &g1,
@@ -198,7 +190,7 @@ mod tests {
 
     #[test]
     fn a_draft_is_cited_by_its_slug() {
-        let draft = format!("{}-{}-next", "ADR", "draft");
+        let draft = draft_id("next");
         let mut inputs = inputs(SPEC, &[], &[("t.rs", &mark(&draft))]);
         inputs.adr.insert(
             "draft-next.md".to_owned(),

@@ -83,10 +83,12 @@ golden path and the test pattern an agent copies from are named here.
   3. its rows in the normalization table of the parity harness, one per bash message;
   4. a variant in `tests/parity/variants.tsv` that makes it fire.
 - **The test pattern** — `tests/check.rs`: a fixture repository built through git by
-  `tests/support/`, `nuc` run on it as a process under a cleared environment, and its exit code
-  and output asserted. The structural test `tests/functional_core.rs` holds the shape, and
-  inside the shell lets only the functions `tests/functional_core.guarded` names read, list, or
-  resolve a path ([ADR-0011](adr/0011-fixture-repositories.md)).
+  `tests/support/`, `nuc` run on it as a process under a cleared environment, and its exit code and
+  output asserted; an ADR identifier, a marker, or a section reference a test writes but does not
+  mean comes from `src/testing.rs` or `tests/support/`, since the gate reads the tests as text. The
+  structural test `tests/functional_core.rs` holds the shape, and inside the shell lets only the
+  functions `tests/functional_core.guarded` names read, list, or resolve a path
+  ([ADR-0011](adr/0011-fixture-repositories.md)).
 
 ## How it runs
 

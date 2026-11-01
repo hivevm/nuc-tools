@@ -141,15 +141,7 @@ fn exemption(text: &[u8]) -> Exemption {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    /// The marker for the identifiers, assembled so that this file carries no literal one.
-    fn mark(ids: &str) -> String {
-        format!("{}: {ids}\n", "Verifies")
-    }
-
-    fn adr_id(n: u32) -> String {
-        format!("ADR-{n:04}")
-    }
+    use crate::testing::{adr_id, mark};
 
     /// An ADR as the bash self-test writes it, with the Enforcement section given.
     fn adr_file(n: u32, status: &str, enforcement: &str) -> (String, Vec<u8>) {

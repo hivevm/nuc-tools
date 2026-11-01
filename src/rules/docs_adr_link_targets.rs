@@ -64,12 +64,7 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    /// An identifier `ADR-<key>`, assembled so that this repository's own reference check, which
-    /// reads this file, finds no reference it lacks.
-    fn id(key: &str) -> String {
-        format!("{}-{key}", "ADR")
-    }
+    use crate::testing::id;
 
     fn messages(files: &[(&str, &str)]) -> Vec<String> {
         let mut inputs = Inputs::default();

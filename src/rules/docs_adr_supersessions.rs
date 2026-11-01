@@ -113,12 +113,7 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    /// An identifier `ADR-<key>`, assembled so that this repository's own reference check, which
-    /// reads this file, finds no reference it lacks.
-    fn id(key: &str) -> String {
-        format!("{}-{key}", "ADR")
-    }
+    use crate::testing::id;
 
     /// The findings on a tree of template release v0.5.0, whose cases these tests copy.
     fn found(adrs: &[(&str, String)]) -> Vec<(String, String)> {
