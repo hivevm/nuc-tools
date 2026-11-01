@@ -2,9 +2,11 @@
 //! a `Verifies:` marker or declared not mechanically decidable with a reason, and the criteria no
 //! marker cites are pending work, named in the summary and never a finding (ADR-0023).
 
-use super::{Input, Inputs, Rule, traceability_citations, traceability_criteria};
+use super::{Input, Inputs, Rule};
 use crate::adr;
+use crate::bash;
 use crate::finding::Finding;
+use crate::traceability;
 use std::collections::BTreeSet;
 
 pub const RULE_ID: &str = "traceability/coverage";
@@ -32,7 +34,7 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
     let mut exempt = BTreeSet::new();
     for (name, header) in adr::headers(&inputs.adr) {
         let status = header.field("Status").unwrap_or(b"");
-        if !adr::contains(status, "🟢".as_bytes()) {
+        if !bash::contains(status, "🟢".as_bytes()) {
             continue;
         }
         let id = format!("ADR-{}", adr::key_of(name));
@@ -72,7 +74,7 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
 /// listed: the pending work the bash's closing line names.
 pub fn pending(inputs: &Inputs) -> Vec<String> {
     let cited = cited(inputs);
-    traceability_criteria::read(inputs.specification.as_deref())
+    traceability::criteria(inputs.specification.as_deref())
         .ids
         .into_iter()
         .filter(|id| !cited.contains(id))
@@ -81,7 +83,7 @@ pub fn pending(inputs: &Inputs) -> Vec<String> {
 
 /// Every identifier a marker cites, whether it names anything or not.
 fn cited(inputs: &Inputs) -> BTreeSet<String> {
-    traceability_citations::citations(&inputs.markers)
+    traceability::citations(&inputs.markers)
         .into_iter()
         .map(|citation| citation.id)
         .collect()
@@ -100,14 +102,14 @@ enum Exemption {
 /// line that starts with the label declares it, and one with a byte that is no space after the
 /// label gives the reason.
 fn exemption(text: &[u8]) -> Exemption {
-    let lines = adr::awk_lines(text);
+    let lines = bash::awk_lines(text);
     let Some(start) = lines.iter().position(|l| l.starts_with(b"## Enforcement")) else {
         return Exemption::None;
     };
     let mut declared = Exemption::None;
     for line in &lines[start..] {
         if let Some(rest) = line.strip_prefix(EXEMPTION) {
-            if rest.iter().any(|&b| !adr::is_space(b)) {
+            if rest.iter().any(|&b| !bash::is_space(b)) {
                 return Exemption::Reasoned;
             }
             declared = Exemption::Unreasoned;

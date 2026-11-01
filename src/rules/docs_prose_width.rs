@@ -4,7 +4,8 @@
 //! `linguist-generated`. Indented code is read as prose.
 
 use super::{Input, Inputs, Rule};
-use crate::adr::{self, awk_lines, is_space};
+use crate::adr;
+use crate::bash::{awk_lines, is_space};
 use crate::finding::Finding;
 
 pub const RULE_ID: &str = "docs/prose-width";

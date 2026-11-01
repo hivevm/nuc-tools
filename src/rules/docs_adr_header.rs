@@ -4,6 +4,7 @@
 
 use super::{Input, Inputs, Rule};
 use crate::adr::{self, show};
+use crate::bash;
 use crate::finding::Finding;
 
 pub const RULE_ID: &str = "docs/adr-header";
@@ -48,8 +49,8 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
         }
         let status = header.field("Status").unwrap_or(b"");
         if let (Some(emoji), count) = adr::status_emoji(status) {
-            let at_emoji = adr::find(status, emoji.as_bytes()).unwrap_or(0);
-            let word = adr::first_word(&status[at_emoji + emoji.len()..]);
+            let at_emoji = bash::find(status, emoji.as_bytes()).unwrap_or(0);
+            let word = bash::first_word(&status[at_emoji + emoji.len()..]);
             let expected = word_of(emoji);
             if count > 1 {
                 found.push(at(

@@ -2,6 +2,7 @@
 //! `**Template release:**` line naming a `vX.Y.Z` tag or `unreleased` (ADR-0005 of the template).
 
 use super::{Carried, Input, Inputs, Rule};
+use crate::bash;
 use crate::config::Version;
 use crate::finding::Finding;
 
@@ -52,14 +53,9 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
     }]
 }
 
-/// The space class of POSIX, which the bash check matches with `[[:space:]]`.
-fn is_space(c: char) -> bool {
-    matches!(c, ' ' | '\t' | '\n' | '\x0B' | '\x0C' | '\r')
-}
-
 /// Whether the line is the label, after leading space and at most one list marker.
 fn is_release_line(line: &str) -> bool {
-    let rest = line.trim_start_matches(is_space);
+    let rest = line.trim_start_matches(bash::is_space_char);
     let rest = rest
         .strip_prefix("- ")
         .or_else(|| rest.strip_prefix("* "))
@@ -71,7 +67,7 @@ fn is_release_line(line: &str) -> bool {
 fn after_label(line: &str) -> &str {
     line.split_once(LABEL)
         .map_or("", |(_, rest)| rest)
-        .trim_start_matches(is_space)
+        .trim_start_matches(bash::is_space_char)
 }
 
 /// Whether the value opens with a release, in a link's brackets or backticks or bare, followed
@@ -85,8 +81,8 @@ fn names_release(value: &str) -> bool {
     let mut chars = rest.chars();
     match chars.next() {
         None => true,
-        Some(c) if is_space(c) || "[],;:)`".contains(c) => true,
-        Some('.') => chars.next().is_none_or(is_space),
+        Some(c) if bash::is_space_char(c) || "[],;:)`".contains(c) => true,
+        Some('.') => chars.next().is_none_or(bash::is_space_char),
         Some(_) => false,
     }
 }

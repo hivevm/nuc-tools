@@ -49,6 +49,7 @@ fn the_repository_is_found_from_a_subdirectory_and_by_repo() {
     assert_eq!(code(&elsewhere.nuc(&["check", "--repo", repo])), Some(1));
 }
 
+/// Verifies: Q-1
 #[test]
 fn a_missing_nuc_toml_refuses() {
     let fixture = Fixture::new("missing");
@@ -67,6 +68,7 @@ fn a_missing_nuc_toml_refuses() {
     );
 }
 
+/// Verifies: Q-1
 #[test]
 fn an_unreadable_nuc_toml_refuses() {
     for (name, config) in [
@@ -94,6 +96,7 @@ fn an_unreadable_nuc_toml_refuses() {
     }
 }
 
+/// Verifies: Q-1
 #[test]
 fn a_nuc_toml_that_is_no_utf8_refuses() {
     let fixture = Fixture::project("binary", CONFIG, README);
@@ -121,6 +124,7 @@ fn a_higher_minimum_refuses_and_names_how_to_update() {
     );
 }
 
+/// Verifies: Q-1
 #[test]
 fn an_unknown_rule_id_refuses_and_names_how_to_update() {
     let config = "minimum = \"0.0.0\"\nrules = [\"docs/template-release\", \"docs/unknown\"]\n";
@@ -148,6 +152,7 @@ fn a_known_rule_that_is_not_listed_reports_nothing() {
     assert_eq!(stdout(&output), "");
 }
 
+/// Verifies: Q-1
 #[test]
 fn outside_a_repository_it_refuses() {
     // A directory of its own beside the fixtures, without a repository.
@@ -167,6 +172,41 @@ fn outside_a_repository_it_refuses() {
     );
 }
 
+/// Verifies: Q-1
+#[test]
+fn without_git_on_the_path_it_refuses_and_names_how_to_install_it() {
+    let fixture = Fixture::project("no-git", CONFIG, README);
+    let empty = fixture.root().join("empty-path");
+    std::fs::create_dir_all(&empty).expect("created");
+    let output = fixture.nuc_with(
+        &[("PATH", empty.to_str().expect("a UTF-8 path"))],
+        &["check"],
+    );
+    assert_eq!(code(&output), Some(2), "{}", stdout(&output));
+    let err = stderr(&output);
+    assert!(err.contains("git could not be run"), "{err}");
+    assert!(err.contains("install git"), "{err}");
+}
+
+/// Verifies: Q-1
+#[cfg(debug_assertions)]
+#[test]
+fn a_panic_is_an_internal_error_that_names_its_cause_and_never_passes() {
+    let fixture = Fixture::project("panic", CONFIG, README);
+    let output = fixture.nuc_with(&[("NUC_TEST_PANIC", "1")], &["check"]);
+    // ADR-0019: a panic exits 101, non-zero as the refusals are.
+    assert_eq!(code(&output), Some(101), "{}", stderr(&output));
+    assert_eq!(stdout(&output), "");
+    let err = stderr(&output);
+    assert!(err.starts_with("nuc: internal error at "), "{err}");
+    assert!(err.contains("mod.rs:"), "{err}");
+    assert!(
+        err.contains(": NUC_TEST_PANIC is set — not decided"),
+        "{err}"
+    );
+}
+
+/// Verifies: G-6
 #[test]
 fn explain_gives_the_reason_of_a_known_rule_and_refuses_an_unknown_one() {
     let fixture = Fixture::new("explain");
@@ -363,6 +403,43 @@ fn a_path_git_quotes_names_no_file_as_for_the_bash() {
     fixture.commit("A file with a name git quotes");
     let output = fixture.nuc(&["check"]);
     assert_eq!(code(&output), Some(0), "{}", stdout(&output));
+}
+
+#[cfg(unix)]
+#[test]
+fn an_unquoted_path_that_is_no_utf8_is_read_and_refused_only_where_a_finding_names_it() {
+    use std::os::unix::ffi::OsStrExt;
+    let fixture = references("text-files-bytes");
+    fixture.git(&["config", "core.quotePath", "false"]);
+    let name = fixture
+        .root()
+        .join(std::ffi::OsStr::from_bytes(b"n\xffo.txt"));
+    // A file system that holds only UTF-8 names, as APFS on macOS, cannot have the path at all.
+    if std::fs::write(&name, "nothing here\n").is_err() {
+        return;
+    }
+    // git lists the path unquoted, and the bash reads the file: with nothing to report, it passes.
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(0), "{}", stderr(&output));
+    // A finding would have to name the path, which nuc cannot spell as the bash does.
+    std::fs::write(&name, missing_reference()).expect("written");
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(2), "{}", stdout(&output));
+    let err = stderr(&output);
+    assert!(err.contains("n\u{FFFD}o.txt"), "{err}");
+    assert!(err.contains("no UTF-8"), "{err}");
+    assert!(err.contains("not decided"), "{err}");
+    // The bash resolves the links and the attributes of a Markdown file from its path's bytes,
+    // which nuc cannot spell: such a file is not decided, finding or not.
+    std::fs::write(&name, "nothing here\n").expect("written");
+    let dir = fixture.root().join(std::ffi::OsStr::from_bytes(b"d\xff"));
+    std::fs::create_dir_all(&dir).expect("created");
+    std::fs::write(dir.join("a.md"), "# A\n").expect("written");
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(2), "{}", stdout(&output));
+    let err = stderr(&output);
+    assert!(err.contains("d\u{FFFD}/a.md"), "{err}");
+    assert!(err.contains("Markdown"), "{err}");
 }
 
 #[test]
@@ -835,6 +912,24 @@ fn a_skill_directory_outside_the_repository_is_not_listed() {
     assert_eq!(code(&output), Some(2), "{}", stdout(&output));
     assert!(
         stderr(&output).contains("resolves outside the repository"),
+        "{}",
+        stderr(&output)
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn a_record_directory_outside_the_repository_is_not_listed() {
+    // A directory beside the fixture holding no file the record reads, so only its listing
+    // reaches outside.
+    let (probe, _) = outside("adr-dir-outside-probe", "notes.txt", "notes\n");
+    let fixture = only("adr-dir-outside", "docs/adr-header", README);
+    std::fs::create_dir_all(fixture.root().join("docs")).expect("created");
+    std::os::unix::fs::symlink(probe.root(), fixture.root().join("docs/adr")).expect("linked");
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(2), "{}", stdout(&output));
+    assert!(
+        stderr(&output).contains("docs/adr: resolves outside the repository"),
         "{}",
         stderr(&output)
     );

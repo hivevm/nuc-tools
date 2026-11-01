@@ -4,6 +4,7 @@
 
 use super::{Input, Inputs, Rule};
 use crate::adr::{self, show};
+use crate::bash;
 use crate::finding::Finding;
 use crate::markdown;
 
@@ -33,7 +34,7 @@ fn finding(file: &str, line: Option<usize>, message: String) -> Finding {
 
 /// The numbered sections of AGENTS.md, as `sed -nE 's/^## ([0-9]+)\..*/\1/p'` lists them.
 fn sections(agents: &[u8]) -> Vec<String> {
-    adr::awk_lines(agents)
+    bash::awk_lines(agents)
         .into_iter()
         .filter_map(|line| {
             let rest = line.strip_prefix(b"## ")?;
@@ -126,9 +127,9 @@ fn is_doc_file(file: &str) -> bool {
 /// Each `AGENTS.md, section N` or `AGENTS.md section N` of the file whose N names no section.
 fn word_form(file: &str, text: &[u8], valid: &[String]) -> Vec<Finding> {
     let mut found = Vec::new();
-    for (i, line) in adr::awk_lines(text).into_iter().enumerate() {
+    for (i, line) in bash::awk_lines(text).into_iter().enumerate() {
         let mut at = 0;
-        while let Some(start) = adr::find(&line[at..], b"AGENTS.md") {
+        while let Some(start) = bash::find(&line[at..], b"AGENTS.md") {
             let rest = &line[at + start + b"AGENTS.md".len()..];
             let rest = rest.strip_prefix(b",").unwrap_or(rest);
             let digits_at = rest
@@ -156,7 +157,7 @@ fn signs(line: &[u8]) -> Vec<String> {
     let sign = SECTION.as_bytes();
     let mut found = Vec::new();
     let mut at = 0;
-    while let Some(start) = adr::find(&line[at..], sign) {
+    while let Some(start) = bash::find(&line[at..], sign) {
         let after = at + start + sign.len();
         let digits = line[after..]
             .iter()
@@ -173,7 +174,7 @@ fn signs(line: &[u8]) -> Vec<String> {
 /// Each `§N` of a YAML file, shell script, or hook whose N names no section.
 fn sign_refs(file: &str, text: &[u8], valid: &[String]) -> Vec<Finding> {
     let mut found = Vec::new();
-    for (i, line) in adr::awk_lines(text).into_iter().enumerate() {
+    for (i, line) in bash::awk_lines(text).into_iter().enumerate() {
         for n in signs(line) {
             if !valid.contains(&n) {
                 found.push(finding(
@@ -212,8 +213,8 @@ fn markdown_refs(
 ) -> Vec<Finding> {
     let slug_of = |n: &str| slug_of(slugs, n).to_owned();
     let mut found = Vec::new();
-    for (n, raw, read) in markdown::read_lines(text) {
-        if !read || !adr::contains(raw, SECTION.as_bytes()) {
+    for (n, raw, read) in markdown::scanned_lines(text) {
+        if !read || !bash::contains(raw, SECTION.as_bytes()) {
             continue;
         }
         let line = without_code_spans(raw);

@@ -4,6 +4,7 @@
 
 use super::{Input, Inputs, Rule};
 use crate::adr::{self, show};
+use crate::bash;
 use crate::finding::Finding;
 
 pub const RULE_ID: &str = "docs/adr-refs";
@@ -26,7 +27,7 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
         if path == "docs/adr/template.md" || inactive.contains(path.as_str()) {
             continue;
         }
-        for (n, line) in adr::awk_lines(text).into_iter().enumerate() {
+        for (n, line) in bash::awk_lines(text).into_iter().enumerate() {
             for (_, reference) in adr::references(line) {
                 if !known.contains_key(show(adr::reference_key(reference)).as_str()) {
                     found.push(Finding {

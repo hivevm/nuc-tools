@@ -3,7 +3,7 @@
 //! and every tracked top-level part of the tree is named, by itself or by a path under it.
 
 use super::{Input, Inputs, Rule, read_lines};
-use crate::adr::is_space;
+use crate::bash::is_space;
 use crate::finding::Finding;
 
 pub const RULE_ID: &str = "docs/project-layout";
@@ -19,6 +19,17 @@ pub const RULE: Rule = Rule {
     reads: &[Input::Readme, Input::Layout],
     check,
 };
+
+/// What check 10 tests on the tree.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Layout {
+    /// Each path the Project Layout block lists, by its text: whether it names what is there,
+    /// a match of a pattern with `*`, a directory for a trailing `/`, or else a file.
+    pub found: std::collections::BTreeMap<String, bool>,
+    /// The first part of every path git tracks, sorted and each once, as `cut -d/ -f1 | sort -u`
+    /// gives them.
+    pub top_level: Vec<String>,
+}
 
 const README: &str = "README.md";
 
@@ -124,7 +135,7 @@ mod tests {
     fn messages(readme: &str, found: &[(&str, bool)], top: &[&str]) -> Vec<String> {
         let inputs = Inputs {
             readme: Some(readme.to_owned()),
-            layout: super::super::Layout {
+            layout: super::Layout {
                 found: found.iter().map(|(p, f)| ((*p).to_owned(), *f)).collect(),
                 top_level: top.iter().map(|t| (*t).to_owned()).collect(),
             },

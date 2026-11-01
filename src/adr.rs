@@ -4,6 +4,7 @@
 //! of the record share this reading, so that each reads an ADR the one way the bash does: byte by
 //! byte, as awk and bash do under `LC_ALL=C`.
 
+use crate::bash::{awk_lines, contains, find, is_space, read_lines};
 use std::collections::{BTreeMap, BTreeSet};
 
 /// The status emoji of the record's legend, as UTF-8 bytes.
@@ -89,22 +90,6 @@ enum Continued {
     Deciders,
 }
 
-/// The lines of the text as awk reads them: split at newlines, an unterminated last line kept.
-pub fn awk_lines(text: &[u8]) -> Vec<&[u8]> {
-    let mut lines: Vec<&[u8]> = text.split(|&b| b == b'\n').collect();
-    if text.ends_with(b"\n") || text.is_empty() {
-        lines.pop();
-    }
-    lines
-}
-
-/// The lines of the text as `while IFS= read -r` reads them: an unterminated last line dropped.
-pub fn read_lines(text: &[u8]) -> Vec<&[u8]> {
-    let mut lines: Vec<&[u8]> = text.split(|&b| b == b'\n').collect();
-    lines.pop();
-    lines
-}
-
 /// The header of the text, with the instruction needle of the template, if it has one. Like the
 /// awk, it keeps one set of what it has seen for the field names and its own keys, so that a field
 /// named `heading`, `needle`, or `stray` lands where the awk's output puts it.
@@ -157,21 +142,6 @@ pub fn header(text: &[u8], needle: Option<&[u8]>) -> Header {
         }
     }
     header
-}
-
-/// The position of the first occurrence of the needle in the bytes; an empty needle is at 0.
-pub fn find(haystack: &[u8], needle: &[u8]) -> Option<usize> {
-    if needle.is_empty() {
-        return Some(0);
-    }
-    haystack
-        .windows(needle.len())
-        .position(|window| window == needle)
-}
-
-/// Whether the needle occurs in the bytes.
-pub fn contains(haystack: &[u8], needle: &[u8]) -> bool {
-    find(haystack, needle).is_some()
 }
 
 /// Whether the line holds `**<field>:**` for a field of the template, anywhere on it.
@@ -264,36 +234,6 @@ pub fn status_emoji(text: &[u8]) -> (Option<&'static str>, usize) {
         }
     }
     (first.map(|(_, emoji)| emoji), count)
-}
-
-/// Whether the byte is in the space class of POSIX, which the bash matches with `[[:space:]]`.
-pub fn is_space(b: u8) -> bool {
-    matches!(b, b' ' | b'\t' | b'\n' | 0x0B | 0x0C | b'\r')
-}
-
-/// The bytes without leading and trailing POSIX space.
-pub fn trim(text: &[u8]) -> &[u8] {
-    let start = text
-        .iter()
-        .position(|&b| !is_space(b))
-        .unwrap_or(text.len());
-    let end = text
-        .iter()
-        .rposition(|&b| !is_space(b))
-        .map_or(start, |i| i + 1);
-    &text[start..end]
-}
-
-/// The first word of the bytes as `read -r word _` splits them with the default IFS: space, tab,
-/// and newline, and nothing else.
-pub fn first_word(text: &[u8]) -> &[u8] {
-    let ifs = |b: &u8| matches!(b, b' ' | b'\t' | b'\n');
-    let start = text.iter().position(|b| !ifs(b)).unwrap_or(text.len());
-    let end = text[start..]
-        .iter()
-        .position(ifs)
-        .map_or(text.len(), |i| start + i);
-    &text[start..end]
 }
 
 /// Whether the line continues a field: POSIX space, then something else.
@@ -473,23 +413,5 @@ mod tests {
             (Some("🟡"), 2)
         );
         assert_eq!(status_emoji(b"no emoji"), (None, 0));
-    }
-
-    #[test]
-    fn read_drops_an_unterminated_last_line_and_awk_keeps_it() {
-        assert_eq!(read_lines(b"a\nb"), [&b"a"[..]]);
-        assert_eq!(awk_lines(b"a\nb"), [&b"a"[..], &b"b"[..]]);
-        assert_eq!(awk_lines(b"a\n"), [&b"a"[..]]);
-    }
-
-    #[test]
-    fn the_first_word_splits_at_space_tab_and_newline_only() {
-        assert_eq!(first_word(b" accepted\r"), b"accepted\r");
-        assert_eq!(
-            first_word("\u{a0}accepted".as_bytes()),
-            "\u{a0}accepted".as_bytes()
-        );
-        assert_eq!(first_word(b"\x0Baccepted"), b"\x0Baccepted");
-        assert_eq!(first_word(b"\taccepted by X"), b"accepted");
     }
 }

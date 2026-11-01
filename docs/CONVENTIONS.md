@@ -24,8 +24,9 @@ skimmed. The design revision drops what prevented nothing
   pass on less than it should have seen (Q-1). Every file the shell reads and every directory it
   lists resolves inside the repository, or the run is not decided, so that no link, symbolic link,
   or absolute path in the tree makes `nuc` read what the tree does not hold; each new reading goes
-  through the shell's `Tree`, which tests that. A test of existence, as the bash's `-e`, `-f`, and
-  `-d`, follows the path wherever it leads and reads nothing.
+  through the shell's `Tree`, which tests that, and the structural test fails on a read, a
+  listing, or a resolution in any other function of the shell. A test of existence, as the
+  bash's `-e`, `-f`, and `-d`, follows the path wherever it leads and reads nothing.
 - **A port copies the bash, quirks included** — a rule reports what its bash check reports on
   inputs the corpus lacks as well, its exemptions and oddities with it: only the first Template
   release line counts, and a missing README is the finding of another rule. Its unit tests copy
@@ -34,4 +35,6 @@ skimmed. The design revision drops what prevented nothing
   the bash reads otherwise than Rust: a byte of no valid UTF-8, the byte 0x1F its awk passes split
   fields on, a last line without a newline (`read` drops it, awk and `sed` keep it), numbers in
   bash arithmetic (octal after a leading zero, 64-bit wrap), and a path git lists that is no
-  UTF-8, which the bash opens and Rust's strings do not hold.
+  UTF-8, which the bash opens and Rust's strings do not hold. A port reads lines and POSIX space
+  through `src/bash.rs`, never through a copy of its own, and the structural test fails on a
+  reader of `tests/functional_core.bash` defined elsewhere.

@@ -40,23 +40,24 @@ golden path and the test pattern an agent copies from are named here.
   process ([ADR-0009](adr/0009-functional-core.md)). The rules of the decision record share one
   reading of it in `src/adr.rs`, and the rules of Markdown one reading of its links in
   `src/markdown.rs`, both outside `src/rules/`, the way the bash's `scripts/lib/adr.sh` and awk
-  passes read them. `src/adr.rs` also holds the byte-level readings of the bash's tools that
-  other rules use: lines as awk and `read` split them, and POSIX space. The rules of the area
-  `traceability` read the criteria of the specification through `traceability_criteria::read`
-  and the identifiers the `Verifies:` markers cite through `traceability_citations::citations`,
-  each kept in the module of the rule that reads it first. The shell matches path
-  patterns as bash's pathname expansion does through `src/glob.rs`. A rule whose bash check
-  changed between template releases, today `docs/adr-supersessions` and `docs/check-lists`,
-  reads the release the tree carries and checks as that release does
-  (ADR-0021).
+  passes read them. The byte-level readings of the bash's tools, lines as awk, `read`, and `sed`
+  split them, POSIX space and the bytes without it, and the first word `read` splits off, are in
+  `src/bash.rs` and nowhere else, which the structural test holds. The rules of the area
+  `traceability` share one reading of the criteria of the specification and of the identifiers
+  the `Verifies:` markers cite in `src/traceability.rs`, beside `src/adr.rs`, so that no rule
+  module calls another. The shell matches path patterns as bash's pathname expansion does
+  through `src/glob.rs`. A rule whose bash check changed between template releases, today
+  `docs/adr-supersessions` and `docs/check-lists`, reads the release the tree carries and checks
+  as that release does (ADR-0021).
 - **Configuration** — `config` reads `nuc.toml` and selects the rules it turns on, or says why
   `nuc` refuses: missing, unreadable, a minimum above the running version, an unknown rule ID
   ([ADR-0013](adr/0013-version-coupling.md)).
 - **Shell** — `src/shell/` reads the command line and the repository, runs git under a cleared
   environment in `shell::git`, calls the rules, prints the findings, and sets the exit code
-  ([ADR-0010](adr/0010-git-cli-cleared-environment.md)). Its `Tree` reads every file and lists
-  every directory the rules need, and refuses one that resolves outside the repository, or that
-  the bash would read differently from its bytes alone, as not decided.
+  ([ADR-0010](adr/0010-git-cli-cleared-environment.md)). Its `Tree`, in `shell::tree`, reads
+  every file and lists every directory the rules need, each resolved through one function that
+  refuses a path outside the repository, and refuses as well, as not decided, one the bash would
+  read differently from its bytes alone.
 - **Binary** — `src/main.rs` calls the shell and nothing else.
 - **Parity harness** — `scripts/check-parity.sh` runs the bash checks of each repository of the
   corpus, `check-docs.sh` and `check-traceability.sh`, all on template release v0.5.0 or later,
@@ -75,14 +76,15 @@ golden path and the test pattern an agent copies from are named here.
   `check-docs.sh`, and the pieces it takes through every layer. A new rule copies it:
   1. a module under `src/rules/` with its `RULE_ID`, an `area/name`, and its `RULE`, listed in
      `rules::ALL`, its unit tests the cases of the bash self-test of the check it ports;
-  2. what it needs to read, an `Input` the rule names in its `reads`, a field of the inputs, and
-     the shell's reading of it;
+  2. what it needs to read, an `Input` the rule names in its `reads`, a field of the inputs, its
+     type in the rule's module unless several rules read it, and the shell's reading of it;
   3. its rows in the normalization table of the parity harness, one per bash message;
   4. a variant in `tests/parity/variants.tsv` that makes it fire.
 - **The test pattern** — `tests/check.rs`: a fixture repository built through git by
   `tests/support/`, `nuc` run on it as a process under a cleared environment, and its exit code
-  and output asserted. The structural test `tests/functional_core.rs` holds the shape
-  ([ADR-0011](adr/0011-fixture-repositories.md)).
+  and output asserted. The structural test `tests/functional_core.rs` holds the shape, and
+  inside the shell lets only the functions `tests/functional_core.guarded` names read, list, or
+  resolve a path ([ADR-0011](adr/0011-fixture-repositories.md)).
 
 ## How it runs
 

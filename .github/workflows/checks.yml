@@ -210,6 +210,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      # The test of Q-11 in tests/isolation.rs runs nuc in a network namespace of its own, which
+      # the Ubuntu runner lets an unprivileged user make only with this restriction lifted.
+      - name: Allow the network namespace of the test without network
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - name: Format, lint, build, and test
         run: bash scripts/check-build.sh
       # The release tooling under release/, with stub binaries; release-test.yml builds the real
