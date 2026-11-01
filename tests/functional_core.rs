@@ -8,9 +8,10 @@
 //! scope. A rename inside a group, as `use std::{fs as f}`, is read as the path it renames.
 //!
 //! Inside `src/shell/`, a call that reads a file, lists a directory, or resolves a path, as
-//! `functional_core.reads` lists them, stands only in a function `functional_core.guarded` names:
-//! those that resolve the path through `Tree::resolve` first, so that nothing outside the
-//! repository is read (ADR-0009, the shell's reading for the rules). A test of existence is free.
+//! `functional_core.reads` lists them, stands only in a function `functional_core.guarded` names
+//! for that call: those that resolve the path through `Tree::resolve` first, so that nothing
+//! outside the repository is read, as the convention "The shell reads, the rules decide" of
+//! `docs/CONVENTIONS.md` asks. A test of existence is free.
 //!
 //! Each module under `src/rules/` is one rule: it declares exactly one `RULE_ID`, an
 //! `area/name` unique across the crate, and the list of every rule names its `RULE`.
@@ -343,15 +344,27 @@ fn ident_from(chars: &[char], i: usize) -> Option<(String, usize)> {
 }
 
 /// The type an `impl` block is for, from the text between `impl` and its brace: the type after
-/// `for` when it implements a trait, without its generics.
+/// `for` when it implements a trait, without its generics, references, and lifetimes.
 fn impl_type(header: &str) -> String {
-    let header = header.trim_start();
-    let header = match header.strip_prefix('<') {
-        Some(rest) => rest.split_once('>').map_or("", |(_, after)| after),
-        None => header,
-    };
-    let ty = header.rsplit(" for ").next().unwrap_or(header).trim();
-    ty.split(|c: char| !is_ident(c) && c != ':')
+    // The header with every generic list, however nested, left out.
+    let mut flat = String::new();
+    let mut depth = 0usize;
+    for c in header.chars() {
+        match c {
+            '<' => depth += 1,
+            '>' => depth = depth.saturating_sub(1),
+            _ if depth == 0 => flat.push(c),
+            _ => {}
+        }
+    }
+    let ty = flat.rsplit(" for ").next().unwrap_or(&flat);
+    ty.split_whitespace()
+        .map(|word| word.trim_start_matches('&'))
+        .find(|word| {
+            !word.is_empty() && !word.starts_with('\'') && *word != "mut" && *word != "dyn"
+        })
+        .unwrap_or_default()
+        .split(|c: char| !is_ident(c) && c != ':')
         .next()
         .unwrap_or_default()
         .to_owned()
@@ -369,8 +382,10 @@ fn functions(source: &str) -> Vec<(String, String)> {
     let chars: Vec<char> = code(source).chars().collect();
     let mut found: Vec<(String, String)> = vec![("<module>".to_owned(), String::new())];
     let mut stack: Vec<Block> = Vec::new();
-    // The function whose signature is being read, and where an `impl` header started.
+    // The function whose signature is being read, the brackets open in it, and where an `impl`
+    // header started.
     let mut pending: Option<String> = None;
+    let mut open = 0usize;
     let mut header: Option<usize> = None;
     let mut i = 0;
     while i < chars.len() {
@@ -391,6 +406,7 @@ fn functions(source: &str) -> Vec<(String, String)> {
             };
             found.push((name.clone(), String::new()));
             pending = Some(name);
+            open = 0;
             i = end;
             continue;
         }
@@ -409,7 +425,10 @@ fn functions(source: &str) -> Vec<(String, String)> {
                 header = None;
             }
             '}' => drop(stack.pop()),
-            ';' => pending = None,
+            '(' | '[' if pending.is_some() => open += 1,
+            ')' | ']' if pending.is_some() => open = open.saturating_sub(1),
+            // A declaration without a body ends at its `;`; one inside `[u8; 4]` is no end.
+            ';' if open == 0 => pending = None,
             _ => {}
         }
         let name = owner(&stack, &pending).unwrap_or_else(|| "<module>".to_owned());
@@ -421,19 +440,32 @@ fn functions(source: &str) -> Vec<(String, String)> {
     found
 }
 
-/// The functions of a source under `src/shell/`, named `file` there, that read, list, or resolve
-/// without being guarded, each with what it calls.
-fn unguarded(file: &str, source: &str, guarded: &str) -> Vec<String> {
-    let allowed: Vec<(&str, &str)> = entries(guarded)
+/// The entries of the guarded list: the file, the function, and the calls it may make.
+fn guarded_entries(guarded: &str) -> Vec<(&str, &str, Vec<&str>)> {
+    entries(guarded)
         .into_iter()
-        .filter_map(|line| line.split_once(' '))
-        .collect();
+        .filter_map(|line| {
+            let mut words = line.split_whitespace();
+            Some((words.next()?, words.next()?, words.collect()))
+        })
+        .collect()
+}
+
+/// The calls of a source under `src/shell/`, named `file` there, that read, list, or resolve
+/// in a function the guarded list does not allow them, each with its function.
+fn unguarded(file: &str, source: &str, guarded: &str) -> Vec<String> {
+    let allowed = guarded_entries(guarded);
     functions(source)
         .into_iter()
-        .filter(|(name, _)| !allowed.contains(&(file, name.as_str())))
         .flat_map(|(name, code)| {
+            let may: Vec<&str> = allowed
+                .iter()
+                .filter(|(f, n, _)| *f == file && *n == name)
+                .flat_map(|(_, _, calls)| calls.iter().copied())
+                .collect();
             violations(&code, READS)
                 .into_iter()
+                .filter(move |entry| !may.contains(&entry.as_str()))
                 .map(move |entry| format!("{file}: {name} calls '{entry}'"))
         })
         .collect()
@@ -662,17 +694,25 @@ fn the_shell_reads_only_through_the_guard() {
         "the shell reads past Tree::resolve:\n{}",
         found.join("\n")
     );
-    for entry in entries(GUARDED) {
-        assert!(
-            defined.iter().any(|d| d == entry),
-            "functional_core.guarded names '{entry}', which no source under src/shell/ defines"
+    for (file, name, calls) in guarded_entries(GUARDED) {
+        let entry = format!("{file} {name}");
+        let times = defined.iter().filter(|d| **d == entry).count();
+        assert_eq!(
+            times, 1,
+            "functional_core.guarded names '{entry}', which src/shell/ defines {times} times, not once"
         );
+        for call in calls {
+            assert!(
+                entries(READS).contains(&call),
+                "functional_core.guarded lets '{entry}' call '{call}', which functional_core.reads does not list"
+            );
+        }
     }
 }
 
 #[test]
 fn a_read_outside_the_guarded_functions_is_found_by_its_function() {
-    let guarded = "tree.rs Tree::read_bytes\n";
+    let guarded = "tree.rs Tree::read_bytes fs::read\n";
     for (source, function) in [
         ("fn reader() { std::fs::read(\"x\"); }", "reader"),
         (
@@ -690,6 +730,15 @@ fn a_read_outside_the_guarded_functions_is_found_by_its_function() {
         (
             "impl<T> Show for Tree<T> { fn read_bytes(&self) { fs::read(p); } }",
             "Tree::read_bytes",
+        ),
+        ("fn helper(x: [u8; 4]) { fs::read(p); }", "helper"),
+        (
+            "impl<T: Into<Vec<u8>>> Wrap<T> { fn get(&self) { fs::read(p); } }",
+            "Wrap::get",
+        ),
+        (
+            "impl<'a> Show for &'a Tree { fn other(&self) { fs::read(p); } }",
+            "Tree::other",
         ),
     ] {
         let found = unguarded("other.rs", source, guarded);
@@ -715,6 +764,24 @@ fn a_read_outside_the_guarded_functions_is_found_by_its_function() {
             guarded
         ),
         ["tree.rs: Tree::other calls 'fs::read'"]
+    );
+    // A guarded function may make only the calls its entry names.
+    assert_eq!(
+        unguarded(
+            "tree.rs",
+            "impl Tree { fn read_bytes(&self) { fs::read(p); fs::read_dir(d); } }",
+            guarded
+        ),
+        ["tree.rs: Tree::read_bytes calls 'read_dir'"]
+    );
+    // A function nested in a guarded one is not covered by its entry.
+    assert_eq!(
+        unguarded(
+            "tree.rs",
+            "impl Tree { fn read_bytes(&self) { fn h(a: [u8; 1]) { fs::read(p); } } }",
+            guarded
+        ),
+        ["tree.rs: h calls 'fs::read'"]
     );
 }
 
