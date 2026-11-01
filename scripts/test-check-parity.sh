@@ -164,6 +164,13 @@ printf '%s\n' "Traceability check FAILED:" "  - $EXEMPT" > "$work/exempt.bash"
 expect pass "a finding the '@adr' row does not match keeps its file" "" \
   compare "$work/exempt.bash" 1 "$(nuc_out adr-exempt "docs/adr/${UNCITED_KEY}-a.md: traceability/coverage: ${EXEMPT#*: }")" 1
 
+# A path holding ': ' is placed whole on both sides, at the file nuc names.
+COLON="docs/a: b.md: broken relative link -> 'x.md'"
+expect pass "a path holding ': ' is placed at the same file" "" \
+  compare "$(bash_out colon "$COLON")" 1 "$(nuc_out colon "docs/a: b.md: docs/links: broken relative link -> 'x.md'")" 1
+expect fail "a path holding ': ' that nuc names otherwise is a difference" "only nuc reports: docs/links docs/a: c.md" \
+  compare "$(bash_out colon-other "$COLON")" 1 "$(nuc_out colon-other "docs/a: c.md: docs/links: broken relative link -> 'x.md'")" 1
+
 # --- cases: a run over a corpus -----------------------------------------------------------
 
 # The check-traceability.sh of a passing tree.

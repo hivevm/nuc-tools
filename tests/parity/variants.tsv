@@ -75,3 +75,11 @@ coverage-no-reason	traceability/coverage	docs/adr/0001-agent-governance-model.md
 # A last line without a newline, which `read` drops: the last row of the index, where the index
 # ends with one.
 adr-index-last-row-unterminated	docs/adr-index	docs/adr/README.md	chomp	-	nuc-tools,ocelli,opamp-fleet
+
+# Names the corpus lacks, each where a ported rule names it: a space and a colon followed by a
+# space in a Markdown file with a broken link, a space in a file that cites, and capitals and '_'
+# in an accepted draft's slug. The marker is written with \x3a for its colon.
+links-path-space	docs/links	docs/parity variant.md	write	See [the missing file](missing-variant.md).
+links-path-colon	docs/links	docs/parity: variant.md	write	See [the missing file](missing-variant.md).
+citations-path-space	traceability/citations	parity variant.txt	write	Verifies\x3a Q-999
+coverage-draft-capitals	traceability/coverage	docs/adr/draft-Parity_Variant.md	write	- **Status:** 🟢 accepted
