@@ -16,21 +16,34 @@ name = "nuc-v0-6-0"
 url = "https://github.com/hivevm/nuc.git"
 commit = "f9d3c56b9bc238c975ee4d1b4f5a9bb4cfdc8f33"
 
-# A derived repository on template release v0.6.0, at a fixed commit of its main.
+# The template at the commit of its release v0.6.1, whose check-docs.sh ends the template's name
+# in a badge, so that a derived repository named after it keeps its own badges.
+[[repository]]
+name = "nuc-v0-6-1"
+url = "https://github.com/hivevm/nuc.git"
+commit = "1f5a07c7e1959a52e45ff249a07db7c32bf4939c"
+
+# A derived repository on template release v0.6.1, at a fixed commit of its main.
 [[repository]]
 name = "nectar"
 url = "https://github.com/hivevm/nectar.git"
-commit = "4be43632c7dd15fe332f52006b3952d1f7176954"
+commit = "4892160534f5b8f22dd51b980b7275429c9ef9d0"
 
-# This repository on template release v0.5.0, at the commit of its main that merged its setup;
-# its check-docs.sh is the template's with the badge fix it reported upstream.
+# This repository on template release v0.6.1, at a fixed commit of its main after the port of
+# check-traceability.sh.
 [[repository]]
 name = "nuc-tools"
 url = "https://github.com/hivevm/nuc-tools.git"
-commit = "a85d61589ffdaf1ad56b59e73ba2ea14c353ed71"
+commit = "45ecc27797fbd284853a6d38c2cef52c8522a054"
 
 # A derived repository on template release v0.6.0, at a fixed commit of its main.
 [[repository]]
 name = "ocelli"
 url = "https://github.com/hivevm/ocelli.git"
-commit = "520ecdf964ccc25c9ccf8518ceda138c12e02230"
+commit = "5d6e15722f8a9627a832c0062933282dfeb36261"
+
+# A derived repository on template release v0.6.1, at a fixed commit of its main.
+[[repository]]
+name = "opamp-fleet"
+url = "https://github.com/mbrigl/opamp-fleet.git"
+commit = "2188e86e4b53030c18861ac9c4d86a03ae36325a"
