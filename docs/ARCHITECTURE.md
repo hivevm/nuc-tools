@@ -39,7 +39,7 @@ golden path and the test pattern an agent copies from are named here.
   tree as its bash check would, and notes for the summary. Each has one rule ID, the reason
   `nuc explain` gives, and the inputs it reads; the list of every rule is `rules::ALL`. A rule
   reads no file and runs no process
-  ([ADR-draft-rules-return-an-outcome](adr/draft-rules-return-an-outcome.md)).
+  ([ADR-0025](adr/0025-rules-return-an-outcome.md)).
   The rules of the decision record share one reading of it in `src/adr.rs`, and the rules of
   Markdown one reading of its links in `src/markdown.rs`, both outside `src/rules/`, the way the
   bash's `scripts/lib/adr.sh` and awk passes read them. The byte-level readings of the bash's tools,

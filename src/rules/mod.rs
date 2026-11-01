@@ -135,7 +135,7 @@ pub struct Rule {
 
 /// What a rule returns: its findings; a refusal of its own, the reason it cannot decide the tree
 /// as its bash check would; and notes for the summary of the run, which are no findings
-/// (ADR-draft-rules-return-an-outcome).
+/// (ADR-0025).
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Outcome {
     pub findings: Vec<Finding>,

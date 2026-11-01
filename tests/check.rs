@@ -1051,7 +1051,7 @@ fn a_wide_line_the_bash_counts_otherwise_is_not_decided() {
     );
 }
 
-/// Verifies: ADR-draft-rules-return-an-outcome
+/// Verifies: ADR-0025
 #[test]
 fn a_rule_s_refusal_ends_the_run_before_the_findings_of_another_are_printed() {
     let config = "minimum = \"0.0.0\"\nrules = [\"docs/template-release\", \"docs/prose-width\"]\n";
