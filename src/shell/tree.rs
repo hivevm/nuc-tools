@@ -145,7 +145,7 @@ impl Tree {
     /// The bytes of the specification when it is a file, as `-f` finds it, read as `read` reads
     /// it.
     pub(super) fn read_specification(&self) -> Result<Option<Vec<u8>>, String> {
-        let path = self.root.join(rules::traceability_criteria::SPECIFICATION);
+        let path = self.root.join(crate::traceability::SPECIFICATION);
         if path.is_file() {
             self.read_record_file(&path)
         } else {
