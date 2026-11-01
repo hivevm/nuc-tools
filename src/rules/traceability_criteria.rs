@@ -3,8 +3,8 @@
 //! and no identifier appears twice (ADR-0023).
 
 use super::{Input, Inputs, Rule};
-use crate::adr;
 use crate::finding::Finding;
+use crate::traceability::{self, SPECIFICATION};
 
 pub const RULE_ID: &str = "traceability/criteria";
 
@@ -19,8 +19,6 @@ pub const RULE: Rule = Rule {
     check,
 };
 
-pub const SPECIFICATION: &str = "docs/SPECIFICATION.md";
-
 /// The criteria the specification lists, and what is wrong with the list.
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct Criteria {
@@ -33,69 +31,17 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
     read(inputs.specification.as_deref()).findings
 }
 
-/// The criteria of the specification, read as the bash reads it: line by line, a heading of two
-/// hashes opening or closing a section, each list item of a section checked for its identifier.
+/// The criteria of the specification and their findings, as the bash reports them.
 pub fn read(specification: Option<&[u8]>) -> Criteria {
-    let mut criteria = Criteria::default();
-    let Some(text) = specification else {
-        criteria.findings.push(finding(
-            None,
-            "not found — the criteria cannot be read".to_owned(),
-        ));
-        return criteria;
-    };
-    let mut section = None;
-    for (i, line) in adr::awk_lines(text).into_iter().enumerate() {
-        if let Some(rest) = line.strip_prefix(b"##")
-            && rest.first().copied().is_some_and(adr::is_space)
-        {
-            section = if line.starts_with(b"## Goals / Success Criteria") {
-                Some(b'G')
-            } else if line.starts_with(b"## Quality Goals") {
-                Some(b'Q')
-            } else {
-                None
-            };
-            continue;
-        }
-        let Some(section) = section else { continue };
-        let Some(body) = item_body(line) else {
-            continue;
-        };
-        let lineno = Some(i + 1);
-        match identifier(body) {
-            Some((kind, id)) => {
-                if kind != section {
-                    criteria.findings.push(finding(
-                        lineno,
-                        format!(
-                            "'{id}' is listed under the wrong section — G-n belongs under Goals / \
-                             Success Criteria, Q-n under Quality Goals"
-                        ),
-                    ));
-                }
-                if criteria.ids.contains(&id) {
-                    criteria.findings.push(finding(
-                        lineno,
-                        format!("identifier '{id}' appears twice — identifiers are never reused"),
-                    ));
-                }
-                criteria.ids.push(id);
-            }
-            None => {
-                // The bash cuts the body at 60 characters of the C locale, which are bytes.
-                let excerpt = String::from_utf8_lossy(&body[..body.len().min(60)]);
-                criteria.findings.push(finding(
-                    lineno,
-                    format!(
-                        "list item without a bold {}-n identifier: '{excerpt}'",
-                        char::from(section)
-                    ),
-                ));
-            }
-        }
+    let read = traceability::criteria(specification);
+    Criteria {
+        ids: read.ids,
+        findings: read
+            .problems
+            .into_iter()
+            .map(|(line, message)| finding(line, message))
+            .collect(),
     }
-    criteria
 }
 
 fn finding(line: Option<usize>, message: String) -> Finding {
@@ -105,40 +51,6 @@ fn finding(line: Option<usize>, message: String) -> Finding {
         line,
         message,
     }
-}
-
-/// The text of a list item after its marker and the space that follows it, as
-/// `^[[:space:]]*([-*+]|[0-9]+\.)[[:space:]]+(.*)$` captures it; none for any other line.
-fn item_body(line: &[u8]) -> Option<&[u8]> {
-    let start = line.iter().position(|&b| !adr::is_space(b))?;
-    let rest = &line[start..];
-    let rest = match rest.first()? {
-        b'-' | b'*' | b'+' => &rest[1..],
-        b'0'..=b'9' => {
-            let digits = rest.iter().take_while(|b| b.is_ascii_digit()).count();
-            rest[digits..].strip_prefix(b".")?
-        }
-        _ => return None,
-    };
-    let spaces = rest.iter().take_while(|&&b| adr::is_space(b)).count();
-    (spaces > 0).then(|| &rest[spaces..])
-}
-
-/// The section letter and the identifier a body opens with, as `^\*\*([GQ])-([0-9]+)\*\*`
-/// matches it; the digits as written.
-fn identifier(body: &[u8]) -> Option<(u8, String)> {
-    let rest = body.strip_prefix(b"**")?;
-    let (&kind, rest) = rest.split_first()?;
-    if kind != b'G' && kind != b'Q' {
-        return None;
-    }
-    let rest = rest.strip_prefix(b"-")?;
-    let digits = rest.iter().take_while(|b| b.is_ascii_digit()).count();
-    if digits == 0 || !rest[digits..].starts_with(b"**") {
-        return None;
-    }
-    let number = std::str::from_utf8(&rest[..digits]).expect("ASCII digits");
-    Some((kind, format!("{}-{number}", char::from(kind))))
 }
 
 #[cfg(test)]

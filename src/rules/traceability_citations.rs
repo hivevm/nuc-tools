@@ -2,10 +2,11 @@
 //! marker cites names an ADR of `docs/adr/` that is in force, or a criterion of
 //! `docs/SPECIFICATION.md` (ADR-0023).
 
-use super::{Input, Inputs, Rule, traceability_criteria};
+use super::{Input, Inputs, Rule};
 use crate::adr;
 use crate::finding::Finding;
-use std::collections::{BTreeMap, BTreeSet};
+use crate::traceability;
+use std::collections::BTreeSet;
 
 pub const RULE_ID: &str = "traceability/citations";
 
@@ -20,21 +21,10 @@ pub const RULE: Rule = Rule {
     check,
 };
 
-/// The marker as the bash's grep finds it.
-const MARKER: &[u8] = b"Verifies:";
-
-/// One identifier one marker cites.
-#[derive(Debug, PartialEq, Eq)]
-pub struct Citation {
-    pub file: String,
-    pub line: usize,
-    pub id: String,
-}
-
 fn check(inputs: &Inputs) -> Vec<Finding> {
-    let criteria = traceability_criteria::read(inputs.specification.as_deref()).ids;
+    let criteria = traceability::criteria(inputs.specification.as_deref()).ids;
     let (known, inactive) = record(&inputs.adr);
-    citations(&inputs.markers)
+    traceability::citations(&inputs.markers)
         .into_iter()
         .filter_map(|citation| {
             let why = if citation.id.starts_with("ADR-") {
@@ -77,76 +67,6 @@ fn record(dir: &adr::Dir) -> (BTreeSet<String>, BTreeSet<String>) {
         known.insert(id);
     }
     (known, inactive)
-}
-
-/// Every citation of every file, in the order of the files and their lines, each as often as it
-/// is written.
-pub fn citations(markers: &BTreeMap<String, Vec<u8>>) -> Vec<Citation> {
-    let mut found = Vec::new();
-    for (file, bytes) in markers {
-        for (i, line) in adr::awk_lines(bytes).into_iter().enumerate() {
-            for id in cited(line) {
-                found.push(Citation {
-                    file: file.clone(),
-                    line: i + 1,
-                    id: String::from_utf8_lossy(id).into_owned(),
-                });
-            }
-        }
-    }
-    found
-}
-
-/// The identifiers the markers of one line cite, as `grep -oE` finds each marker
-/// `Verifies:[[:space:]]*(ID)([[:space:],]+(ID))*`, leftmost and longest, the search going on
-/// after it, and `grep -oE ID` takes the identifiers out of it.
-fn cited(line: &[u8]) -> Vec<&[u8]> {
-    let mut ids = Vec::new();
-    let mut from = 0;
-    while let Some(at) = adr::find(&line[from..], MARKER) {
-        let start = from + at + MARKER.len();
-        let mut i = start
-            + line[start..]
-                .iter()
-                .take_while(|&&b| adr::is_space(b))
-                .count();
-        let Some(length) = identifier_at(&line[i..]) else {
-            from += at + 1;
-            continue;
-        };
-        ids.push(&line[i..i + length]);
-        i += length;
-        loop {
-            let gap = line[i..]
-                .iter()
-                .take_while(|&&b| adr::is_space(b) || b == b',')
-                .count();
-            match (gap > 0).then(|| identifier_at(&line[i + gap..])).flatten() {
-                Some(length) => {
-                    ids.push(&line[i + gap..i + gap + length]);
-                    i += gap + length;
-                }
-                None => break,
-            }
-        }
-        from = i;
-    }
-    ids
-}
-
-/// The length of the identifier at the start of the bytes, as `ADR-([0-9]{4}|draft-<slug>)` or
-/// `[GQ]-[0-9]+` match there, longest.
-fn identifier_at(text: &[u8]) -> Option<usize> {
-    if let Some(length) = adr::reference_at(text) {
-        return Some(length);
-    }
-    match text {
-        [b'G' | b'Q', b'-', rest @ ..] => {
-            let digits = rest.iter().take_while(|b| b.is_ascii_digit()).count();
-            (digits > 0).then_some(2 + digits)
-        }
-        _ => None,
-    }
 }
 
 #[cfg(test)]
@@ -294,29 +214,6 @@ mod tests {
     }
 
     #[test]
-    fn a_marker_reads_as_the_bash_pattern_reads_it() {
-        // `V:` stands for the marker and `@` for `ADR-`, so that this file carries neither.
-        let ids = |text: &str| -> Vec<String> {
-            let line = text
-                .replace("V:", &format!("{}:", "Verifies"))
-                .replace('@', "ADR-");
-            cited(line.as_bytes())
-                .into_iter()
-                .map(|id| String::from_utf8_lossy(id).replace("ADR-", "@"))
-                .collect()
-        };
-        assert_eq!(ids("x V: G-1, Q-2\tG-3 and G-4"), ["G-1", "Q-2", "G-3"]);
-        assert_eq!(ids("V:G-1,,G-2"), ["G-1", "G-2"]);
-        assert_eq!(ids("V: G-12x G-2"), ["G-12"]);
-        assert_eq!(ids("V: @00012 G-1"), ["@0001"]);
-        assert!(ids("V: @12 G-1").is_empty());
-        assert_eq!(ids("V: none; V: Q-1 V: G-2"), ["Q-1", "G-2"]);
-        assert!(ids("V: g-1 verifies: G-1").is_empty());
-        assert_eq!(ids("V:\r\x0bG-1\r"), ["G-1"]);
-        assert_eq!(ids("V: @draft-a-b- G-1"), ["@draft-a-b"]);
-    }
-
-    #[test]
     fn a_status_with_green_is_in_force_and_one_without_a_status_line_is_known() {
         let (known, inactive) = record(
             &[
@@ -338,19 +235,6 @@ mod tests {
         assert_eq!(
             messages(&inputs),
             ["t.rs:1: cites 'G-1', which is not a criterion of docs/SPECIFICATION.md"]
-        );
-    }
-
-    #[test]
-    fn lines_are_numbered_as_grep_numbers_them() {
-        let text = format!("a\n\n{}", mark("G-9"));
-        assert_eq!(
-            citations(&[("f".to_owned(), text.into_bytes())].into_iter().collect()),
-            [Citation {
-                file: "f".to_owned(),
-                line: 3,
-                id: "G-9".to_owned()
-            }]
         );
     }
 }

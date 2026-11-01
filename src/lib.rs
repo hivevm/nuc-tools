@@ -8,3 +8,4 @@ pub mod glob;
 pub mod markdown;
 pub mod rules;
 pub mod shell;
+pub mod traceability;

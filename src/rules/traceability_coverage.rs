@@ -2,9 +2,10 @@
 //! a `Verifies:` marker or declared not mechanically decidable with a reason, and the criteria no
 //! marker cites are pending work, named in the summary and never a finding (ADR-0023).
 
-use super::{Input, Inputs, Rule, traceability_citations, traceability_criteria};
+use super::{Input, Inputs, Rule};
 use crate::adr;
 use crate::finding::Finding;
+use crate::traceability;
 use std::collections::BTreeSet;
 
 pub const RULE_ID: &str = "traceability/coverage";
@@ -72,7 +73,7 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
 /// listed: the pending work the bash's closing line names.
 pub fn pending(inputs: &Inputs) -> Vec<String> {
     let cited = cited(inputs);
-    traceability_criteria::read(inputs.specification.as_deref())
+    traceability::criteria(inputs.specification.as_deref())
         .ids
         .into_iter()
         .filter(|id| !cited.contains(id))
@@ -81,7 +82,7 @@ pub fn pending(inputs: &Inputs) -> Vec<String> {
 
 /// Every identifier a marker cites, whether it names anything or not.
 fn cited(inputs: &Inputs) -> BTreeSet<String> {
-    traceability_citations::citations(&inputs.markers)
+    traceability::citations(&inputs.markers)
         .into_iter()
         .map(|citation| citation.id)
         .collect()
