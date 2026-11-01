@@ -76,8 +76,8 @@ golden path and the test pattern an agent copies from are named here.
   `check-docs.sh`, and the pieces it takes through every layer. A new rule copies it:
   1. a module under `src/rules/` with its `RULE_ID`, an `area/name`, and its `RULE`, listed in
      `rules::ALL`, its unit tests the cases of the bash self-test of the check it ports;
-  2. what it needs to read, an `Input` the rule names in its `reads`, a field of the inputs, and
-     the shell's reading of it;
+  2. what it needs to read, an `Input` the rule names in its `reads`, a field of the inputs, its
+     type in the rule's module unless several rules read it, and the shell's reading of it;
   3. its rows in the normalization table of the parity harness, one per bash message;
   4. a variant in `tests/parity/variants.tsv` that makes it fire.
 - **The test pattern** — `tests/check.rs`: a fixture repository built through git by

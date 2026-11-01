@@ -40,18 +40,18 @@ pub struct Inputs {
     pub text_files: std::collections::BTreeMap<String, Vec<u8>>,
     /// Each path a relative link of a Markdown file names, joined to the file's directory as
     /// text, resolved.
-    pub link_targets: std::collections::BTreeMap<String, Resolved>,
+    pub link_targets: std::collections::BTreeMap<String, docs_links::Resolved>,
     /// The bytes of `AGENTS.md` at the root, if it is a file.
     pub agents: Option<Vec<u8>>,
     /// The template release the tree carries, for a rule whose bash check changed between
     /// releases; none for `unreleased`, which is checked as the newest release this `nuc` knows.
     pub release: Option<Version>,
     /// The files of the check lists.
-    pub check_lists: CheckLists,
+    pub check_lists: docs_check_lists::CheckLists,
     /// What the paths of the README's Project Layout name, and the top-level parts of the tree.
-    pub layout: Layout,
+    pub layout: docs_project_layout::Layout,
     /// The skills and their pointers.
-    pub skills: Skills,
+    pub skills: docs_skill_pointers::Skills,
     /// Whether `TEMPLATE-SETUP.md` is a file: the setup still runs.
     pub setup_file: bool,
     /// The files check 13 reads for the template's placeholders, by path, each that is a file.
@@ -67,62 +67,6 @@ pub struct Inputs {
     /// check reads them: listed by git as tracked or new and not ignored, a file, not Markdown,
     /// not binary to `grep -I`, and holding the marker.
     pub markers: std::collections::BTreeMap<String, Vec<u8>>,
-}
-
-/// The files check 9 compares, each as `-f` finds it.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct CheckLists {
-    /// `.github/workflows/checks.yml`.
-    pub checks: Option<Vec<u8>>,
-    /// `scripts/check-all.sh`.
-    pub check_all: Option<Vec<u8>>,
-    /// The workflows the bash's globs list, `*.yml` and then `*.yaml`, each sorted, by path.
-    pub workflows: Vec<(String, Vec<u8>)>,
-    /// The name of every file directly under `.github/workflows/`.
-    pub workflow_files: std::collections::BTreeSet<String>,
-    /// The name of every regular file `scripts/*.sh`, sorted, as `find -type f` lists them.
-    pub scripts: Vec<String>,
-}
-
-/// What check 10 tests on the tree.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct Layout {
-    /// Each path the Project Layout block lists, by its text: whether it names what is there,
-    /// a match of a pattern with `*`, a directory for a trailing `/`, or else a file.
-    pub found: std::collections::BTreeMap<String, bool>,
-    /// The first part of every path git tracks, sorted and each once, as `cut -d/ -f1 | sort -u`
-    /// gives them.
-    pub top_level: Vec<String>,
-}
-
-/// What check 11 tests on `.agents/skills/` and `.claude/skills/`.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct Skills {
-    /// Each skill, a directory of `.agents/skills/` with a file `SKILL.md`, sorted by name, with
-    /// what stands at its pointer.
-    pub skills: Vec<(String, Pointer)>,
-    /// Each entry of `.claude/skills/`, sorted by name.
-    pub pointers: Vec<(String, Entry)>,
-}
-
-/// What stands at a skill's pointer.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Pointer {
-    Symlink,
-    Other,
-    Missing,
-}
-
-/// An entry of `.claude/skills/`.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Entry {
-    /// No symlink; `skill` when `.agents/skills/<name>/SKILL.md` is a file.
-    NotSymlink { skill: bool },
-    /// A symlink that resolves to no directory.
-    Dangles,
-    /// A symlink to the directory `target`, shown relative to the root when it is inside;
-    /// `at_skill` when that is the skill of its name.
-    Points { target: String, at_skill: bool },
 }
 
 pub use crate::adr::read_lines;
@@ -178,14 +122,6 @@ pub enum Input {
     Specification,
     /// The files that carry a `Verifies:` marker.
     Markers,
-}
-
-/// A path a relative link names, as the bash tests it: whether it exists, as `-e` finds it, and
-/// the bytes of a file an anchor of the link looks into.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct Resolved {
-    pub exists: bool,
-    pub file: Option<Vec<u8>>,
 }
 
 /// One rule: its ID, the reason `nuc explain` gives, what it reads, and the check.

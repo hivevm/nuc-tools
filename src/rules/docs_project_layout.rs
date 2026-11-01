@@ -20,6 +20,17 @@ pub const RULE: Rule = Rule {
     check,
 };
 
+/// What check 10 tests on the tree.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Layout {
+    /// Each path the Project Layout block lists, by its text: whether it names what is there,
+    /// a match of a pattern with `*`, a directory for a trailing `/`, or else a file.
+    pub found: std::collections::BTreeMap<String, bool>,
+    /// The first part of every path git tracks, sorted and each once, as `cut -d/ -f1 | sort -u`
+    /// gives them.
+    pub top_level: Vec<String>,
+}
+
 const README: &str = "README.md";
 
 /// The directory open work lives in only while there is some.
@@ -124,7 +135,7 @@ mod tests {
     fn messages(readme: &str, found: &[(&str, bool)], top: &[&str]) -> Vec<String> {
         let inputs = Inputs {
             readme: Some(readme.to_owned()),
-            layout: super::super::Layout {
+            layout: super::Layout {
                 found: found.iter().map(|(p, f)| ((*p).to_owned(), *f)).collect(),
                 top_level: top.iter().map(|t| (*t).to_owned()).collect(),
             },

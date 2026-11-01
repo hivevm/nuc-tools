@@ -4,7 +4,7 @@
 //! v0.6.0 a workflow `check-all.sh` names on a `# Not a gate:` line is exempt from running a
 //! script, and a job with a matrix is named by its check runs, `<job> (<values>)`.
 
-use super::{CheckLists, Input, Inputs, Rule, read_lines};
+use super::{Input, Inputs, Rule, read_lines};
 use crate::adr::{is_space, show};
 use crate::config::Version;
 use crate::finding::Finding;
@@ -24,6 +24,21 @@ pub const RULE: Rule = Rule {
     reads: &[Input::Readme, Input::CheckLists, Input::Release],
     check,
 };
+
+/// The files check 9 compares, each as `-f` finds it.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CheckLists {
+    /// `.github/workflows/checks.yml`.
+    pub checks: Option<Vec<u8>>,
+    /// `scripts/check-all.sh`.
+    pub check_all: Option<Vec<u8>>,
+    /// The workflows the bash's globs list, `*.yml` and then `*.yaml`, each sorted, by path.
+    pub workflows: Vec<(String, Vec<u8>)>,
+    /// The name of every file directly under `.github/workflows/`.
+    pub workflow_files: std::collections::BTreeSet<String>,
+    /// The name of every regular file `scripts/*.sh`, sorted, as `find -type f` lists them.
+    pub scripts: Vec<String>,
+}
 
 /// The release from which a publishing workflow is no gate and a matrix job is named by its runs.
 const NOT_A_GATE_AND_MATRIX: Version = Version(0, 6, 0);

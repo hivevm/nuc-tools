@@ -284,12 +284,12 @@ impl Tree {
         &self,
         text_files: &BTreeMap<String, Vec<u8>>,
         adr: &adr::Dir,
-    ) -> Result<BTreeMap<String, rules::Resolved>, String> {
+    ) -> Result<BTreeMap<String, rules::docs_links::Resolved>, String> {
         let inactive = adr::inactive_paths(adr);
         let read = text_files
             .iter()
             .filter(|(file, _)| file.ends_with(".md") && !inactive.contains(file.as_str()));
-        let mut resolved: BTreeMap<String, rules::Resolved> = BTreeMap::new();
+        let mut resolved: BTreeMap<String, rules::docs_links::Resolved> = BTreeMap::new();
         for (file, text) in read {
             for target in markdown::relative_targets(file, text) {
                 let Some(path) = target.path else { continue };
@@ -391,7 +391,7 @@ impl Tree {
 
     /// The files of check 9: `checks.yml`, `check-all.sh`, the workflows as the bash's globs
     /// list them, and the scripts as `find -type f` lists them.
-    pub(super) fn read_check_lists(&self) -> Result<rules::CheckLists, String> {
+    pub(super) fn read_check_lists(&self) -> Result<rules::docs_check_lists::CheckLists, String> {
         let file = |path: &str| -> Result<Option<Vec<u8>>, String> {
             let full = self.root.join(path);
             if full.is_file() {
@@ -400,10 +400,10 @@ impl Tree {
                 Ok(None)
             }
         };
-        let mut lists = rules::CheckLists {
+        let mut lists = rules::docs_check_lists::CheckLists {
             checks: file(".github/workflows/checks.yml")?,
             check_all: file("scripts/check-all.sh")?,
-            ..rules::CheckLists::default()
+            ..rules::docs_check_lists::CheckLists::default()
         };
         let dir = self.root.join(".github/workflows");
         let names = self.list(&dir)?;
@@ -435,8 +435,11 @@ impl Tree {
 
     /// What check 10 tests: each path of the Project Layout block, as `compgen -G`, `-d`, or
     /// `-f` tests it, and the first part of every tracked path.
-    pub(super) fn read_layout(&self, readme: Option<&str>) -> Result<rules::Layout, String> {
-        let mut layout = rules::Layout::default();
+    pub(super) fn read_layout(
+        &self,
+        readme: Option<&str>,
+    ) -> Result<rules::docs_project_layout::Layout, String> {
+        let mut layout = rules::docs_project_layout::Layout::default();
         for path in readme
             .map(rules::docs_project_layout::listed)
             .unwrap_or_default()
@@ -559,19 +562,19 @@ impl Tree {
 
     /// What check 11 tests: each skill and what stands at its pointer, and each entry of the
     /// pointer directory, resolved as `cd -P` resolves it.
-    pub(super) fn read_skills(&self) -> Result<rules::Skills, String> {
+    pub(super) fn read_skills(&self) -> Result<rules::docs_skill_pointers::Skills, String> {
         let skills = self.root.join(".agents/skills");
         let pointers = self.root.join(".claude/skills");
         let has_skill = |name: &str| skills.join(name).join("SKILL.md").is_file();
-        let mut found = rules::Skills::default();
+        let mut found = rules::docs_skill_pointers::Skills::default();
         for name in self.list(&skills)? {
             if name.starts_with('.') || !skills.join(&name).is_dir() || !has_skill(&name) {
                 continue;
             }
             let pointer = match fs::symlink_metadata(pointers.join(&name)) {
-                Ok(m) if m.file_type().is_symlink() => rules::Pointer::Symlink,
-                Ok(_) => rules::Pointer::Other,
-                Err(_) => rules::Pointer::Missing,
+                Ok(m) if m.file_type().is_symlink() => rules::docs_skill_pointers::Pointer::Symlink,
+                Ok(_) => rules::docs_skill_pointers::Pointer::Other,
+                Err(_) => rules::docs_skill_pointers::Pointer::Missing,
             };
             found.skills.push((name, pointer));
         }
@@ -582,7 +585,7 @@ impl Tree {
             let p = pointers.join(&name);
             let symlink = fs::symlink_metadata(&p).is_ok_and(|m| m.file_type().is_symlink());
             let entry = if !symlink {
-                rules::Entry::NotSymlink {
+                rules::docs_skill_pointers::Entry::NotSymlink {
                     skill: has_skill(&name),
                 }
             } else {
@@ -590,11 +593,11 @@ impl Tree {
                 // outside the repository is a finding, not a refusal.
                 let real_dir = |path: &Path| fs::canonicalize(path).ok().filter(|r| r.is_dir());
                 match real_dir(&p) {
-                    None => rules::Entry::Dangles,
+                    None => rules::docs_skill_pointers::Entry::Dangles,
                     Some(target) => {
                         let want = real_dir(&skills.join(&name));
                         let at_skill = want.as_ref() == Some(&target) && has_skill(&name);
-                        rules::Entry::Points {
+                        rules::docs_skill_pointers::Entry::Points {
                             target: self.shown(&target),
                             at_skill,
                         }

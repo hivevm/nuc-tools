@@ -2,7 +2,7 @@
 //! symlink of its name under `.claude/skills/` that resolves to it, and every entry there is such
 //! a symlink (ADR-0003 of the template).
 
-use super::{Entry, Input, Inputs, Pointer, Rule};
+use super::{Input, Inputs, Rule};
 use crate::finding::Finding;
 
 pub const RULE_ID: &str = "docs/skill-pointers";
@@ -18,6 +18,36 @@ pub const RULE: Rule = Rule {
     reads: &[Input::Skills],
     check,
 };
+
+/// What check 11 tests on `.agents/skills/` and `.claude/skills/`.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Skills {
+    /// Each skill, a directory of `.agents/skills/` with a file `SKILL.md`, sorted by name, with
+    /// what stands at its pointer.
+    pub skills: Vec<(String, Pointer)>,
+    /// Each entry of `.claude/skills/`, sorted by name.
+    pub pointers: Vec<(String, Entry)>,
+}
+
+/// What stands at a skill's pointer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Pointer {
+    Symlink,
+    Other,
+    Missing,
+}
+
+/// An entry of `.claude/skills/`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Entry {
+    /// No symlink; `skill` when `.agents/skills/<name>/SKILL.md` is a file.
+    NotSymlink { skill: bool },
+    /// A symlink that resolves to no directory.
+    Dangles,
+    /// A symlink to the directory `target`, shown relative to the root when it is inside;
+    /// `at_skill` when that is the skill of its name.
+    Points { target: String, at_skill: bool },
+}
 
 fn finding(name: &str, message: String) -> Finding {
     Finding {
@@ -61,7 +91,6 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::rules::Skills;
 
     #[test]
     fn each_kind_of_pointer_reports_as_the_bash_does() {
