@@ -230,7 +230,8 @@ mod tests {
 
     #[test]
     fn lines_are_numbered_as_grep_numbers_them() {
-        let text = format!("a\n\n{}", mark("G-9"));
+        // The marker stands on a last line without a newline, which awk reads as a line.
+        let text = format!("a\n\n{}", mark("G-9").trim_end());
         assert_eq!(
             citations(&[("f".to_owned(), text.into_bytes())].into_iter().collect()),
             [Citation {
