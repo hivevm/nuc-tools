@@ -1,4 +1,4 @@
-# ADR-draft-rules-return-an-outcome: One library crate whose rules return an outcome, its effects in one shell module, and a thin binary
+# ADR-0025: One library crate whose rules return an outcome, its effects in one shell module, and a thin binary
 
 - **Status:** 🟡 proposed
 - **Date:** 2026-11-01
@@ -101,7 +101,7 @@ module layout inside the core beyond one module per rule; the output formats.
 
 ## Enforcement
 
-A structural test, cited with `Verifies: ADR-draft-rules-return-an-outcome`, reads the sources of
+A structural test, cited with `Verifies: ADR-0025`, reads the sources of
 the library outside `src/shell/` and fails on a use of `std::fs`, `std::process`, `std::env`,
 `std::net`, the standard streams, or the printing macros, and on any crate the list beside the
 test names as doing I/O. It fails as well on a rule module without exactly one rule ID, on a rule
