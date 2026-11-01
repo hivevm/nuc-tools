@@ -7,6 +7,7 @@ mod tree;
 
 use std::collections::BTreeMap;
 use std::env;
+use std::panic;
 use std::path::Path;
 use std::process::ExitCode;
 
@@ -27,8 +28,27 @@ const UNDECIDED: u8 = 2;
 const USAGE: &str = "usage: nuc check [--repo <path>] | nuc explain <rule ID> | nuc --version";
 
 /// The entry point of the binary: runs the command named on the command line and returns the
-/// exit code the process ends with.
+/// exit code the process ends with. A panic is an internal error: it names its cause and where it
+/// arose, and the run is not decided (Q-1).
 pub fn main() -> ExitCode {
+    panic::set_hook(Box::new(|info| {
+        let at = info
+            .location()
+            .map(|at| format!(" at {}:{}", at.file(), at.line()))
+            .unwrap_or_default();
+        let cause = info.payload_as_str().unwrap_or("a panic without a message");
+        eprintln!("nuc: internal error{at}: {cause} — not decided");
+    }));
+    panic::catch_unwind(run).unwrap_or(ExitCode::from(UNDECIDED))
+}
+
+/// The command named on the command line, run.
+fn run() -> ExitCode {
+    // In a debug build only, the variable makes a panic for the test of Q-1 to show.
+    #[cfg(debug_assertions)]
+    if env::var_os("NUC_TEST_PANIC").is_some() {
+        panic!("NUC_TEST_PANIC is set");
+    }
     let args: Vec<String> = env::args().skip(1).collect();
     let args: Vec<&str> = args.iter().map(String::as_str).collect();
     let result = match args.as_slice() {

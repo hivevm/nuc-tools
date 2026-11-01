@@ -1,0 +1,22 @@
+# Every rule ID nuc knows, read by tests/contract.rs (G-6). An ID stays once listed: nuc.toml
+# files name it, so no rule is renamed or dropped while a project may still turn it on.
+
+docs/adr-header
+docs/adr-index
+docs/adr-link-targets
+docs/adr-numbering
+docs/adr-refs
+docs/adr-supersessions
+docs/check-lists
+docs/inherited-adrs
+docs/links
+docs/no-draft-on-main
+docs/project-layout
+docs/prose-width
+docs/section-refs
+docs/skill-pointers
+docs/template-identity
+docs/template-release
+traceability/citations
+traceability/coverage
+traceability/criteria
