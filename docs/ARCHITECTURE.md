@@ -40,8 +40,9 @@ golden path and the test pattern an agent copies from are named here.
   process ([ADR-0009](adr/0009-functional-core.md)). The rules of the decision record share one
   reading of it in `src/adr.rs`, and the rules of Markdown one reading of its links in
   `src/markdown.rs`, both outside `src/rules/`, the way the bash's `scripts/lib/adr.sh` and awk
-  passes read them. `src/adr.rs` also holds the byte-level readings of the bash's tools that
-  other rules use: lines as awk and `read` split them, and POSIX space. The rules of the area
+  passes read them. The byte-level readings of the bash's tools every rule uses, lines as awk,
+  `read`, and `sed` split them, and POSIX space, are in `src/bash.rs` and nowhere else, which the
+  structural test holds. The rules of the area
   `traceability` share one reading of the criteria of the specification and of the identifiers
   the `Verifies:` markers cite in `src/traceability.rs`, beside `src/adr.rs`, so that no rule
   module calls another. The shell matches path patterns as bash's pathname expansion does

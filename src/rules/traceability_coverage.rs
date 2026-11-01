@@ -4,6 +4,7 @@
 
 use super::{Input, Inputs, Rule};
 use crate::adr;
+use crate::bash;
 use crate::finding::Finding;
 use crate::traceability;
 use std::collections::BTreeSet;
@@ -33,7 +34,7 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
     let mut exempt = BTreeSet::new();
     for (name, header) in adr::headers(&inputs.adr) {
         let status = header.field("Status").unwrap_or(b"");
-        if !adr::contains(status, "🟢".as_bytes()) {
+        if !bash::contains(status, "🟢".as_bytes()) {
             continue;
         }
         let id = format!("ADR-{}", adr::key_of(name));
@@ -101,14 +102,14 @@ enum Exemption {
 /// line that starts with the label declares it, and one with a byte that is no space after the
 /// label gives the reason.
 fn exemption(text: &[u8]) -> Exemption {
-    let lines = adr::awk_lines(text);
+    let lines = bash::awk_lines(text);
     let Some(start) = lines.iter().position(|l| l.starts_with(b"## Enforcement")) else {
         return Exemption::None;
     };
     let mut declared = Exemption::None;
     for line in &lines[start..] {
         if let Some(rest) = line.strip_prefix(EXEMPTION) {
-            if rest.iter().any(|&b| !adr::is_space(b)) {
+            if rest.iter().any(|&b| !bash::is_space(b)) {
                 return Exemption::Reasoned;
             }
             declared = Exemption::Unreasoned;

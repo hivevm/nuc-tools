@@ -3,7 +3,9 @@
 //! is not proposed. Superseded and rejected ADRs are not read.
 
 use super::{Input, Inputs, Rule};
-use crate::adr::{self, contains};
+use crate::adr;
+use crate::bash;
+use crate::bash::contains;
 use crate::finding::Finding;
 
 pub const RULE_ID: &str = "docs/inherited-adrs";
@@ -55,7 +57,7 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
 
 /// Whether the byte is one of `[[:space:],]`.
 fn is_separator(b: u8) -> bool {
-    adr::is_space(b) || b == b','
+    bash::is_space(b) || b == b','
 }
 
 /// What is left of the Deciders field once the bash's sed has taken out the label, the template's

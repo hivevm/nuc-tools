@@ -4,6 +4,7 @@
 
 use super::{Input, Inputs, Rule};
 use crate::adr;
+use crate::bash;
 use crate::finding::Finding;
 use crate::traceability;
 use std::collections::BTreeSet;
@@ -59,8 +60,8 @@ fn record(dir: &adr::Dir) -> (BTreeSet<String>, BTreeSet<String>) {
     for (name, header) in adr::headers(dir) {
         let id = format!("ADR-{}", adr::key_of(name));
         let status = header.field("Status").unwrap_or(b"");
-        if !adr::contains(status, "🟢".as_bytes())
-            && (adr::contains(status, "🔴".as_bytes()) || adr::contains(status, "⚪".as_bytes()))
+        if !bash::contains(status, "🟢".as_bytes())
+            && (bash::contains(status, "🔴".as_bytes()) || bash::contains(status, "⚪".as_bytes()))
         {
             inactive.insert(id.clone());
         }

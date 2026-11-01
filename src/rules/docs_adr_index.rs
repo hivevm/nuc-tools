@@ -6,6 +6,7 @@ use std::collections::BTreeSet;
 
 use super::{Input, Inputs, Rule};
 use crate::adr::{self, show};
+use crate::bash;
 use crate::finding::Finding;
 
 pub const RULE_ID: &str = "docs/adr-index";
@@ -87,7 +88,7 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
 fn rows(index: &[u8]) -> Vec<Row> {
     let mut archive = false;
     let mut rows = Vec::new();
-    for (i, line) in adr::read_lines(index).into_iter().enumerate() {
+    for (i, line) in bash::read_lines(index).into_iter().enumerate() {
         if is_archive_heading(line) {
             archive = true;
             continue;
@@ -100,7 +101,7 @@ fn rows(index: &[u8]) -> Vec<Row> {
         rows.push(Row {
             key: show(key),
             file: show(file),
-            applies: adr::trim(cells.get(3).copied().unwrap_or(b"")).to_vec(),
+            applies: bash::trim(cells.get(3).copied().unwrap_or(b"")).to_vec(),
             status: adr::status_emoji(line).0,
             line: i + 1,
             archive,
@@ -113,11 +114,11 @@ fn rows(index: &[u8]) -> Vec<Row> {
 fn is_archive_heading(line: &[u8]) -> bool {
     let hashes = line.iter().take_while(|&&b| b == b'#').count();
     let rest = &line[hashes..];
-    let spaces = rest.iter().take_while(|&&b| adr::is_space(b)).count();
+    let spaces = rest.iter().take_while(|&&b| bash::is_space(b)).count();
     let words = &rest[spaces..];
     let end = words
         .iter()
-        .rposition(|&b| !adr::is_space(b))
+        .rposition(|&b| !bash::is_space(b))
         .map_or(0, |i| i + 1);
     hashes > 0 && spaces > 0 && &words[..end] == b"Superseded and rejected"
 }
@@ -125,7 +126,7 @@ fn is_archive_heading(line: &[u8]) -> bool {
 /// The key and the link target of a row `| [<key>](<target>)`, the key four digits or a draft.
 fn row_link(line: &[u8]) -> Option<(&[u8], &[u8])> {
     let rest = line.strip_prefix(b"|")?;
-    let rest = &rest[rest.iter().take_while(|&&b| adr::is_space(b)).count()..];
+    let rest = &rest[rest.iter().take_while(|&&b| bash::is_space(b)).count()..];
     let rest = rest.strip_prefix(b"[")?;
     let close = rest.iter().position(|&b| b == b']')?;
     let key = &rest[..close];
@@ -214,7 +215,7 @@ fn file_findings(file: Option<&[u8]>, row: &Row) -> Vec<Finding> {
         )),
         Some(_) => {}
     }
-    let applies = adr::trim(after_last_label(header.field("Applies to").unwrap_or(b"")));
+    let applies = bash::trim(after_last_label(header.field("Applies to").unwrap_or(b"")));
     if applies.is_empty() {
         found.push(finding(
             &path,

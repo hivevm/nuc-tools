@@ -13,6 +13,10 @@
 //! outside the repository is read, as the convention "The shell reads, the rules decide" of
 //! `docs/CONVENTIONS.md` asks. A test of existence is free.
 //!
+//! The readings of the bash's tools that `functional_core.bash` names, as `awk_lines` and
+//! `is_space`, are defined in `src/bash.rs` and nowhere else, so that no port writes a copy of its
+//! own that reads a byte otherwise.
+//!
 //! Each module under `src/rules/` is one rule: it declares exactly one `RULE_ID`, an
 //! `area/name` unique across the crate, and the list of every rule names its `RULE`.
 
@@ -22,6 +26,7 @@ use std::path::{Path, PathBuf};
 const FORBIDDEN: &str = include_str!("functional_core.forbidden");
 const READS: &str = include_str!("functional_core.reads");
 const GUARDED: &str = include_str!("functional_core.guarded");
+const BASH_READERS: &str = include_str!("functional_core.bash");
 
 /// The forms `src/main.rs` may take, with comments and whitespace removed.
 const MAIN_FORMS: [&str; 2] = [
@@ -798,4 +803,62 @@ fn a_test_of_existence_is_no_read() {
             "in: {source}"
         );
     }
+}
+
+/// The functions of the source named as a reader of `functional_core.bash`, by their name: a
+/// method by its last part, so that `Type::trim` counts as `trim`.
+fn bash_readers(source: &str, readers: &str) -> Vec<String> {
+    let names = entries(readers);
+    functions(source)
+        .into_iter()
+        .map(|(name, _)| name)
+        .filter(|name| names.contains(&name.rsplit("::").next().unwrap_or(name)))
+        .collect()
+}
+
+#[test]
+fn the_readings_of_the_bash_s_tools_are_defined_once() {
+    let src = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let mut files = Vec::new();
+    sources(&src, &src.join("bash.rs"), &mut files);
+    let found: Vec<String> = files
+        .iter()
+        .flat_map(|path| {
+            let source = fs::read_to_string(path).expect("a source is readable");
+            bash_readers(&source, BASH_READERS)
+                .into_iter()
+                .map(move |name| format!("{}: defines {name}", path.display()))
+        })
+        .collect();
+    assert!(
+        found.is_empty(),
+        "a reading of the bash's tools defined outside src/bash.rs:\n{}",
+        found.join("\n")
+    );
+    let bash = fs::read_to_string(src.join("bash.rs")).expect("src/bash.rs is readable");
+    for name in entries(BASH_READERS) {
+        assert_eq!(
+            bash_readers(&bash, name),
+            [name],
+            "src/bash.rs defines no '{name}' once, which functional_core.bash names"
+        );
+    }
+}
+
+#[test]
+fn a_reader_of_the_bash_s_tools_defined_elsewhere_is_found_by_its_name() {
+    let readers = "awk_lines\nis_space\ntrim\n";
+    assert_eq!(
+        bash_readers("fn lines(t: &[u8]) {} fn awk_lines(t: &[u8]) {}", readers),
+        ["awk_lines"]
+    );
+    assert_eq!(
+        bash_readers("impl Text { fn trim(&self) {} }", readers),
+        ["Text::trim"]
+    );
+    assert_eq!(
+        bash_readers("fn f() { fn is_space(b: u8) -> bool { b == 32 } }", readers),
+        ["is_space"]
+    );
+    assert!(bash_readers("fn is_spaced() {} // fn trim()", readers).is_empty());
 }
