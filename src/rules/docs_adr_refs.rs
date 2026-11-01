@@ -49,6 +49,7 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::testing::id;
 
     /// The inputs of ADR files and text files, each ADR a text file too, as the shell reads them.
     fn inputs(adrs: &[(&str, &str)], others: &[(&str, &str)]) -> Inputs {
@@ -74,12 +75,6 @@ mod tests {
             .into_iter()
             .map(|f| (f.file, f.line, f.message))
             .collect()
-    }
-
-    /// An identifier `ADR-<key>`, assembled so that this repository's own reference check, which
-    /// reads this file, finds no reference it lacks.
-    fn id(key: &str) -> String {
-        format!("{}-{key}", "ADR")
     }
 
     const ACCEPTED: &str = "# T\n\n- **Status:** 🟢 accepted\n";

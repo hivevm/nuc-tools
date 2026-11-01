@@ -270,6 +270,7 @@ fn markdown_refs(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::testing::agents_section;
 
     const AGENTS: &str = "# Agents\n\n## 1. Principles\n\n## 2. Start here\n\n## 3. ADR rules\n";
 
@@ -350,7 +351,7 @@ mod tests {
             &[
                 ("README.md", &readme),
                 ("x.yml", "a: §7\n"),
-                ("docs/n.txt", concat!("AGENTS.md, sec", "tion 8\n")),
+                ("docs/n.txt", &format!("{}\n", agents_section("8"))),
             ],
         );
         let at: Vec<(&str, Option<usize>, &str)> = found
@@ -391,10 +392,11 @@ mod tests {
             at.contains(&(
                 "docs/n.txt",
                 Some(1),
-                concat!(
-                    "reference 'AGENTS.md, sec",
-                    "tion 8' matches no numbered section in AGENTS.md"
+                format!(
+                    "reference '{}' matches no numbered section in AGENTS.md",
+                    agents_section("8")
                 )
+                .as_str()
             )),
             "{at:?}"
         );

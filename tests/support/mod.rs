@@ -203,3 +203,14 @@ pub fn changed(before: &[(PathBuf, Vec<u8>)], after: &[(PathBuf, Vec<u8>)]) -> V
     paths.dedup();
     paths
 }
+
+/// The identifier `ADR-<key>`, assembled as `src/testing.rs` assembles it for the unit tests: the
+/// gate's bash checks read the tests as text and would take a literal one for a reference.
+pub fn id(key: &str) -> String {
+    format!("{}-{key}", "ADR")
+}
+
+/// A line of a marker that cites the identifiers, assembled for the same reason.
+pub fn mark(ids: &str) -> String {
+    format!("{}: {ids}\n", "Verifies")
+}

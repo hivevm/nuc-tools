@@ -200,33 +200,32 @@ fn identifier_at(text: &[u8]) -> Option<usize> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    /// The marker for the identifiers, assembled so that this file carries no literal one.
-    fn mark(ids: &str) -> String {
-        format!("{}: {ids}", "Verifies")
-    }
+    use crate::testing::{adr_id, id, mark, verifies};
 
     #[test]
     fn a_marker_reads_as_the_bash_pattern_reads_it() {
-        // `V:` stands for the marker and `@` for `ADR-`, so that this file carries neither.
-        let ids = |text: &str| -> Vec<String> {
-            let line = text
-                .replace("V:", &format!("{}:", "Verifies"))
-                .replace('@', "ADR-");
+        let ids = |line: String| -> Vec<String> {
             cited(line.as_bytes())
                 .into_iter()
-                .map(|id| String::from_utf8_lossy(id).replace("ADR-", "@"))
+                .map(|id| String::from_utf8_lossy(id).into_owned())
                 .collect()
         };
-        assert_eq!(ids("x V: G-1, Q-2\tG-3 and G-4"), ["G-1", "Q-2", "G-3"]);
-        assert_eq!(ids("V:G-1,,G-2"), ["G-1", "G-2"]);
-        assert_eq!(ids("V: G-12x G-2"), ["G-12"]);
-        assert_eq!(ids("V: @00012 G-1"), ["@0001"]);
-        assert!(ids("V: @12 G-1").is_empty());
-        assert_eq!(ids("V: none; V: Q-1 V: G-2"), ["Q-1", "G-2"]);
-        assert!(ids("V: g-1 verifies: G-1").is_empty());
-        assert_eq!(ids("V:\r\x0bG-1\r"), ["G-1"]);
-        assert_eq!(ids("V: @draft-a-b- G-1"), ["@draft-a-b"]);
+        let v = verifies();
+        assert_eq!(
+            ids(format!("x {v} G-1, Q-2\tG-3 and G-4")),
+            ["G-1", "Q-2", "G-3"]
+        );
+        assert_eq!(ids(format!("{v}G-1,,G-2")), ["G-1", "G-2"]);
+        assert_eq!(ids(format!("{v} G-12x G-2")), ["G-12"]);
+        assert_eq!(ids(format!("{v} {}2 G-1", adr_id(1))), [adr_id(1)]);
+        assert!(ids(format!("{v} {} G-1", id("12"))).is_empty());
+        assert_eq!(ids(format!("{v} none; {v} Q-1 {v} G-2")), ["Q-1", "G-2"]);
+        assert!(ids(format!("{v} g-1 verifies: G-1")).is_empty());
+        assert_eq!(ids(format!("{v}\r\x0bG-1\r")), ["G-1"]);
+        assert_eq!(
+            ids(format!("{v} {}- G-1", id("draft-a-b"))),
+            [id("draft-a-b")]
+        );
     }
 
     #[test]

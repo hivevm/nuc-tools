@@ -120,6 +120,7 @@ fn is_slug(text: &str) -> bool {
 mod tests {
     use super::*;
     use crate::adr::Dir;
+    use crate::testing::draft_id;
 
     fn inputs(files: &[(&str, &str)]) -> Inputs {
         let adr: Dir = files
@@ -130,12 +131,6 @@ mod tests {
             adr,
             ..Inputs::default()
         }
-    }
-
-    /// The heading `# ADR-draft-<rest>`, assembled so that the record's reference check, which
-    /// reads this file, finds no draft it lacks.
-    fn draft(rest: &str) -> String {
-        format!("# {}-draft-{rest}", "ADR")
     }
 
     fn messages(files: &[(&str, &str)]) -> Vec<String> {
@@ -151,7 +146,7 @@ mod tests {
             messages(&[
                 ("0001-a.md", "# ADR-0001: A"),
                 ("0002-b.md", "# ADR-0002: B"),
-                ("draft-c-d.md", &draft("c-d: C"))
+                ("draft-c-d.md", &format!("# {}", draft_id("c-d: C")))
             ]),
             Vec::<String>::new()
         );
@@ -187,20 +182,23 @@ mod tests {
     #[test]
     fn a_draft_with_a_malformed_slug_or_another_heading_fails() {
         assert_eq!(
-            messages(&[("draft-Bad_slug.md", &draft("Bad_slug"))]),
+            messages(&[("draft-Bad_slug.md", &format!("# {}", draft_id("Bad_slug")))]),
             ["a draft's slug is lower case letters and digits joined by single hyphens"]
         );
-        assert_eq!(messages(&[("draft-a--b.md", &draft("a--b"))]).len(), 1);
         assert_eq!(
-            messages(&[("draft-x.md", &draft("y: Y"))]),
+            messages(&[("draft-a--b.md", &format!("# {}", draft_id("a--b")))]).len(),
+            1
+        );
+        assert_eq!(
+            messages(&[("draft-x.md", &format!("# {}", draft_id("y: Y")))]),
             [format!(
-                "heading says '{}', but the filename says {}",
-                draft("y"),
-                &draft("x")[2..]
+                "heading says '# {}', but the filename says {}",
+                draft_id("y"),
+                draft_id("x")
             )]
         );
         assert_eq!(
-            messages(&[("draft-x-y.md", &draft("x-y-: T"))]),
+            messages(&[("draft-x-y.md", &format!("# {}", draft_id("x-y-: T")))]),
             Vec::<String>::new()
         );
     }
