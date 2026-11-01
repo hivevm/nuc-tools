@@ -72,13 +72,6 @@ while IFS=$'\t' read -r pattern rule mode place extra; do
   patterns+=("$pattern") rules+=("$rule") modes+=("$mode") places+=("${place:-}")
 done < "$TABLE" || die "$TABLE: unreadable"
 
-# adr_key <ADR identifier> — the key of an ADR's file, as ADR-NNNN or ADR-draft-<slug> names it:
-# NNNN, or draft-<slug>.
-adr_key() {
-  local id="${1#ADR-}"
-  echo "${id%%[!a-z0-9-]*}"
-}
-
 # mode_of <rule> — whether the comparison keeps the line of the rule's findings: line or '-'.
 mode_of() {
   local i
@@ -129,7 +122,7 @@ compare() {
           case "${places[i]}" in
             =*) file="${places[i]#=}" text="$msg" ;;
             +*) file="${places[i]#+}$file" ;;
-            @adr) file="docs/adr/$(adr_key "${msg%% *}")" text="$msg" ;;
+            @adr) file="${msg%% *}" file="docs/adr/${file#ADR-}" text="$msg" ;;
           esac
           bash_keys+=("$(key "$rule" "$file" "$n" "$text")")
         fi

@@ -3,9 +3,10 @@
 # extended regular expression the message after "  - " matches; the rule ID of nuc it maps to;
 # "line" when the bash message names a line, "-" when it names none and the comparison leaves the
 # line out; and "=<path>" for the file nuc names in place of the bash's location, "+<prefix>"
-# before it, or "@adr" for the file of the ADR whose identifier opens the message, compared by its
-# key, as docs/adr/NNNN or docs/adr/draft-<slug>, where nuc names the whole file. A rule's first row sets the mode for all its findings. A bash message no row matches
-# is a difference, so a ported rule brings its rows, and a check that is not ported yet is caught
+# before it, or "@adr" for the file of the ADR whose identifier opens the message, docs/adr/NNNN or
+# docs/adr/draft-<slug>, to which nuc's file is cut, so that the slug of a numbered file is not
+# compared. Under "=" and "@adr" the text compared is the whole message. A rule's first row sets
+# the mode for all its findings. A bash message no row matches is a difference, so a ported rule brings its rows, and a check that is not ported yet is caught
 # when it fires on a tree of the corpus.
 
 # check-docs.sh, check 14: the template release named.
