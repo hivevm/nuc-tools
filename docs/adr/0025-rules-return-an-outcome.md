@@ -1,6 +1,6 @@
 # ADR-0025: One library crate whose rules return an outcome, its effects in one shell module, and a thin binary
 
-- **Status:** 🟡 proposed
+- **Status:** 🟢 accepted
 - **Date:** 2026-11-01
 - **Deciders:** Markus Brigl
 - **Applies to:** the source tree of the crate, `src/main.rs`, `src/shell/`, every rule module, the type a rule returns, and the structural test that holds them
