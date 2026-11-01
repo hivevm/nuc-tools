@@ -343,6 +343,7 @@ fn a_row_target_resolves_as_the_bash_s_file_test_resolves_it() {
     assert!(out.contains("row for 0001 links to './0001-a.md'"), "{out}");
 }
 
+/// Verifies: Q-12
 #[test]
 fn a_row_target_outside_the_repository_is_not_decided() {
     // A file beside the fixture, outside its repository, which a row reaches from docs/adr/.
@@ -536,6 +537,7 @@ fn outside(name: &str, file: &str, contents: &str) -> (Fixture, String) {
     (probe, up)
 }
 
+/// Verifies: Q-12
 #[cfg(unix)]
 #[test]
 fn an_agents_md_that_links_outside_the_repository_is_not_decided() {
@@ -553,6 +555,7 @@ fn an_agents_md_that_links_outside_the_repository_is_not_decided() {
     );
 }
 
+/// Verifies: Q-12
 #[cfg(unix)]
 #[test]
 fn a_text_file_that_links_outside_the_repository_is_not_decided() {
@@ -862,6 +865,7 @@ fn a_layout_without_open_work_and_with_a_matching_pattern_passes() {
     );
 }
 
+/// Verifies: Q-12
 #[test]
 fn a_layout_pattern_outside_the_repository_or_with_a_class_is_not_decided() {
     for (name, pattern, why) in [
@@ -895,6 +899,7 @@ fn a_repository_without_skills_passes_and_one_with_pointers_only_fails() {
     );
 }
 
+/// Verifies: Q-12
 #[cfg(unix)]
 #[test]
 fn a_skill_directory_outside_the_repository_is_not_listed() {
@@ -917,6 +922,7 @@ fn a_skill_directory_outside_the_repository_is_not_listed() {
     );
 }
 
+/// Verifies: Q-12
 #[cfg(unix)]
 #[test]
 fn a_record_directory_outside_the_repository_is_not_listed() {
