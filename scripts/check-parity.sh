@@ -284,8 +284,7 @@ run_pair() {
 # resolves outside the copy, the sed expression fails or changes nothing, or for 'chomp' the file
 # does not end with a newline. 'write' creates the file with the argument as its one line, in a
 # directory the copy already has; 'chomp' takes the newline off the file's last line, which sed
-# cannot. sed runs sandboxed,
-# so an expression runs no command and reads or writes no other file.
+# cannot. sed runs sandboxed, so an expression runs no command and reads or writes no other file.
 apply_variant() {
   local copy="$1" file="$1/$2"
   if [[ "$3" == write ]]; then
@@ -342,8 +341,8 @@ fires() {
 }
 
 # The variants, one row each: name, rule, path in the tree, 'sed' with an extended expression,
-# 'delete' with '-', 'write' with a line, or 'chomp' with '-', and optionally the names of the corpus trees it is
-# for, separated by commas, all separated by tabs. Without names it is for every tree. The path
+# 'delete' with '-', 'write' with a line, or 'chomp' with '-', and optionally the names of the
+# corpus trees it is for, separated by commas, all separated by tabs. Without names it is for every tree. The path
 # stays inside the tree and out of its .git; every ported rule brings one at least.
 variant_names=() variant_rules=() variant_paths=() variant_ops=() variant_args=() variant_trees=()
 [[ -r "$variants" ]] || die "$variants: unreadable"

@@ -1036,6 +1036,22 @@ fn a_markdown_file_git_marks_generated_is_not_read_for_its_width() {
 }
 
 #[test]
+fn a_wide_line_holding_the_unit_separator_is_not_decided() {
+    let fixture = only("width-separator", "docs/prose-width", README);
+    let mut line = b"[a\x1f b](https://example.invalid/".to_vec();
+    line.extend(b"a".repeat(100));
+    line.extend(b")\n");
+    std::fs::write(fixture.root().join("odd.md"), &line).expect("written");
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(2), "{}", stdout(&output));
+    assert!(
+        stderr(&output).contains("odd.md:1: a line over 100 bytes"),
+        "{}",
+        stderr(&output)
+    );
+}
+
+#[test]
 fn a_wide_line_the_bash_counts_otherwise_is_not_decided() {
     let fixture = only("width-bytes", "docs/prose-width", README);
     let mut line = b"[a\xff b](https://example.invalid/".to_vec();

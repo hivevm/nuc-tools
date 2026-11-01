@@ -17,8 +17,9 @@
 # or none, read as check 14 reads it, and compare a later one. The variant cases fail a variant
 # that does not apply to one tree, one that does not make its rule fire beyond the tree's own
 # findings, a ported rule without one, a path outside the tree, a sed expression that runs a
-# command or writes a file, a name used twice, and a malformed or unmapped row. No network and no
-# build.
+# command or writes a file, a name used twice, and a malformed or unmapped row; a 'chomp' applies
+# and is compared, does not apply to a file without a last newline, and takes '-' alone. No
+# network and no build.
 #
 # Inputs: scripts/check-parity.sh tests/parity/ scripts/lib/
 #
@@ -360,6 +361,9 @@ git -C "$work/src-unterminated" rev-parse HEAD > "$work/src-unterminated.commit"
 v="$(variants "$work/v-chomp-none.tsv" "$DELETE" $'unchomped\tdocs/template-release\tNO-NEWLINE.md\tchomp\t-')"
 expect fail "a chomp of a file without a last newline does not apply" "variant unchomped — its edit of NO-NEWLINE.md does not apply" \
   run "$(corpus "$work/unterminated.toml" unterminated)" "$(reactive_nuc)" "$v"
+
+v="$(variants "$work/v-chomp-arg.tsv" "$DELETE" $'chomp-arg\tdocs/template-release\tREADME.md\tchomp\tx')"
+expect fail "a chomp with an argument other than '-' is refused" "is not 'name<TAB>rule" run "$c" "$(reactive_nuc)" "$v"
 
 v="$(variants "$work/v-git.tsv" "$DELETE" $'git\tdocs/template-release\t.git/commondir\twrite\t/elsewhere')"
 expect fail "a variant that edits the repository's .git is refused" "no path inside the tree" run "$c" "$(reactive_nuc)" "$v"
