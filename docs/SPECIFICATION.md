@@ -52,7 +52,8 @@ that test exists the criterion is pending work, and the traceability check lists
 Only a normalization renumbers them ([`AGENTS.md` §3](../AGENTS.md#3-adr-rules), rule 5).
 
 1. **G-1** — When a derived project runs `nuc check`, it reports the same findings as the bash
-   checks of the template release the project carries report on the same tree.
+   checks of the template release the project carries report on the same tree, or refuses a tree
+   the bash would read otherwise than by its bytes (Q-1).
 2. **G-2** — When git runs a hook, the shim in `.githooks/` hands over to `nuc hook <name>`,
    which refuses or passes exactly as the bash hook of that release does.
 3. **G-3** — When git merges `docs/adr/README.md`, `nuc` writes the index both sides imply, or
@@ -104,6 +105,11 @@ from the threats below.
   appears in no output and in no written file.
 - **Q-11** — No network in checks and hooks: with network access blocked, every check and hook
   reports the same findings as with it.
+- **Q-12** — Reads stay inside: no command of `nuc` reads a file or lists a directory of the tree
+  that resolves outside the repository; a fixture whose link, symbolic link, or listed path leads
+  a read outside shows exit 2 and a message naming it. A test of existence, as the bash's `-e`,
+  follows the path and reads nothing. Git's own configuration, attribute, and exclude files are
+  git's to read.
 
 ## Non-Goals
 
@@ -160,6 +166,7 @@ exist for an agent. One a test can decide is restated as a `Q-n`, so that it is 
 - The system shall never write outside the repository and its git directory (Q-8).
 - The system shall never act on a repository other than the one it was pointed at (Q-9).
 - The system shall never print or store a token (Q-10).
+- The system shall never read through the tree outside the repository (Q-12).
 - The system shall never pass when it could not decide (Q-1).
 
 ## Assumptions
@@ -170,12 +177,12 @@ maintained.
 
 - The bash scripts of each template release stay runnable as the parity oracle, on Linux with
   bash 4.4 or later and the GNU tools, for as long as parity is measured.
-- The repositories of the parity corpus stay readable to the harness; which derived repositories
-  form it is decided when the harness is planned.
+- The repositories of the parity corpus stay readable to the harness, each on template release
+  v0.5.0 or later.
 - A git CLI is present wherever `nuc` runs, and its output is stable across the versions in use;
   the minimum git version is not yet fixed.
-- `nuc` learns which template release a project carries either from the `Template release` line
-  of its README or from its `nuc.toml`; the founding decision on version coupling settles which.
+- `nuc` reads the template release a project carries from the `Template release` line of its
+  README, and that line keeps the form the template's check 14 holds.
 - The template switches its hooks and checks over to `nuc` once parity is reached, and keeps its
   rules in `AGENTS.md`, the ADRs, and the skills.
 - The targets of Q-3 and Q-4 can be built reproducibly with the pinned Rust toolchain; which
