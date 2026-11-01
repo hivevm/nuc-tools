@@ -349,6 +349,18 @@ v="$(variants "$work/v-overwrite.tsv" "$DELETE" $'overwrite\tdocs/template-relea
 expect fail "a variant that would write over a file does not apply" "variant overwrite — its edit of README.md does not apply" \
   run "$c" "$(reactive_nuc)" "$v"
 
+v="$(variants "$work/v-chomp.tsv" "$DELETE" $'chomped\tdocs/template-release\tREADME.md\tchomp\t-')"
+expect fail "a variant that takes the last newline off applies, and is compared" "variant chomped — bash reports no finding" \
+  run "$c" "$(reactive_nuc)" "$v"
+source_repo unterminated > /dev/null
+printf '%s' "no newline" > "$work/src-unterminated/NO-NEWLINE.md"
+git -C "$work/src-unterminated" add -A
+git -C "$work/src-unterminated" -c user.name=F -c user.email=f@example.invalid -c core.hooksPath=/dev/null commit -qm unterminated
+git -C "$work/src-unterminated" rev-parse HEAD > "$work/src-unterminated.commit"
+v="$(variants "$work/v-chomp-none.tsv" "$DELETE" $'unchomped\tdocs/template-release\tNO-NEWLINE.md\tchomp\t-')"
+expect fail "a chomp of a file without a last newline does not apply" "variant unchomped — its edit of NO-NEWLINE.md does not apply" \
+  run "$(corpus "$work/unterminated.toml" unterminated)" "$(reactive_nuc)" "$v"
+
 v="$(variants "$work/v-git.tsv" "$DELETE" $'git\tdocs/template-release\t.git/commondir\twrite\t/elsewhere')"
 expect fail "a variant that edits the repository's .git is refused" "no path inside the tree" run "$c" "$(reactive_nuc)" "$v"
 v="$(variants "$work/v-no-parent.tsv" "$DELETE" $'orphan\tdocs/template-release\tno-such-dir/NEW.md\twrite\tx')"
