@@ -127,13 +127,41 @@ expect fail "the same file and rule with another text is a difference" "only nuc
 printf '%s\n' $'^x\tdocs/x\t-\tdocs/adr/' > "$work/bad-place.tsv"
 expect fail "a place that is neither '=' nor '+' is refused" "is not 'pattern<TAB>rule ID" \
   env PARITY_TABLE="$work/bad-place.tsv" bash "$HARNESS" --compare "$(bash_out bad-place)" 0 "$(nuc_out bad-place)" 0
+printf '%s\n' $'^y\tdocs/y\t-\t@adrx' > "$work/bad-adr.tsv"
+expect fail "a place that only begins as '@adr' is refused" "is not 'pattern<TAB>rule ID" \
+  env PARITY_TABLE="$work/bad-adr.tsv" bash "$HARNESS" --compare "$(bash_out bad-adr)" 0 "$(nuc_out bad-adr)" 0
 
 # The two scripts' outputs read as one: a finding of check-traceability.sh beside a passing
 # check-docs.sh is understood and compared.
 UNCITED="ADR-0001 is accepted but no test cites it — add a 'Verifies' marker"
+UNCITED_ID="${UNCITED%% *}"
+UNCITED_KEY="${UNCITED_ID#ADR-}"
 printf '%s\n' "Documentation checks passed." "Traceability check FAILED:" "  - $UNCITED" > "$work/joined.bash"
 expect pass "the outputs of both scripts are understood" "" \
-  compare "$work/joined.bash" 1 "$(nuc_out joined "docs/adr: traceability/coverage: $UNCITED")" 1
+  compare "$work/joined.bash" 1 "$(nuc_out joined "docs/adr/${UNCITED_KEY}-a.md: traceability/coverage: $UNCITED")" 1
+
+# A place '@adr' names the file of the ADR the message opens with, compared by its key. The
+# identifiers are taken from the message and assembled, so that this file cites no ADR of its own.
+expect fail "an ADR's finding at the file of another ADR is a difference" "only bash reports: traceability/coverage docs/adr/$UNCITED_KEY" \
+  compare "$work/joined.bash" 1 "$(nuc_out adr-other "docs/adr/9999-b.md: traceability/coverage: $UNCITED")" 1
+expect fail "an ADR's finding at the directory is a difference" "only nuc reports: traceability/coverage docs/adr" \
+  compare "$work/joined.bash" 1 "$(nuc_out adr-dir "docs/adr: traceability/coverage: $UNCITED")" 1
+DRAFT="$(printf '%s-%s' ADR draft-a-b)"
+printf '%s\n' "Traceability check FAILED:" "  - ${UNCITED/"$UNCITED_ID"/$DRAFT}" > "$work/draft.bash"
+expect pass "a draft's finding names the draft's file" "" \
+  compare "$work/draft.bash" 1 "$(nuc_out adr-draft "docs/adr/draft-a-b.md: traceability/coverage: ${UNCITED/"$UNCITED_ID"/$DRAFT}")" 1
+# A slug the citations cannot name, with capitals or '_', is compared whole.
+ODD="$(printf '%s-%s' ADR draft-Odd_b)"
+printf '%s\n' "Traceability check FAILED:" "  - ${UNCITED/"$UNCITED_ID"/$ODD}" > "$work/odd.bash"
+expect pass "a draft's slug with capitals and '_' names its file" "" \
+  compare "$work/odd.bash" 1 "$(nuc_out adr-odd "docs/adr/draft-Odd_b.md: traceability/coverage: ${UNCITED/"$UNCITED_ID"/$ODD}")" 1
+expect fail "a draft's finding at a shorter slug is a difference" "only bash reports: traceability/coverage docs/adr/draft-Odd_b" \
+  compare "$work/odd.bash" 1 "$(nuc_out adr-short "docs/adr/draft-Odd.md: traceability/coverage: ${UNCITED/"$UNCITED_ID"/$ODD}")" 1
+# Another finding of the rule, whose text the row does not match, keeps its whole file.
+EXEMPT="docs/adr/${UNCITED_KEY}-a.md: 'Not mechanically decidable' declared without a reason — the paragraph has to say why no test can decide it"
+printf '%s\n' "Traceability check FAILED:" "  - $EXEMPT" > "$work/exempt.bash"
+expect pass "a finding the '@adr' row does not match keeps its file" "" \
+  compare "$work/exempt.bash" 1 "$(nuc_out adr-exempt "docs/adr/${UNCITED_KEY}-a.md: traceability/coverage: ${EXEMPT#*: }")" 1
 
 # --- cases: a run over a corpus -----------------------------------------------------------
 

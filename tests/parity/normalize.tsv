@@ -2,9 +2,11 @@
 # read by scripts/check-parity.sh. One row per bash message, three or four fields separated by tabs: an
 # extended regular expression the message after "  - " matches; the rule ID of nuc it maps to;
 # "line" when the bash message names a line, "-" when it names none and the comparison leaves the
-# line out; and "=<path>" for the file nuc names in place of the bash's location, or "+<prefix>"
-# before it. A rule's first row sets the mode for all its findings. A bash message no row matches
-# is a difference, so a ported rule brings its rows, and a check that is not ported yet is caught
+# line out; and "=<path>" for the file nuc names in place of the bash's location, "+<prefix>"
+# before it, or "@adr" for the file of the ADR whose identifier opens the message, docs/adr/NNNN or
+# docs/adr/draft-<slug>, to which nuc's file is cut, so that the slug of a numbered file is not
+# compared. Under "=" and "@adr" the text compared is the whole message. A rule's first row sets
+# the mode for all its findings. A bash message no row matches is a difference, so a ported rule brings its rows, and a check that is not ported yet is caught
 # when it fires on a tree of the corpus.
 
 # check-docs.sh, check 14: the template release named.
@@ -110,4 +112,4 @@
 
 # check-traceability.sh, parts 2 and 4: the coverage of the accepted ADRs.
 ^docs/adr/.+: 'Not mechanically decidable' declared without a reason — 	traceability/coverage	-
-^ADR-[^ ]+ is accepted but no test cites it — 	traceability/coverage	-	=docs/adr
+^ADR-[^ ]+ is accepted but no test cites it — 	traceability/coverage	-	@adr

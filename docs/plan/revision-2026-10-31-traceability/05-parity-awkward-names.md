@@ -21,6 +21,10 @@ that a row too narrow, or a split in the wrong place, is a difference. Where `nu
 a name instead, follow the decision of
 docs/plan/revision-2026-10-31/04-byte-class-parity.md on stating a refusal.
 
+Since the uncited ADR's finding names the ADR's file, the split at the first colon meets that
+finding too: an ADR file named `docs/adr/0001-a:b.md` reads as "nuc output not understood" where
+both sides named `docs/adr` before.
+
 ## Acceptance criteria
 
 - [ ] Given the rows as they stood before the reviews' fixes, when the harness runs the new
