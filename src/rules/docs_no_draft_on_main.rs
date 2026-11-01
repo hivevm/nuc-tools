@@ -137,4 +137,23 @@ mod tests {
         };
         assert_eq!(outside.lands_on(), None);
     }
+
+    #[test]
+    fn a_draft_whose_name_holds_a_newline_is_its_refusal() {
+        let inputs = Inputs {
+            landing: Landing {
+                drafts: vec!["draft-a\nb.md".to_owned()],
+                ..pull_request("main", false)
+            },
+            ..Inputs::default()
+        };
+        let outcome = outcome(&inputs);
+        assert!(outcome.findings.is_empty());
+        assert_eq!(
+            outcome.refusal.as_deref(),
+            Some(
+                "docs/adr/draft-a\\nb.md: a draft whose name holds a newline, which the bash reads as two — not decided"
+            )
+        );
+    }
 }

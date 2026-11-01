@@ -281,7 +281,12 @@ fn on_every_release(rule: &rules::Rule, inputs: &Inputs) -> Outcome {
             .cloned()
             .collect(),
         refusal: runs.iter().find_map(|run| run.refusal.clone()),
-        notes: first.notes.clone(),
+        notes: first
+            .notes
+            .iter()
+            .filter(|note| rest.iter().all(|run| run.notes.contains(note)))
+            .cloned()
+            .collect(),
     }
 }
 

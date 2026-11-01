@@ -318,4 +318,12 @@ mod tests {
         );
         assert_eq!(messages(&inputs), [uncited(1)]);
     }
+
+    #[test]
+    fn the_criteria_without_a_test_are_its_note_and_no_finding() {
+        let outcome = outcome(&inputs(SPEC, &[], ""));
+        assert_eq!(outcome.refusal, None);
+        assert_eq!(outcome.notes, ["2 criteria without a test: G-1 Q-1"]);
+        assert!(outcome.notes.iter().all(|note| !note.ends_with('.')));
+    }
 }

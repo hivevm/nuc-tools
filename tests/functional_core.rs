@@ -19,9 +19,9 @@
 //! `docs/CONVENTIONS.md` asks. The test reads names: a copy under another name, or a closure,
 //! passes it.
 //!
-//! The shell carries out every rule's outcome alike: no source of `src/shell/` calls a rule's
-//! `check`, or a function of a rule module that `functional_core.outcomes` names as part of an
-//! outcome. It may name a rule module for the types of its inputs and for the reading of them.
+//! The shell carries out every rule's outcome alike: no source of `src/shell/` names what
+//! `functional_core.outcomes` lists on a rule module, as its `RULE`, whose check it would call by
+//! name. It may name a rule module for the types of its inputs and for the reading of them.
 //!
 //! Each module under `src/rules/` is one rule: it declares exactly one `RULE_ID`, an
 //! `area/name` unique across the crate, and the list of every rule names its `RULE`.
@@ -939,11 +939,11 @@ fn a_call_into_what_a_rule_decides_is_found() {
         "docs_prose_width".to_owned(),
         "traceability_coverage".to_owned(),
     ];
-    let outcomes = "check\npending\nundecided_lines\n";
+    let outcomes = "RULE\nundecided_lines\n";
     for source in [
-        "fn f() { rules::traceability_coverage::pending(i); }",
+        "fn f() { let notes = (crate::rules::traceability_coverage::RULE.check)(i).notes; }",
         "use crate::rules::docs_prose_width::undecided_lines;",
-        "fn f() { docs_prose_width::check(i); }",
+        "fn f() { (rules::traceability_coverage::RULE.check)(i); }",
         "use crate::rules::docs_prose_width::*;",
     ] {
         assert!(

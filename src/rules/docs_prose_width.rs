@@ -86,12 +86,12 @@ pub fn columns(line: &[u8]) -> usize {
 /// Whether a wide line holds what the bash reads otherwise than its characters: a byte of no
 /// valid UTF-8, which glibc and Rust count apart and `read` may join to the next line, or the
 /// unit separator 0x1F, which the bash splits its record pass on. Such a line is not decided.
-pub fn undecided(line: &[u8]) -> bool {
+fn undecided(line: &[u8]) -> bool {
     std::str::from_utf8(line).is_err() || line.contains(&0x1F)
 }
 
 /// The wide lines a file the rule reads holds that [`undecided`] refuses, by number.
-pub fn undecided_lines(text: &[u8]) -> Vec<usize> {
+fn undecided_lines(text: &[u8]) -> Vec<usize> {
     wide_lines(text)
         .into_iter()
         .filter(|(_, line)| undecided(line))
@@ -319,6 +319,21 @@ mod tests {
         assert_eq!(
             found("README.md", &format!("- **Label:** {}\n", words(110))).len(),
             1
+        );
+    }
+
+    #[test]
+    fn a_wide_line_it_cannot_count_is_its_refusal_and_no_finding() {
+        let mut line = b"[a\xff b](https://example.invalid/".to_vec();
+        line.extend(b"a".repeat(100));
+        let mut inputs = Inputs::default();
+        inputs.text_files.insert("odd.md".to_owned(), line);
+        let outcome = outcome(&inputs);
+        assert!(outcome.findings.is_empty());
+        assert!(
+            outcome
+                .refusal
+                .is_some_and(|why| why.starts_with("odd.md:1: a line over 100 bytes")),
         );
     }
 }

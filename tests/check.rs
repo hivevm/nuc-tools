@@ -1059,9 +1059,7 @@ fn a_rule_s_refusal_ends_the_run_before_the_findings_of_another_are_printed() {
     let mut line = b"[a\xff b](https://example.invalid/".to_vec();
     line.extend(b"a".repeat(100));
     line.extend(b")\n");
-    std::fs::write(fixture.root().join("odd.md"), &line).expect("written");
     // Without the line the template release rule reports the README; with it the run refuses.
-    std::fs::remove_file(fixture.root().join("odd.md")).expect("removed");
     assert_eq!(code(&fixture.nuc(&["check"])), Some(1));
     std::fs::write(fixture.root().join("odd.md"), &line).expect("written");
     let output = fixture.nuc(&["check"]);
