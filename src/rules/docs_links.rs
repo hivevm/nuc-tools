@@ -83,7 +83,6 @@ fn target_finding(inputs: &Inputs, file: &str, text: &[u8], target: &Target) -> 
 
 #[cfg(test)]
 mod tests {
-    use super::Resolved;
     use super::*;
 
     fn inputs(files: &[(&str, &str)], targets: &[(&str, bool, Option<&str>)]) -> Inputs {

@@ -90,7 +90,6 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
 
 #[cfg(test)]
 mod tests {
-    use super::Skills;
     use super::*;
 
     #[test]
