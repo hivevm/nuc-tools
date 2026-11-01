@@ -35,20 +35,22 @@ The parts the system is made of, each with one responsibility, named in the voca
 golden path and the test pattern an agent copies from are named here.
 
 - **Rules** — one module each under `src/rules/`, a pure function from the inputs the shell read
-  to the findings of `src/finding.rs`, with one rule ID, the reason `nuc explain` gives, and the
-  inputs it reads; the list of every rule is `rules::ALL`. A rule reads no file and runs no
-  process ([ADR-0009](adr/0009-functional-core.md)). The rules of the decision record share one
-  reading of it in `src/adr.rs`, and the rules of Markdown one reading of its links in
-  `src/markdown.rs`, both outside `src/rules/`, the way the bash's `scripts/lib/adr.sh` and awk
-  passes read them. The byte-level readings of the bash's tools, lines as awk, `read`, and `sed`
-  split them, POSIX space and the bytes without it, and the first word `read` splits off, are in
-  `src/bash.rs` and nowhere else, which the structural test holds. The rules of the area
-  `traceability` share one reading of the criteria of the specification and of the identifiers
-  the `Verifies:` markers cite in `src/traceability.rs`, beside `src/adr.rs`, so that no rule
-  module calls another. The shell matches path patterns as bash's pathname expansion does
-  through `src/glob.rs`. A rule whose bash check changed between template releases, today
-  `docs/adr-supersessions` and `docs/check-lists`, reads the release the tree carries and checks
-  as that release does (ADR-0021).
+  to an outcome: the findings of `src/finding.rs`, a refusal of its own where it cannot decide the
+  tree as its bash check would, and notes for the summary. Each has one rule ID, the reason
+  `nuc explain` gives, and the inputs it reads; the list of every rule is `rules::ALL`. A rule
+  reads no file and runs no process
+  ([ADR-draft-rules-return-an-outcome](adr/draft-rules-return-an-outcome.md)).
+  The rules of the decision record share one reading of it in `src/adr.rs`, and the rules of
+  Markdown one reading of its links in `src/markdown.rs`, both outside `src/rules/`, the way the
+  bash's `scripts/lib/adr.sh` and awk passes read them. The byte-level readings of the bash's tools,
+  lines as awk, `read`, and `sed` split them, POSIX space and the bytes without it, and the first
+  word `read` splits off, are in `src/bash.rs` and nowhere else, which the structural test holds.
+  The rules of the area `traceability` share one reading of the criteria of the specification and of
+  the identifiers the `Verifies:` markers cite in `src/traceability.rs`, beside `src/adr.rs`, so
+  that no rule module calls another. The shell matches path patterns as bash's pathname expansion
+  does through `src/glob.rs`. A rule whose bash check changed between template releases, today
+  `docs/adr-supersessions` and `docs/check-lists`, reads the release the tree carries and checks as
+  that release does (ADR-0021).
 - **Configuration** — `config` reads `nuc.toml` and selects the rules it turns on, or says why
   `nuc` refuses: missing, unreadable, a minimum above the running version, an unknown rule ID
   ([ADR-0013](adr/0013-version-coupling.md)).
@@ -97,13 +99,15 @@ others: `README.md` and the release it carries, the record under `docs/adr/`, th
 lists, the targets of relative links, `AGENTS.md`, the workflows and scripts, the Project
 Layout's paths, the skills and their pointers, the identity files, the attributes that mark a
 file generated, the variables CI sets, the specification, and the files that carry a `Verifies:`
-marker. It runs each selected rule on what it read, prints the findings on the standard output,
-and exits 0 without a finding and 1 with one. While `traceability/coverage` runs, the summary on
-the standard error names the criteria no marker cites, which change no exit code. Every cause it
-can name that keeps it from deciding ends the run with exit 2 and a message on the standard
-error, before any rule runs: an input that resolves outside the repository, one the bash would
-read otherwise, a release a rule that checks by it cannot place. A panic ends it with exit 101,
-non-zero as well (Q-1). Nothing is written and no state is kept between runs.
+marker. It runs each selected rule on what it read and carries out every outcome alike: it
+prints the findings on the standard output, and exits 0 without a finding and 1 with one; the
+summary on the standard error carries the rules' notes, as the criteria no marker cites, which
+change no exit code. Every cause it can name that keeps it from deciding ends the run with exit 2
+and a message on the standard error: before any rule runs for what it reads, an input that
+resolves outside the repository, one the bash would read otherwise, a release a rule that checks
+by it cannot place; after the rules run, before any finding is printed, for a rule's own refusal.
+A panic ends it with exit 101, non-zero as well (Q-1). Nothing is written and no state is kept
+between runs.
 
 A release starts when a human pushes a tag `vX.Y.Z` that names the version of `Cargo.toml`.
 `release.yml` builds the four targets, writes `SHA256SUMS`, attests each binary and verifies the

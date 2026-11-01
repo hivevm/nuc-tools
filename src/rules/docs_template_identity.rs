@@ -22,7 +22,7 @@ pub const RULE: Rule = Rule {
               TODO command or scaffold sentence in the README. A placeholder that survives the \
               setup describes the template, not the project.",
     reads: &[Input::SetupFile, Input::Identity],
-    check,
+    check: |inputs| check(inputs).into(),
 };
 
 /// Every file the placeholders stand in, which the shell reads where it is a file.

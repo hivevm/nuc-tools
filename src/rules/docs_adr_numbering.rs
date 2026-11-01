@@ -16,7 +16,7 @@ pub const RULE: Rule = Rule {
               '# ADR-draft-<slug>' for the file 'draft-<slug>.md'. Superseded ADRs stay on disk, \
               so a gap can only mean a deleted ADR or a botched rename.",
     reads: &[Input::Adr],
-    check,
+    check: |inputs| check(inputs).into(),
 };
 
 fn finding(file: String, message: String) -> Finding {

@@ -13,10 +13,9 @@ use std::panic;
 use std::path::Path;
 use std::process::ExitCode;
 
-use crate::adr;
 use crate::config::{self, Version};
 use crate::finding::Finding;
-use crate::rules::{self, Carried, Input, Inputs};
+use crate::rules::{self, Carried, Input, Inputs, Outcome};
 
 use tree::Tree;
 
@@ -154,7 +153,6 @@ fn check(repo: Option<&Path>) -> Result<u8, String> {
     }
     if needs(Input::Generated) {
         inputs.generated = generated(&tree, &inputs.text_files)?;
-        undecided_widths(&inputs)?;
     }
     if needs(Input::Landing) {
         inputs.landing = tree.read_landing()?;
@@ -169,16 +167,7 @@ fn check(repo: Option<&Path>) -> Result<u8, String> {
     if needs(Input::Identity) && !inputs.setup_file {
         inputs.identity = tree.read_identity()?;
     }
-    let findings: Vec<Finding> = selected
-        .iter()
-        .flat_map(|rule| {
-            if unplaced && rule.reads.contains(&Input::Release) {
-                on_every_release(rule, &inputs)
-            } else {
-                (rule.check)(&inputs)
-            }
-        })
-        .collect();
+    let (findings, notes) = run_rules(&selected, &inputs, unplaced)?;
     if let Some(finding) = findings.iter().find(|f| unspelled.contains(&f.file)) {
         return Err(format!(
             "{}: a finding names a path that is no UTF-8, which nuc cannot spell as the bash does — not decided",
@@ -188,31 +177,50 @@ fn check(repo: Option<&Path>) -> Result<u8, String> {
     for finding in &findings {
         println!("{finding}");
     }
-    eprintln!("{}", summary(&selected, &inputs, findings.len()));
+    eprintln!("{}", summary(selected.len(), findings.len(), &notes));
     Ok(if findings.is_empty() { PASSED } else { FOUND })
 }
 
-/// The closing line of `nuc check`: whether it passed, and, while the coverage rule runs, the
-/// criteria no test cites yet, as the bash's traceability check names them. They are pending
-/// work and never change the exit code.
-fn summary(selected: &[&rules::Rule], inputs: &Inputs, found: usize) -> String {
+/// The outcome of every rule turned on, carried out alike: the first refusal ends the run not
+/// decided before any finding is printed (Q-1); else the findings and the notes of them all.
+fn run_rules(
+    selected: &[&rules::Rule],
+    inputs: &Inputs,
+    unplaced: bool,
+) -> Result<(Vec<Finding>, Vec<String>), String> {
+    let outcomes: Vec<Outcome> = selected
+        .iter()
+        .map(|rule| {
+            if unplaced && rule.reads.contains(&Input::Release) {
+                on_every_release(rule, inputs)
+            } else {
+                (rule.check)(inputs)
+            }
+        })
+        .collect();
+    if let Some(refusal) = outcomes.iter().find_map(|outcome| outcome.refusal.clone()) {
+        return Err(refusal);
+    }
+    let mut findings = Vec::new();
+    let mut notes = Vec::new();
+    for outcome in outcomes {
+        findings.extend(outcome.findings);
+        notes.extend(outcome.notes);
+    }
+    Ok((findings, notes))
+}
+
+/// The closing line of `nuc check`: whether it passed, and the notes of the rules, as the criteria
+/// no test cites yet. Notes are no findings and never change the exit code.
+fn summary(rules: usize, found: usize, notes: &[String]) -> String {
     let mut line = if found == 0 {
-        format!("nuc check passed ({} rules)", selected.len())
+        format!("nuc check passed ({rules} rules)")
     } else {
         format!("nuc check: {found} finding(s)")
     };
-    if selected
-        .iter()
-        .any(|rule| rule.id == rules::traceability_coverage::RULE_ID)
-    {
-        let pending = rules::traceability_coverage::pending(inputs);
-        if !pending.is_empty() {
-            line.push_str(&format!(
-                "; {} criteria without a test: {}",
-                pending.len(),
-                pending.join(" ")
-            ));
-        }
+    for note in notes {
+        line.push_str("; ");
+        line.push_str(note);
     }
     line.push('.');
     line
@@ -248,29 +256,13 @@ fn generated(
         .collect())
 }
 
-/// Refuses a wide line the prose rule would measure but cannot count as the bash does (Q-1).
-fn undecided_widths(inputs: &Inputs) -> Result<(), String> {
-    let inactive = adr::inactive_paths(&inputs.adr);
-    for (file, text) in &inputs.text_files {
-        if !file.ends_with(".md") || inactive.contains(file) || inputs.generated.contains(file) {
-            continue;
-        }
-        if let Some(n) = rules::docs_prose_width::undecided_lines(text).first() {
-            return Err(format!(
-                "{file}:{n}: a line over 100 bytes holds a byte of no valid UTF-8 or the byte 0x1F, which the bash counts otherwise — not decided"
-            ));
-        }
-    }
-    Ok(())
-}
-
 /// The earliest template release whose bash checks the rules port.
 const EARLIEST_RELEASE: Version = rules::RELEASES[0];
 
 /// The findings of a rule that checks by the release on a tree whose README names none: those it
 /// reports on every release it knows, which no release could take back.
-fn on_every_release(rule: &rules::Rule, inputs: &Inputs) -> Vec<Finding> {
-    let runs: Vec<Vec<Finding>> = rules::RELEASES
+fn on_every_release(rule: &rules::Rule, inputs: &Inputs) -> Outcome {
+    let runs: Vec<Outcome> = rules::RELEASES
         .iter()
         .map(|&release| {
             let inputs = Inputs {
@@ -281,11 +273,16 @@ fn on_every_release(rule: &rules::Rule, inputs: &Inputs) -> Vec<Finding> {
         })
         .collect();
     let (first, rest) = runs.split_first().expect("the rules know a release");
-    first
-        .iter()
-        .filter(|finding| rest.iter().all(|run| run.contains(finding)))
-        .cloned()
-        .collect()
+    Outcome {
+        findings: first
+            .findings
+            .iter()
+            .filter(|finding| rest.iter().all(|run| run.findings.contains(finding)))
+            .cloned()
+            .collect(),
+        refusal: runs.iter().find_map(|run| run.refusal.clone()),
+        notes: first.notes.clone(),
+    }
 }
 
 /// The template release the tree carries, for the rules whose bash check changed between

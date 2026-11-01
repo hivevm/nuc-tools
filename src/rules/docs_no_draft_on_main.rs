@@ -3,7 +3,7 @@
 //! bash does: the base of a pull request, else the branch a push runs on; a draft pull request
 //! passes, and so does a run outside CI.
 
-use super::{Input, Inputs, Rule};
+use super::{Input, Inputs, Outcome, Rule};
 use crate::finding::Finding;
 
 pub const RULE_ID: &str = "docs/no-draft-on-main";
@@ -16,7 +16,7 @@ pub const RULE: Rule = Rule {
               push runs on. A draft pull request passes, since it tests a feat/ branch still \
               under rework, and so does a run outside CI, where nothing names the branch.",
     reads: &[Input::Landing],
-    check,
+    check: outcome,
 };
 
 /// What CI says about the change, as the bash reads it from the environment, and the drafts.
@@ -44,6 +44,26 @@ impl Landing {
             None => None,
         }
     }
+}
+
+/// The findings of the rule, or its refusal of a draft whose name holds a newline, which the bash
+/// reads from find's list as two (Q-1).
+fn outcome(inputs: &Inputs) -> Outcome {
+    if let Some(name) = inputs
+        .landing
+        .drafts
+        .iter()
+        .find(|name| name.contains('\n'))
+    {
+        return Outcome {
+            refusal: Some(format!(
+                "docs/adr/{}: a draft whose name holds a newline, which the bash reads as two — not decided",
+                name.escape_debug()
+            )),
+            ..Outcome::default()
+        };
+    }
+    check(inputs).into()
 }
 
 fn check(inputs: &Inputs) -> Vec<Finding> {

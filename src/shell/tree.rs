@@ -603,13 +603,6 @@ impl Tree {
             for name in self.list(&dir)? {
                 let regular = fs::symlink_metadata(dir.join(&name)).is_ok_and(|m| m.is_file());
                 if regular && name.starts_with("draft-") && name.ends_with(".md") {
-                    // The bash reads find's list by lines, so a newline splits such a name in two.
-                    if name.contains('\n') {
-                        return Err(format!(
-                            "docs/adr/{}: a draft whose name holds a newline, which the bash reads as two — not decided",
-                            name.escape_debug()
-                        ));
-                    }
                     drafts.push(name);
                 }
             }

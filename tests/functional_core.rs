@@ -1,4 +1,4 @@
-//! The structural test of the shape of the code. Verifies: ADR-0009
+//! The structural test of the shape of the code. Verifies: ADR-0009 ADR-draft-rules-return-an-outcome
 //!
 //! The library outside `src/shell/` names nothing of `functional_core.forbidden`, the list kept
 //! beside this test, and `src/main.rs` does nothing but call the shell. The source is read as
@@ -19,6 +19,10 @@
 //! `docs/CONVENTIONS.md` asks. The test reads names: a copy under another name, or a closure,
 //! passes it.
 //!
+//! The shell carries out every rule's outcome alike: no source of `src/shell/` calls a rule's
+//! `check`, or a function of a rule module that `functional_core.outcomes` names as part of an
+//! outcome. It may name a rule module for the types of its inputs and for the reading of them.
+//!
 //! Each module under `src/rules/` is one rule: it declares exactly one `RULE_ID`, an
 //! `area/name` unique across the crate, and the list of every rule names its `RULE`.
 
@@ -29,6 +33,7 @@ const FORBIDDEN: &str = include_str!("functional_core.forbidden");
 const READS: &str = include_str!("functional_core.reads");
 const GUARDED: &str = include_str!("functional_core.guarded");
 const BASH_READERS: &str = include_str!("functional_core.bash");
+const OUTCOMES: &str = include_str!("functional_core.outcomes");
 
 /// The forms `src/main.rs` may take, with comments and whitespace removed.
 const MAIN_FORMS: [&str; 2] = [
@@ -863,4 +868,98 @@ fn a_reader_of_the_bash_s_tools_defined_elsewhere_is_found_by_its_name() {
         ["is_space"]
     );
     assert!(bash_readers("fn is_spaced() {} // fn trim()", readers).is_empty());
+}
+
+/// The names of the rule modules under `src/rules/`.
+fn rule_modules() -> Vec<String> {
+    let rules = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
+    let mut found = Vec::new();
+    sources(&rules, &rules.join("mod.rs"), &mut found);
+    found
+        .iter()
+        .filter_map(|path| path.file_stem()?.to_str().map(str::to_owned))
+        .collect()
+}
+
+/// The calls of the source into what a rule decides: a path that names a rule module followed by
+/// one of the names `outcomes` lists, or a glob that opens a rule module.
+fn decides_for_a_rule(source: &str, modules: &[String], outcomes: &str) -> Vec<String> {
+    let names = entries(outcomes);
+    let code = code(source);
+    let paths = paths(&code);
+    let openings = openings(&paths);
+    let mut found: Vec<String> = paths
+        .iter()
+        .filter(|path| {
+            let segments: Vec<&str> = path.split("::").collect();
+            segments
+                .windows(2)
+                .any(|w| modules.iter().any(|m| m == w[0]) && names.contains(&w[1]))
+        })
+        .cloned()
+        .collect();
+    found.extend(
+        openings
+            .into_iter()
+            .filter(|opening| {
+                let last = opening.trim_end_matches("::").rsplit("::").next();
+                last.is_some_and(|last| modules.iter().any(|m| m == last))
+            })
+            .map(str::to_owned),
+    );
+    found
+}
+
+#[test]
+fn the_shell_calls_no_rule_by_name() {
+    let shell = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/shell");
+    let modules = rule_modules();
+    assert!(!modules.is_empty(), "no rule module under src/rules/");
+    let mut files = Vec::new();
+    sources(&shell, &shell.join(".none"), &mut files);
+    let found: Vec<String> = files
+        .iter()
+        .flat_map(|path| {
+            let source = fs::read_to_string(path).expect("a source is readable");
+            decides_for_a_rule(&source, &modules, OUTCOMES)
+                .into_iter()
+                .map(move |call| format!("{}: {call}", path.display()))
+        })
+        .collect();
+    assert!(
+        found.is_empty(),
+        "the shell calls what a rule decides, which its outcome carries:\n{}",
+        found.join("\n")
+    );
+}
+
+#[test]
+fn a_call_into_what_a_rule_decides_is_found() {
+    let modules = [
+        "docs_prose_width".to_owned(),
+        "traceability_coverage".to_owned(),
+    ];
+    let outcomes = "check\npending\nundecided_lines\n";
+    for source in [
+        "fn f() { rules::traceability_coverage::pending(i); }",
+        "use crate::rules::docs_prose_width::undecided_lines;",
+        "fn f() { docs_prose_width::check(i); }",
+        "use crate::rules::docs_prose_width::*;",
+    ] {
+        assert!(
+            !decides_for_a_rule(source, &modules, outcomes).is_empty(),
+            "not found in: {source}"
+        );
+    }
+    for source in [
+        "fn f() { rules::docs_prose_width::wide_lines(t); (rule.check)(i); }",
+        "fn f() -> rules::docs_prose_width::Width { todo!() }",
+        "// rules::traceability_coverage::pending",
+    ] {
+        assert_eq!(
+            decides_for_a_rule(source, &modules, outcomes),
+            Vec::<String>::new(),
+            "in: {source}"
+        );
+    }
 }

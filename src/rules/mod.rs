@@ -130,7 +130,26 @@ pub struct Rule {
     pub explain: &'static str,
     /// The inputs the check reads; the shell reads only those a rule turned on needs.
     pub reads: &'static [Input],
-    pub check: fn(&Inputs) -> Vec<Finding>,
+    pub check: fn(&Inputs) -> Outcome,
+}
+
+/// What a rule returns: its findings; a refusal of its own, the reason it cannot decide the tree
+/// as its bash check would; and notes for the summary of the run, which are no findings
+/// (ADR-draft-rules-return-an-outcome).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Outcome {
+    pub findings: Vec<Finding>,
+    pub refusal: Option<String>,
+    pub notes: Vec<String>,
+}
+
+impl From<Vec<Finding>> for Outcome {
+    fn from(findings: Vec<Finding>) -> Self {
+        Self {
+            findings,
+            ..Self::default()
+        }
+    }
 }
 
 /// Every rule this `nuc` knows, in the order their findings are reported.
