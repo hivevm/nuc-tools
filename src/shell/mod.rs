@@ -106,6 +106,8 @@ fn check(repo: Option<&Path>) -> Result<u8, String> {
     let needs = |input: Input| selected.iter().any(|rule| rule.reads.contains(&input));
     let mut inputs = Inputs::default();
     let mut unplaced = false;
+    // The text files whose paths are no UTF-8, which no finding can name as the bash does.
+    let mut unspelled = std::collections::BTreeSet::new();
     if needs(Input::Readme) {
         inputs.readme = tree.read_checked(&tree.root.join("README.md"))?;
     }
@@ -123,7 +125,9 @@ fn check(repo: Option<&Path>) -> Result<u8, String> {
         inputs.adr_targets = tree.read_adr_targets(&inputs.adr)?;
     }
     if needs(Input::TextFiles) {
-        inputs.text_files = tree.read_text_files()?;
+        let text = tree.read_text_files()?;
+        inputs.text_files = text.files;
+        unspelled = text.unspelled;
     }
     if needs(Input::LinkTargets) {
         inputs.link_targets = tree.read_link_targets(&inputs.text_files, &inputs.adr)?;
@@ -175,6 +179,12 @@ fn check(repo: Option<&Path>) -> Result<u8, String> {
             }
         })
         .collect();
+    if let Some(finding) = findings.iter().find(|f| unspelled.contains(&f.file)) {
+        return Err(format!(
+            "{}: a finding names a path that is no UTF-8, which nuc cannot spell as the bash does — not decided",
+            finding.file
+        ));
+    }
     for finding in &findings {
         println!("{finding}");
     }

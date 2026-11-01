@@ -405,6 +405,32 @@ fn a_path_git_quotes_names_no_file_as_for_the_bash() {
     assert_eq!(code(&output), Some(0), "{}", stdout(&output));
 }
 
+#[cfg(unix)]
+#[test]
+fn an_unquoted_path_that_is_no_utf8_is_read_and_refused_only_where_a_finding_names_it() {
+    use std::os::unix::ffi::OsStrExt;
+    let fixture = references("text-files-bytes");
+    fixture.git(&["config", "core.quotePath", "false"]);
+    let name = fixture
+        .root()
+        .join(std::ffi::OsStr::from_bytes(b"n\xffo.txt"));
+    // A file system that holds only UTF-8 names, as APFS on macOS, cannot have the path at all.
+    if std::fs::write(&name, "nothing here\n").is_err() {
+        return;
+    }
+    // git lists the path unquoted, and the bash reads the file: with nothing to report, it passes.
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(0), "{}", stderr(&output));
+    // A finding would have to name the path, which nuc cannot spell as the bash does.
+    std::fs::write(&name, missing_reference()).expect("written");
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(2), "{}", stdout(&output));
+    let err = stderr(&output);
+    assert!(err.contains("n\u{FFFD}o.txt"), "{err}");
+    assert!(err.contains("no UTF-8"), "{err}");
+    assert!(err.contains("not decided"), "{err}");
+}
+
 #[test]
 fn a_nul_byte_past_grep_s_first_buffer_is_not_decided() {
     let fixture = references("late-nul");
