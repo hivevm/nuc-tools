@@ -1,7 +1,7 @@
 //! The shell's reading of the tree: `Tree` reads every file and lists every directory the rules
 //! need, each resolved through [`Tree::resolve`], which refuses one outside the repository.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::env;
 use std::fs;
 use std::io::{self, ErrorKind};
@@ -97,18 +97,9 @@ impl Tree {
     /// grep reads makes the file binary to `grep -I`, which leaves it out; a later one, in a file
     /// that holds the marker, is binary to grep or not depending on its buffers, and not decided.
     pub(super) fn read_markers(&self) -> Result<BTreeMap<String, Vec<u8>>, String> {
-        let listing = git::run_bytes(
-            &self.root,
-            &[
-                "ls-files",
-                "--cached",
-                "--others",
-                "--exclude-standard",
-                "-z",
-            ],
-        )?;
         let mut files = BTreeMap::new();
-        for raw in listing.split(|&b| b == 0).filter(|path| !path.is_empty()) {
+        for raw in self.listed(Listing::Nul)? {
+            let raw = raw.as_slice();
             let Some(full) = path_of(&self.root, raw) else {
                 continue;
             };
@@ -128,14 +119,14 @@ impl Tree {
                     String::from_utf8_lossy(raw)
                 ));
             };
-            match bytes.iter().position(|&b| b == 0) {
-                Some(at) if at < GREP_FIRST_BUFFER => {}
-                Some(_) => {
+            match grep_reads(&bytes) {
+                Grep::Binary => {}
+                Grep::Undecided => {
                     return Err(format!(
                         "{path}: holds a 'Verifies:' marker and a NUL byte past its first {GREP_FIRST_BUFFER} bytes, which grep reads as text or as binary depending on its buffers — not decided"
                     ));
                 }
-                None => {
+                Grep::Text => {
                     files.insert(path.to_owned(), bytes);
                 }
             }
@@ -236,44 +227,78 @@ impl Tree {
     /// Every text file of the repository by its path, as the bash's collect_text_files lists
     /// them: the lines of `git ls-files --cached --others --exclude-standard`, read as they
     /// stand, so that a path git quotes names no file; each a file with a byte other than a
-    /// newline and no NUL byte, which `grep -Il .` keeps under `LC_ALL=C`.
-    pub(super) fn read_text_files(&self) -> Result<BTreeMap<String, Vec<u8>>, String> {
-        let listing = git::run(
-            &self.root,
-            &["ls-files", "--cached", "--others", "--exclude-standard"],
-        )?;
-        let mut files = BTreeMap::new();
-        for path in listing.split('\n').filter(|path| !path.is_empty()) {
-            let full = self.root.join(path);
+    /// newline that `grep -Il .` reads as text under `LC_ALL=C`. A path that is no UTF-8, which git
+    /// lists unquoted under `core.quotePath=false`, is read by its bytes and keyed by its text with
+    /// each such byte replaced; those keys come back as well, since a finding cannot name them as
+    /// the bash does. A Markdown file of such a path is not decided: its links and attributes are
+    /// found from its path.
+    pub(super) fn read_text_files(&self) -> Result<TextFiles, String> {
+        let mut text = TextFiles::default();
+        for raw in self.listed(Listing::Lines)? {
+            let Some(full) = path_of(&self.root, &raw) else {
+                continue;
+            };
             if !full.is_file() {
                 continue;
             }
             let Some(bytes) = self.read_bytes(&full)? else {
                 continue;
             };
-            match bytes.iter().position(|&b| b == 0) {
-                // A NUL in the first buffer grep reads makes the file binary to `grep -I`: left
-                // out.
-                Some(at) if at < GREP_FIRST_BUFFER => continue,
-                // A later one is binary to grep or not depending on where its buffers fall.
-                Some(_) => {
+            let path = String::from_utf8_lossy(&raw).into_owned();
+            match grep_reads(&bytes) {
+                Grep::Binary => continue,
+                Grep::Undecided => {
                     return Err(format!(
                         "{path}: holds a NUL byte past its first {GREP_FIRST_BUFFER} bytes, which grep reads as text or as binary depending on its buffers — not decided"
                     ));
                 }
-                None if bytes.iter().any(|&b| b != b'\n') => {
-                    files.insert(path.to_owned(), bytes);
+                Grep::Text if bytes.iter().any(|&b| b != b'\n') => {
+                    if std::str::from_utf8(&raw).is_err() {
+                        // The bash resolves a Markdown file's links and attributes from its
+                        // path's bytes, which the replaced text would name otherwise.
+                        if raw.ends_with(b".md") {
+                            return Err(format!(
+                                "{path}: a Markdown file whose path is no UTF-8, from whose bytes the bash resolves its links and attributes — not decided"
+                            ));
+                        }
+                        text.unspelled.insert(path.clone());
+                    }
+                    if text.files.insert(path.clone(), bytes).is_some() {
+                        return Err(format!(
+                            "{path}: two paths git lists read the same once their bytes of no UTF-8 are replaced — not decided"
+                        ));
+                    }
                 }
-                None => {}
+                Grep::Text => {}
             }
         }
-        if files.is_empty() {
+        if text.files.is_empty() {
             return Err(format!(
                 "no text files found under {} — the file list is empty, so nothing was checked",
                 self.root.display()
             ));
         }
-        Ok(files)
+        Ok(text)
+    }
+
+    /// Every path git lists as tracked or new and not ignored, as a bash script asks for them:
+    /// separated by NUL bytes with `-z`, so that no path is quoted, or by lines, so that a path
+    /// git quotes stays quoted and names no file.
+    fn listed(&self, listing: Listing) -> Result<Vec<Vec<u8>>, String> {
+        let mut args = vec!["ls-files", "--cached", "--others", "--exclude-standard"];
+        let separator = match listing {
+            Listing::Nul => {
+                args.push("-z");
+                0
+            }
+            Listing::Lines => b'\n',
+        };
+        let out = git::run_bytes(&self.root, &args)?;
+        Ok(out
+            .split(|&b| b == separator)
+            .filter(|path| !path.is_empty())
+            .map(<[u8]>::to_vec)
+            .collect())
     }
 
     /// Each path a relative link of a Markdown file the bash reads names, tested as the bash
@@ -343,6 +368,43 @@ fn unit_separator_free(path: &Path, bytes: Vec<u8>) -> Result<Vec<u8>, String> {
 /// The bytes within which `grep -I` finds a NUL byte however its buffers fall: GNU grep reads
 /// at least this much before it decides.
 const GREP_FIRST_BUFFER: usize = 32 * 1024;
+
+/// The text files of the repository by their paths, and the paths among them that are no UTF-8,
+/// by the text they are keyed by.
+#[derive(Debug, Default)]
+pub(super) struct TextFiles {
+    pub(super) files: BTreeMap<String, Vec<u8>>,
+    pub(super) unspelled: BTreeSet<String>,
+}
+
+/// How a bash script asks git for its listing.
+#[derive(Clone, Copy)]
+enum Listing {
+    /// `-z`: the paths separated by NUL bytes, none quoted.
+    Nul,
+    /// One path a line, as `while read` reads them.
+    Lines,
+}
+
+/// How `grep -I` takes the bytes of a file.
+#[derive(Debug, PartialEq, Eq)]
+enum Grep {
+    /// A NUL byte in the first buffer grep reads: binary, and the file is left out.
+    Binary,
+    /// A NUL byte past it: binary or text depending on where grep's buffers fall.
+    Undecided,
+    /// No NUL byte.
+    Text,
+}
+
+/// How `grep -I` takes the bytes, as [`Grep`] sorts them.
+fn grep_reads(bytes: &[u8]) -> Grep {
+    match bytes.iter().position(|&b| b == 0) {
+        Some(at) if at < GREP_FIRST_BUFFER => Grep::Binary,
+        Some(_) => Grep::Undecided,
+        None => Grep::Text,
+    }
+}
 
 /// The path under the root of the bytes git names: on Unix any bytes, elsewhere only UTF-8,
 /// which is what git writes there.
