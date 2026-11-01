@@ -49,6 +49,7 @@ fn the_repository_is_found_from_a_subdirectory_and_by_repo() {
     assert_eq!(code(&elsewhere.nuc(&["check", "--repo", repo])), Some(1));
 }
 
+/// Verifies: Q-1
 #[test]
 fn a_missing_nuc_toml_refuses() {
     let fixture = Fixture::new("missing");
@@ -67,6 +68,7 @@ fn a_missing_nuc_toml_refuses() {
     );
 }
 
+/// Verifies: Q-1
 #[test]
 fn an_unreadable_nuc_toml_refuses() {
     for (name, config) in [
@@ -94,6 +96,7 @@ fn an_unreadable_nuc_toml_refuses() {
     }
 }
 
+/// Verifies: Q-1
 #[test]
 fn a_nuc_toml_that_is_no_utf8_refuses() {
     let fixture = Fixture::project("binary", CONFIG, README);
@@ -121,6 +124,7 @@ fn a_higher_minimum_refuses_and_names_how_to_update() {
     );
 }
 
+/// Verifies: Q-1
 #[test]
 fn an_unknown_rule_id_refuses_and_names_how_to_update() {
     let config = "minimum = \"0.0.0\"\nrules = [\"docs/template-release\", \"docs/unknown\"]\n";
@@ -148,6 +152,7 @@ fn a_known_rule_that_is_not_listed_reports_nothing() {
     assert_eq!(stdout(&output), "");
 }
 
+/// Verifies: Q-1
 #[test]
 fn outside_a_repository_it_refuses() {
     // A directory of its own beside the fixtures, without a repository.
@@ -167,6 +172,41 @@ fn outside_a_repository_it_refuses() {
     );
 }
 
+/// Verifies: Q-1
+#[test]
+fn without_git_on_the_path_it_refuses_and_names_how_to_install_it() {
+    let fixture = Fixture::project("no-git", CONFIG, README);
+    let empty = fixture.root().join("empty-path");
+    std::fs::create_dir_all(&empty).expect("created");
+    let output = fixture.nuc_with(
+        &[("PATH", empty.to_str().expect("a UTF-8 path"))],
+        &["check"],
+    );
+    assert_eq!(code(&output), Some(2), "{}", stdout(&output));
+    let err = stderr(&output);
+    assert!(err.contains("git could not be run"), "{err}");
+    assert!(err.contains("install git"), "{err}");
+}
+
+/// Verifies: Q-1
+#[cfg(debug_assertions)]
+#[test]
+fn a_panic_is_an_internal_error_that_names_its_cause_and_never_passes() {
+    let fixture = Fixture::project("panic", CONFIG, README);
+    let output = fixture.nuc_with(&[("NUC_TEST_PANIC", "1")], &["check"]);
+    // ADR-0019: a panic exits 101, non-zero as the refusals are.
+    assert_eq!(code(&output), Some(101), "{}", stderr(&output));
+    assert_eq!(stdout(&output), "");
+    let err = stderr(&output);
+    assert!(err.starts_with("nuc: internal error at "), "{err}");
+    assert!(err.contains("mod.rs:"), "{err}");
+    assert!(
+        err.contains(": NUC_TEST_PANIC is set — not decided"),
+        "{err}"
+    );
+}
+
+/// Verifies: G-6
 #[test]
 fn explain_gives_the_reason_of_a_known_rule_and_refuses_an_unknown_one() {
     let fixture = Fixture::new("explain");

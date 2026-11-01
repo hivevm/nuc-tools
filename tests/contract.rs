@@ -58,6 +58,7 @@ fn what_this_nuc_cannot_read_refuses_with_the_install_hint() {
     }
 }
 
+/// Verifies: G-6
 #[test]
 fn a_finding_is_one_line_on_the_standard_output_and_the_summary_is_on_the_standard_error() {
     let fixture = Fixture::project(
@@ -92,6 +93,7 @@ fn a_finding_without_a_line_omits_it() {
     );
 }
 
+/// Verifies: Q-1
 #[test]
 fn the_exit_codes_are_zero_one_and_two() {
     let clean = Fixture::project("contract-clean", CONFIG, README);
@@ -114,6 +116,41 @@ fn a_command_a_newer_nuc_may_know_refuses_with_the_install_hint() {
             stderr(&output).contains("install or update nuc"),
             "{args:?}: {}",
             stderr(&output)
+        );
+    }
+}
+
+/// Every rule ID `nuc` has had, kept beside this test.
+const RULE_IDS: &str = include_str!("contract.rule-ids");
+
+/// Verifies: G-6
+#[test]
+fn every_rule_keeps_its_id_and_is_explained() {
+    let listed: Vec<&str> = RULE_IDS
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty() && !line.starts_with('#'))
+        .collect();
+    let known: Vec<&str> = nuc::rules::ALL.iter().map(|rule| rule.id).collect();
+    for id in &listed {
+        assert!(
+            known.contains(id),
+            "the rule ID '{id}' is gone: an ID is stable once listed, since nuc.toml files name it"
+        );
+    }
+    let fixture = Fixture::new("contract-explain");
+    for id in &known {
+        assert!(
+            listed.contains(id),
+            "the rule '{id}' is not in contract.rule-ids: list it, and it stays from then on"
+        );
+        let output = fixture.nuc(&["explain", id]);
+        assert_eq!(code(&output), Some(0), "{id}");
+        let out = stdout(&output);
+        let reason = out.strip_prefix(&format!("{id}: ")).unwrap_or_default();
+        assert!(
+            !reason.trim().is_empty(),
+            "nuc explain {id} gives no reason: {out}"
         );
     }
 }
