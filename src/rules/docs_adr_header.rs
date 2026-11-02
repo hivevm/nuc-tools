@@ -151,8 +151,8 @@ mod tests {
         assert_eq!(messages("- **Status:** accepted\n"), Vec::<String>::new());
     }
 
-    #[test]
     // bash: a header field that is no list item
+    #[test]
     fn a_field_in_another_form_fails_at_its_line() {
         let found = check(&inputs(
             b"# ADR-0001\n\n**Status:** \xf0\x9f\x9f\xa2 accepted\n",

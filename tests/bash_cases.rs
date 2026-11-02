@@ -5,10 +5,11 @@
 //! kept beside this test, names each case of `scripts/test-check-docs.sh` and
 //! `scripts/test-check-traceability.sh` as its `expect` line writes it, with the rule whose part
 //! of the bash it tries, or `-` and the reason no rule of `nuc` decides it. A unit test under
-//! `src/` that copies a case says so in a comment `// bash: <name>`. The test fails on a case the
-//! list leaves out or a row whose case the scripts lack, on a case of a rule no such comment
-//! names, and on a comment that names no case of the list. A name the script assembles, as the
-//! one of a case inside a loop, is listed and named as the script writes it.
+//! `src/` that copies a case says so in a comment `// bash: <name>`. The test fails on an `expect`
+//! line whose name it cannot read, on a case the list leaves out or a row whose case the scripts
+//! lack, on a case of a rule no such comment in that rule's module names, and on a comment that
+//! names no case of the list. A name the script assembles, as the one of a case inside a loop, is
+//! listed and named as the script writes it.
 
 use std::collections::BTreeSet;
 use std::fs;
@@ -31,21 +32,27 @@ struct Row {
 }
 
 /// The name of each case of a self-test, in order: the text between the quotes of each
-/// `expect pass "<name>"` or `expect fail "<name>"` on a line.
-fn cases(script: &str) -> Vec<String> {
+/// `expect pass "<name>"` or `expect fail "<name>"` on a line, or the first line that runs
+/// `expect pass` or `expect fail` with a name in another form, which would drop out of the list
+/// and the comments alike.
+fn cases(script: &str) -> Result<Vec<String>, String> {
     let mut found = Vec::new();
-    for line in script.lines() {
-        for open in ["expect pass \"", "expect fail \""] {
-            let Some(at) = line.find(open) else {
+    for (i, line) in script.lines().enumerate() {
+        for run in ["expect pass", "expect fail"] {
+            let Some(at) = line.find(run) else {
                 continue;
             };
-            let rest = &line[at + open.len()..];
-            if let Some(end) = rest.find('"') {
-                found.push(rest[..end].to_owned());
+            let name = line[at + run.len()..]
+                .strip_prefix(" \"")
+                .and_then(|rest| rest.find('"').map(|end| &rest[..end]))
+                .filter(|name| !name.ends_with('\\'));
+            match name {
+                Some(name) => found.push(name.to_owned()),
+                None => return Err(format!("line {}: no name in double quotes: {line}", i + 1)),
             }
         }
     }
-    found
+    Ok(found)
 }
 
 /// The rows of the list, without blank lines and `#` comments, or what makes a line no row.
@@ -91,12 +98,20 @@ fn named(source: &str) -> Vec<(usize, String)> {
         .collect()
 }
 
+/// A `// bash: <name>` comment: where it stands, the case it names, and the `RULE_ID` its module
+/// declares, if any.
+struct Comment {
+    at: String,
+    case: String,
+    rule: Option<String>,
+}
+
 /// What keeps the list, the scripts, and the comments apart: each script given as its file name
-/// and its cases, each comment as where it stands and the case it names.
+/// and its cases.
 fn problems(
     scripts: &[(&str, Vec<String>)],
     rows: &[Row],
-    comments: &[(String, String)],
+    comments: &[Comment],
     rule_ids: &BTreeSet<String>,
 ) -> Vec<String> {
     let mut found = Vec::new();
@@ -119,7 +134,10 @@ fn problems(
             }
         }
     }
-    let commented: BTreeSet<&str> = comments.iter().map(|(_, n)| n.as_str()).collect();
+    let commented: BTreeSet<(&str, &str)> = comments
+        .iter()
+        .filter_map(|c| Some((c.rule.as_deref()?, c.case.as_str())))
+        .collect();
     for row in rows {
         if !written.contains(&(row.script.as_str(), row.case.as_str())) {
             found.push(format!(
@@ -135,17 +153,17 @@ fn problems(
                 "{}: '{}' is listed for '{rule}', which is no rule of nuc",
                 row.script, row.case
             ));
-        } else if !commented.contains(row.case.as_str()) {
+        } else if !commented.contains(&(rule.as_str(), row.case.as_str())) {
             found.push(format!(
-                "{rule}: no unit test names the case '{}' of {} in a '{NAMES}<name>' comment",
+                "{rule}: no unit test of the rule names the case '{}' of {} in a '{NAMES}<name>' comment",
                 row.case, row.script
             ));
         }
     }
     let names: BTreeSet<&str> = rows.iter().map(|r| r.case.as_str()).collect();
-    for (at, name) in comments {
-        if !names.contains(name.as_str()) {
-            found.push(format!("{at}: names '{name}', no case of the list"));
+    for c in comments {
+        if !names.contains(c.case.as_str()) {
+            found.push(format!("{}: names '{}', no case of the list", c.at, c.case));
         }
     }
     found
@@ -163,22 +181,12 @@ fn sources(dir: &Path, out: &mut Vec<PathBuf>) {
     }
 }
 
-/// The `RULE_ID` each module of `src/rules/` declares.
-fn rule_ids(root: &Path) -> BTreeSet<String> {
-    let mut ids = BTreeSet::new();
-    let mut files = Vec::new();
-    sources(&root.join("src/rules"), &mut files);
-    for file in files {
-        let text = fs::read_to_string(&file).expect("the source is readable");
-        for line in text.lines() {
-            if let Some(rest) = line.strip_prefix("pub const RULE_ID: &str = \"")
-                && let Some(id) = rest.strip_suffix("\";")
-            {
-                ids.insert(id.to_owned());
-            }
-        }
-    }
-    ids
+/// The `RULE_ID` a module declares.
+fn rule_id(source: &str) -> Option<String> {
+    source.lines().find_map(|line| {
+        let rest = line.strip_prefix("pub const RULE_ID: &str = \"")?;
+        Some(rest.strip_suffix("\";")?.to_owned())
+    })
 }
 
 #[test]
@@ -189,7 +197,10 @@ fn each_case_of_a_rule_is_named_by_a_unit_test_that_copies_it() {
         .map(|name| {
             let text = fs::read_to_string(root.join("scripts").join(name))
                 .expect("the self-test is readable");
-            (*name, cases(&text))
+            (
+                *name,
+                cases(&text).unwrap_or_else(|e| panic!("{name}: {e}")),
+            )
         })
         .collect();
     let rows = rows(LIST).expect("the list is well formed");
@@ -197,6 +208,7 @@ fn each_case_of_a_rule_is_named_by_a_unit_test_that_copies_it() {
     sources(&root.join("src"), &mut files);
     files.sort();
     let mut comments = Vec::new();
+    let mut rule_ids = BTreeSet::new();
     for file in &files {
         let text = fs::read_to_string(file).expect("the source is readable");
         let shown = file
@@ -204,11 +216,21 @@ fn each_case_of_a_rule_is_named_by_a_unit_test_that_copies_it() {
             .unwrap_or(file)
             .display()
             .to_string();
-        for (line, name) in named(&text) {
-            comments.push((format!("{shown}:{line}"), name));
+        let rule = rule_id(&text);
+        if shown.starts_with("src/rules/")
+            && let Some(id) = &rule
+        {
+            rule_ids.insert(id.clone());
+        }
+        for (line, case) in named(&text) {
+            comments.push(Comment {
+                at: format!("{shown}:{line}"),
+                case,
+                rule: rule.clone(),
+            });
         }
     }
-    let found = problems(&scripts, &rows, &comments, &rule_ids(root));
+    let found = problems(&scripts, &rows, &comments, &rule_ids);
     assert!(found.is_empty(), "{}", found.join("\n"));
 }
 
@@ -231,7 +253,22 @@ fn ids() -> BTreeSet<String> {
 
 #[test]
 fn a_case_name_is_read_as_the_expect_line_writes_it() {
-    assert_eq!(cases(SCRIPT), ["a baseline", "a case of ${x}"]);
+    assert_eq!(
+        cases(SCRIPT),
+        Ok(vec!["a baseline".to_owned(), "a case of ${x}".to_owned()])
+    );
+}
+
+#[test]
+fn a_name_in_another_form_is_refused() {
+    for line in [
+        "expect pass 'single' \"$d\"",
+        "expect fail \\\n  \"continued\" \"$d\"",
+        "expect pass \"a \\\"quoted\\\" name\" \"$d\"",
+        "expect fail \"unclosed",
+    ] {
+        assert!(cases(line).is_err(), "{line}");
+    }
 }
 
 #[test]
@@ -254,34 +291,55 @@ fn a_comment_names_its_case_at_its_line() {
 
 #[test]
 fn a_case_missing_from_the_list_or_from_the_unit_tests_is_found() {
-    let scripts = [("t.sh", cases(SCRIPT))];
-    let comment = |n: &str| ("src/x.rs:1".to_owned(), n.to_owned());
+    let scripts = [("t.sh", cases(SCRIPT).unwrap())];
+    let comment = |n: &str, rule: &str| Comment {
+        at: "src/x.rs:1".to_owned(),
+        case: n.to_owned(),
+        rule: Some(rule.to_owned()),
+    };
     let all = [
         row("a baseline", None),
         row("a case of ${x}", Some("docs/a")),
     ];
     assert_eq!(
-        problems(&scripts, &all, &[comment("a case of ${x}")], &ids()),
+        problems(
+            &scripts,
+            &all,
+            &[comment("a case of ${x}", "docs/a")],
+            &ids()
+        ),
         Vec::<String>::new()
     );
     assert_eq!(
-        problems(&scripts, &all[..1], &[comment("a case of ${x}")], &ids()),
+        problems(
+            &scripts,
+            &all[..1],
+            &[comment("a case of ${x}", "docs/a")],
+            &ids()
+        ),
         [
             "t.sh: the case 'a case of ${x}' is not in the list",
             "src/x.rs:1: names 'a case of ${x}', no case of the list",
         ]
     );
+    let missing = [
+        "docs/a: no unit test of the rule names the case 'a case of ${x}' of t.sh in a '// bash: <name>' comment",
+    ];
+    assert_eq!(problems(&scripts, &all, &[], &ids()), missing);
     assert_eq!(
-        problems(&scripts, &all, &[], &ids()),
-        [
-            "docs/a: no unit test names the case 'a case of ${x}' of t.sh in a '// bash: <name>' comment"
-        ]
+        problems(
+            &scripts,
+            &all,
+            &[comment("a case of ${x}", "docs/b")],
+            &ids()
+        ),
+        missing
     );
 }
 
 #[test]
 fn a_row_the_scripts_lack_a_rule_nuc_lacks_and_a_row_twice_are_found() {
-    let scripts = [("t.sh", cases(SCRIPT))];
+    let scripts = [("t.sh", cases(SCRIPT).unwrap())];
     let rows = [
         row("a baseline", None),
         row("a baseline", None),
