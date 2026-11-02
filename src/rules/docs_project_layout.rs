@@ -166,6 +166,7 @@ mod tests {
             ("docs/plan/", false),
             ("scripts/*.sh", true),
         ];
+        // bash: docs/plan/ named while there is no open work
         assert_eq!(
             messages(LAYOUT, &found, &["README.md", "docs", "scripts", "src"]),
             Vec::<String>::new()
@@ -180,6 +181,9 @@ mod tests {
             ("docs/plan/", false),
             ("scripts/*.sh", false),
         ];
+        // bash: a Project Layout entry that no longer exists
+        // bash: a top-level file the Project Layout does not name
+        // bash: a Project Layout pattern that matches nothing
         assert_eq!(
             messages(LAYOUT, &found, &["Cargo.toml", "src"]),
             [

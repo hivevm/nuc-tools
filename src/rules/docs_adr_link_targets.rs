@@ -102,6 +102,7 @@ mod tests {
             )]
         );
         let draft = format!("[{}](0001-decision.md)\n", id("draft-next"));
+        // bash: a link that cites a draft and points at another ADR
         assert_eq!(
             messages(&[("docs/adr/README.md", &draft)]),
             [format!(

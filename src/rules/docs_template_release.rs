@@ -140,9 +140,13 @@ mod tests {
     fn a_release_or_unreleased_passes() {
         for line in [
             "- **Template release:** unreleased",
+            // bash: a release tag followed by a sentence
             "- **Template release:** v1.4.0 of the template ([tags](https://example.invalid/tags)).",
+            // bash: the line without a list marker
             "**Template release:** v0.2.0",
+            // bash: the tag as link text after a star marker
             "* **Template release:** [v1.4.0](https://example.invalid/releases/tag/v1.4.0), taken up in full.",
+            // bash: the tag in backticks
             "- **Template release:** `v1.4.0`",
             "  - **Template release:** v10.0.0.",
             "- **Template release:**v0.5.0;",
@@ -155,9 +159,13 @@ mod tests {
     #[test]
     fn a_line_without_a_release_fails_at_its_line() {
         for line in [
+            // bash: a leading zero, which SemVer forbids
             "- **Template release:** v01.4.0",
+            // bash: a version that is not a vX.Y.Z tag
             "- **Template release:** 1.4",
+            // bash: a pre-release suffix on the tag
             "- **Template release:** v1.4.0-rc1",
+            // bash: a word that is not 'unreleased'
             "- **Template release:** latest",
             "- **Template release:** v1.4.0.1",
             "- **Template release:** v1.4.0.x",
@@ -176,6 +184,7 @@ mod tests {
     #[test]
     fn no_line_fails_without_a_line_number() {
         for text in [
+            // bash: no Template release line
             readme("Created from the template."),
             readme("- - **Template release:** v1.0.0"),
         ] {

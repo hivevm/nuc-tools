@@ -288,34 +288,42 @@ mod tests {
     #[test]
     fn each_placeholder_of_the_bash_self_test_fails_after_setup() {
         for (line, message) in [
+            // bash: the template's title in the README after setup
             (
                 "# NUC — an Agentic Fixture",
                 "README.md: the title is still the template's",
             ),
+            // bash: the template's intro in the README after setup
             (
                 "**NUC** is named after the small *nucleus colony*.",
                 "README.md: the intro still explains",
             ),
+            // bash: the scaffold's Overview sentence after setup
             (
                 "Describe what this project does, who it is for, and its main goals.",
                 "README.md: the Overview is still",
             ),
+            // bash: the Usage TODO after setup
             (
                 "TODO — show a minimal example of using the project.",
                 "README.md: the Usage section is still TODO",
             ),
+            // bash: the template's repository in the README badge after setup
             (
                 "[![Checks](https://github.com/hivevm/nuc/actions/workflows/checks.yml/badge.svg)](https://github.com/hivevm/nuc/actions/workflows/checks.yml)",
                 "README.md: a badge still points at the template",
             ),
+            // bash: the template's repository in a shields.io badge after setup
             (
                 "[![License](https://img.shields.io/github/license/hivevm/nuc)](LICENSE)",
                 "README.md: a badge still points at the template",
             ),
+            // bash: a Build command still TODO after setup
             (
                 "- **Build:** TODO <!-- e.g. `make build` -->",
                 "README.md: a Build, Test, Lint, or Run command is still TODO",
             ),
+            // bash: a Lint command still TODO after setup
             (
                 "- **Lint:** TODO",
                 "README.md: a Build, Test, Lint, or Run command is still TODO",
@@ -333,14 +341,35 @@ mod tests {
         );
     }
 
+    // bash: the template's title in the README while the setup file exists
+    #[test]
+    fn the_template_s_title_passes_while_the_setup_file_exists() {
+        let readme = "# NUC — an Agentic Fixture\n\n## Template\n";
+        assert_eq!(found(&[("README.md", readme)], true), Vec::<String>::new());
+    }
+
+    // bash: the template's repository in a legacy .svg badge after setup
+    #[test]
+    fn a_legacy_svg_badge_of_the_template_fails_after_setup() {
+        let got = readme(
+            "[![Stars](https://img.shields.io/github/stars/hivevm/nuc.svg)](https://github.com/hivevm/nuc-tools)",
+        );
+        assert!(
+            got.len() == 1 && got[0].starts_with("README.md: a badge still points at the template"),
+            "{got:?}"
+        );
+    }
+
     #[test]
     fn a_derived_badge_and_a_link_to_the_template_pass() {
+        // bash: a badge of a derived repository whose name starts with the template's after setup
         assert_eq!(
             readme(
                 "[![Checks](https://github.com/hivevm/nuc-tools/actions/workflows/checks.yml/badge.svg)](https://github.com/hivevm/nuc-tools/actions/workflows/checks.yml)"
             ),
             Vec::<String>::new()
         );
+        // bash: a link to the template's repository outside the badge after setup
         assert_eq!(
             readme("Created from [NUC](https://github.com/hivevm/nuc)."),
             Vec::<String>::new()
@@ -351,71 +380,85 @@ mod tests {
     #[test]
     fn the_placeholders_of_the_other_files_fail() {
         for (file, text, message) in [
+            // bash: the template's Dev Container name after setup
             (
                 ".devcontainer/devcontainer.json",
                 "{ \"name\": \"NUC DevContainer\" }\n",
                 "the Dev Container still",
             ),
+            // bash: the placeholder copyright holder after setup
             (
                 "LICENSE",
                 "MIT License\n\nCopyright (c) 2026 Maintainer\n",
                 "the copyright holder",
             ),
+            // bash: the placeholder copyright holder under another license after setup
             (
                 "LICENSE",
                 "Apache License\nVersion 2.0, January 2004\n\nCopyright 2026 Maintainer\n",
                 "the copyright holder",
             ),
+            // bash: the placeholder security contact after setup
             (
                 "SECURITY.md",
                 "TODO: add a security contact\n",
                 "the security contact",
             ),
+            // bash: the placeholder reporting contact after setup
             (
                 "CODE_OF_CONDUCT.md",
                 "TODO: add a contact address\n",
                 "the reporting contact",
             ),
+            // bash: a CODEOWNERS with its rules still commented out after setup
             (
                 ".github/CODEOWNERS",
                 "# /docs/SPECIFICATION.md @owner\n# /docs/adr/ @owner\n",
                 "no active rule",
             ),
+            // bash: the code owner TODO still there after setup
             (
                 ".github/CODEOWNERS",
                 "# TODO: add a code owner and uncomment the rules.\n/docs/adr/ @someone\n",
                 "the instruction to add a code owner",
             ),
+            // bash: the scaffold's title in the specification after setup
             (
                 "docs/SPECIFICATION.md",
                 "# Specification — <Project Name>\n",
                 "the title still carries '<Project Name>'",
             ),
+            // bash: the scaffold's title in the glossary after setup
             (
                 "docs/GLOSSARY.md",
                 "# Glossary — <Project Name>\n",
                 "the title still carries '<Project Name>'",
             ),
+            // bash: a goal still the scaffold's ellipsis after setup
             (
                 "docs/SPECIFICATION.md",
                 "# Specification — Fixture\n\n## Goals / Success Criteria\n\n1. **G-1** — …\n",
                 "a criterion is still",
             ),
+            // bash: a quality goal still the scaffold's placeholder after setup
             (
                 "docs/SPECIFICATION.md",
                 "# Specification — Fixture\n\n## Quality Goals\n\n- **Q-1** — <Quality, e.g. Performance>: why.\n",
                 "a criterion is still",
             ),
+            // bash: the scaffold's <${entry#*:}> entry after setup
             (
                 "docs/ARCHITECTURE.md",
                 "# Fixture\n\n- **<Part>** — what it is.\n",
                 "the scaffold's building block",
             ),
+            // bash: the scaffold's <${entry#*:}> entry after setup
             (
                 "docs/GLOSSARY.md",
                 "# Fixture\n\n- **<Term>** — what it is.\n",
                 "the scaffold's entry",
             ),
+            // bash: the scaffold's <${entry#*:}> entry after setup
             (
                 "docs/CONVENTIONS.md",
                 "# Fixture\n\n- **<Convention>** — what it is.\n",
@@ -432,6 +475,7 @@ mod tests {
 
     #[test]
     fn a_tree_still_in_setup_and_one_done_pass() {
+        // bash: a Build command still TODO while the setup file exists
         assert_eq!(
             found(&[("README.md", "- **Build:** TODO\n")], true),
             Vec::<String>::new()
@@ -445,6 +489,7 @@ mod tests {
             ),
             ("README.md", "# Fixture\n\n- **Build:** `make build`\n"),
         ];
+        // bash: identity replaced after setup
         assert_eq!(found(&done, false), Vec::<String>::new());
     }
 

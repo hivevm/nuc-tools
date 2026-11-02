@@ -109,6 +109,7 @@ mod tests {
     #[test]
     fn a_clean_header_passes() {
         let text = "# ADR-0001: A\n\n- **Status:** 🟢 accepted\n- **Date:** 2026-10-31\n\n## Context\n\nThe **Date:** field is named in the body.\n";
+        // bash: a header field quoted in the body of an ADR
         assert_eq!(messages(text), Vec::<String>::new());
     }
 
@@ -150,6 +151,7 @@ mod tests {
         assert_eq!(messages("- **Status:** accepted\n"), Vec::<String>::new());
     }
 
+    // bash: a header field that is no list item
     #[test]
     fn a_field_in_another_form_fails_at_its_line() {
         let found = check(&inputs(

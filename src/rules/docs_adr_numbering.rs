@@ -159,6 +159,7 @@ mod tests {
             ("0003-c.md", "# ADR-0003"),
             ("0004-d.md", "# ADR-0004"),
         ]);
+        // bash: a gap in the ADR numbering
         assert_eq!(
             found,
             [
@@ -181,6 +182,7 @@ mod tests {
 
     #[test]
     fn a_draft_with_a_malformed_slug_or_another_heading_fails() {
+        // bash: a draft whose slug is not lower case and hyphens
         assert_eq!(
             messages(&[("draft-Bad_slug.md", &format!("# {}", draft_id("Bad_slug")))]),
             ["a draft's slug is lower case letters and digits joined by single hyphens"]
@@ -189,6 +191,7 @@ mod tests {
             messages(&[("draft-a--b.md", &format!("# {}", draft_id("a--b")))]).len(),
             1
         );
+        // bash: a draft whose heading names another draft
         assert_eq!(
             messages(&[("draft-x.md", &format!("# {}", draft_id("y: Y")))]),
             [format!(

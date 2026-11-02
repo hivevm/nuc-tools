@@ -101,6 +101,8 @@ mod tests {
             &[("0001-a.md", ACCEPTED)],
             &[("scripts/x.sh", &text)],
         ));
+        // bash: a reference to an ADR that does not exist
+        // bash: a draft identifier with no draft file
         assert_eq!(
             found,
             [
