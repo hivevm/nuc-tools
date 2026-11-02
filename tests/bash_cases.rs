@@ -217,7 +217,7 @@ fn each_case_of_a_rule_is_named_by_a_unit_test_that_copies_it() {
             .display()
             .to_string();
         let rule = rule_id(&text);
-        if shown.starts_with("src/rules/")
+        if file.starts_with(root.join("src/rules"))
             && let Some(id) = &rule
         {
             rule_ids.insert(id.clone());
