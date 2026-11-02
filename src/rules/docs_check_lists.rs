@@ -607,6 +607,9 @@ mod tests {
             ".github/workflows/other.yml".to_owned(),
             "jobs:\n  lint:\n    steps:\n      - run: make lint\n  t:\n    steps:\n      - run: bash scripts/test-x.sh\n".to_owned(),
         ));
+        // bash: a check the local runner has and CI does not
+        // bash: a script that neither list runs
+        // bash: a job of another workflow that runs no script
         assert_eq!(
             tree.messages(),
             [
@@ -619,6 +622,7 @@ mod tests {
         tree.all = Some(format!(
             "{ALL}run \"Shell\" scripts/check-shell.sh\n# On instruction: scripts/sensor-x.sh\n"
         ));
+        // bash: a script the local runner names as run on instruction
         assert_eq!(tree.messages().len(), 3);
     }
 
@@ -647,6 +651,7 @@ mod tests {
         let mut tree = Tree::new();
         tree.workflows.push(release(""));
         let unnamed = tree.messages();
+        // bash: a publishing workflow not named as no gate
         assert_eq!(
             unnamed,
             [
@@ -656,16 +661,20 @@ mod tests {
         tree.all = Some(format!(
             "{ALL}# Not a gate: .github/workflows/release.yml\n"
         ));
+        // bash: a publishing workflow the local runner names as no gate, its steps inline
         assert_eq!(tree.messages(), Vec::<String>::new());
         for (line, message) in [
+            // bash: a '# Not a gate:' line that names no workflow
             (
                 "# Not a gate: .github/workflows/gone.yml",
                 "scripts/check-all.sh: '# Not a gate: .github/workflows/gone.yml' names no workflow of this repository",
             ),
+            // bash: a '# Not a gate:' line that names a file outside .github/workflows/
             (
                 "# Not a gate: README.md",
                 "scripts/check-all.sh: '# Not a gate: README.md' names no workflow of this repository",
             ),
+            // bash: a '# Not a gate:' line that names the required checks' workflow
             (
                 "# Not a gate: .github/workflows/checks.yml",
                 "scripts/check-all.sh: '# Not a gate: .github/workflows/checks.yml' names the workflow of the required checks",
@@ -680,6 +689,7 @@ mod tests {
         tree.all = Some(format!(
             "{ALL}# Not a gate: .github/workflows/release.yml\n"
         ));
+        // bash: a script a workflow that is no gate runs, and the local runner does not
         assert_eq!(
             tree.messages(),
             [
@@ -707,18 +717,23 @@ mod tests {
 
     #[test]
     fn from_v0_6_0_a_job_with_a_matrix_is_named_by_its_check_runs() {
+        // bash: a job with a matrix named by its check runs
         assert_eq!(matrix_tree(RUNS, BLOCK).messages(), Vec::<String>::new());
+        // bash: a strategy in flow style named by its check runs
         assert_eq!(matrix_tree(RUNS, FLOW).messages(), Vec::<String>::new());
+        // bash: a job that computes a matrix as an output, named by its name
         assert_eq!(
             matrix_tree("`build`", OUTPUT).messages(),
             Vec::<String>::new()
         );
+        // bash: a job with a matrix named by its bare name
         assert_eq!(
             matrix_tree("`build`", BLOCK).messages(),
             [
                 "README.md: required check 'build' is a job with a matrix, which reports as 'build (<values>)' — name each check run"
             ]
         );
+        // bash: a check run named for a job without a matrix
         assert_eq!(
             matrix_tree("`build (ubuntu-latest)`", "").messages(),
             [
@@ -775,6 +790,22 @@ mod tests {
         assert_eq!(check_names(b"`a (b)` `c`", false), [b"c".to_vec()]);
     }
 
+    // bash: a toolchain job with its commands inline and nothing in the local runner
+    #[test]
+    fn a_toolchain_job_with_its_commands_inline_runs_no_script() {
+        let mut tree = Tree::new();
+        tree.checks = Some(format!(
+            "{CHECKS_YML}  build:\n    steps:\n      - uses: actions/setup-something@v1\n      - run: make test\n"
+        ));
+        tree.readme = Some(README_TEXT.replace("`docs`", "`docs`, `build`"));
+        assert_eq!(
+            tree.messages(),
+            [
+                ".github/workflows/checks.yml: job 'build' runs no script under scripts/ — the local gate cannot run what it does"
+            ]
+        );
+    }
+
     /// Three more cases of check 9 in the template's `scripts/test-check-docs.sh`.
     #[test]
     fn another_workflow_and_a_setup_step_read_as_the_bash_reads_them() {
@@ -784,14 +815,17 @@ mod tests {
         );
         let mut tree = Tree::new();
         tree.workflows.push(other.clone());
+        // bash: another workflow that runs a script the local runner runs, its job not required
         assert_eq!(tree.messages(), Vec::<String>::new());
         tree.readme = Some(README_TEXT.replace("`docs`", "`docs`, `lint`"));
+        // bash: a required check that is a job of another workflow than checks.yml
         assert_eq!(
             tree.messages(),
             [
                 "README.md: required check 'lint' is not a job of .github/workflows/checks.yml — a ruleset would wait for a check that never reports"
             ]
         );
+        // bash: a toolchain job that runs the build script after a setup step
         let mut tree = Tree::new();
         tree.checks = Some(
             "jobs:\n  docs:\n    steps:\n      - uses: actions/checkout@v5\n      - run: bash scripts/check-docs.sh\n"

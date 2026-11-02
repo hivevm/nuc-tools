@@ -309,6 +309,7 @@ mod tests {
             ("scripts/x.sh", "# AGENTS.md, section 2 and §1\n"),
             ("x.rs", "// §9 is a statute\n"),
         ];
+        // bash: a reference in words to a section that exists
         assert_eq!(texts(Some(AGENTS), &files), Vec::<String>::new());
     }
 
@@ -367,6 +368,7 @@ mod tests {
             )),
             "{at:?}"
         );
+        // bash: a section reference that names no section
         assert!(
             at.contains(&(
                 "README.md",
@@ -388,6 +390,7 @@ mod tests {
             )),
             "{at:?}"
         );
+        // bash: a reference in words that names no section
         assert!(
             at.contains(&(
                 "docs/n.txt",
@@ -401,6 +404,49 @@ mod tests {
             "{at:?}"
         );
         assert_eq!(at.len(), 8, "{at:?}");
+    }
+
+    // bash: a section reference in a git hook
+    #[test]
+    fn a_sign_in_a_git_hook_is_a_reference() {
+        assert_eq!(
+            messages(
+                Some(AGENTS),
+                &[(".githooks/pre-commit", "# See AGENTS.md §9.\n")]
+            ),
+            [(
+                ".githooks/pre-commit".to_owned(),
+                Some(1),
+                "reference '§9' matches no numbered section in AGENTS.md".to_owned()
+            )]
+        );
+    }
+
+    // bash: the section sign in JSON is an ordinary character
+    #[test]
+    fn a_sign_in_json_is_no_reference() {
+        let json = "{ \"de\": \"Siehe §9 BGB\" }\n";
+        assert_eq!(
+            texts(Some(AGENTS), &[("messages.json", json)]),
+            Vec::<String>::new()
+        );
+    }
+
+    // bash: a reference in words in a JSON file
+    #[test]
+    fn a_reference_in_words_in_json_is_read() {
+        let json = format!("{{ \"note\": \"{}\" }}\n", agents_section("9"));
+        assert_eq!(
+            messages(Some(AGENTS), &[("settings.json", &json)]),
+            [(
+                "settings.json".to_owned(),
+                Some(1),
+                format!(
+                    "reference '{}' matches no numbered section in AGENTS.md",
+                    agents_section("9")
+                )
+            )]
+        );
     }
 
     #[test]

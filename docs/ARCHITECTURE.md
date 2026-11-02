@@ -77,7 +77,8 @@ golden path and the test pattern an agent copies from are named here.
 - **The golden path** — the rule `docs/template-release`, check 14 of the template's
   `check-docs.sh`, and the pieces it takes through every layer. A new rule copies it:
   1. a module under `src/rules/` with its `RULE_ID`, an `area/name`, and its `RULE`, listed in
-     `rules::ALL`, its unit tests the cases of the bash self-test of the check it ports;
+     `rules::ALL`, its unit tests the cases of the bash self-test of the check it ports, each
+     named in a `// bash:` comment and given its rule in `tests/bash_cases.tsv`;
   2. what it needs to read, an `Input` the rule names in its `reads`, a field of the inputs, its
      type in the rule's module unless several rules read it, and the shell's reading of it;
   3. its rows in the normalization table of the parity harness, one per bash message;

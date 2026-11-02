@@ -188,15 +188,20 @@ mod tests {
     fn the_cases_of_the_bash_self_test_report_as_it_does() {
         let review = "Review only.";
         let both = format!("{}{}", mark(&adr_id(1)), mark("G-1"));
+        // bash: accepted ADR and criterion both cited
         assert!(messages(&inputs(SPEC, &[(1, "🟢 accepted", review)], &both)).is_empty());
+        // bash: accepted ADR without a citing test
         assert_eq!(
             messages(&inputs(SPEC, &[(1, "🟢 accepted", review)], &mark("G-1"))),
             [uncited(1)]
         );
+        // bash: proposed ADR needs no citation
         assert!(messages(&inputs(SPEC, &[(1, "🟡 proposed", review)], &mark("G-1"))).is_empty());
         let reasoned = "**Not mechanically decidable:** it is a judgement call.";
+        // bash: accepted ADR with a reasoned exemption
         assert!(messages(&inputs(SPEC, &[(1, "🟢 accepted", reasoned)], &mark("G-1"))).is_empty());
         let bare = "**Not mechanically decidable:**";
+        // bash: exemption without a reason
         assert_eq!(
             messages(&inputs(SPEC, &[(1, "🟢 accepted", bare)], &mark("G-1"))),
             [
@@ -323,6 +328,7 @@ mod tests {
     fn the_criteria_without_a_test_are_its_note_and_no_finding() {
         let outcome = outcome(&inputs(SPEC, &[], ""));
         assert_eq!(outcome.refusal, None);
+        // bash: criterion without a citing test is listed, not failed
         assert_eq!(outcome.notes, ["2 criteria without a test: G-1 Q-1"]);
         assert!(outcome.notes.iter().all(|note| !note.ends_with('.')));
     }

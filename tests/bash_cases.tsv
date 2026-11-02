@@ -1,0 +1,145 @@
+# The cases of the template's bash self-tests that tests/bash_cases.rs holds the unit tests to:
+# the script, the case name as its 'expect' line writes it, and the rule whose part of the bash
+# the case tries, or '-' and the reason no rule of nuc decides it. A unit test that copies a
+# case names it in a '// bash: <name>' comment.
+
+# test-check-docs.sh
+test-check-docs.sh	a consistent repository passes	-	the baseline every case breaks one thing of; it varies the input of no rule
+test-check-docs.sh	a skill without its pointer	docs/skill-pointers
+test-check-docs.sh	a pointer whose skill is gone	docs/skill-pointers
+test-check-docs.sh	a copy where a symlink belongs	docs/skill-pointers
+test-check-docs.sh	a pointer at a different skill	docs/skill-pointers
+test-check-docs.sh	a skill that lives only in the pointer directory	docs/skill-pointers
+test-check-docs.sh	skills only in the pointer directory, none for the other agents	docs/skill-pointers
+test-check-docs.sh	a repository without skills has nothing to check	docs/skill-pointers
+test-check-docs.sh	an inherited ADR nobody here decided, with the setup file gone	docs/inherited-adrs
+test-check-docs.sh	an inherited ADR still proposed while the setup file exists	docs/inherited-adrs
+test-check-docs.sh	an inherited ADR accepted by the project's maintainer	docs/inherited-adrs
+test-check-docs.sh	an inherited ADR shipped accepted, nobody here added to Deciders	docs/inherited-adrs
+test-check-docs.sh	an inherited ADR accepted, the project's maintainer joined with 'and'	docs/inherited-adrs
+test-check-docs.sh	an inherited ADR the project rejected is history, not read	docs/inherited-adrs
+test-check-docs.sh	the project's own proposed ADR after setup	docs/inherited-adrs
+test-check-docs.sh	an inherited ADR whose Deciders field wraps, the template's name on the second line	docs/inherited-adrs
+test-check-docs.sh	the template's title in the README while the setup file exists	docs/template-identity
+test-check-docs.sh	the template's title in the README after setup	docs/template-identity
+test-check-docs.sh	the template's intro in the README after setup	docs/template-identity
+test-check-docs.sh	the scaffold's Overview sentence after setup	docs/template-identity
+test-check-docs.sh	the Usage TODO after setup	docs/template-identity
+test-check-docs.sh	the template's Dev Container name after setup	docs/template-identity
+test-check-docs.sh	the template's repository in the README badge after setup	docs/template-identity
+test-check-docs.sh	the template's repository in a shields.io badge after setup	docs/template-identity
+test-check-docs.sh	the template's repository in a legacy .svg badge after setup	docs/template-identity
+test-check-docs.sh	a badge of a derived repository whose name starts with the template's after setup	docs/template-identity
+test-check-docs.sh	a link to the template's repository outside the badge after setup	docs/template-identity
+test-check-docs.sh	the placeholder copyright holder after setup	docs/template-identity
+test-check-docs.sh	the placeholder copyright holder under another license after setup	docs/template-identity
+test-check-docs.sh	the placeholder security contact after setup	docs/template-identity
+test-check-docs.sh	the placeholder reporting contact after setup	docs/template-identity
+test-check-docs.sh	a CODEOWNERS with its rules still commented out after setup	docs/template-identity
+test-check-docs.sh	the code owner TODO still there after setup	docs/template-identity
+test-check-docs.sh	the scaffold's title in the specification after setup	docs/template-identity
+test-check-docs.sh	the scaffold's title in the glossary after setup	docs/template-identity
+test-check-docs.sh	a goal still the scaffold's ellipsis after setup	docs/template-identity
+test-check-docs.sh	a quality goal still the scaffold's placeholder after setup	docs/template-identity
+test-check-docs.sh	the scaffold's <${entry#*:}> entry after setup	docs/template-identity
+test-check-docs.sh	a Build command still TODO after setup	docs/template-identity
+test-check-docs.sh	a Lint command still TODO after setup	docs/template-identity
+test-check-docs.sh	a Build command still TODO while the setup file exists	docs/template-identity
+test-check-docs.sh	identity replaced after setup	docs/template-identity
+test-check-docs.sh	a prose line over 100 columns	docs/prose-width
+test-check-docs.sh	a prose line of exactly 100 columns	docs/prose-width
+test-check-docs.sh	an em dash counts as one column	docs/prose-width
+test-check-docs.sh	a link that cannot break stands on a line of its own	docs/prose-width
+test-check-docs.sh	a table row, a heading, and a code block are exempt	docs/prose-width
+test-check-docs.sh	a fence inside a longer fence does not close it	docs/prose-width
+test-check-docs.sh	a file git marks as generated is not read	docs/prose-width
+test-check-docs.sh	a file marked not generated is read	docs/prose-width
+test-check-docs.sh	prose after a long link can wrap	docs/prose-width
+test-check-docs.sh	a bold label outside an ADR header is prose	docs/prose-width
+test-check-docs.sh	a release tag followed by a sentence	docs/template-release
+test-check-docs.sh	the line without a list marker	docs/template-release
+test-check-docs.sh	the tag as link text after a star marker	docs/template-release
+test-check-docs.sh	the tag in backticks	docs/template-release
+test-check-docs.sh	a leading zero, which SemVer forbids	docs/template-release
+test-check-docs.sh	no Template release line	docs/template-release
+test-check-docs.sh	a version that is not a vX.Y.Z tag	docs/template-release
+test-check-docs.sh	a pre-release suffix on the tag	docs/template-release
+test-check-docs.sh	a word that is not 'unreleased'	docs/template-release
+test-check-docs.sh	a relative link to a file that does not exist	docs/links
+test-check-docs.sh	a link to an anchor no heading carries	docs/links
+test-check-docs.sh	an anchor slugged the way GitHub does, closing hashes dropped	docs/links
+test-check-docs.sh	a heading on a last line without a newline anchors	docs/links
+test-check-docs.sh	an index status that disagrees with the ADR	docs/adr-index
+test-check-docs.sh	a header field that is no list item	docs/adr-header
+test-check-docs.sh	a header field quoted in the body of an ADR	docs/adr-header
+test-check-docs.sh	a gap in the ADR numbering	docs/adr-numbering
+test-check-docs.sh	a rejected row with no archive heading above it	docs/adr-index
+test-check-docs.sh	a row both sides of a union merge kept	docs/adr-index
+test-check-docs.sh	a proposed row under the archive heading	docs/adr-index
+test-check-docs.sh	one ADR superseding two, both flipped	docs/adr-supersessions
+test-check-docs.sh	one ADR superseding two, the second not flipped	docs/adr-supersessions
+test-check-docs.sh	a Supersedes field wrapped onto a second line, both flipped	docs/adr-supersessions
+test-check-docs.sh	a wrapped Supersedes field, the name on the second line not flipped	docs/adr-supersessions
+test-check-docs.sh	a proposed supersession, the old ADR still accepted	docs/adr-supersessions
+test-check-docs.sh	an old ADR flipped while its successor is only proposed	docs/adr-supersessions
+test-check-docs.sh	a chain of supersessions, the last successor accepted	docs/adr-supersessions
+test-check-docs.sh	a section reference that names no section	docs/section-refs
+test-check-docs.sh	a reference in words that names no section	docs/section-refs
+test-check-docs.sh	a reference in words to a section that exists	docs/section-refs
+test-check-docs.sh	a section reference in a git hook	docs/section-refs
+test-check-docs.sh	the section sign in JSON is an ordinary character	docs/section-refs
+test-check-docs.sh	a reference in words in a JSON file	docs/section-refs
+test-check-docs.sh	a reference to an ADR that does not exist	docs/adr-refs
+test-check-docs.sh	a check the local runner has and CI does not	docs/check-lists
+test-check-docs.sh	a script that neither list runs	docs/check-lists
+test-check-docs.sh	a script the local runner names as run on instruction	docs/check-lists
+test-check-docs.sh	another workflow that runs a script the local runner runs, its job not required	docs/check-lists
+test-check-docs.sh	a required check that is a job of another workflow than checks.yml	docs/check-lists
+test-check-docs.sh	a job of another workflow that runs no script	docs/check-lists
+test-check-docs.sh	a toolchain job that runs the build script after a setup step	docs/check-lists
+test-check-docs.sh	a toolchain job with its commands inline and nothing in the local runner	docs/check-lists
+test-check-docs.sh	a publishing workflow the local runner names as no gate, its steps inline	docs/check-lists
+test-check-docs.sh	a publishing workflow not named as no gate	docs/check-lists
+test-check-docs.sh	a '# Not a gate:' line that names no workflow	docs/check-lists
+test-check-docs.sh	a '# Not a gate:' line that names a file outside .github/workflows/	docs/check-lists
+test-check-docs.sh	a '# Not a gate:' line that names the required checks' workflow	docs/check-lists
+test-check-docs.sh	a script a workflow that is no gate runs, and the local runner does not	docs/check-lists
+test-check-docs.sh	a job with a matrix named by its check runs	docs/check-lists
+test-check-docs.sh	a job with a matrix named by its bare name	docs/check-lists
+test-check-docs.sh	a strategy in flow style named by its check runs	docs/check-lists
+test-check-docs.sh	a job that computes a matrix as an output, named by its name	docs/check-lists
+test-check-docs.sh	a check run named for a job without a matrix	docs/check-lists
+test-check-docs.sh	a Project Layout entry that no longer exists	docs/project-layout
+test-check-docs.sh	a top-level file the Project Layout does not name	docs/project-layout
+test-check-docs.sh	a Project Layout pattern that matches nothing	docs/project-layout
+test-check-docs.sh	docs/plan/ named while there is no open work	docs/project-layout
+test-check-docs.sh	a draft, its index row, a link, and a supersession, landing on a feat/ branch	docs/no-draft-on-main
+test-check-docs.sh	a draft outside CI, where nothing names the branch	docs/no-draft-on-main
+test-check-docs.sh	a draft in a pull request into main ready for review	docs/no-draft-on-main
+test-check-docs.sh	a draft in a draft pull request into main, a feat/ branch under rework	docs/no-draft-on-main
+test-check-docs.sh	a draft in a push to main	docs/no-draft-on-main
+test-check-docs.sh	a draft identifier with no draft file	docs/adr-refs
+test-check-docs.sh	a draft whose heading names another draft	docs/adr-numbering
+test-check-docs.sh	a draft whose slug is not lower case and hyphens	docs/adr-numbering
+test-check-docs.sh	a link that cites a draft and points at another ADR	docs/adr-link-targets
+
+# test-check-traceability.sh
+test-check-traceability.sh	accepted ADR and criterion both cited	traceability/coverage
+test-check-traceability.sh	several identifiers on one marker line	traceability/citations
+test-check-traceability.sh	accepted ADR without a citing test	traceability/coverage
+test-check-traceability.sh	proposed ADR needs no citation	traceability/coverage
+test-check-traceability.sh	accepted ADR with a reasoned exemption	traceability/coverage
+test-check-traceability.sh	exemption without a reason	traceability/coverage
+test-check-traceability.sh	criterion without a citing test is listed, not failed	traceability/coverage
+test-check-traceability.sh	a wrapped criterion is read like any other	traceability/criteria
+test-check-traceability.sh	list item without an identifier	traceability/criteria
+test-check-traceability.sh	identifier used twice	traceability/criteria
+test-check-traceability.sh	G-n under Quality Goals	traceability/criteria
+test-check-traceability.sh	marker citing a criterion that does not exist	traceability/citations
+test-check-traceability.sh	marker citing an ADR that does not exist	traceability/citations
+test-check-traceability.sh	marker citing a superseded ADR	traceability/citations
+test-check-traceability.sh	a marker citing a draft that exists	traceability/citations
+test-check-traceability.sh	a marker citing a draft that does not exist	traceability/citations
+test-check-traceability.sh	markers in Markdown do not count	-	which files carry a marker is the shell's reading of the tree, which no rule decides
+test-check-traceability.sh	markers in gitignored files do not count	-	which files carry a marker is the shell's reading of the tree, which no rule decides
+test-check-traceability.sh	the inherited ADRs, once accepted, pass — TEMPLATE-SETUP step 2 keeps CI green	-	the template's own promise on its own tree, run only while TEMPLATE-SETUP.md exists
