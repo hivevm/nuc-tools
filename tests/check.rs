@@ -8,7 +8,7 @@
 
 mod support;
 
-use support::{CONFIG, Fixture, README, stderr, stdout};
+use support::{CONFIG, Fixture, README, id, mark, stderr, stdout};
 
 fn code(output: &std::process::Output) -> Option<i32> {
     output.status.code()
@@ -374,9 +374,9 @@ fn references(name: &str) -> Fixture {
     Fixture::project(name, config, README)
 }
 
-/// A reference to an ADR that does not exist, assembled so that this file names none itself.
+/// A reference to an ADR that does not exist.
 fn missing_reference() -> String {
-    format!("See {}-0099.\n", "ADR")
+    format!("See {}.\n", id("0099"))
 }
 
 #[test]
@@ -616,7 +616,7 @@ fn a_link_path_that_is_no_utf8_is_not_decided() {
 fn flipped_early(name: &str, release_line: &str) -> Fixture {
     let config = "minimum = \"0.0.0\"\nrules = [\"docs/adr-supersessions\"]\n";
     let fixture = Fixture::project(name, config, &format!("# Fixture\n\n{release_line}\n"));
-    let by2 = format!("⚪ superseded by {}-0002", "ADR");
+    let by2 = format!("⚪ superseded by {}", id("0002"));
     fixture.write(
         "docs/adr/0001-a.md",
         &format!("# A\n\n- **Status:** {by2}\n- **Applies to:** x\n"),
@@ -624,8 +624,8 @@ fn flipped_early(name: &str, release_line: &str) -> Fixture {
     fixture.write(
         "docs/adr/0002-b.md",
         &format!(
-            "# B\n\n- **Status:** 🟡 proposed\n- **Supersedes:** {}-0001\n- **Applies to:** x\n",
-            "ADR"
+            "# B\n\n- **Status:** 🟡 proposed\n- **Supersedes:** {}\n- **Applies to:** x\n",
+            id("0001")
         ),
     );
     fixture
@@ -1036,6 +1036,22 @@ fn a_markdown_file_git_marks_generated_is_not_read_for_its_width() {
 }
 
 #[test]
+fn a_wide_line_holding_the_unit_separator_is_not_decided() {
+    let fixture = only("width-separator", "docs/prose-width", README);
+    let mut line = b"[a\x1f b](https://example.invalid/".to_vec();
+    line.extend(b"a".repeat(100));
+    line.extend(b")\n");
+    std::fs::write(fixture.root().join("odd.md"), &line).expect("written");
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(2), "{}", stdout(&output));
+    assert!(
+        stderr(&output).contains("odd.md:1: a line over 100 bytes"),
+        "{}",
+        stderr(&output)
+    );
+}
+
+#[test]
 fn a_wide_line_the_bash_counts_otherwise_is_not_decided() {
     let fixture = only("width-bytes", "docs/prose-width", README);
     let mut line = b"[a\xff b](https://example.invalid/".to_vec();
@@ -1177,11 +1193,6 @@ fn the_criteria_rule_is_explained() {
 
 const CITATIONS: &str = "minimum = \"0.0.0\"\nrules = [\"traceability/citations\"]\n";
 
-/// A marker citing the identifier, assembled so that this file carries no literal one.
-fn mark(id: &str) -> String {
-    format!("{}: {id}\n", "Verifies")
-}
-
 #[test]
 fn citations_are_read_from_the_files_the_bash_reads_them_from() {
     let fixture = Fixture::project("citations", CITATIONS, README);
@@ -1274,7 +1285,8 @@ fn the_criteria_without_a_test_are_named_in_the_summary_and_never_fail_the_run()
     let output = fixture.nuc(&["check"]);
     assert_eq!(code(&output), Some(1), "{}", stderr(&output));
     assert!(
-        stdout(&output).starts_with("docs/adr: traceability/coverage: ADR-0001 is accepted"),
+        stdout(&output)
+            .starts_with("docs/adr/0001-decision.md: traceability/coverage: ADR-0001 is accepted"),
         "{}",
         stdout(&output)
     );

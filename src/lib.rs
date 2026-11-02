@@ -9,4 +9,6 @@ pub mod glob;
 pub mod markdown;
 pub mod rules;
 pub mod shell;
+#[cfg(test)]
+mod testing;
 pub mod traceability;

@@ -66,8 +66,8 @@ patterns=() rules=() modes=() places=()
 while IFS=$'\t' read -r pattern rule mode place extra; do
   [[ -z "$pattern" || "$pattern" == \#* ]] && continue
   if ! [[ -n "$rule" && ( "$mode" == "line" || "$mode" == "-" ) && -z "${extra:-}" ]] \
-    || ! [[ -z "${place:-}" || "$place" == =?* || "$place" == +?* ]]; then
-    die "$TABLE: the row '$pattern' is not 'pattern<TAB>rule ID<TAB>line|-[<TAB>=path|+prefix]'"
+    || ! [[ -z "${place:-}" || "$place" == =?* || "$place" == +?* || "$place" == "@adr" ]]; then
+    die "$TABLE: the row '$pattern' is not 'pattern<TAB>rule ID<TAB>line|-[<TAB>=path|+prefix|@adr]'"
   fi
   patterns+=("$pattern") rules+=("$rule") modes+=("$mode") places+=("${place:-}")
 done < "$TABLE" || die "$TABLE: unreadable"
@@ -99,8 +99,41 @@ canonical() {
 # one pair and return 1 when there are any.
 compare() {
   local label="$1" bash_out="$2" bash_rc="$3" nuc_out="$4" nuc_rc="$5"
-  local -a diffs=() bash_keys=() nuc_keys=()
-  local line msg i rule file n text bash_any=0
+  local -a diffs=() bash_keys=() nuc_keys=() nuc_files=()
+  local line msg i f best rule file n text bash_any=0
+  while IFS= read -r line; do
+    # The location ends before the leftmost ': <rule ID>: ' of a rule the table knows, so that a
+    # path holding ': ' stays whole and a message quoting such a pair keeps it; a line without
+    # one is read as before, its location up to the first colon.
+    rule="" file=""
+    for i in "${!rules[@]}"; do
+      f="${line%%": ${rules[i]}: "*}"
+      if [[ "$f" != "$line" ]] && [[ -z "$rule" || ${#f} -lt ${#file} ]]; then
+        rule="${rules[i]}" file="$f"
+      fi
+    done
+    if [[ -z "$rule" && "$line" =~ ^([^:]+(:[0-9]+)?):\ ([a-z0-9]+/[a-z0-9-]+):\  ]]; then
+      file="${BASH_REMATCH[1]}" rule="${BASH_REMATCH[3]}"
+    fi
+    if [[ -n "$rule" ]]; then
+      n="" text="${line#"$file: $rule: "}"
+      [[ "$(mode_of "$rule")" == "unknown" ]] && diffs+=("nuc reports '$rule', which the table maps no message to")
+      if [[ "$file" =~ ^(.*):([0-9]+)$ ]]; then file="${BASH_REMATCH[1]}" n="${BASH_REMATCH[2]}"; fi
+      nuc_files+=("$file")
+      # Where the table places the message by its ADR, nuc's file is cut to that ADR's key.
+      for i in "${!patterns[@]}"; do
+        if [[ "${rules[i]}" == "$rule" && "${places[i]}" == "@adr" && "$text" =~ ${patterns[i]} ]]; then
+          if [[ "$file" =~ ^docs/adr/([0-9]{4})-[^/]*\.md$ || "$file" =~ ^docs/adr/(draft-[^/]+)\.md$ ]]; then
+            file="docs/adr/${BASH_REMATCH[1]}"
+          fi
+          break
+        fi
+      done
+      nuc_keys+=("$(key "$rule" "$file" "$n" "$text")")
+    else
+      diffs+=("nuc output not understood: $line")
+    fi
+  done < "$nuc_out"
   while IFS= read -r line; do
     case "$line" in
       "  - "*)
@@ -111,17 +144,29 @@ compare() {
         if [[ -z "$rule" ]]; then
           diffs+=("bash message the table does not know: $msg")
         elif [[ "$rule" != "-" ]]; then
-          file="${msg%%: *}" n=""
+          # The location is the longest file nuc names that the message opens with, so that a
+          # path holding ': ' stays whole; else the message up to its first ': '.
+          file="${msg%%: *}" text="${msg#*: }" n="" best=""
+          for f in "${nuc_files[@]}"; do
+            if [[ "$msg" == "$f: "* || "$msg" =~ ^"$f":[0-9]+:\  ]] && ((${#f} > ${#best})); then
+              best="$f"
+            fi
+          done
+          if [[ -n "$best" ]]; then
+            text="${msg#"$best"}" file="$best"
+            [[ "$text" =~ ^:([0-9]+):\  ]] && file="$best:${BASH_REMATCH[1]}"
+            text="${text#*: }"
+          fi
           if [[ "$file" =~ ^(.*):([0-9]+)$ ]]; then
             file="${BASH_REMATCH[1]}"
             [[ "${modes[i]}" == "line" ]] && n="${BASH_REMATCH[2]}"
           fi
           # The text is the message after its location, or the whole message where the table
           # places it at a path of its own.
-          text="${msg#*: }"
           case "${places[i]}" in
             =*) file="${places[i]#=}" text="$msg" ;;
             +*) file="${places[i]#+}$file" ;;
+            @adr) file="${msg%% *}" file="docs/adr/${file#ADR-}" text="$msg" ;;
           esac
           bash_keys+=("$(key "$rule" "$file" "$n" "$text")")
         fi
@@ -131,15 +176,6 @@ compare() {
       *) [[ "$line" =~ ^[0-9]+\ problem\(s\)\ found\.$ ]] || diffs+=("bash output not understood: $line") ;;
     esac
   done < "$bash_out"
-  while IFS= read -r line; do
-    if [[ "$line" =~ ^([^:]+)(:([0-9]+))?:\ ([a-z0-9]+/[a-z0-9-]+):\  ]]; then
-      rule="${BASH_REMATCH[4]}"
-      [[ "$(mode_of "$rule")" == "unknown" ]] && diffs+=("nuc reports '$rule', which the table maps no message to")
-      nuc_keys+=("$(key "$rule" "${BASH_REMATCH[1]}" "${BASH_REMATCH[3]}" "${line#"${BASH_REMATCH[0]}"}")")
-    else
-      diffs+=("nuc output not understood: $line")
-    fi
-  done < "$nuc_out"
 
   local only_bash only_nuc
   only_bash="$(comm -23 <(printf '%s\n' "${bash_keys[@]}" | sort -u) <(printf '%s\n' "${nuc_keys[@]}" | sort -u))"
@@ -268,11 +304,13 @@ run_pair() {
   compare "$label" "$out.bash" "$bash_rc" "$out.nuc" "$nuc_rc"
 }
 
-# apply_variant <copy> <path> <sed|delete|write> <argument> — apply the edit to the copy of a tree.
-# It fails when the edit does not apply: the file is missing, or for 'write' already there,
-# resolves outside the copy, or the sed expression fails or changes nothing. 'write' creates the
-# file with the argument as its one line, in a directory the copy already has. sed runs sandboxed,
-# so an expression runs no command and reads or writes no other file.
+# apply_variant <copy> <path> <sed|delete|write|chomp> <argument> — apply the edit to the copy of a
+# tree. It fails when the edit does not apply: the file is missing, or for 'write' already there,
+# resolves outside the copy, the sed expression fails or changes nothing, or for 'chomp' the file
+# does not end with a newline. 'write' creates the file with the argument as its one line, its
+# backslash escapes read as printf's %b reads them, as \x3a for a colon, in a directory the copy
+# already has; 'chomp' takes the newline off the file's last line, which sed cannot. sed runs
+# sandboxed, so an expression runs no command and reads or writes no other file.
 apply_variant() {
   local copy="$1" file="$1/$2"
   if [[ "$3" == write ]]; then
@@ -280,7 +318,7 @@ apply_variant() {
     local parent
     parent="$(realpath "$(dirname "$file")")"
     [[ "$parent" == "$(realpath "$copy")" || "$parent" == "$(realpath "$copy")"/* ]] || return 1
-    printf '%s\n' "$4" 2>/dev/null > "$file" || return 1
+    printf '%b\n' "$4" 2>/dev/null > "$file" || return 1
     return 0
   fi
   # A symbolic link is deleted itself, wherever it points, when its directory is in the copy.
@@ -295,6 +333,10 @@ apply_variant() {
   [[ "$(realpath -m "$file")" == "$(realpath "$copy")"/* ]] || return 1
   case "$3" in
     delete) rm -f "$file" ;;
+    chomp)
+      [[ "$(tail -c 1 "$file" | od -An -c | tr -d ' ')" == '\n' ]] || return 1
+      truncate -s -1 "$file" || return 1
+      ;;
     sed)
       sed --sandbox -E "$4" "$file" > "$file.after" 2>/dev/null || { rm -f "$file.after"; return 1; }
       if cmp -s "$file" "$file.after"; then rm -f "$file.after"; return 1; fi
@@ -325,8 +367,8 @@ fires() {
 }
 
 # The variants, one row each: name, rule, path in the tree, 'sed' with an extended expression,
-# 'delete' with '-', or 'write' with a line, and optionally the names of the corpus trees it is
-# for, separated by commas, all separated by tabs. Without names it is for every tree. The path
+# 'delete' with '-', 'write' with a line, or 'chomp' with '-', and optionally the names of the
+# corpus trees it is for, separated by commas, all separated by tabs. Without names it is for every tree. The path
 # stays inside the tree and out of its .git; every ported rule brings one at least.
 variant_names=() variant_rules=() variant_paths=() variant_ops=() variant_args=() variant_trees=()
 [[ -r "$variants" ]] || die "$variants: unreadable"
@@ -334,8 +376,8 @@ while IFS=$'\t' read -r vname vrule vpath vop varg vtrees extra || [[ -n "$vname
   [[ -z "$vname" || "$vname" == \#* ]] && continue
   if ! [[ "$vname" =~ ^[a-z0-9-]+$ && -n "$vpath" && -z "${extra:-}" ]] \
     || ! [[ -z "${vtrees:-}" || "$vtrees" =~ ^[a-z0-9-]+(,[a-z0-9-]+)*$ ]] \
-    || ! [[ ( "$vop" == sed && -n "$varg" ) || ( "$vop" == delete && "$varg" == - ) || ( "$vop" == write && -n "$varg" ) ]]; then
-    die "$variants: the row '$vname' is not 'name<TAB>rule<TAB>path<TAB>sed|delete|write<TAB>argument[<TAB>tree,…]'"
+    || ! [[ ( "$vop" == sed && -n "$varg" ) || ( "$vop" =~ ^(delete|chomp)$ && "$varg" == - ) || ( "$vop" == write && -n "$varg" ) ]]; then
+    die "$variants: the row '$vname' is not 'name<TAB>rule<TAB>path<TAB>sed|delete|write|chomp<TAB>argument[<TAB>tree,…]'"
   fi
   # The repository's own .git is no part of the tree: an edit there could point git, and so both
   # tools, at another repository.

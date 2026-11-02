@@ -17,8 +17,9 @@
 # or none, read as check 14 reads it, and compare a later one. The variant cases fail a variant
 # that does not apply to one tree, one that does not make its rule fire beyond the tree's own
 # findings, a ported rule without one, a path outside the tree, a sed expression that runs a
-# command or writes a file, a name used twice, and a malformed or unmapped row. No network and no
-# build.
+# command or writes a file, a name used twice, and a malformed or unmapped row; a 'chomp' applies
+# and is compared, does not apply to a file without a last newline, and takes '-' alone. No
+# network and no build.
 #
 # Inputs: scripts/check-parity.sh tests/parity/ scripts/lib/
 #
@@ -127,13 +128,57 @@ expect fail "the same file and rule with another text is a difference" "only nuc
 printf '%s\n' $'^x\tdocs/x\t-\tdocs/adr/' > "$work/bad-place.tsv"
 expect fail "a place that is neither '=' nor '+' is refused" "is not 'pattern<TAB>rule ID" \
   env PARITY_TABLE="$work/bad-place.tsv" bash "$HARNESS" --compare "$(bash_out bad-place)" 0 "$(nuc_out bad-place)" 0
+printf '%s\n' $'^y\tdocs/y\t-\t@adrx' > "$work/bad-adr.tsv"
+expect fail "a place that only begins as '@adr' is refused" "is not 'pattern<TAB>rule ID" \
+  env PARITY_TABLE="$work/bad-adr.tsv" bash "$HARNESS" --compare "$(bash_out bad-adr)" 0 "$(nuc_out bad-adr)" 0
 
 # The two scripts' outputs read as one: a finding of check-traceability.sh beside a passing
 # check-docs.sh is understood and compared.
 UNCITED="ADR-0001 is accepted but no test cites it — add a 'Verifies' marker"
+UNCITED_ID="${UNCITED%% *}"
+UNCITED_KEY="${UNCITED_ID#ADR-}"
 printf '%s\n' "Documentation checks passed." "Traceability check FAILED:" "  - $UNCITED" > "$work/joined.bash"
 expect pass "the outputs of both scripts are understood" "" \
-  compare "$work/joined.bash" 1 "$(nuc_out joined "docs/adr: traceability/coverage: $UNCITED")" 1
+  compare "$work/joined.bash" 1 "$(nuc_out joined "docs/adr/${UNCITED_KEY}-a.md: traceability/coverage: $UNCITED")" 1
+
+# A place '@adr' names the file of the ADR the message opens with, compared by its key. The
+# identifiers are taken from the message and assembled, so that this file cites no ADR of its own.
+expect fail "an ADR's finding at the file of another ADR is a difference" "only bash reports: traceability/coverage docs/adr/$UNCITED_KEY" \
+  compare "$work/joined.bash" 1 "$(nuc_out adr-other "docs/adr/9999-b.md: traceability/coverage: $UNCITED")" 1
+expect fail "an ADR's finding at the directory is a difference" "only nuc reports: traceability/coverage docs/adr" \
+  compare "$work/joined.bash" 1 "$(nuc_out adr-dir "docs/adr: traceability/coverage: $UNCITED")" 1
+DRAFT="$(printf '%s-%s' ADR draft-a-b)"
+printf '%s\n' "Traceability check FAILED:" "  - ${UNCITED/"$UNCITED_ID"/$DRAFT}" > "$work/draft.bash"
+expect pass "a draft's finding names the draft's file" "" \
+  compare "$work/draft.bash" 1 "$(nuc_out adr-draft "docs/adr/draft-a-b.md: traceability/coverage: ${UNCITED/"$UNCITED_ID"/$DRAFT}")" 1
+# A slug the citations cannot name, with capitals or '_', is compared whole.
+ODD="$(printf '%s-%s' ADR draft-Odd_b)"
+printf '%s\n' "Traceability check FAILED:" "  - ${UNCITED/"$UNCITED_ID"/$ODD}" > "$work/odd.bash"
+expect pass "a draft's slug with capitals and '_' names its file" "" \
+  compare "$work/odd.bash" 1 "$(nuc_out adr-odd "docs/adr/draft-Odd_b.md: traceability/coverage: ${UNCITED/"$UNCITED_ID"/$ODD}")" 1
+expect fail "a draft's finding at a shorter slug is a difference" "only bash reports: traceability/coverage docs/adr/draft-Odd_b" \
+  compare "$work/odd.bash" 1 "$(nuc_out adr-short "docs/adr/draft-Odd.md: traceability/coverage: ${UNCITED/"$UNCITED_ID"/$ODD}")" 1
+# Another finding of the rule, whose text the row does not match, keeps its whole file.
+EXEMPT="docs/adr/${UNCITED_KEY}-a.md: 'Not mechanically decidable' declared without a reason — the paragraph has to say why no test can decide it"
+printf '%s\n' "Traceability check FAILED:" "  - $EXEMPT" > "$work/exempt.bash"
+expect pass "a finding the '@adr' row does not match keeps its file" "" \
+  compare "$work/exempt.bash" 1 "$(nuc_out adr-exempt "docs/adr/${UNCITED_KEY}-a.md: traceability/coverage: ${EXEMPT#*: }")" 1
+
+# A path holding ': ' is placed whole on both sides, at the file nuc names.
+COLON="docs/a: b.md: broken relative link -> 'x.md'"
+expect pass "a path holding ': ' is placed at the same file" "" \
+  compare "$(bash_out colon "$COLON")" 1 "$(nuc_out colon "docs/a: b.md: docs/links: broken relative link -> 'x.md'")" 1
+expect fail "a path holding ': ' that nuc names otherwise is a difference" "only nuc reports: docs/links docs/a: c.md" \
+  compare "$(bash_out colon-other "$COLON")" 1 "$(nuc_out colon-other "docs/a: c.md: docs/links: broken relative link -> 'x.md'")" 1
+
+# A path holding ': ' at a line, and a message that quotes ': <rule ID>: ', are placed whole.
+CITED="parity: variant.txt:1: cites 'Q-999', which is not a criterion of docs/SPECIFICATION.md"
+printf '%s\n' "Traceability check FAILED:" "  - $CITED" > "$work/colon-line.bash"
+expect pass "a path holding ': ' at a line is placed at the same file and line" "" \
+  compare "$work/colon-line.bash" 1 "$(nuc_out colon-line "parity: variant.txt:1: traceability/citations: ${CITED#*:1: }")" 1
+QUOTED="README.md: broken relative link -> 'q: docs/links: z'"
+expect pass "a message quoting ': <rule ID>: ' keeps its text" "" \
+  compare "$(bash_out quoted "$QUOTED")" 1 "$(nuc_out quoted "README.md: docs/links: ${QUOTED#README.md: }")" 1
 
 # --- cases: a run over a corpus -----------------------------------------------------------
 
@@ -320,6 +365,21 @@ expect fail "a variant that writes a new file applies, and is compared" "variant
 v="$(variants "$work/v-overwrite.tsv" "$DELETE" $'overwrite\tdocs/template-release\tREADME.md\twrite\tGone')"
 expect fail "a variant that would write over a file does not apply" "variant overwrite — its edit of README.md does not apply" \
   run "$c" "$(reactive_nuc)" "$v"
+
+v="$(variants "$work/v-chomp.tsv" "$DELETE" $'chomped\tdocs/template-release\tREADME.md\tchomp\t-')"
+expect fail "a variant that takes the last newline off applies, and is compared" "variant chomped — bash reports no finding" \
+  run "$c" "$(reactive_nuc)" "$v"
+source_repo unterminated > /dev/null
+printf '%s' "no newline" > "$work/src-unterminated/NO-NEWLINE.md"
+git -C "$work/src-unterminated" add -A
+git -C "$work/src-unterminated" -c user.name=F -c user.email=f@example.invalid -c core.hooksPath=/dev/null commit -qm unterminated
+git -C "$work/src-unterminated" rev-parse HEAD > "$work/src-unterminated.commit"
+v="$(variants "$work/v-chomp-none.tsv" "$DELETE" $'unchomped\tdocs/template-release\tNO-NEWLINE.md\tchomp\t-')"
+expect fail "a chomp of a file without a last newline does not apply" "variant unchomped — its edit of NO-NEWLINE.md does not apply" \
+  run "$(corpus "$work/unterminated.toml" unterminated)" "$(reactive_nuc)" "$v"
+
+v="$(variants "$work/v-chomp-arg.tsv" "$DELETE" $'chomp-arg\tdocs/template-release\tREADME.md\tchomp\tx')"
+expect fail "a chomp with an argument other than '-' is refused" "is not 'name<TAB>rule" run "$c" "$(reactive_nuc)" "$v"
 
 v="$(variants "$work/v-git.tsv" "$DELETE" $'git\tdocs/template-release\t.git/commondir\twrite\t/elsewhere')"
 expect fail "a variant that edits the repository's .git is refused" "no path inside the tree" run "$c" "$(reactive_nuc)" "$v"

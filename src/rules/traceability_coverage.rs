@@ -71,13 +71,14 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
                     .to_owned(),
             }),
         }
-        accepted.push(id);
+        accepted.push((id, name));
     }
-    for id in accepted {
+    // The bash's message names no file; the finding names the ADR's, where an editor can go.
+    for (id, name) in accepted {
         if !exempt.contains(&id) && !cited.contains(&id) {
             findings.push(Finding {
                 rule: RULE_ID,
-                file: "docs/adr".to_owned(),
+                file: format!("docs/adr/{name}"),
                 line: None,
                 message: format!(
                     "{id} is accepted but no test cites it — add a 'Verifies' marker or declare \
@@ -140,15 +141,7 @@ fn exemption(text: &[u8]) -> Exemption {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    /// The marker for the identifiers, assembled so that this file carries no literal one.
-    fn mark(ids: &str) -> String {
-        format!("{}: {ids}\n", "Verifies")
-    }
-
-    fn adr_id(n: u32) -> String {
-        format!("ADR-{n:04}")
-    }
+    use crate::testing::{adr_id, mark};
 
     /// An ADR as the bash self-test writes it, with the Enforcement section given.
     fn adr_file(n: u32, status: &str, enforcement: &str) -> (String, Vec<u8>) {
@@ -185,8 +178,8 @@ mod tests {
 
     fn uncited(n: u32) -> String {
         format!(
-            "docs/adr: {} is accepted but no test cites it — add a 'Verifies' marker or declare \
-             it not mechanically decidable in its Enforcement section",
+            "docs/adr/{n:04}-decision.md: {} is accepted but no test cites it — add a 'Verifies' \
+             marker or declare it not mechanically decidable in its Enforcement section",
             adr_id(n)
         )
     }
@@ -195,15 +188,20 @@ mod tests {
     fn the_cases_of_the_bash_self_test_report_as_it_does() {
         let review = "Review only.";
         let both = format!("{}{}", mark(&adr_id(1)), mark("G-1"));
+        // bash: accepted ADR and criterion both cited
         assert!(messages(&inputs(SPEC, &[(1, "🟢 accepted", review)], &both)).is_empty());
+        // bash: accepted ADR without a citing test
         assert_eq!(
             messages(&inputs(SPEC, &[(1, "🟢 accepted", review)], &mark("G-1"))),
             [uncited(1)]
         );
+        // bash: proposed ADR needs no citation
         assert!(messages(&inputs(SPEC, &[(1, "🟡 proposed", review)], &mark("G-1"))).is_empty());
         let reasoned = "**Not mechanically decidable:** it is a judgement call.";
+        // bash: accepted ADR with a reasoned exemption
         assert!(messages(&inputs(SPEC, &[(1, "🟢 accepted", reasoned)], &mark("G-1"))).is_empty());
         let bare = "**Not mechanically decidable:**";
+        // bash: exemption without a reason
         assert_eq!(
             messages(&inputs(SPEC, &[(1, "🟢 accepted", bare)], &mark("G-1"))),
             [
@@ -305,7 +303,14 @@ mod tests {
             adr: adrs,
             ..Inputs::default()
         };
-        assert_eq!(messages(&inputs), [uncited(1), uncited(1)]);
+        // The bash says the same twice; each finding names the file it is about.
+        assert_eq!(
+            messages(&inputs),
+            [
+                uncited(1),
+                uncited(1).replace("0001-decision.md", "0001-twin.md")
+            ]
+        );
     }
 
     #[test]
@@ -323,6 +328,7 @@ mod tests {
     fn the_criteria_without_a_test_are_its_note_and_no_finding() {
         let outcome = outcome(&inputs(SPEC, &[], ""));
         assert_eq!(outcome.refusal, None);
+        // bash: criterion without a citing test is listed, not failed
         assert_eq!(outcome.notes, ["2 criteria without a test: G-1 Q-1"]);
         assert!(outcome.notes.iter().all(|note| !note.ends_with('.')));
     }
