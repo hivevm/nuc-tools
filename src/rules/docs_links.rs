@@ -115,6 +115,8 @@ mod tests {
             &[("README.md", readme)],
             &[("AGENTS.md", true, Some(AGENTS)), ("docs/", true, None)],
         );
+        // bash: an anchor slugged the way GitHub does, closing hashes dropped
+        // bash: a heading on a last line without a newline anchors
         assert_eq!(messages(&inputs), Vec::<String>::new());
     }
 
@@ -128,6 +130,8 @@ mod tests {
                 ("AGENTS.md", true, Some(AGENTS)),
             ],
         );
+        // bash: a relative link to a file that does not exist
+        // bash: a link to an anchor no heading carries
         assert_eq!(
             messages(&inputs),
             [

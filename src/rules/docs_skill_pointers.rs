@@ -127,6 +127,11 @@ mod tests {
             .into_iter()
             .map(|f| format!("{}: {}", f.file, f.message))
             .collect();
+        // bash: a skill without its pointer
+        // bash: a pointer whose skill is gone
+        // bash: a copy where a symlink belongs
+        // bash: a pointer at a different skill
+        // bash: a skill that lives only in the pointer directory
         assert_eq!(
             found,
             [
@@ -137,5 +142,30 @@ mod tests {
                 ".claude/skills/f: points at '.agents/skills/a', not at the skill .agents/skills/f",
             ]
         );
+    }
+
+    // bash: skills only in the pointer directory, none for the other agents
+    #[test]
+    fn a_skill_only_in_the_pointer_directory_with_no_skills_beside_it_fails() {
+        let inputs = Inputs {
+            skills: Skills {
+                skills: Vec::new(),
+                pointers: vec![("review".to_owned(), Entry::NotSymlink { skill: false })],
+            },
+            ..Inputs::default()
+        };
+        let found: Vec<String> = check(&inputs).into_iter().map(|f| f.file).collect();
+        assert_eq!(found, [".claude/skills/review"]);
+        assert!(
+            check(&inputs)[0]
+                .message
+                .starts_with("is not a symlink into .agents/skills/")
+        );
+    }
+
+    // bash: a repository without skills has nothing to check
+    #[test]
+    fn a_tree_without_skills_or_pointers_passes() {
+        assert_eq!(check(&Inputs::default()), []);
     }
 }

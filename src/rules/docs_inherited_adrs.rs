@@ -145,16 +145,21 @@ mod tests {
     /// The cases of check 12 in the template's `scripts/test-check-docs.sh`.
     #[test]
     fn the_cases_of_the_bash_self_test_report_as_it_does() {
+        // bash: an inherited ADR nobody here decided, with the setup file gone
         assert_eq!(found("🟡 proposed", "NUC maintainer", false), [UNDECIDED]);
+        // bash: an inherited ADR still proposed while the setup file exists
         assert_eq!(
             found("🟡 proposed", "NUC maintainer", true),
             Vec::<String>::new()
         );
+        // bash: an inherited ADR accepted by the project's maintainer
         assert_eq!(
             found("🟢 accepted", "NUC maintainer, project maintainer", false),
             Vec::<String>::new()
         );
+        // bash: an inherited ADR shipped accepted, nobody here added to Deciders
         assert_eq!(found("🟢 accepted", "NUC maintainer", false), [UNDECIDED]);
+        // bash: an inherited ADR accepted, the project's maintainer joined with 'and'
         assert_eq!(
             found(
                 "🟢 accepted",
@@ -163,14 +168,17 @@ mod tests {
             ),
             Vec::<String>::new()
         );
+        // bash: an inherited ADR the project rejected is history, not read
         assert_eq!(
             found("🔴 rejected", "NUC maintainer", false),
             Vec::<String>::new()
         );
+        // bash: the project's own proposed ADR after setup
         assert_eq!(
             found("🟡 proposed", "project maintainer", false),
             Vec::<String>::new()
         );
+        // bash: an inherited ADR whose Deciders field wraps, the template's name on the second line
         assert_eq!(
             found(
                 "🟡 proposed",

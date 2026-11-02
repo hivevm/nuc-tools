@@ -153,6 +153,7 @@ mod tests {
             ("0002-b.md", adr(&by3, "")),
             ("0003-c.md", adr("🟢 accepted", &field)),
         ];
+        // bash: a Supersedes field wrapped onto a second line, both flipped
         assert_eq!(found(&adrs), []);
     }
 
@@ -167,6 +168,7 @@ mod tests {
             ("0002-b.md", adr("🟡 proposed", "")),
             ("0003-c.md", adr("🟢 accepted", &field)),
         ];
+        // bash: one ADR superseding two, the second not flipped
         assert_eq!(
             found(&adrs),
             [(
@@ -236,6 +238,7 @@ mod tests {
             ("0002-b.md", adr(&by3, "")),
             ("0003-c.md", adr("🟢 accepted", &field)),
         ];
+        // bash: one ADR superseding two, both flipped
         assert_eq!(found(&adrs), []);
     }
 
@@ -254,6 +257,7 @@ mod tests {
             ("0002-b.md", adr("🟡 proposed", "")),
             ("0003-c.md", adr("🟢 accepted", &field)),
         ];
+        // bash: a wrapped Supersedes field, the name on the second line not flipped
         assert_eq!(
             found(&adrs),
             [(
@@ -290,8 +294,10 @@ mod tests {
     #[test]
     fn from_v0_6_0_a_proposed_supersession_leaves_the_old_adr_in_force() {
         let v0_6 = Some(FLIP_ON_ACCEPTANCE);
+        // bash: a proposed supersession, the old ADR still accepted
         assert_eq!(found_at(v0_6, &proposed_supersession("🟢 accepted")), []);
         let early = proposed_supersession(&format!("⚪ superseded by {}", id("0002")));
+        // bash: an old ADR flipped while its successor is only proposed
         assert_eq!(
             found_at(v0_6, &early),
             [(
@@ -332,6 +338,7 @@ mod tests {
                 ),
             ),
         ];
+        // bash: a chain of supersessions, the last successor accepted
         assert_eq!(found_at(Some(FLIP_ON_ACCEPTANCE), &adrs), []);
     }
 

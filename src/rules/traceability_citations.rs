@@ -121,6 +121,7 @@ mod tests {
         let g1 = spec(&["**G-1** — it works."], Q1);
         let g2 = spec(&["**G-1** — it works.", "**G-2** — it also works."], Q1);
         let text = format!("{}{}", mark(&adr_id(1)), mark("G-1"));
+        // bash: accepted ADR and criterion both cited
         assert!(
             messages(&inputs(
                 &g1,
@@ -130,6 +131,7 @@ mod tests {
             .is_empty()
         );
         let text = mark(&format!("{}, G-1 G-2", adr_id(1)));
+        // bash: several identifiers on one marker line
         assert!(
             messages(&inputs(
                 &g2,
@@ -138,6 +140,7 @@ mod tests {
             ))
             .is_empty()
         );
+        // bash: G-n under Quality Goals
         // A G-n filed under Quality Goals is still a criterion a marker may cite.
         let wrong = spec(
             &["**G-1** — it works."],
@@ -152,6 +155,7 @@ mod tests {
             ))
             .is_empty()
         );
+        // bash: marker citing a criterion that does not exist
         assert_eq!(
             messages(&inputs(
                 &g1,
@@ -161,6 +165,7 @@ mod tests {
             ["tests/t.txt:1: cites 'G-9', which is not a criterion of docs/SPECIFICATION.md"]
         );
         let text = mark(&format!("G-1 {}", adr_id(42)));
+        // bash: marker citing an ADR that does not exist
         assert_eq!(
             messages(&inputs(
                 &g1,
@@ -174,6 +179,7 @@ mod tests {
         );
         let superseded = format!("⚪ superseded by {}", adr_id(2));
         let text = mark(&format!("G-1 {} {}", adr_id(1), adr_id(2)));
+        // bash: marker citing a superseded ADR
         assert_eq!(
             messages(&inputs(
                 &g1,
@@ -196,8 +202,10 @@ mod tests {
             "draft-next.md".to_owned(),
             format!("# {draft}: next\n\n- **Status:** 🟡 proposed\n").into_bytes(),
         );
+        // bash: a marker citing a draft that exists
         assert!(messages(&inputs).is_empty());
         inputs.adr.remove("draft-next.md");
+        // bash: a marker citing a draft that does not exist
         assert_eq!(
             messages(&inputs),
             [format!(

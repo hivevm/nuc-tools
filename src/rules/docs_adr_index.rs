@@ -311,6 +311,7 @@ mod tests {
                 vec![a.clone()],
                 "file '0001-a.md' exists but is not listed",
             ),
+            // bash: a row both sides of a union merge kept
             (
                 format!(
                     "{HEAD}| [0001](0001-a.md) | T | every commit | 🟢 |\n| [0001](0001-a.md) | T | every commit | 🟢 |\n"
@@ -323,6 +324,7 @@ mod tests {
                 vec![],
                 "lists '0002-b.md', but no such ADR file exists",
             ),
+            // bash: an index status that disagrees with the ADR
             (
                 format!("{HEAD}| [0001](0001-a.md) | T | every commit | 🟡 |\n"),
                 vec![a.clone()],
@@ -366,6 +368,34 @@ mod tests {
                 "{needle}: {found:?}"
             );
         }
+    }
+
+    // bash: a rejected row with no archive heading above it
+    #[test]
+    fn a_rejected_row_above_the_archive_heading_fails() {
+        let index = format!("{HEAD}| [0001](0001-a.md) | T | every commit | 🔴 rejected |\n");
+        let files = [("0001-a.md", adr_file("🔴 rejected", "every commit"))];
+        assert_eq!(
+            messages(&dir(&index, &files)),
+            [
+                "ADR index: row for 0001 is 🔴 but sits above the 'Superseded and rejected' heading — move it there, a session reads the first table as binding"
+            ]
+        );
+    }
+
+    // bash: a proposed row under the archive heading
+    #[test]
+    fn a_proposed_row_under_the_archive_heading_fails() {
+        let index = format!(
+            "## Superseded and rejected\n\n{HEAD}| [0001](0001-a.md) | T | every commit | 🟡 proposed |\n"
+        );
+        let files = [("0001-a.md", adr_file("🟡 proposed", "every commit"))];
+        assert_eq!(
+            messages(&dir(&index, &files)),
+            [
+                "ADR index: row for 0001 is 🟡 but sits below the 'Superseded and rejected' heading — move it up, a binding decision there is never read"
+            ]
+        );
     }
 
     #[test]

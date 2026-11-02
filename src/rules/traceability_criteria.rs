@@ -84,7 +84,9 @@ mod tests {
 
     #[test]
     fn the_cases_of_the_bash_self_test_report_as_it_does() {
+        // bash: accepted ADR and criterion both cited
         assert!(messages(&spec(&["**G-1** — it works."], Q1)).is_empty());
+        // bash: several identifiers on one marker line
         assert!(
             messages(&spec(
                 &["**G-1** — it works.", "**G-2** — it also works."],
@@ -93,6 +95,7 @@ mod tests {
             .is_empty()
         );
         // A wrapped criterion: the continuation is no list item.
+        // bash: a wrapped criterion is read like any other
         assert!(
             messages(&spec(
                 &["**G-1** — a criterion whose text\n  wraps onto a second line."],
@@ -100,10 +103,12 @@ mod tests {
             ))
             .is_empty()
         );
+        // bash: list item without an identifier
         assert_eq!(
             messages(&spec(&["it works, but carries no identifier."], Q1)),
             ["list item without a bold G-n identifier: 'it works, but carries no identifier.'"]
         );
+        // bash: identifier used twice
         assert_eq!(
             messages(&spec(
                 &["**G-1** — it works.", "**G-1** — it works twice."],
@@ -111,6 +116,7 @@ mod tests {
             )),
             ["identifier 'G-1' appears twice — identifiers are never reused"]
         );
+        // bash: G-n under Quality Goals
         assert_eq!(
             messages(&spec(
                 &["**G-1** — it works."],

@@ -212,10 +212,12 @@ mod tests {
 
     #[test]
     fn a_line_over_100_columns_fails_and_one_at_100_passes() {
+        // bash: a prose line of exactly 100 columns
         assert_eq!(
             found("README.md", &format!("{}\n", prose(100))),
             Vec::<String>::new()
         );
+        // bash: a prose line over 100 columns
         assert_eq!(
             found("README.md", &format!("# T\n\n{}\n", prose(101))),
             [
@@ -230,6 +232,7 @@ mod tests {
         let text = format!(
             "---\n{long}\n---\n```\n{long}\n```\n  ~~~~\n{long}\n~~~\n{long}\n~~~~\n| {long}\n# {long}\n"
         );
+        // bash: a table row, a heading, and a code block are exempt
         assert_eq!(found("README.md", &text), Vec::<String>::new());
         let header = format!("- **Applies to:** {long}\n");
         assert_eq!(found("docs/adr/0001-a.md", &header), Vec::<String>::new());
@@ -243,6 +246,7 @@ mod tests {
             found("README.md", &format!("{url}\n")),
             Vec::<String>::new()
         );
+        // bash: a link that cannot break stands on a line of its own
         assert_eq!(
             found("README.md", &format!("  [a long link text]({url})\n")),
             Vec::<String>::new()
@@ -289,17 +293,31 @@ mod tests {
             .adr
             .insert("0001-a.md".to_owned(), superseded.as_bytes().to_vec());
         inputs.generated.insert("CHANGELOG.md".to_owned());
+        // bash: a file git marks as generated is not read
         assert_eq!(check(&inputs), []);
+    }
+
+    // bash: a file marked not generated is read
+    #[test]
+    fn a_file_git_does_not_mark_as_generated_is_read() {
+        assert_eq!(
+            found("CHANGELOG.md", &format!("{}\n", prose(120))),
+            [
+                "CHANGELOG.md:1: 120 columns — wrap the prose at 100 (a link that does not fit stands on a line of its own)"
+            ]
+        );
     }
 
     /// The cases of check 15 in the template's `scripts/test-check-docs.sh` the others leave out.
     #[test]
     fn the_remaining_cases_of_the_bash_self_test() {
         let words = |n: usize| "word ".repeat(n).chars().take(n).collect::<String>();
+        // bash: an em dash counts as one column
         assert_eq!(
             found("README.md", &format!("{} — {}\n", words(48), words(49))),
             Vec::<String>::new()
         );
+        // bash: a fence inside a longer fence does not close it
         assert_eq!(
             found(
                 "README.md",
@@ -308,6 +326,7 @@ mod tests {
             Vec::<String>::new()
         );
         let url = words(100).replace(' ', "x");
+        // bash: prose after a long link can wrap
         assert_eq!(
             found(
                 "README.md",
@@ -316,6 +335,7 @@ mod tests {
             .len(),
             1
         );
+        // bash: a bold label outside an ADR header is prose
         assert_eq!(
             found("README.md", &format!("- **Label:** {}\n", words(110))).len(),
             1

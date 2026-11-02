@@ -305,6 +305,7 @@ mod tests {
             b"tab",
             b"ber",
         ];
+        // bash: an anchor slugged the way GitHub does, closing hashes dropped
         assert_eq!(slugs, expected.map(<[u8]>::to_vec));
     }
 

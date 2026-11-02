@@ -32,7 +32,9 @@ skimmed. The design revision drops what prevented nothing
 - **A port copies the bash, quirks included** — a rule reports what its bash check reports on
   inputs the corpus lacks as well, its exemptions and oddities with it: only the first Template
   release line counts, and a missing README is the finding of another rule. Its unit tests copy
-  the cases of the bash self-test. Where the bash result depends on more than the input, as grep's
+  the cases of the bash self-test, each naming the case it copies in a `// bash: <name>` comment;
+  `tests/bash_cases.rs` holds them together, its list giving each case its rule, and fails on a
+  case of a rule no test names. Where the bash result depends on more than the input, as grep's
   on a file with a NUL byte, `nuc` refuses instead of guessing. Each port is tried on the bytes
   the bash reads otherwise than Rust: a byte of no valid UTF-8, the byte 0x1F its awk passes split
   fields on, a last line without a newline (`read` drops it, awk and `sed` keep it), numbers in

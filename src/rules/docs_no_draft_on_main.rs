@@ -110,10 +110,15 @@ mod tests {
     /// The cases of check 16 in the template's `scripts/test-check-docs.sh`.
     #[test]
     fn a_draft_fails_only_where_a_ready_change_lands_on_main() {
+        // bash: a draft, its index row, a link, and a supersession, landing on a feat/ branch
         assert_eq!(found(pull_request("feat/topic", false)), 0);
+        // bash: a draft outside CI, where nothing names the branch
         assert_eq!(found(Landing::default()), 0);
+        // bash: a draft in a pull request into main ready for review
         assert_eq!(found(pull_request("main", false)), 1);
+        // bash: a draft in a draft pull request into main, a feat/ branch under rework
         assert_eq!(found(pull_request("main", true)), 0);
+        // bash: a draft in a push to main
         let push = Landing {
             actions: true,
             ref_name: Some("main".to_owned()),
