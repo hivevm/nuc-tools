@@ -99,44 +99,27 @@ canonical() {
 # one pair and return 1 when there are any.
 compare() {
   local label="$1" bash_out="$2" bash_rc="$3" nuc_out="$4" nuc_rc="$5"
-  local -a diffs=() bash_keys=() nuc_keys=()
-  local line msg i rule file n text bash_any=0
+  local -a diffs=() bash_keys=() nuc_keys=() nuc_files=()
+  local line msg i f best rule file n text bash_any=0
   while IFS= read -r line; do
-    case "$line" in
-      "  - "*)
-        bash_any=1 msg="${line#  - }" rule=""
-        for i in "${!patterns[@]}"; do
-          [[ "$msg" =~ ${patterns[i]} ]] && { rule="${rules[i]}"; break; }
-        done
-        if [[ -z "$rule" ]]; then
-          diffs+=("bash message the table does not know: $msg")
-        elif [[ "$rule" != "-" ]]; then
-          file="${msg%%: *}" n=""
-          if [[ "$file" =~ ^(.*):([0-9]+)$ ]]; then
-            file="${BASH_REMATCH[1]}"
-            [[ "${modes[i]}" == "line" ]] && n="${BASH_REMATCH[2]}"
-          fi
-          # The text is the message after its location, or the whole message where the table
-          # places it at a path of its own.
-          text="${msg#*: }"
-          case "${places[i]}" in
-            =*) file="${places[i]#=}" text="$msg" ;;
-            +*) file="${places[i]#+}$file" ;;
-            @adr) file="${msg%% *}" file="docs/adr/${file#ADR-}" text="$msg" ;;
-          esac
-          bash_keys+=("$(key "$rule" "$file" "$n" "$text")")
-        fi
-        ;;
-      "" | "Documentation checks FAILED:" | "Documentation checks passed." \
-        | "Traceability check FAILED:" | "Traceability check passed ("*")." ) ;;
-      *) [[ "$line" =~ ^[0-9]+\ problem\(s\)\ found\.$ ]] || diffs+=("bash output not understood: $line") ;;
-    esac
-  done < "$bash_out"
-  while IFS= read -r line; do
-    if [[ "$line" =~ ^([^:]+)(:([0-9]+))?:\ ([a-z0-9]+/[a-z0-9-]+):\  ]]; then
-      rule="${BASH_REMATCH[4]}"
+    # The location ends before the leftmost ': <rule ID>: ' of a rule the table knows, so that a
+    # path holding ': ' stays whole and a message quoting such a pair keeps it; a line without
+    # one is read as before, its location up to the first colon.
+    rule="" file=""
+    for i in "${!rules[@]}"; do
+      f="${line%%": ${rules[i]}: "*}"
+      if [[ "$f" != "$line" ]] && [[ -z "$rule" || ${#f} -lt ${#file} ]]; then
+        rule="${rules[i]}" file="$f"
+      fi
+    done
+    if [[ -z "$rule" && "$line" =~ ^([^:]+(:[0-9]+)?):\ ([a-z0-9]+/[a-z0-9-]+):\  ]]; then
+      file="${BASH_REMATCH[1]}" rule="${BASH_REMATCH[3]}"
+    fi
+    if [[ -n "$rule" ]]; then
+      n="" text="${line#"$file: $rule: "}"
       [[ "$(mode_of "$rule")" == "unknown" ]] && diffs+=("nuc reports '$rule', which the table maps no message to")
-      file="${BASH_REMATCH[1]}" n="${BASH_REMATCH[3]}" text="${line#"${BASH_REMATCH[0]}"}"
+      if [[ "$file" =~ ^(.*):([0-9]+)$ ]]; then file="${BASH_REMATCH[1]}" n="${BASH_REMATCH[2]}"; fi
+      nuc_files+=("$file")
       # Where the table places the message by its ADR, nuc's file is cut to that ADR's key.
       for i in "${!patterns[@]}"; do
         if [[ "${rules[i]}" == "$rule" && "${places[i]}" == "@adr" && "$text" =~ ${patterns[i]} ]]; then
@@ -151,6 +134,48 @@ compare() {
       diffs+=("nuc output not understood: $line")
     fi
   done < "$nuc_out"
+  while IFS= read -r line; do
+    case "$line" in
+      "  - "*)
+        bash_any=1 msg="${line#  - }" rule=""
+        for i in "${!patterns[@]}"; do
+          [[ "$msg" =~ ${patterns[i]} ]] && { rule="${rules[i]}"; break; }
+        done
+        if [[ -z "$rule" ]]; then
+          diffs+=("bash message the table does not know: $msg")
+        elif [[ "$rule" != "-" ]]; then
+          # The location is the longest file nuc names that the message opens with, so that a
+          # path holding ': ' stays whole; else the message up to its first ': '.
+          file="${msg%%: *}" text="${msg#*: }" n="" best=""
+          for f in "${nuc_files[@]}"; do
+            if [[ "$msg" == "$f: "* || "$msg" =~ ^"$f":[0-9]+:\  ]] && ((${#f} > ${#best})); then
+              best="$f"
+            fi
+          done
+          if [[ -n "$best" ]]; then
+            text="${msg#"$best"}" file="$best"
+            [[ "$text" =~ ^:([0-9]+):\  ]] && file="$best:${BASH_REMATCH[1]}"
+            text="${text#*: }"
+          fi
+          if [[ "$file" =~ ^(.*):([0-9]+)$ ]]; then
+            file="${BASH_REMATCH[1]}"
+            [[ "${modes[i]}" == "line" ]] && n="${BASH_REMATCH[2]}"
+          fi
+          # The text is the message after its location, or the whole message where the table
+          # places it at a path of its own.
+          case "${places[i]}" in
+            =*) file="${places[i]#=}" text="$msg" ;;
+            +*) file="${places[i]#+}$file" ;;
+            @adr) file="${msg%% *}" file="docs/adr/${file#ADR-}" text="$msg" ;;
+          esac
+          bash_keys+=("$(key "$rule" "$file" "$n" "$text")")
+        fi
+        ;;
+      "" | "Documentation checks FAILED:" | "Documentation checks passed." \
+        | "Traceability check FAILED:" | "Traceability check passed ("*")." ) ;;
+      *) [[ "$line" =~ ^[0-9]+\ problem\(s\)\ found\.$ ]] || diffs+=("bash output not understood: $line") ;;
+    esac
+  done < "$bash_out"
 
   local only_bash only_nuc
   only_bash="$(comm -23 <(printf '%s\n' "${bash_keys[@]}" | sort -u) <(printf '%s\n' "${nuc_keys[@]}" | sort -u))"
@@ -282,9 +307,10 @@ run_pair() {
 # apply_variant <copy> <path> <sed|delete|write|chomp> <argument> — apply the edit to the copy of a
 # tree. It fails when the edit does not apply: the file is missing, or for 'write' already there,
 # resolves outside the copy, the sed expression fails or changes nothing, or for 'chomp' the file
-# does not end with a newline. 'write' creates the file with the argument as its one line, in a
-# directory the copy already has; 'chomp' takes the newline off the file's last line, which sed
-# cannot. sed runs sandboxed, so an expression runs no command and reads or writes no other file.
+# does not end with a newline. 'write' creates the file with the argument as its one line, its
+# backslash escapes read as printf's %b reads them, as \x3a for a colon, in a directory the copy
+# already has; 'chomp' takes the newline off the file's last line, which sed cannot. sed runs
+# sandboxed, so an expression runs no command and reads or writes no other file.
 apply_variant() {
   local copy="$1" file="$1/$2"
   if [[ "$3" == write ]]; then
@@ -292,7 +318,7 @@ apply_variant() {
     local parent
     parent="$(realpath "$(dirname "$file")")"
     [[ "$parent" == "$(realpath "$copy")" || "$parent" == "$(realpath "$copy")"/* ]] || return 1
-    printf '%s\n' "$4" 2>/dev/null > "$file" || return 1
+    printf '%b\n' "$4" 2>/dev/null > "$file" || return 1
     return 0
   fi
   # A symbolic link is deleted itself, wherever it points, when its directory is in the copy.

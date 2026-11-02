@@ -49,8 +49,8 @@
 ^[^ :]+: superseded by ADR-[^ ]+, which is not accepted — the status line flips when the human accepts ADR-	docs/adr-supersessions	-	+docs/adr/
 
 # check-docs.sh, check 3: the relative links.
-^[^:]+: broken relative link -> '.*'$	docs/links	-
-^[^:]+: link '.*' has no matching anchor '#.*' in .*$	docs/links	-
+^.+: broken relative link -> '.*'$	docs/links	-
+^.+: link '.*' has no matching anchor '#.*' in .*$	docs/links	-
 
 # check-docs.sh, check 4: the section references; the findings of AGENTS.md itself name no line.
 ^[^:]+:[0-9]+: reference 'AGENTS\.md, section [0-9]+' matches no numbered section in AGENTS\.md$	docs/section-refs	line
