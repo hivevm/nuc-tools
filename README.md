@@ -303,7 +303,7 @@ instruction ([ADR-0023](docs/adr/0023-decisions-verified-by-tests.md)).
 
 ## Template
 
-- **Template release:** v0.6.1 — the release of [NUC](https://github.com/hivevm/nuc) this
+- **Template release:** v0.6.2 — the release of [NUC](https://github.com/hivevm/nuc) this
   repository carries; a project moves the line when it takes up a later one
   ([ADR-0024](docs/adr/0024-template-releases.md)).
 
