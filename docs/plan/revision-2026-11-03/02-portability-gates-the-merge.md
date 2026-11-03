@@ -20,8 +20,10 @@ Windows job caught a path separator (bdaf85a) before the merge, because the huma
 
 A check could have caught the macOS failure: a required status check. Whether the three
 Portability jobs become required is a decision on what gates the merge. It belongs to the human
-and is recorded as an ADR: ADR-0008 names the required jobs of `checks.yml` and is silent on
-Portability. Q-4 asks that the suite pass on all four platforms.
+and is recorded as an ADR. ADR-0008 left it open on purpose: its *Out of scope* names "the
+platform matrix of Q-4 and which of its jobs are required", and its *Follow-ups* list "the
+platform matrix and its required jobs". This ticket takes up that open follow-up. Q-4 asks that
+the suite pass on all four platforms.
 
 Options to weigh with the human:
 

@@ -80,7 +80,8 @@ golden path and the test pattern an agent copies from are named here.
   1. a module under `src/rules/` with its `RULE_ID`, an `area/name`, and its `RULE`, listed in
      `rules::ALL` and its ID in `tests/contract.rule-ids`, which keeps it from then on, its unit
      tests the cases of the bash self-test of the check it ports, each named in a `// bash:`
-     comment and given its rule in `tests/bash_cases.tsv`;
+     comment and given its rule in `tests/bash_cases.tsv`, which `tests/bash_cases.rs` holds to the
+     comments;
   2. what it needs to read, an `Input` the rule names in its `reads`, a field of the inputs, its
      type in the rule's module unless several rules read it, and the shell's reading of it;
   3. its rows in the normalization table of the parity harness, one per bash message;

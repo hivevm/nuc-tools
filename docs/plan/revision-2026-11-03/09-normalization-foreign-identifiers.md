@@ -29,8 +29,9 @@ ADR-0013/0021 fold, the ADR-0022 Decision, the ADR-0006 ordinal) do not cover th
 
 Before the next normalization, make the identifiers that are not this record's survive it.
 Assemble the fixture identifiers through `src/testing.rs` and `tests/support/`, and write the
-template's numbers in the messages so that the session can tell them from this record's own. One
-way is a constant named for the template's ADR. Then decide with the human how a normalization
+template's numbers so that the session can tell them from this record's own, by the one list of
+the places that carry the template's numbers, which ticket 03 of this revision introduces with
+its check. Then decide with the human how a normalization
 of this repository leaves `tests/parity/` and those constants alone. Because `remap.sh` is the
 template's, a change to it goes to hivevm/nuc.
 
@@ -54,7 +55,7 @@ template's, a change to it goes to hivevm/nuc.
 
 ## Blocked by
 
-- None (can start immediately)
+- docs/plan/revision-2026-11-03/03-superseded-adr-citations.md
 
 ## Mode
 

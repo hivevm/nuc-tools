@@ -11,8 +11,12 @@
 
 Template v0.6.1 changed check 13 of `scripts/check-docs.sh`: the template's repository name in a
 badge now ends at `/`, `)`, `?`, `#`, `&`, `.svg`, or the end of the line, where v0.5.x and v0.6.0
-match `hivevm/nuc` as a prefix. `docs/template-identity` took the v0.6.1 pattern in 5e0da0b and
-applies it to every tree. It reads no release, and `rules::RELEASES` stops at v0.6.0.
+match `hivevm/nuc` as a prefix. `docs/template-identity` has differed from the template's check
+since its port in 994daaf: it used `hivevm/nuc([/)?#]|$)`, as this repository's own patched
+`check-docs.sh` did (e314e5d), and its module doc calls the pattern "this repository's
+correction". 5e0da0b only added `&` and `.svg`, as v0.6.1 has them. ADR-0021 was accepted later,
+in 67b0028, and the rule was never brought under it. It applies the corrected pattern to every
+tree, reads no release, and `rules::RELEASES` stops at v0.6.0.
 
 On a tree that carries v0.5.x or v0.6.0, whose setup is closed and whose README has a badge of a
 repository named `hivevm/nuc-…`, the bash of that release reports a template badge and `nuc`
@@ -28,7 +32,13 @@ Two ways out, for the human to choose:
   release, and keep the prefix match for trees before v0.6.1. This needs no ADR.
 - **Keep the correction for every release:** this contradicts G-1 as it reads. It needs a drafted
   specification change and an ADR that supersedes ADR-0021 for a bash defect that a later release
-  fixed. Then this ticket becomes that draft.
+  fixed. Then this ticket becomes that draft. ADR-0021's fold with ADR-0013 is held for the next
+  normalization, so such a supersession should be weighed with that fold.
+
+The same mistake can recur with the next ported check that a template release changes, so this
+ticket also ships the check that would have caught it. It is in the spirit of ADR-0021's corpus
+clause: a rule whose ported bash check differs between the pinned template releases of the corpus
+reads the release.
 
 ## Acceptance criteria
 
@@ -40,6 +50,10 @@ Two ways out, for the human to choose:
   today.
 - [ ] Given docs/ARCHITECTURE.md, when the change lands, then the Rules block names the rules that
   read the release as they stand.
+- [ ] Given a ported check whose bash differs between two template releases the corpus pins, and
+  a rule for it that does not name `Input::Release`, when the suite runs, then a test fails and
+  names the rule. A rule the human exempts under the second way is named in a list beside the
+  test, with its reason.
 
 ## Read first
 

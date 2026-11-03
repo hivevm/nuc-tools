@@ -28,9 +28,10 @@ Drafted text, replacing the measure of Q-1:
 >   cause; on every tree of the parity corpus and every variant, `nuc` exits 0 only where the bash
 >   reports no finding of a ported rule.
 
-The alternatives for the human: keep the clause as the property and say that the measure is the
-fixtures and the harness; or keep it as it reads and take the markers off Q-1 until a test
-decides it.
+The drafted measure leans on Q-2's parity harness: it is decided only as far as the corpus and
+its variants reach, and it moves with them. The alternatives for the human: keep the clause as
+the property and say that the measure is the fixtures and the harness; or keep it as it reads and
+take the markers off Q-1 until a test decides it.
 
 Accepted ADRs whose basis it may move, for the human to judge: ADR-0019, on the exit codes;
 ADR-0022, the harness, which compares the exit status; ADR-0025, on a rule's refusal. None is

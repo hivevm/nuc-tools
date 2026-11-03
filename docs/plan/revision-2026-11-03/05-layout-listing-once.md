@@ -15,7 +15,9 @@ asks `git ls-files --cached` through `git::run`. That call ends the run with "wr
 when a tracked path is no UTF-8 under `core.quotePath=false`. Check 10 of `check-docs.sh` reads
 on: `git ls-files --cached 2>/dev/null | cut -d/ -f1 | LC_ALL=C sort -u`. #21 left this open.
 
-Let `read_layout` take its listing from the same reader, with the arguments check 10 passes. Read
+Let `read_layout` take its listing from the same reader, with the arguments check 10 passes.
+`Tree::listed` fixes its arguments today to `--cached --others --exclude-standard`, so it needs a
+mode for `--cached` alone. Read
 the top-level parts from the bytes as `cut -d/ -f1` and `sort -u` in the C locale read them.
 Where a finding would then name a path of no UTF-8, the run is not decided, as for the text
 files. Also decide whether a git that fails here passes as an empty list, as the bash's
