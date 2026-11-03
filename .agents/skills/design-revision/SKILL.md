@@ -22,6 +22,11 @@ Without a spec, when [`scripts/sensor-revision-due.sh`](../../../scripts/sensor-
 says the revision is due, the scope is the directories it lists: the changes since the last
 revision. One session, one count.
 
+A spec's revision runs the sensor as it begins. Where it says the revision is due, that revision
+takes the directories it lists too: moving the line resets the count, and changes no spec covered
+would otherwise go unrevised. Where it says not yet due, the revision leaves the line as it reads,
+and the count runs on over the changes it did not look at.
+
 ## 2. Survey the modules
 
 For each module touched, look for what a single change cannot see and a check does not:
@@ -93,6 +98,8 @@ found, a ticket per rule to drop, a ticket per check to write, a `proposed` ADR 
 `propose-adr` where a finding is a decision, a consolidating one included, and a drafted
 specification change as a ticket whose *Mode* is "with the human". The tickets go into
 `docs/plan/revision-<YYYY-MM-DD>/`, in the shape of the `plan-feature` skill's ticket template,
-without a spec. Move the `Last design
-revision` line of [`docs/ARCHITECTURE.md`](../../../docs/ARCHITECTURE.md) to today's date. Then
-delete the `spec.md` of a spec in scope: it is closed.
+without a spec; a second revision on one day numbers on in the same directory. Where the
+revision took the count, move the `Last design revision` line of
+[`docs/ARCHITECTURE.md`](../../../docs/ARCHITECTURE.md) to today's date; where it reads today's
+date already, add this revision's ordinal of the day after it, `(2)` for the second. Then delete
+the `spec.md` of a spec in scope: it is closed.

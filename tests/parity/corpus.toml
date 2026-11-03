@@ -36,11 +36,11 @@ name = "nuc-tools"
 url = "https://github.com/hivevm/nuc-tools.git"
 commit = "0c07796c4164940170e08e6c82a8ca03cb710297"
 
-# A derived repository on template release v0.6.0, at a fixed commit of its main.
+# A derived repository on template release v0.6.1, at a fixed commit of its main.
 [[repository]]
 name = "ocelli"
 url = "https://github.com/hivevm/ocelli.git"
-commit = "5d6e15722f8a9627a832c0062933282dfeb36261"
+commit = "0657ed0f9823d1d8ef2e678a616f8683214bea7c"
 
 # A derived repository on template release v0.6.1, at a fixed commit of its main.
 [[repository]]

@@ -6,7 +6,8 @@
 # top of a tagged base, runs the sensor against the base, and asserts the exit code and a line a
 # reader would meet. The cases cover a directory path and a file path in an Applies to line, a
 # path its prose only resembles, an ADR no longer in force, an ADR the change itself adds, a
-# change no ADR names, nothing to compare, and a base that does not resolve.
+# change no ADR names, nothing to compare, and a base that does not resolve; a Rust file binds the
+# modules under the directory of its name, a Rust library root and a file of another kind do not.
 #
 # Verifies: ADR-0023
 # Inputs: scripts/sensor-binding-adrs.sh scripts/lib/
@@ -104,6 +105,46 @@ d="$(repo file)"
 printf 'more\n' >> "$d/README.md"
 commit "$d" "touch the readme"
 expect 0 "a file named in Applies to binds" "$d" "- $(adr_id 1) (docs/adr/0001-fixture.md) — README.md"
+
+d="$(repo rust-module)"
+# shellcheck disable=SC2016  # the backticks are literal Markdown, not a command substitution
+adr "$d" 0004 "🟢 accepted" 'the graph of `crates/engine/src/graph.rs`'
+mkdir -p "$d/crates/engine/src/graph"
+printf 'mod\n' > "$d/crates/engine/src/graph/hit.rs"
+commit "$d" "a module of the graph"
+expect 0 "a Rust file binds the modules under the directory of its name" "$d" \
+  "- $(adr_id 4) (docs/adr/0004-fixture.md) — crates/engine/src/graph/hit.rs"
+
+# base <dir> — fold what the fixture added into the base commit and tag it again.
+base() {
+  git -C "${1:?}" add -A
+  git -C "${1:?}" -c user.name=fixture -c user.email=fixture@example.invalid commit -q --amend -m base
+  git -C "${1:?}" tag -f base >/dev/null
+}
+
+d="$(repo rust-root)"
+# shellcheck disable=SC2016  # the backticks are literal Markdown, not a command substitution
+adr "$d" 0004 "🟢 accepted" 'the crate root `crates/engine/src/lib.rs` and `build.rs`'
+mkdir -p "$d/crates/engine/src/lib" "$d/build"
+printf 'x\n' > "$d/crates/engine/src/lib/part.rs"
+printf 'x\n' > "$d/build/asset.txt"
+base "$d"
+printf 'more\n' >> "$d/crates/engine/src/lib/part.rs"
+printf 'more\n' >> "$d/build/asset.txt"
+commit "$d" "files under directories named like a library root and a build script"
+expect 0 "a Rust library root or build script binds no directory of its name" "$d" \
+  "no ADR in force names one of them"
+
+d="$(repo other-kind)"
+mkdir -p "$d/tools/app"
+printf 'x\n' > "$d/tools/app/part.sh"
+# shellcheck disable=SC2016  # the backticks are literal Markdown, not a command substitution
+adr "$d" 0004 "🟢 accepted" 'the script `tools/app.sh`'
+base "$d"
+printf 'more\n' >> "$d/tools/app/part.sh"
+commit "$d" "a file under a directory named like a script"
+expect 0 "a file of another kind binds no directory of its name" "$d" \
+  "no ADR in force names one of them"
 
 d="$(repo prefix)"
 printf 'x\n' > "$d/README.md.bak"
