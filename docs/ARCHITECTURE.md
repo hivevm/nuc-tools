@@ -6,7 +6,7 @@
 > is updated in the same change as the structure it describes
 > ([ADR-0001](adr/0001-agent-governance-model.md)).
 >
-> **Last design revision:** 2026-10-31, due after 20 changes. The revision that took the count
+> **Last design revision:** 2026-11-03, due after 20 changes. The revision that took the count
 > moves the date; the number is this project's to set; a sensor counts the changes outside
 > `docs/` since the commit that set the date and says when the next is due
 > ([ADR-0006](adr/0006-feature-layer.md)).
@@ -50,7 +50,8 @@ golden path and the test pattern an agent copies from are named here.
   that no rule module calls another. The shell matches path patterns as bash's pathname expansion
   does through `src/glob.rs`. A rule whose bash check changed between template releases, today
   `docs/adr-supersessions` and `docs/check-lists`, reads the release the tree carries and checks as
-  that release does (ADR-0021).
+  that release does (ADR-0021). `docs/template-identity`, whose check 13 v0.6.1 corrected, reads
+  no release and checks every tree as v0.6.1 does.
 - **Configuration** — `config` reads `nuc.toml` and selects the rules it turns on, or says why
   `nuc` refuses: missing, unreadable, a minimum above the running version, an unknown rule ID
   ([ADR-0013](adr/0013-version-coupling.md)).
@@ -64,8 +65,8 @@ golden path and the test pattern an agent copies from are named here.
 - **Parity harness** — `scripts/check-parity.sh` runs the bash checks of each repository of the
   corpus, `check-docs.sh` and `check-traceability.sh`, all on template release v0.5.0 or later,
   and `nuc` on the same tree and on each variant of `tests/parity/variants.tsv` that is for it,
-  both as a pull request into `main` marked ready, and compares their findings by
-  `tests/parity/normalize.tsv`. A variant edits, deletes, or
+  both as a pull request into `main` marked ready, and compares their findings, normalized by
+  `tests/parity/normalize.tsv`, and their exit status. A variant edits, deletes, or
   writes one path inside a copy of the tree, never under its `.git`
   ([ADR-0022](adr/0022-parity-variants-name-their-trees.md)).
 - **Release tooling** — `release/` builds a binary per target, writes `SHA256SUMS`, checks the
@@ -77,8 +78,10 @@ golden path and the test pattern an agent copies from are named here.
 - **The golden path** — the rule `docs/template-release`, check 14 of the template's
   `check-docs.sh`, and the pieces it takes through every layer. A new rule copies it:
   1. a module under `src/rules/` with its `RULE_ID`, an `area/name`, and its `RULE`, listed in
-     `rules::ALL`, its unit tests the cases of the bash self-test of the check it ports, each
-     named in a `// bash:` comment and given its rule in `tests/bash_cases.tsv`;
+     `rules::ALL` and its ID in `tests/contract.rule-ids`, which keeps it from then on, its unit
+     tests the cases of the bash self-test of the check it ports, each named in a `// bash:`
+     comment and given its rule in `tests/bash_cases.tsv`, which `tests/bash_cases.rs` holds to the
+     comments;
   2. what it needs to read, an `Input` the rule names in its `reads`, a field of the inputs, its
      type in the rule's module unless several rules read it, and the shell's reading of it;
   3. its rows in the normalization table of the parity harness, one per bash message;
@@ -89,7 +92,9 @@ golden path and the test pattern an agent copies from are named here.
   mean comes from `src/testing.rs` or `tests/support/`, since the gate reads the tests as text. The
   structural test `tests/functional_core.rs` holds the shape, and inside the shell lets only the
   functions `tests/functional_core.guarded` names read, list, or resolve a path
-  ([ADR-0011](adr/0011-fixture-repositories.md)).
+  ([ADR-0011](adr/0011-fixture-repositories.md)). `tests/isolation.rs` runs `nuc check` on a
+  tree of bait and without the network (Q-7, Q-11), and `tests/contract.rs` holds the command
+  line's contract and the rule IDs that stay (G-6).
 
 ## How it runs
 
