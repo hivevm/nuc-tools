@@ -27,10 +27,10 @@ the suite pass on all four platforms.
 
 Options to weigh with the human:
 
-- **Required:** the three `build (<os>)` check runs join the ruleset, and the README's required
-  checks name them. Check 9 of `scripts/check-docs.sh` compares that list with the jobs of
-  `checks.yml` only, so the jobs may have to move into `checks.yml`, or the README's wording
-  change.
+- **Required:** the three `build (<os>)` check runs join the ruleset, and the required checks of
+  `CONTRIBUTING.md` name them. Check 9 of `scripts/check-docs.sh` compares that list with the
+  jobs of `checks.yml` only, so the jobs may have to move into `checks.yml`, or the wording of
+  `CONTRIBUTING.md` change.
 - **Not required, recorded:** a proposed ADR states that Portability does not gate the merge, and
   why.
 - **Not required, reported:** the review binding sensor or the pull request template reports
@@ -39,7 +39,8 @@ Options to weigh with the human:
 ## Acceptance criteria
 
 - [ ] Given the human's choice, when this ticket closes, then a proposed ADR records it, and the
-  workflow, the README's Repository settings, and `scripts/sensor-repo-settings.sh` agree with it.
+  workflow, the Repository settings of `CONTRIBUTING.md`, and
+  `scripts/sensor-repo-settings.sh` agree with it.
 - [ ] Given the required form was chosen, when a pull request's macOS job fails, then the ruleset
   refuses the merge, shown on a throwaway pull request or by the settings sensor.
 
@@ -47,8 +48,8 @@ Options to weigh with the human:
 
 - ADR-0008 and ADR-0023.
 - Q-4 in docs/SPECIFICATION.md.
-- `.github/workflows/portability.yml`, `.github/workflows/checks.yml`, and the README's
-  Repository settings.
+- `.github/workflows/portability.yml`, `.github/workflows/checks.yml`, and the
+  Repository settings of `CONTRIBUTING.md`.
 - The description of #10.
 
 ## Blocked by

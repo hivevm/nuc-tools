@@ -23,7 +23,7 @@ const README: &str = "README.md";
 const LABEL: &str = "**Template release:**";
 
 /// The finding for the README, if it lacks the line or the line names no release. Without a
-/// README there is nothing to report: the Project Layout rule reports the missing file.
+/// README there is nothing to report: the shell refuses such a tree before a rule runs.
 fn check(inputs: &Inputs) -> Vec<Finding> {
     let Some(readme) = &inputs.readme else {
         return Vec::new();
