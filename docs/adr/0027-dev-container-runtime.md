@@ -1,4 +1,4 @@
-# ADR-draft-dev-container-runtime: The Dev Container keeps the host daemon out of reach, its Features locked, and each project under a path of its own
+# ADR-0027: The Dev Container keeps the host daemon out of reach, its Features locked, and each project under a path of its own
 
 - **Status:** 🟡 proposed
 - **Date:** 2026-11-04
