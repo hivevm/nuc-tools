@@ -1,6 +1,6 @@
 # ADR-0027: The Dev Container keeps the host daemon out of reach, its Features locked, and each project under a path of its own
 
-- **Status:** 🟡 proposed
+- **Status:** 🔴 rejected
 - **Date:** 2026-11-04
 - **Deciders:** Markus Brigl
 - **Applies to:** `.devcontainer/`, `.vscode/settings.json`, `scripts/check-devcontainer.sh`, and everything the container pulls in
