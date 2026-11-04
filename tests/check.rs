@@ -461,8 +461,9 @@ fn a_nul_byte_past_grep_s_first_buffer_is_not_decided() {
 
 #[test]
 fn a_repository_without_a_text_file_is_not_decided() {
-    // Nothing tracked, and everything new ignored, nuc.toml included.
+    // Nothing tracked, and everything new ignored, nuc.toml and the README included.
     let fixture = Fixture::new("no-text");
+    fixture.write("README.md", "# No text\n");
     fixture.write(
         "nuc.toml",
         "minimum = \"0.0.0\"\nrules = [\"docs/adr-refs\"]\n",
@@ -716,6 +717,23 @@ fn without_a_readme_a_rule_that_checks_by_the_release_is_not_decided() {
     std::fs::remove_file(fixture.root().join("README.md")).expect("removed");
     let output = fixture.nuc(&["check"]);
     assert_eq!(code(&output), Some(2), "{}", stdout(&output));
+}
+
+/// Verifies: ADR-0021
+#[test]
+fn without_a_readme_no_rule_set_is_decided() {
+    for rules in ["docs/template-release", "docs/prose-width"] {
+        let fixture = skills(&format!("no-readme-{}", rules.replace('/', "-")));
+        fixture.write(
+            "nuc.toml",
+            &format!("minimum = \"0.0.0\"\nrules = [\"{rules}\"]\n"),
+        );
+        std::fs::remove_file(fixture.root().join("README.md")).expect("removed");
+        let output = fixture.nuc(&["check"]);
+        assert_eq!(code(&output), Some(2), "{rules}: {}", stdout(&output));
+        let err = String::from_utf8_lossy(&output.stderr);
+        assert!(err.contains("README.md: not found"), "{rules}: {err}");
+    }
 }
 
 /// A project with only the skill pointer rule on and the skill `review` under `.agents/skills/`.

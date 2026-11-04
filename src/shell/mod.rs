@@ -107,8 +107,13 @@ fn check(repo: Option<&Path>) -> Result<u8, String> {
     let mut unplaced = false;
     // The text files whose paths are no UTF-8, which no finding can name as the bash does.
     let mut unspelled = std::collections::BTreeSet::new();
+    // A tree without a README names no release, so no rule can say which bash it checks as,
+    // whatever rules are turned on (ADR-0021).
+    let readme = tree
+        .read_checked(&tree.root.join("README.md"))?
+        .ok_or("README.md: not found — the tree names no template release — not decided")?;
     if needs(Input::Readme) {
-        inputs.readme = tree.read_checked(&tree.root.join("README.md"))?;
+        inputs.readme = Some(readme);
     }
     if needs(Input::Release) {
         let reported = selected
