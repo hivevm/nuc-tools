@@ -79,7 +79,8 @@ A `nuc` built from source is version 0.0.0 until the first release, so a higher 
 it.
 
 The rules port every check of the template's `check-docs.sh`, 1 to 16, each as the release a tree
-carries checks it, v0.5.0 or later: `docs/adr-index`, `docs/adr-numbering`, `docs/links`,
+carries checks it, from v0.5.0 to v0.6.2; a tree on v0.7.0 is checked as v0.6.2, until checks 9
+and 10 read `CONTRIBUTING.md` as v0.7.0 does: `docs/adr-index`, `docs/adr-numbering`, `docs/links`,
 `docs/section-refs`, `docs/adr-refs`, `docs/adr-link-targets`, `docs/adr-header`,
 `docs/adr-supersessions`, `docs/check-lists`, `docs/project-layout`, `docs/skill-pointers`,
 `docs/inherited-adrs`, `docs/template-identity`, `docs/prose-width`, `docs/no-draft-on-main`, and
