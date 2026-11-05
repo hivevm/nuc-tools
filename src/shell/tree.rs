@@ -98,7 +98,7 @@ impl Tree {
     /// that holds the marker, is binary to grep or not depending on its buffers, and not decided.
     pub(super) fn read_markers(&self) -> Result<BTreeMap<String, Vec<u8>>, String> {
         let mut files = BTreeMap::new();
-        for raw in self.listed(Listing::Nul)? {
+        for raw in self.listed(Listing::Nul, Files::TrackedAndNew)? {
             let raw = raw.as_slice();
             let Some(full) = path_of(&self.root, raw) else {
                 continue;
@@ -234,7 +234,7 @@ impl Tree {
     /// found from its path.
     pub(super) fn read_text_files(&self) -> Result<TextFiles, String> {
         let mut text = TextFiles::default();
-        for raw in self.listed(Listing::Lines)? {
+        for raw in self.listed(Listing::Lines, Files::TrackedAndNew)? {
             let Some(full) = path_of(&self.root, &raw) else {
                 continue;
             };
@@ -281,11 +281,14 @@ impl Tree {
         Ok(text)
     }
 
-    /// Every path git lists as tracked or new and not ignored, as a bash script asks for them:
-    /// separated by NUL bytes with `-z`, so that no path is quoted, or by lines, so that a path
-    /// git quotes stays quoted and names no file.
-    fn listed(&self, listing: Listing) -> Result<Vec<Vec<u8>>, String> {
-        let mut args = vec!["ls-files", "--cached", "--others", "--exclude-standard"];
+    /// Every path git lists, the tracked ones and with `files` the new ones it does not ignore,
+    /// as a bash script asks for them: separated by NUL bytes with `-z`, so that no path is
+    /// quoted, or by lines, so that a path git quotes stays quoted and names no file.
+    fn listed(&self, listing: Listing, files: Files) -> Result<Vec<Vec<u8>>, String> {
+        let mut args = match files {
+            Files::TrackedAndNew => vec!["ls-files", "--cached", "--others", "--exclude-standard"],
+            Files::Tracked => vec!["ls-files", "--cached"],
+        };
         let separator = match listing {
             Listing::Nul => {
                 args.push("-z");
@@ -384,6 +387,16 @@ enum Listing {
     Nul,
     /// One path a line, as `while read` reads them.
     Lines,
+}
+
+/// Which paths a bash script asks git to list.
+#[derive(Clone, Copy)]
+enum Files {
+    /// `--cached --others --exclude-standard`: the tracked paths and the new ones git does not
+    /// ignore.
+    TrackedAndNew,
+    /// `--cached`: the tracked paths alone, as check 10 lists them.
+    Tracked,
 }
 
 /// How `grep -I` takes the bytes of a file.
@@ -526,15 +539,21 @@ impl Tree {
             };
             layout.found.insert(path, there);
         }
-        let listing = git::run(&self.root, &["ls-files", "--cached"])?;
-        let mut top: Vec<String> = listing
-            .split('\n')
-            .filter(|path| !path.is_empty())
-            .map(|path| path.split('/').next().unwrap_or(path).to_owned())
+        // Check 10 reads `git ls-files --cached`, cut at the first '/' and sorted by bytes.
+        let mut top: Vec<Vec<u8>> = self
+            .listed(Listing::Lines, Files::Tracked)?
+            .into_iter()
+            .map(|path| path.split(|&b| b == b'/').next().unwrap_or(&[]).to_vec())
             .collect();
         top.sort();
         top.dedup();
-        layout.top_level = top;
+        for part in top {
+            let name = String::from_utf8_lossy(&part).into_owned();
+            if std::str::from_utf8(&part).is_err() {
+                layout.unspelled.insert(name.clone());
+            }
+            layout.top_level.push(name);
+        }
         Ok(layout)
     }
 

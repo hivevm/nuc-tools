@@ -3,7 +3,7 @@
 //! directory and a `*` a pattern that matches, and every tracked top-level part of the tree is
 //! named, by itself or by a path under it.
 
-use super::{Input, Inputs, Rule, read_lines};
+use super::{Input, Inputs, Outcome, Rule, read_lines};
 use crate::bash::is_space;
 use crate::finding::Finding;
 
@@ -24,7 +24,7 @@ pub const RULE: Rule = Rule {
         Input::Layout,
         Input::Release,
     ],
-    check: |inputs| check(inputs).into(),
+    check,
 };
 
 /// What check 10 tests on the tree.
@@ -33,9 +33,11 @@ pub struct Layout {
     /// Each path the Project Layout block lists, by its text: whether it names what is there,
     /// a match of a pattern with `*`, a directory for a trailing `/`, or else a file.
     pub found: std::collections::BTreeMap<String, bool>,
-    /// The first part of every path git tracks, sorted and each once, as `cut -d/ -f1 | sort -u`
-    /// gives them.
+    /// The first part of every path git tracks, sorted by its bytes and each once by them, as
+    /// `cut -d/ -f1 | LC_ALL=C sort -u` gives them; a byte of no UTF-8 is replaced afterwards.
     pub top_level: Vec<String>,
+    /// The parts of `top_level` whose bytes are no UTF-8, which a finding cannot spell.
+    pub unspelled: std::collections::BTreeSet<String>,
 }
 
 /// The directory open work lives in only while there is some.
@@ -89,20 +91,24 @@ pub fn is_pattern(path: &str) -> bool {
     path.contains('*')
 }
 
-fn check(inputs: &Inputs) -> Vec<Finding> {
+/// The findings of the rule, or its refusal where one would name a top-level part whose name is
+/// no UTF-8, which `nuc` cannot spell as the bash does (Q-1).
+fn check(inputs: &Inputs) -> Outcome {
     let (guide, text) = inputs.guide();
     let Some(text) = text else {
         return vec![finding(
             guide,
             "not found — the Project Layout block cannot be checked".to_owned(),
-        )];
+        )]
+        .into();
     };
     let paths = listed(text);
     if paths.is_empty() {
         return vec![finding(
             guide,
             "no paths found under '## Project Layout' — the inventory is unverifiable".to_owned(),
-        )];
+        )]
+        .into();
     }
     let mut found = Vec::new();
     for path in &paths {
@@ -129,15 +135,21 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
             .iter()
             .any(|path| path == top || path.starts_with(&format!("{top}/")));
         if !covered {
-            found.push(finding(
-                guide,
-                format!(
-                    "Project Layout does not name '{top}', a top-level part of this repository"
-                ),
-            ));
+            let message = format!(
+                "Project Layout does not name '{top}', a top-level part of this repository"
+            );
+            if inputs.layout.unspelled.contains(top) {
+                return Outcome {
+                    refusal: Some(format!(
+                        "{guide}: {message}, whose name is no UTF-8 — not decided"
+                    )),
+                    ..Outcome::default()
+                };
+            }
+            found.push(finding(guide, message));
         }
     }
-    found
+    found.into()
 }
 
 #[cfg(test)]
@@ -152,10 +164,15 @@ mod tests {
             layout: super::Layout {
                 found: found.iter().map(|(p, f)| ((*p).to_owned(), *f)).collect(),
                 top_level: top.iter().map(|t| (*t).to_owned()).collect(),
+                ..super::Layout::default()
             },
             ..Inputs::default()
         };
-        check(&inputs).into_iter().map(|f| f.message).collect()
+        check(&inputs)
+            .findings
+            .into_iter()
+            .map(|f| f.message)
+            .collect()
     }
 
     #[test]
@@ -213,7 +230,7 @@ mod tests {
     fn no_guide_and_an_empty_block_fail_alone() {
         let inputs = Inputs::default();
         assert_eq!(
-            check(&inputs)[0].message,
+            check(&inputs).findings[0].message,
             "not found — the Project Layout block cannot be checked"
         );
         assert_eq!(
@@ -235,11 +252,13 @@ mod tests {
                     .map(|(p, f)| ((*p).to_owned(), *f))
                     .collect(),
                 top_level: vec!["src".to_owned()],
+                ..super::Layout::default()
             },
             ..Inputs::default()
         };
         let reported = |release| -> Vec<String> {
             check(&inputs(release))
+                .findings
                 .into_iter()
                 .map(|f| format!("{}: {}", f.file, f.message))
                 .collect()
