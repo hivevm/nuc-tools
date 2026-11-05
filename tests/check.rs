@@ -1097,6 +1097,35 @@ fn an_adr_holding_the_unit_separator_is_not_decided() {
     assert!(stderr(&output).contains("0x1F"), "{}", stderr(&output));
 }
 
+/// Verifies: ADR-0021 G-1
+#[test]
+fn a_derived_badge_is_the_template_s_on_a_tree_before_v0_6_1() {
+    let badge = "[![Checks](https://github.com/hivevm/nuc-tools/actions/workflows/checks.yml/badge.svg)](https://github.com/hivevm/nuc-tools/actions/workflows/checks.yml)";
+    for (release, expected) in [
+        (
+            "v0.6.0",
+            vec![
+                "README.md: docs/template-identity: a badge still points at the template's repository; repoint or delete it",
+            ],
+        ),
+        ("v0.6.1", vec![]),
+    ] {
+        let readme = format!("# Fixture\n\n{badge}\n\n- **Template release:** {release}\n");
+        let fixture = only(
+            &format!("identity-badge-{release}"),
+            "docs/template-identity",
+            &readme,
+        );
+        let output = fixture.nuc(&["check"]);
+        assert_eq!(
+            stdout(&output).lines().collect::<Vec<_>>(),
+            expected,
+            "{release}: {}",
+            stderr(&output)
+        );
+    }
+}
+
 #[test]
 fn while_the_setup_file_exists_the_identity_files_are_not_read() {
     let fixture = only("identity-setup", "docs/template-identity", README);

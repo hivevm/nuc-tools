@@ -407,4 +407,61 @@ expect fail "a malformed variant row is refused" "is not 'name<TAB>rule" run "$c
 v="$(variants "$work/v-unmapped.tsv" "$DELETE" $'odd\tdocs/no-such-rule\tREADME.md\tdelete\t-')"
 expect fail "a variant of a rule the table maps nothing to is refused" "maps no message to" run "$c" "$(reactive_nuc)" "$v"
 
+# --- cases: the releases at which a rule's bash check changed ------------------------------
+
+# template_repo <name> <release> <statement> — a tree of the template, carrying TEMPLATE-SETUP.md,
+# on the release, whose check-docs.sh defines check_template_release with the statement.
+template_repo() {
+  source_repo "$1" "- **Template release:** $2" > /dev/null
+  printf '# Setup\n' > "$work/src-$1/TEMPLATE-SETUP.md"
+  printf '%s\n' '# The function of check 14.' 'check_template_release() {' "  $3" '}' \
+    >> "$work/src-$1/scripts/check-docs.sh"
+  git -C "$work/src-$1" add -A
+  git -C "$work/src-$1" -c user.name=F -c user.email=f@example.invalid -c core.hooksPath=/dev/null commit -qm template
+  git -C "$work/src-$1" rev-parse HEAD > "$work/src-$1.commit"
+}
+
+# releases <file> <changed> — a table of releases with the one row of docs/template-release.
+releases() {
+  printf '# One rule.\ndocs/template-release\tscripts/check-docs.sh\tcheck_template_release\t%s\n' "$2" > "$1"
+  echo "$1"
+}
+
+# run_releases <corpus> <table> — the harness on the corpus with the table of releases given.
+# shellcheck disable=SC2317,SC2329 # run through expect
+run_releases() {
+  env PARITY_TABLE="$work/one-rule.tsv" PARITY_RELEASES="$2" bash "$HARNESS" --corpus "$1" \
+    --cache "$work/cache" --nuc "$(reactive_nuc)" --variants "$DEFAULT"
+}
+
+template_repo tpl-old v0.5.0 ': one'
+template_repo tpl-new v0.6.0 ': two'
+template_repo tpl-same v0.6.0 ': one'
+changed="$(corpus "$work/tpl-changed.toml" tpl-new tpl-old)"
+expect pass "a change the table lists, at the later of two trees of the template, passes" "" \
+  run_releases "$changed" "$(releases "$work/r-listed.tsv" v0.6.0)"
+expect fail "a change the table does not list fails and names the rule" \
+  "docs/template-release — its bash check changed at v0.6.0 across the template's trees of the corpus" \
+  run_releases "$changed" "$(releases "$work/r-unlisted.tsv" -)"
+expect fail "a change the table lists that the trees do not show fails" "changed at - across" \
+  run_releases "$(corpus "$work/tpl-same.toml" tpl-old tpl-same)" "$(releases "$work/r-phantom.tsv" v0.6.0)"
+stub="$work/src-tpl-same/scripts/check-docs.sh"
+sed 's/^# The function of check 14\.$/# Check 14, reworded./' "$stub" > "$stub.tmp" && cat "$stub.tmp" > "$stub" && rm "$stub.tmp"
+git -C "$work/src-tpl-same" -c user.name=F -c user.email=f@example.invalid -c core.hooksPath=/dev/null commit -qam reworded
+git -C "$work/src-tpl-same" rev-parse HEAD > "$work/src-tpl-same.commit"
+expect pass "a change of its comments alone is no change" "" \
+  run_releases "$(corpus "$work/tpl-reworded.toml" tpl-old tpl-same)" "$(releases "$work/r-reworded.tsv" -)"
+expect pass "a corpus with one tree of the template compares nothing" "" \
+  run_releases "$(corpus "$work/tpl-one.toml" tpl-old)" "$(releases "$work/r-one.tsv" v0.6.0)"
+source_repo tpl-bare "- **Template release:** v0.6.0" > /dev/null
+printf '# Setup\n' > "$work/src-tpl-bare/TEMPLATE-SETUP.md"
+git -C "$work/src-tpl-bare" add -A
+git -C "$work/src-tpl-bare" -c user.name=F -c user.email=f@example.invalid -c core.hooksPath=/dev/null commit -qm bare
+git -C "$work/src-tpl-bare" rev-parse HEAD > "$work/src-tpl-bare.commit"
+expect fail "a tree of the template without the function fails" "has no check_template_release in scripts/check-docs.sh" \
+  run_releases "$(corpus "$work/tpl-bare.toml" tpl-old tpl-bare)" "$(releases "$work/r-bare.tsv" v0.6.0)"
+printf 'docs/template-release\tREADME.md\tcheck_template_release\t-\n' > "$work/r-malformed.tsv"
+expect fail "a malformed row of the table of releases is refused" "a row needs a rule ID" \
+  run_releases "$c" "$work/r-malformed.tsv"
+
 summary "Parity harness self-test"
