@@ -1,4 +1,4 @@
-# ADR-draft-portability-gates-the-merge: The build, test, and lint run on Linux arm64, macOS, and Windows as a job of the Checks workflow whose check runs are required on `main`
+# ADR-0028: The build, test, and lint run on Linux arm64, macOS, and Windows as a job of the Checks workflow whose check runs are required on `main`
 
 - **Status:** 🟡 proposed
 - **Date:** 2026-11-05
