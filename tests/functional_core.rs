@@ -10,14 +10,12 @@
 //! Inside `src/shell/`, a call that reads a file, lists a directory, or resolves a path, as
 //! `functional_core.reads` lists them, stands only in a function `functional_core.guarded` names
 //! for that call: those that resolve the path through `Tree::resolve` first, so that nothing
-//! outside the repository is read, as the convention "The shell reads, the rules decide" of
-//! `docs/CONVENTIONS.md` asks. A test of existence is free.
+//! outside the repository is read (Q-12). A test of existence reads nothing and is free.
 //!
 //! The readings of the bash's tools that `functional_core.bash` names, as `awk_lines` and
 //! `is_space`, are defined in `src/bash.rs` and nowhere else, so that no port writes a copy of its
-//! own that reads a byte otherwise, as the convention "A port copies the bash, quirks included" of
-//! `docs/CONVENTIONS.md` asks. The test reads names: a copy under another name, or a closure,
-//! passes it.
+//! own that reads a byte otherwise than the bash (Q-2). The test reads names: a copy under another
+//! name, or a closure, passes it.
 //!
 //! The shell carries out every rule's outcome alike: no source of `src/shell/` names what
 //! `functional_core.outcomes` lists on a rule module, as its `RULE`, whose check it would call by
