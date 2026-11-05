@@ -93,7 +93,12 @@ impl Inputs {
 
 /// The template releases at which a ported bash check changed, the earliest first: a rule checks
 /// a tree as the latest of them at or before the release it carries.
-pub const RELEASES: &[Version] = &[Version(0, 5, 0), Version(0, 6, 0), Version(0, 7, 0)];
+pub const RELEASES: &[Version] = &[
+    Version(0, 5, 0),
+    Version(0, 6, 0),
+    Version(0, 6, 1),
+    Version(0, 7, 0),
+];
 
 /// The release from which the required checks and the Project Layout stand in `CONTRIBUTING.md`.
 pub const CONTRIBUTING_GUIDE: Version = Version(0, 7, 0);

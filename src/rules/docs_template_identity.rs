@@ -3,12 +3,17 @@
 //! CODE_OF_CONDUCT.md, CODEOWNERS, and the four documents of `docs/`. A file that does not exist
 //! has nothing to check.
 //!
-//! The badge pattern is this repository's correction of the template's: a badge of a repository
-//! whose name only starts with the template's, such as `hivevm/nuc-tools`, is the project's own.
+//! The badge pattern follows the release the tree carries (ADR-0021): from v0.6.1 the template's
+//! name ends where a URL goes on, so a badge of a repository whose name only starts with it, such
+//! as `hivevm/nuc-tools`, is the project's own; before v0.6.1 the name matches as a prefix.
 
 use super::{Input, Inputs, Rule};
 use crate::bash::{awk_lines, contains, is_space};
+use crate::config::Version;
 use crate::finding::Finding;
+
+/// The release from which the template's name in a badge ends where a URL goes on.
+const BADGE_NAME_ENDS: Version = Version(0, 6, 1);
 
 pub const RULE_ID: &str = "docs/template-identity";
 
@@ -20,8 +25,9 @@ pub const RULE: Rule = Rule {
               security contact, and reporting contact, a CODEOWNERS with no active rule or its \
               TODO, the '<Project Name>' titles and scaffold entries of the documents, and a \
               TODO command or scaffold sentence in the README. A placeholder that survives the \
-              setup describes the template, not the project.",
-    reads: &[Input::SetupFile, Input::Identity],
+              setup describes the template, not the project. Before template release v0.6.1 a \
+              badge of any repository whose name starts with the template's counts.",
+    reads: &[Input::SetupFile, Input::Identity, Input::Release],
     check: |inputs| check(inputs).into(),
 };
 
@@ -38,6 +44,9 @@ pub const FILES: &[&str] = &[
     "docs/GLOSSARY.md",
     "docs/CONVENTIONS.md",
 ];
+
+/// The message of a badge that points at the template's repository.
+const BADGE: &str = "a badge still points at the template's repository; repoint or delete it";
 
 /// A placeholder: the file, whether a line of it shows the placeholder, and the message.
 type Placeholder = (&'static str, fn(&[u8]) -> bool, &'static str);
@@ -68,11 +77,7 @@ const PLACEHOLDERS: &[Placeholder] = &[
         |l| l.starts_with("TODO — show a minimal example".as_bytes()),
         "the Usage section is still TODO; show how the project is used, or say there is nothing to use yet",
     ),
-    (
-        "README.md",
-        template_badge,
-        "a badge still points at the template's repository; repoint or delete it",
-    ),
+    ("README.md", |l| template_badge(l, true), BADGE),
     (
         ".devcontainer/devcontainer.json",
         |l| contains(l, b"\"name\": \"NUC DevContainer\""),
@@ -149,7 +154,12 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
             .get(file)
             .is_some_and(|text| awk_lines(text).into_iter().any(matches))
     };
+    let corrected = inputs.carries_at_least(BADGE_NAME_ENDS);
     for &(file, matches, message) in PLACEHOLDERS {
+        let matches: fn(&[u8]) -> bool = match (message == BADGE, corrected) {
+            (true, false) => |l| template_badge(l, false),
+            _ => matches,
+        };
         if any_line(file, matches) {
             report(file, message);
         }
@@ -181,9 +191,10 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
     found
 }
 
-/// `^\[!\[[^]]*\]\([^)]*hivevm/nuc([/)?#&]|\.svg|$)`: a badge whose link names the template's
-/// repository.
-fn template_badge(line: &[u8]) -> bool {
+/// `^\[!\[[^]]*\]\([^)]*hivevm/nuc([/)?#&]|\.svg|$)`, from v0.6.1, or before it
+/// `^\[!\[[^]]*\]\([^)]*hivevm/nuc`: a badge whose link names the template's repository, its
+/// name `corrected` to end where a URL goes on or matched as a prefix.
+fn template_badge(line: &[u8], corrected: bool) -> bool {
     let Some(rest) = line.strip_prefix(b"[![") else {
         return false;
     };
@@ -201,7 +212,8 @@ fn template_badge(line: &[u8]) -> bool {
     (0..=end.saturating_sub(name.len())).any(|at| {
         at + name.len() <= end
             && target[at..].starts_with(name)
-            && (target[at + name.len()..].starts_with(b".svg")
+            && (!corrected
+                || target[at + name.len()..].starts_with(b".svg")
                 || target
                     .get(at + name.len())
                     .is_none_or(|b| matches!(b, b'/' | b')' | b'?' | b'#' | b'&')))
@@ -265,9 +277,18 @@ fn todo_command(line: &[u8]) -> bool {
 mod tests {
     use super::*;
 
+    fn template_badge_v0_6_1(line: &[u8]) -> bool {
+        template_badge(line, true)
+    }
+
     fn found(files: &[(&str, &str)], setup: bool) -> Vec<String> {
+        found_on(files, setup, None)
+    }
+
+    fn found_on(files: &[(&str, &str)], setup: bool, release: Option<Version>) -> Vec<String> {
         let inputs = Inputs {
             setup_file: setup,
+            release,
             identity: files
                 .iter()
                 .map(|(p, t)| ((*p).to_owned(), t.as_bytes().to_vec()))
@@ -358,6 +379,27 @@ mod tests {
             got.len() == 1 && got[0].starts_with("README.md: a badge still points at the template"),
             "{got:?}"
         );
+    }
+
+    /// Verifies: ADR-0021
+    #[test]
+    fn before_v0_6_1_a_derived_badge_counts_as_the_template_s() {
+        let badge = "[![Checks](https://github.com/hivevm/nuc-tools/actions/workflows/checks.yml/badge.svg)](https://github.com/hivevm/nuc-tools/actions/workflows/checks.yml)";
+        let files = [("README.md", format!("# Fixture\n\n{badge}\n"))];
+        let files: Vec<(&str, &str)> = files.iter().map(|(p, t)| (*p, t.as_str())).collect();
+        for release in [Version(0, 5, 0), Version(0, 6, 0)] {
+            assert_eq!(
+                found_on(&files, false, Some(release)),
+                [format!("README.md: {BADGE}")],
+                "v{release}"
+            );
+        }
+        assert_eq!(
+            found_on(&files, false, Some(Version(0, 6, 1))),
+            Vec::<String>::new()
+        );
+        assert!(template_badge(b"[![x](a hivevm/nucleus)", false));
+        assert!(!template_badge(b"[![x](a hivevm/nucleus)", true));
     }
 
     #[test]
@@ -499,15 +541,15 @@ mod tests {
         assert!(!copyright_placeholder(b"Copyrighted by Maintainer"));
         assert!(!copyright_placeholder(b"Copyright (c) Maintainers"));
         assert!(!copyright_placeholder(b" Copyright Maintainer"));
-        assert!(template_badge(b"[![x](a hivevm/nuc)"));
-        assert!(!template_badge(b"[![x](hivevm/nucleus)"));
-        assert!(template_badge(
+        assert!(template_badge_v0_6_1(b"[![x](a hivevm/nuc)"));
+        assert!(!template_badge_v0_6_1(b"[![x](hivevm/nucleus)"));
+        assert!(template_badge_v0_6_1(
             b"[![x](https://img.shields.io/github/stars/hivevm/nuc.svg)"
         ));
-        assert!(template_badge(
+        assert!(template_badge_v0_6_1(
             b"[![x](https://x.invalid/?repo=hivevm/nuc&style=flat)"
         ));
 
-        assert!(!template_badge(b"[![x] (hivevm/nuc)"));
+        assert!(!template_badge_v0_6_1(b"[![x] (hivevm/nuc)"));
     }
 }

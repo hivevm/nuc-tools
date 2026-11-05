@@ -29,6 +29,14 @@
 #      a check not ported yet, left out. The exit status is compared for the ported rules: nuc
 #      exits 1 exactly when bash reports a finding of a ported rule, and never 2.
 #
+# The bash check of a rule changes between the template's releases where tests/parity/releases.tsv
+# says, and nowhere else: each function it names is compared, comment lines left out, across the
+# trees of the corpus that are the template's, those that still carry TEMPLATE-SETUP.md, in the
+# order of their releases. A change the table does not list, or one it lists that the trees do
+# not show, fails the harness and names the rule; tests/releases.rs holds the rules to the table
+# (ADR-0021). With fewer than two trees of the template there is nothing to compare. A helper the
+# function calls is not compared.
+#
 # The tree of the corpus runs its own bash scripts: the corpus is pinned by commit, and a pull
 # request that moves a pin is reviewed like code. nuc is built from the working tree by
 # 'cargo build --locked'; the harness is a test of the build, as scripts/check-build.sh is
@@ -38,7 +46,8 @@
 #     scripts/check-parity.sh [--corpus <file>] [--cache <dir>] [--nuc <binary>] [--variants <file>]
 #     scripts/check-parity.sh --compare <bash output> <bash exit> <nuc output> <nuc exit>
 # --nuc runs the given binary instead of building one; --compare compares one pair of outputs,
-# for scripts/test-check-parity.sh. PARITY_TABLE names another normalization table.
+# for scripts/test-check-parity.sh. PARITY_TABLE names another normalization table, and
+# PARITY_RELEASES another table of releases.
 # Exit code 0 when every repository and variant agrees, 1 on a difference, a refused tree, a
 # variant that fits no tree or does not fire, or a cache that cannot be filled, 2 on a malformed
 # corpus, table, or variants file or an unknown argument.
@@ -51,6 +60,7 @@ export LC_ALL=C
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TABLE="${PARITY_TABLE:-$ROOT/tests/parity/normalize.tsv}"
+RELEASES="${PARITY_RELEASES:-$ROOT/tests/parity/releases.tsv}"
 
 # shellcheck source-path=SCRIPTDIR source=lib/check.sh
 source "$ROOT/scripts/lib/check.sh"
@@ -239,6 +249,18 @@ for entry in "${repositories[@]}"; do
     || die "$corpus: an entry needs a name of [a-z0-9-], a url, and a 40-hex commit: '$entry'"
 done
 
+# The table of releases, one 'rule<TAB>script<TAB>function<TAB>releases' entry per row; a reason
+# after them is the reader's, not the harness's.
+release_rows=()
+while IFS= read -r row || [[ -n "$row" ]]; do
+  [[ "$row" =~ ^[[:space:]]*(#|$) ]] && continue
+  IFS=$'\t' read -r r_rule r_script r_function r_changed _ <<< "$row"
+  [[ "$r_rule" =~ ^[a-z]+/[a-z0-9-]+$ && "$r_script" == scripts/*.sh \
+    && "$r_function" =~ ^(-|[a-z_][a-z0-9_]*)$ && "$r_changed" =~ ^(-|v[0-9.]+(,v[0-9.]+)*)$ ]] \
+    || die "$RELEASES: a row needs a rule ID, a script under scripts/, a function or '-', and releases or '-': '$row'"
+  release_rows+=("$r_rule $r_script $r_function $r_changed")
+done < "$RELEASES" || die "$RELEASES: unreadable"
+
 if [[ -z "$nuc" ]]; then
   (cd "$ROOT" && cargo build --locked -q) || { echo "Parity check: nuc could not be built" >&2; exit 1; }
   nuc="${CARGO_TARGET_DIR:-$ROOT/target}/debug/nuc"
@@ -266,6 +288,23 @@ release_of() {
   # shellcheck disable=SC2016 # the backquote is Markdown to match, not a command substitution
   local re='^(v'"$num"'\.'"$num"'\.'"$num"')($|[][:space:],;:)`]|\.([[:space:]]|$))'
   [[ "$value" =~ $re ]] && echo "${BASH_REMATCH[1]}"
+}
+
+# check_body <script> <function> — the function's lines, from its 'name() {' line to the first
+# '}' alone on a line, or the whole script for '-', comment lines left out; fails when the script
+# or the function is missing.
+check_body() {
+  [[ -f "$1" ]] || return 1
+  if [[ "$2" == - ]]; then
+    grep -v '^[[:space:]]*#' "$1"
+    return 0
+  fi
+  awk -v head="$2() {" '
+    $0 == head { on = 1 }
+    on && !/^[[:space:]]*#/ { print }
+    on && $0 == "}" { done = 1; exit }
+    END { exit !done }
+  ' "$1"
 }
 
 # at_least_floor <vX.Y.Z> — whether the release is FLOOR or later.
@@ -407,6 +446,7 @@ for i in "${!variant_names[@]}"; do
     fi
   done
 done
+template_trees=()
 for entry in "${repositories[@]}"; do
   read -r name url commit <<< "$entry"
   dir="$cache/$name"
@@ -430,6 +470,7 @@ for entry in "${repositories[@]}"; do
     failed=1
     continue
   fi
+  [[ -f "$dir/TEMPLATE-SETUP.md" ]] && template_trees+=("$release $dir")
   printf '%s\n' "$config" > "$dir/nuc.toml"
   grep -qx '/nuc.toml' "$dir/.git/info/exclude" 2>/dev/null || echo '/nuc.toml' >> "$dir/.git/info/exclude"
 
@@ -461,6 +502,30 @@ for entry in "${repositories[@]}"; do
     rm -rf "$vdir"
   done
 done
+
+# The releases at which each rule's bash check changed, across the template's trees in order.
+if ((${#template_trees[@]} >= 2)); then
+  mapfile -t template_trees < <(printf '%s\n' "${template_trees[@]}" | sort -V -k1,1)
+  for row in "${release_rows[@]}"; do
+    read -r r_rule r_script r_function r_changed <<< "$row"
+    changed=() previous="" first=1
+    for tree in "${template_trees[@]}"; do
+      t_release="${tree%% *}" t_dir="${tree#* }"
+      if ! body="$(check_body "$t_dir/$r_script" "$r_function")"; then
+        echo "Parity check: $r_rule — the template's tree at $t_release has no $r_function in $r_script" >&2
+        failed=1
+        continue 2
+      fi
+      ((first)) || [[ "$body" == "$previous" ]] || changed+=("$t_release")
+      previous="$body" first=0
+    done
+    got="$(IFS=,; echo "${changed[*]:--}")"
+    if [[ "$got" != "$r_changed" ]]; then
+      echo "Parity check: $r_rule — its bash check changed at $got across the template's trees of the corpus, where ${RELEASES#"$ROOT/"} says $r_changed" >&2
+      failed=1
+    fi
+  done
+fi
 
 if ((failed)); then
   echo "Parity check FAILED." >&2

@@ -49,9 +49,11 @@ golden path and the test pattern an agent copies from are named here.
   the identifiers the `Verifies:` markers cite in `src/traceability.rs`, beside `src/adr.rs`, so
   that no rule module calls another. The shell matches path patterns as bash's pathname expansion
   does through `src/glob.rs`. A rule whose bash check changed between template releases, today
-  `docs/adr-supersessions`, `docs/check-lists`, and `docs/project-layout`, reads the release the
-  tree carries and checks as that release does (ADR-0021). `docs/template-identity`, whose check
-  13 v0.6.1 corrected, reads no release and checks every tree as v0.6.1 does.
+  `docs/adr-supersessions`, `docs/check-lists`, `docs/project-layout`, and
+  `docs/template-identity`, reads the release the tree carries and checks as that release does
+  (ADR-0021). `tests/parity/releases.tsv` names the releases at which each rule's check changed,
+  which the parity harness holds to the template's trees and `tests/releases.rs` holds the rules
+  to; `docs/template-release` gives its reason there for reading none.
 - **Configuration** — `config` reads `nuc.toml` and selects the rules it turns on, or says why
   `nuc` refuses: missing, unreadable, a minimum above the running version, an unknown rule ID
   ([ADR-0013](adr/0013-version-coupling.md)).
@@ -68,7 +70,9 @@ golden path and the test pattern an agent copies from are named here.
   both as a pull request into `main` marked ready, and compares their findings, normalized by
   `tests/parity/normalize.tsv`, and their exit status. A variant edits, deletes, or
   writes one path inside a copy of the tree, never under its `.git`
-  ([ADR-0022](adr/0022-parity-variants-name-their-trees.md)).
+  ([ADR-0022](adr/0022-parity-variants-name-their-trees.md)). Across the template's trees of the
+  corpus it compares each rule's bash function with `tests/parity/releases.tsv`; a change to a
+  helper the function calls shows in no row.
 - **Release tooling** — `release/` builds a binary per target, writes `SHA256SUMS`, checks the
   tag against the crate's version, writes the release commit, and moves the major tag;
   `release/install-nuc.sh` is the one installer, run by the Action and the Feature, and refuses a
@@ -85,7 +89,8 @@ golden path and the test pattern an agent copies from are named here.
   2. what it needs to read, an `Input` the rule names in its `reads`, a field of the inputs, its
      type in the rule's module unless several rules read it, and the shell's reading of it;
   3. its rows in the normalization table of the parity harness, one per bash message;
-  4. a variant in `tests/parity/variants.tsv` that makes it fire.
+  4. a variant in `tests/parity/variants.tsv` that makes it fire;
+  5. its row in `tests/parity/releases.tsv`, the function it ports and the releases it changed at.
 - **The test pattern** — `tests/check.rs`: a fixture repository built through git by
   `tests/support/`, `nuc` run on it as a process under a cleared environment, and its exit code and
   output asserted; an ADR identifier, a marker, or a section reference a test writes but does not
