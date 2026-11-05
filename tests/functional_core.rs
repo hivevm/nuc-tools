@@ -26,8 +26,11 @@
 //! Each module under `src/rules/` is one rule: it declares exactly one `RULE_ID`, an
 //! `area/name` unique across the crate, and the list of every rule names its `RULE`.
 
+mod support;
+
 use std::fs;
-use std::path::{Path, PathBuf};
+
+use support::sources::{root, rule_id, rule_modules, rust_files};
 
 const FORBIDDEN: &str = include_str!("functional_core.forbidden");
 const READS: &str = include_str!("functional_core.reads");
@@ -275,21 +278,6 @@ fn main_is_thin(source: &str) -> bool {
     MAIN_FORMS.contains(&compact.as_str())
 }
 
-/// The `.rs` files under `dir`, recursively, except those under `skip`.
-fn sources(dir: &Path, skip: &Path, found: &mut Vec<PathBuf>) {
-    for entry in fs::read_dir(dir).expect("src/ is readable") {
-        let path = entry.expect("a directory entry is readable").path();
-        if path.starts_with(skip) {
-            continue;
-        }
-        if path.is_dir() {
-            sources(&path, skip, found);
-        } else if path.extension().is_some_and(|ext| ext == "rs") {
-            found.push(path);
-        }
-    }
-}
-
 /// What is wrong with a rule module's ID: how many `RULE_ID` constants its code declares, and
 /// whether the one it declares is an `area/name`. `None` when it declares one well-formed ID.
 fn rule_id_problem(source: &str) -> Option<String> {
@@ -303,12 +291,6 @@ fn rule_id_problem(source: &str) -> Option<String> {
     }
     let id = rule_id(source).unwrap_or_default();
     (!is_area_name(&id)).then(|| format!("declares the rule ID '{id}', which is no area/name"))
-}
-
-/// The string the `RULE_ID` constant is set to, as written on its line.
-fn rule_id(source: &str) -> Option<String> {
-    let line = source.lines().find(|line| line.contains("const RULE_ID"))?;
-    line.split('"').nth(1).map(str::to_owned)
 }
 
 /// Whether the ID is two lowercase segments, `area/name`, the name in kebab case.
@@ -485,11 +467,10 @@ fn unguarded(file: &str, source: &str, guarded: &str) -> Vec<String> {
 
 #[test]
 fn every_rule_module_declares_one_unique_rule_id_and_is_listed() {
-    let rules = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
+    let rules = root().join("src/rules");
     let list = fs::read_to_string(rules.join("mod.rs")).expect("src/rules/mod.rs is readable");
     let list: String = code(&list).chars().filter(|c| !c.is_whitespace()).collect();
-    let mut modules = Vec::new();
-    sources(&rules, &rules.join("mod.rs"), &mut modules);
+    let modules = rule_modules();
     assert!(!modules.is_empty(), "no rule module under src/rules/");
     let mut seen: Vec<String> = Vec::new();
     let mut problems = Vec::new();
@@ -541,9 +522,8 @@ fn a_rule_module_without_exactly_one_well_formed_id_is_found() {
 
 #[test]
 fn the_core_names_no_effect() {
-    let src = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
-    let mut files = Vec::new();
-    sources(&src, &src.join("shell"), &mut files);
+    let src = root().join("src");
+    let mut files = rust_files(&src, Some(&src.join("shell")));
     files.retain(|path| path != &src.join("main.rs"));
     assert!(!files.is_empty(), "no library source outside src/shell/");
     let found: Vec<String> = files
@@ -564,7 +544,7 @@ fn the_core_names_no_effect() {
 
 #[test]
 fn the_binary_only_calls_the_shell() {
-    let main = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/main.rs");
+    let main = root().join("src/main.rs");
     let source = fs::read_to_string(main).expect("src/main.rs is readable");
     assert!(
         main_is_thin(&source),
@@ -679,9 +659,8 @@ fn a_rule_is_listed_only_by_its_own_entry() {
 
 #[test]
 fn the_shell_reads_only_through_the_guard() {
-    let shell = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/shell");
-    let mut files = Vec::new();
-    sources(&shell, &shell.join(".none"), &mut files);
+    let shell = root().join("src/shell");
+    let files = rust_files(&shell, None);
     assert!(!files.is_empty(), "no source under src/shell/");
     let mut found = Vec::new();
     let mut defined = Vec::new();
@@ -825,9 +804,8 @@ fn bash_readers(source: &str, readers: &str) -> Vec<String> {
 
 #[test]
 fn the_readings_of_the_bash_s_tools_are_defined_once() {
-    let src = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
-    let mut files = Vec::new();
-    sources(&src, &src.join("bash.rs"), &mut files);
+    let src = root().join("src");
+    let files = rust_files(&src, Some(&src.join("bash.rs")));
     let found: Vec<String> = files
         .iter()
         .flat_map(|path| {
@@ -871,11 +849,8 @@ fn a_reader_of_the_bash_s_tools_defined_elsewhere_is_found_by_its_name() {
 }
 
 /// The names of the rule modules under `src/rules/`.
-fn rule_modules() -> Vec<String> {
-    let rules = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
-    let mut found = Vec::new();
-    sources(&rules, &rules.join("mod.rs"), &mut found);
-    found
+fn rule_module_names() -> Vec<String> {
+    rule_modules()
         .iter()
         .filter_map(|path| path.file_stem()?.to_str().map(str::to_owned))
         .collect()
@@ -912,11 +887,10 @@ fn decides_for_a_rule(source: &str, modules: &[String], outcomes: &str) -> Vec<S
 
 #[test]
 fn the_shell_calls_no_rule_by_name() {
-    let shell = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/shell");
-    let modules = rule_modules();
+    let shell = root().join("src/shell");
+    let modules = rule_module_names();
     assert!(!modules.is_empty(), "no rule module under src/rules/");
-    let mut files = Vec::new();
-    sources(&shell, &shell.join(".none"), &mut files);
+    let files = rust_files(&shell, None);
     let found: Vec<String> = files
         .iter()
         .flat_map(|path| {

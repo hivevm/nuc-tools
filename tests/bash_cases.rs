@@ -11,9 +11,12 @@
 //! names no case of the list. A name the script assembles, as the one of a case inside a loop, is
 //! listed and named as the script writes it.
 
+mod support;
+
 use std::collections::BTreeSet;
 use std::fs;
-use std::path::{Path, PathBuf};
+
+use support::sources::{root, rule_id, rule_modules, rust_files};
 
 const LIST: &str = include_str!("bash_cases.tsv");
 
@@ -169,29 +172,9 @@ fn problems(
     found
 }
 
-/// Every `.rs` file under the directory.
-fn sources(dir: &Path, out: &mut Vec<PathBuf>) {
-    for entry in fs::read_dir(dir).expect("the directory is readable") {
-        let path = entry.expect("the entry is readable").path();
-        if path.is_dir() {
-            sources(&path, out);
-        } else if path.extension().is_some_and(|e| e == "rs") {
-            out.push(path);
-        }
-    }
-}
-
-/// The `RULE_ID` a module declares.
-fn rule_id(source: &str) -> Option<String> {
-    source.lines().find_map(|line| {
-        let rest = line.strip_prefix("pub const RULE_ID: &str = \"")?;
-        Some(rest.strip_suffix("\";")?.to_owned())
-    })
-}
-
 #[test]
 fn each_case_of_a_rule_is_named_by_a_unit_test_that_copies_it() {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let root = root();
     let scripts: Vec<(&str, Vec<String>)> = SCRIPTS
         .iter()
         .map(|name| {
@@ -204,9 +187,8 @@ fn each_case_of_a_rule_is_named_by_a_unit_test_that_copies_it() {
         })
         .collect();
     let rows = rows(LIST).expect("the list is well formed");
-    let mut files = Vec::new();
-    sources(&root.join("src"), &mut files);
-    files.sort();
+    let files = rust_files(&root.join("src"), None);
+    let rule_modules = rule_modules();
     let mut comments = Vec::new();
     let mut rule_ids = BTreeSet::new();
     for file in &files {
@@ -217,7 +199,7 @@ fn each_case_of_a_rule_is_named_by_a_unit_test_that_copies_it() {
             .display()
             .to_string();
         let rule = rule_id(&text);
-        if file.starts_with(root.join("src/rules"))
+        if rule_modules.contains(file)
             && let Some(id) = &rule
         {
             rule_ids.insert(id.clone());

@@ -73,9 +73,9 @@ src/                  # the library's functional core, its shell in src/shell/, 
 action.yml            # the GitHub Action: installs the nuc of its release and runs it
 release/              # the release tooling: build, checksums, the installer, and the release commit
 feature/              # the Dev Container Feature ghcr.io/hivevm/nuc-tools/nuc
-tests/                # the integration tests, their fixture helpers in tests/support/, and the
-                      # corpus, variants, and normalization table of the parity harness in
-                      # tests/parity/
+tests/                # the integration tests, their fixture helpers and the readings of the
+                      # crate's sources in tests/support/, and the corpus, variants, and tables
+                      # of the parity harness in tests/parity/
 .agents/skills/       # the procedures of AGENTS.md as Agent Skills, one directory each (ADR-0003),
                       # with the scripts and templates they carry (claim.sh, remap.sh, ticket.md)
 .claude/CLAUDE.md     # pointer for Claude Code to read AGENTS.md
