@@ -1,5 +1,5 @@
 //! Check 9 of the template's `scripts/check-docs.sh`: the jobs of `.github/workflows/checks.yml`
-//! and the required checks the README names, from v0.7.0 `CONTRIBUTING.md`, agree, the workflows
+//! and the required checks `CONTRIBUTING.md` names (the README before v0.7.0) agree, the workflows
 //! and `scripts/check-all.sh` run the same scripts, every job runs a script, and every script under
 //! `scripts/` runs. From v0.6.0 a workflow `check-all.sh` names on a `# Not a gate:` line is exempt
 //! from running a script, and a job with a matrix is named by its check runs, `<job> (<values>)`.
@@ -16,14 +16,14 @@ pub const RULE_ID: &str = "docs/check-lists";
 pub const RULE: Rule = Rule {
     id: RULE_ID,
     explain: "The jobs of .github/workflows/checks.yml and the required checks named between the \
-              'required-checks' markers of CONTRIBUTING.md, before template release v0.7.0 of \
-              README.md, list the same jobs, and the workflows and scripts/check-all.sh run the \
-              same scripts. A check that runs in only one of them \
-              is a gate somebody believes in and does not have. A job that runs no script runs \
-              in CI and never in the local gate, and a script neither list runs is a check \
-              nobody runs, unless check-all.sh names it on an '# On instruction:' line. From \
-              template release v0.6.0 a workflow named on a '# Not a gate:' line publishes \
-              rather than checks, and a job with a matrix is named by its check runs.",
+              'required-checks' markers of CONTRIBUTING.md (README.md before template release \
+              v0.7.0) list the same jobs, and the workflows and scripts/check-all.sh run the same \
+              scripts. A check that runs in only one of them is a gate somebody believes in and \
+              does not have. A job that runs no script runs in CI and never in the local gate, \
+              and a script neither list runs is a check nobody runs, unless check-all.sh names \
+              it on an '# On instruction:' line. From template release v0.6.0 a workflow named \
+              on a '# Not a gate:' line publishes rather than checks, and a job with a matrix is \
+              named by its check runs.",
     reads: &[
         Input::Readme,
         Input::Contributing,

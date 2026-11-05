@@ -496,9 +496,9 @@ impl Tree {
         Ok(lists)
     }
 
-    /// What check 10 tests: each path of the Project Layout block of each guide, the README and
-    /// the contributing guide, as `compgen -G`, `-d`, or `-f` tests it, and the first part of every
-    /// tracked path. The rule picks the guide by the release the tree carries.
+    /// What check 10 tests: each path of the Project Layout block of each guide given, the README
+    /// or the contributing guide, as `compgen -G`, `-d`, or `-f` tests it, and the first part of
+    /// every tracked path. The shell gives the guide the carried release reads, the rule picks it.
     pub(super) fn read_layout(
         &self,
         guides: &[(&str, Option<&str>)],

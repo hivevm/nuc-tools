@@ -1,5 +1,5 @@
 //! Check 10 of the template's `scripts/check-docs.sh`: every path the `Project Layout` block of
-//! `CONTRIBUTING.md`, before v0.7.0 of `README.md`, lists exists, a trailing `/` meaning a
+//! `CONTRIBUTING.md` (`README.md` before v0.7.0) lists exists, a trailing `/` meaning a
 //! directory and a `*` a pattern that matches, and every tracked top-level part of the tree is
 //! named, by itself or by a path under it.
 
@@ -11,10 +11,10 @@ pub const RULE_ID: &str = "docs/project-layout";
 
 pub const RULE: Rule = Rule {
     id: RULE_ID,
-    explain: "Every path the 'Project Layout' block of CONTRIBUTING.md, before template release \
-              v0.7.0 of README.md, lists exists, a trailing '/' meaning a directory and a '*' a \
-              pattern that matches at least one file; docs/plan/ may be absent, since open work lives there only while there is some. \
-              The block is written by hand and nothing else tells a reader that a line of it \
+    explain: "Every path the 'Project Layout' block of CONTRIBUTING.md (README.md before template \
+              release v0.7.0) lists exists, a trailing '/' meaning a directory and a '*' a \
+              pattern that matches at least one file; docs/plan/ may be absent, since open work \
+              lives there only while there is some. The block is written by hand and nothing else tells a reader that a line of it \
               has gone stale. Every tracked top-level file and directory is named, by itself or \
               by a path under it; below the top level the block is a tour, not a listing.",
     reads: &[

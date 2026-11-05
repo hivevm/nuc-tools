@@ -49,7 +49,7 @@ golden path and the test pattern an agent copies from are named here.
   the identifiers the `Verifies:` markers cite in `src/traceability.rs`, beside `src/adr.rs`, so
   that no rule module calls another. The shell matches path patterns as bash's pathname expansion
   does through `src/glob.rs`. A rule whose bash check changed between template releases, today
-  `docs/adr-supersessions` and `docs/check-lists`, reads the release the tree carries and checks as
+  `docs/adr-supersessions`, `docs/check-lists`, and `docs/project-layout`, reads the release the tree carries and checks as
   that release does (ADR-0021). `docs/template-identity`, whose check 13 v0.6.1 corrected, reads
   no release and checks every tree as v0.6.1 does.
 - **Configuration** — `config` reads `nuc.toml` and selects the rules it turns on, or says why
@@ -103,7 +103,7 @@ lives between them. Only what a newcomer would otherwise reconstruct from code.
 
 `nuc check` finds the root of the working tree with `git rev-parse --show-toplevel`, reads
 `nuc.toml` there and selects the rules it turns on, and reads the inputs those rules name and no
-others: `README.md` and the release it carries, the record under `docs/adr/`, the text files git
+others: `README.md` and the release it carries, `CONTRIBUTING.md`, the record under `docs/adr/`, the text files git
 lists, the targets of relative links, `AGENTS.md`, the workflows and scripts, the Project
 Layout's paths, the skills and their pointers, the identity files, the attributes that mark a
 file generated, the variables CI sets, the specification, and the files that carry a `Verifies:`

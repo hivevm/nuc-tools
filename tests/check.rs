@@ -926,6 +926,58 @@ fn from_v0_7_0_the_lists_stand_in_the_contributing_guide() {
     );
 }
 
+/// Verifies: ADR-0021
+#[test]
+fn the_guide_a_release_does_not_read_cannot_keep_a_tree_from_being_decided() {
+    let readme = format!("{LAYOUT_README}```\n");
+    let fixture = only("guide-unread", "docs/project-layout", &readme);
+    fixture.write(
+        "CONTRIBUTING.md",
+        "# Contributing\n\n## Project Layout\n\n```\n../*\n```\n",
+    );
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(
+        code(&output),
+        Some(0),
+        "{}{}",
+        stdout(&output),
+        stderr(&output)
+    );
+}
+
+/// Verifies: ADR-0021
+#[test]
+fn an_unplaced_tree_keeps_only_the_check_list_findings_every_release_reports() {
+    let fixture = Fixture::project(
+        "lists-unplaced",
+        "minimum = \"0.0.0\"\nrules = [\"docs/template-release\", \"docs/check-lists\"]\n",
+        "# Fixture\n",
+    );
+    fixture.write(
+        ".github/workflows/checks.yml",
+        "jobs:\n  docs:\n    steps:\n      - run: bash scripts/check-docs.sh\n",
+    );
+    fixture.write(
+        "scripts/check-all.sh",
+        "run \"Docs\" scripts/check-docs.sh\n",
+    );
+    fixture.write("scripts/check-docs.sh", "true\n");
+    fixture.write("scripts/extra.sh", "true\n");
+    // Both guides lack the markers: the finding names README.md on v0.5.0 and v0.6.0 and
+    // CONTRIBUTING.md on v0.7.0, so no release takes it for every release.
+    fixture.write("CONTRIBUTING.md", "# Contributing\n");
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(
+        stdout(&output).lines().collect::<Vec<_>>(),
+        [
+            "scripts/extra.sh: docs/check-lists: no workflow and not scripts/check-all.sh runs it — add it to both lists, or name it on an '# On instruction:' line of scripts/check-all.sh",
+            "README.md: docs/template-release: no '**Template release:**' line — the Template section names the release of the template this repository carries, or 'unreleased' (ADR-0005)",
+        ],
+        "{}",
+        stderr(&output)
+    );
+}
+
 /// Verifies: Q-12
 #[test]
 fn a_layout_pattern_outside_the_repository_or_with_a_class_is_not_decided() {
