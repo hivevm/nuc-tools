@@ -1,6 +1,7 @@
 //! Check 10 of the template's `scripts/check-docs.sh`: every path the `Project Layout` block of
-//! `README.md` lists exists, a trailing `/` meaning a directory and a `*` a pattern that matches,
-//! and every tracked top-level part of the tree is named, by itself or by a path under it.
+//! `CONTRIBUTING.md`, before v0.7.0 of `README.md`, lists exists, a trailing `/` meaning a
+//! directory and a `*` a pattern that matches, and every tracked top-level part of the tree is
+//! named, by itself or by a path under it.
 
 use super::{Input, Inputs, Rule, read_lines};
 use crate::bash::is_space;
@@ -10,13 +11,18 @@ pub const RULE_ID: &str = "docs/project-layout";
 
 pub const RULE: Rule = Rule {
     id: RULE_ID,
-    explain: "Every path the 'Project Layout' block of README.md lists exists, a trailing '/' \
-              meaning a directory and a '*' a pattern that matches at least one file; \
-              docs/plan/ may be absent, since open work lives there only while there is some. \
+    explain: "Every path the 'Project Layout' block of CONTRIBUTING.md, before template release \
+              v0.7.0 of README.md, lists exists, a trailing '/' meaning a directory and a '*' a \
+              pattern that matches at least one file; docs/plan/ may be absent, since open work lives there only while there is some. \
               The block is written by hand and nothing else tells a reader that a line of it \
               has gone stale. Every tracked top-level file and directory is named, by itself or \
               by a path under it; below the top level the block is a tour, not a listing.",
-    reads: &[Input::Readme, Input::Layout],
+    reads: &[
+        Input::Readme,
+        Input::Contributing,
+        Input::Layout,
+        Input::Release,
+    ],
     check: |inputs| check(inputs).into(),
 };
 
@@ -31,15 +37,13 @@ pub struct Layout {
     pub top_level: Vec<String>,
 }
 
-const README: &str = "README.md";
-
 /// The directory open work lives in only while there is some.
 const PLAN: &str = "docs/plan/";
 
-fn finding(message: String) -> Finding {
+fn finding(file: &str, message: String) -> Finding {
     Finding {
         rule: RULE_ID,
-        file: README.to_owned(),
+        file: file.to_owned(),
         line: None,
         message,
     }
@@ -47,11 +51,11 @@ fn finding(message: String) -> Finding {
 
 /// The paths of the Project Layout block, in order: the first word of each line of the first
 /// fence under `## Project Layout`, but blank lines and comments.
-pub fn listed(readme: &str) -> Vec<String> {
+pub fn listed(text: &str) -> Vec<String> {
     let mut paths = Vec::new();
     let mut in_section = false;
     let mut in_fence = false;
-    for line in read_lines(readme.as_bytes()) {
+    for line in read_lines(text.as_bytes()) {
         let fence = line.starts_with(b"```") || line.starts_with(b"~~~");
         if !in_section {
             in_section = line == b"## Project Layout";
@@ -85,14 +89,17 @@ pub fn is_pattern(path: &str) -> bool {
 }
 
 fn check(inputs: &Inputs) -> Vec<Finding> {
-    let Some(readme) = &inputs.readme else {
+    let (guide, text) = inputs.guide();
+    let Some(text) = text else {
         return vec![finding(
+            guide,
             "not found — the Project Layout block cannot be checked".to_owned(),
         )];
     };
-    let paths = listed(readme);
+    let paths = listed(text);
     if paths.is_empty() {
         return vec![finding(
+            guide,
             "no paths found under '## Project Layout' — the inventory is unverifiable".to_owned(),
         )];
     }
@@ -110,7 +117,10 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
             "which does not exist"
         };
         if !there {
-            found.push(finding(format!("Project Layout lists '{path}', {message}")));
+            found.push(finding(
+                guide,
+                format!("Project Layout lists '{path}', {message}"),
+            ));
         }
     }
     for top in &inputs.layout.top_level {
@@ -118,9 +128,12 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
             .iter()
             .any(|path| path == top || path.starts_with(&format!("{top}/")));
         if !covered {
-            found.push(finding(format!(
-                "Project Layout does not name '{top}', a top-level part of this repository"
-            )));
+            found.push(finding(
+                guide,
+                format!(
+                    "Project Layout does not name '{top}', a top-level part of this repository"
+                ),
+            ));
         }
     }
     found
@@ -132,9 +145,9 @@ mod tests {
 
     const LAYOUT: &str = "# P\n\n## Project Layout\n\nIntro.\n\n```text\nREADME.md      the entry\nsrc/           the code\n\n# a comment\ndocs/plan/     open work\nscripts/*.sh   the checks\n```\n\n## Next\n";
 
-    fn messages(readme: &str, found: &[(&str, bool)], top: &[&str]) -> Vec<String> {
+    fn messages(guide: &str, found: &[(&str, bool)], top: &[&str]) -> Vec<String> {
         let inputs = Inputs {
-            readme: Some(readme.to_owned()),
+            contributing: Some(guide.to_owned()),
             layout: super::Layout {
                 found: found.iter().map(|(p, f)| ((*p).to_owned(), *f)).collect(),
                 top_level: top.iter().map(|t| (*t).to_owned()).collect(),
@@ -196,7 +209,7 @@ mod tests {
     }
 
     #[test]
-    fn no_readme_and_an_empty_block_fail_alone() {
+    fn no_guide_and_an_empty_block_fail_alone() {
         let inputs = Inputs::default();
         assert_eq!(
             check(&inputs)[0].message,
@@ -205,6 +218,40 @@ mod tests {
         assert_eq!(
             messages("# P\n", &[], &["src"]),
             ["no paths found under '## Project Layout' — the inventory is unverifiable"]
+        );
+    }
+
+    /// Verifies: ADR-0021
+    #[test]
+    fn before_v0_7_0_the_readme_holds_the_block_and_from_it_the_contributing_guide() {
+        let inputs = |release| Inputs {
+            readme: Some(LAYOUT.to_owned()),
+            contributing: Some("# Contributing\n".to_owned()),
+            release: Some(release),
+            layout: super::Layout {
+                found: [("README.md", true), ("src/", true), ("scripts/*.sh", true)]
+                    .iter()
+                    .map(|(p, f)| ((*p).to_owned(), *f))
+                    .collect(),
+                top_level: vec!["src".to_owned()],
+            },
+            ..Inputs::default()
+        };
+        let reported = |release| -> Vec<String> {
+            check(&inputs(release))
+                .into_iter()
+                .map(|f| format!("{}: {}", f.file, f.message))
+                .collect()
+        };
+        assert_eq!(
+            reported(crate::config::Version(0, 6, 2)),
+            Vec::<String>::new()
+        );
+        assert_eq!(
+            reported(super::super::CONTRIBUTING_GUIDE),
+            [
+                "CONTRIBUTING.md: no paths found under '## Project Layout' — the inventory is unverifiable"
+            ]
         );
     }
 }

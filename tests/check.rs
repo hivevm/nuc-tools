@@ -852,8 +852,7 @@ fn the_check_lists_are_read_as_the_bash_globs_and_find_list_them() {
     );
 }
 
-const LAYOUT_README: &str =
-    "# Fixture\n\n## Project Layout\n\n```\nREADME.md\nnuc.toml\ndocs/plan/\n*.toml\n";
+const LAYOUT_README: &str = "# Fixture\n\n- **Template release:** v0.6.2\n\n## Project Layout\n\n```\nREADME.md\nnuc.toml\ndocs/plan/\n*.toml\n";
 
 #[test]
 fn an_absolute_layout_path_names_a_path_under_the_root_as_for_the_bash() {
@@ -879,6 +878,50 @@ fn a_layout_without_open_work_and_with_a_matching_pattern_passes() {
         Some(0),
         "{}{}",
         stdout(&output),
+        stderr(&output)
+    );
+}
+
+/// Verifies: ADR-0021
+#[test]
+fn from_v0_7_0_the_lists_stand_in_the_contributing_guide() {
+    let readme = "# Fixture\n\n- **Template release:** v0.7.0\n";
+    let fixture = Fixture::project(
+        "guide-0.7",
+        "minimum = \"0.0.0\"\nrules = [\"docs/check-lists\", \"docs/project-layout\"]\n",
+        readme,
+    );
+    fixture.write(
+        ".github/workflows/checks.yml",
+        "jobs:\n  docs:\n    steps:\n      - run: bash scripts/check-docs.sh\n",
+    );
+    fixture.write(
+        "scripts/check-all.sh",
+        "run \"Docs\" scripts/check-docs.sh\n",
+    );
+    fixture.write("scripts/check-docs.sh", "true\n");
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(
+        stdout(&output).lines().collect::<Vec<_>>(),
+        [
+            "CONTRIBUTING.md: docs/check-lists: not found — the check lists cannot be compared",
+            "CONTRIBUTING.md: docs/project-layout: not found — the Project Layout block cannot be checked",
+        ],
+        "{}",
+        stderr(&output)
+    );
+    fixture.write(
+        "CONTRIBUTING.md",
+        "# Contributing\n\n## Project Layout\n\n```\nREADME.md\nCONTRIBUTING.md\nnuc.toml\n.github/\nscripts/\ngone/\n```\n\n<!-- required-checks begin -->\n`docs`, `lint`\n<!-- required-checks end -->\n",
+    );
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(
+        stdout(&output).lines().collect::<Vec<_>>(),
+        [
+            "CONTRIBUTING.md: docs/check-lists: required check 'lint' is not a job of .github/workflows/checks.yml — a ruleset would wait for a check that never reports",
+            "CONTRIBUTING.md: docs/project-layout: Project Layout lists 'gone/', which is not a directory of this repository",
+        ],
+        "{}",
         stderr(&output)
     );
 }

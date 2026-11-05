@@ -115,6 +115,9 @@ fn check(repo: Option<&Path>) -> Result<u8, String> {
     if needs(Input::Readme) {
         inputs.readme = Some(readme);
     }
+    if needs(Input::Contributing) {
+        inputs.contributing = tree.read_checked(&tree.root.join("CONTRIBUTING.md"))?;
+    }
     if needs(Input::Release) {
         let reported = selected
             .iter()
@@ -148,7 +151,10 @@ fn check(repo: Option<&Path>) -> Result<u8, String> {
         inputs.check_lists = tree.read_check_lists()?;
     }
     if needs(Input::Layout) {
-        inputs.layout = tree.read_layout(inputs.readme.as_deref())?;
+        inputs.layout = tree.read_layout(&[
+            ("README.md", inputs.readme.as_deref()),
+            ("CONTRIBUTING.md", inputs.contributing.as_deref()),
+        ])?;
     }
     if needs(Input::Skills) {
         inputs.skills = tree.read_skills()?;
