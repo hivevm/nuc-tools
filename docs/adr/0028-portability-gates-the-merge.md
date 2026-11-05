@@ -1,6 +1,6 @@
 # ADR-0028: The build, test, and lint run on Linux arm64, macOS, and Windows as a job of the Checks workflow whose check runs are required on `main`
 
-- **Status:** 🟡 proposed
+- **Status:** 🟢 accepted
 - **Date:** 2026-11-05
 - **Deciders:** Markus Brigl
 - **Applies to:** the `portability` job of `.github/workflows/checks.yml`, the required checks of `CONTRIBUTING.md`, and the ruleset on `main`
