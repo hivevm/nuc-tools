@@ -14,9 +14,10 @@ pub const RULE: Rule = Rule {
     explain: "Every path the 'Project Layout' block of CONTRIBUTING.md (README.md before template \
               release v0.7.0) lists exists, a trailing '/' meaning a directory and a '*' a \
               pattern that matches at least one file; docs/plan/ may be absent, since open work \
-              lives there only while there is some. The block is written by hand and nothing else tells a reader that a line of it \
-              has gone stale. Every tracked top-level file and directory is named, by itself or \
-              by a path under it; below the top level the block is a tour, not a listing.",
+              lives there only while there is some. The block is written by hand and nothing \
+              else tells a reader that a line of it has gone stale. Every tracked top-level file \
+              and directory is named, by itself or by a path under it; below the top level the \
+              block is a tour, not a listing.",
     reads: &[
         Input::Readme,
         Input::Contributing,
