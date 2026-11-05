@@ -56,9 +56,9 @@ scripts/lib/          # what the scripts share: the ADR header, git, the ticket 
 scripts/*.sh          # run by hand, steps 7 and 8 of the integration branches: number-adrs.sh,
                       # ready-for-main.sh, drop-merged-branch.sh
 .githooks/            # git hooks: nothing lands on main locally; checks before a merge and a push
-.github/workflows/    # checks.yml runs the checks; review-binding.yml reads each pull request's hand-off;
-                      # portability.yml runs the build on Linux arm64, macOS, and Windows;
-                      # release.yml publishes a release, release-test.yml tests what it runs
+.github/workflows/    # checks.yml runs the checks, the build on every platform of Q-4 included;
+                      # review-binding.yml reads each pull request's hand-off; release.yml
+                      # publishes a release, release-test.yml tests what it runs
 .github/              # Dependabot, issue & pull request templates, code owners
 .devcontainer/        # Dev Container definition (base image + Features)
 .vscode/              # shared editor settings
@@ -224,7 +224,9 @@ configured once by a maintainer and worth re-checking after a repository move or
   only, since squash and rebase discard the merges a `feat/` branch carries and the commits it
   was reworked into ([`AGENTS.md` §6](AGENTS.md#6-project-rules)); requires the
   <!-- required-checks begin — compared with the workflow's jobs by scripts/check-docs.sh -->
-  `docs`, `traceability`, `devcontainer`, `sensors`, `shell`, `gates`, `build`, `deps`, and `parity`
+  `docs`, `traceability`, `devcontainer`, `sensors`, `shell`, `gates`, `build`,
+  `portability (ubuntu-24.04-arm)`, `portability (macos-latest)`, `portability (windows-latest)`,
+  `deps`, and `parity`
   <!-- required-checks end -->
   jobs of the **Checks** workflow as required status checks (rulesets list checks as they report:
   a job by its name, a job with a matrix by one check run per entry, such as
