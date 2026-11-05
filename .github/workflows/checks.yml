@@ -17,7 +17,7 @@ name: Checks
 # The build job runs the toolchain's build, test, and lint, and the deps job the dependency audit
 # (ADR-0008); the parity job builds nuc for the parity harness
 # (ADR-0022). The portability job runs the same build on Linux arm64, macOS, and Windows, each a
-# required check run (Q-4, ADR-draft-portability-gates-the-merge).
+# required check run (Q-4, ADR-0028).
 #
 # Every job is bounded by a timeout — a hung step would otherwise occupy a runner until the
 # platform's own six-hour limit — and every checkout runs with 'persist-credentials: false': the
@@ -222,7 +222,7 @@ jobs:
         run: bash scripts/test-release.sh
 
   # The build of the build job on the other platforms of Q-4, one required check run per entry of
-  # the matrix (ADR-draft-portability-gates-the-merge); fail-fast is off so that one red platform
+  # the matrix (ADR-0028); fail-fast is off so that one red platform
   # does not hide another. The runner images ship rustup, which installs the toolchain
   # rust-toolchain.toml pins; on Windows the script runs in the Git Bash the image ships.
   portability:
