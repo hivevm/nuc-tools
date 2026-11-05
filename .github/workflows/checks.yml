@@ -16,7 +16,7 @@ name: Checks
 #
 # The build job runs the toolchain's build, test, and lint, and the deps job the dependency audit
 # (ADR-0008); the parity job builds nuc for the parity harness
-# (ADR-0012). The same build runs on Linux arm64, macOS, and Windows in
+# (ADR-0022). The same build runs on Linux arm64, macOS, and Windows in
 # portability.yml, which is no required check (Q-4).
 #
 # Every job is bounded by a timeout — a hung step would otherwise occupy a runner until the
@@ -237,7 +237,7 @@ jobs:
       - name: Audit the dependencies
         run: bash scripts/check-deps.sh
 
-  # The parity harness (ADR-0012, Q-2): the bash checks of each repository of the
+  # The parity harness (ADR-0022, Q-2): the bash checks of each repository of the
   # corpus and nuc on the same tree, any difference a failure. It fetches the corpus and builds nuc
   # with the toolchain rust-toolchain.toml pins; Linux only.
   parity:
