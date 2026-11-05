@@ -251,24 +251,34 @@ d="$(repo jobs-zero)"
 CHECK_ALL_JOBS=0 expect_exit "CHECK_ALL_JOBS=0 exits 2" 2 "$d"
 
 # A runner stopped by TERM stops the checks it started and waits for them: none finishes after
-# it, and one that cleans up on TERM has done so when the runner returns.
+# it, and one that cleans up on TERM has done so when the runner returns. Each check writes its
+# process id first, so the case decides by which of them still runs, not by the clock.
 d="$(repo stopped)"
 # shellcheck disable=SC2016 # the stub's variable, not this script's
-printf 'trap '\''sleep 0.3; touch "%s/cleaned"; exit 1'\'' TERM; sleep 5 & wait $!\n' "$d" \
-  >> "$d/${scripts[0]}"
+printf 'echo $$ >> "%s/pids"; trap '\''sleep 0.3; touch "%s/cleaned"; exit 1'\'' TERM; sleep 5 & wait $!\n' \
+  "$d" "$d" >> "$d/${scripts[0]}"
 for s in "${scripts[@]}"; do
-  printf 'touch "%s/started"; sleep 1; touch "%s/finished"\n' "$d" "$d" >> "$d/$s"
+  # shellcheck disable=SC2016 # the stub's variable, not this script's
+  printf 'echo $$ >> "%s/pids"; touch "%s/started"; sleep 1; touch "%s/finished"\n' "$d" "$d" "$d" \
+    >> "$d/$s"
 done
 bash "$d/scripts/check-all.sh" > /dev/null 2>&1 &
 runner=$!
-for _ in 1 2 3 4 5 6 7 8 9 10; do [[ -e "$d/started" ]] && break; sleep 0.1; done
+# A check starts within a second on a quiet machine; the bound only keeps a broken runner from
+# hanging the self-test.
+for _ in $(seq 1 300); do [[ -e "$d/started" ]] && break; sleep 0.1; done
 kill -TERM "$runner"
 wait "$runner"; rc=$?
+# A check forked an instant before the TERM may not have written its id yet: it still runs the
+# runner's or its own script, both under the fixture's scripts/, which pgrep finds by name.
+alive=0
+while read -r pid; do kill -0 "$pid" 2>/dev/null && alive=$((alive + 1)); done < "$d/pids"
+pgrep -f "$d/scripts/" > /dev/null && alive=$((alive + 1))
 check "a runner stopped by TERM exits 143" test "$rc" -eq 143
 check "and had started a check" test -e "$d/started"
 check "and returns once a check that cleans up on TERM has done so" test -e "$d/cleaned"
-sleep 1.2
-check "and no check it started finishes after it" test ! -e "$d/finished"
+check "and no check it started still runs when it returns" test "$alive" -eq 0
+check "and no check it started has finished" test ! -e "$d/finished"
 
 d="$(repo unknown)"
 expect_exit "an unknown argument exits 2" 2 "$d" --everything

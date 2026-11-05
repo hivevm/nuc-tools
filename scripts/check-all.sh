@@ -139,7 +139,8 @@ trap stop EXIT
 
 # run <label> <script> [args...] — start one check, its output and exit code kept under $out. The
 # subshell passes a TERM on to the check and waits for it, so stop() returns once each has ended;
-# its trap stands before the check starts, so a TERM never finds the check without it.
+# its trap stands before the check starts, so a TERM never finds the check without it. The trap
+# names the check by the subshell's own jobs, which hold it from the instant it is started.
 run() {
   local label="$1" script="$2" i="${#labels[@]}"
   shift 2
@@ -152,11 +153,9 @@ run() {
   fi
   while ((running >= max_jobs)); do wait -n; running=$((running - 1)); done
   {
-    check=""
-    trap '[[ -n "$check" ]] && kill "$check" 2>/dev/null && wait "$check"; exit 143' TERM
+    trap 'kill $(jobs -p) 2>/dev/null; wait; exit 143' TERM
     bash "$ROOT/$script" "$@" > "$out/$i" 2>&1 &
-    check=$!
-    wait "$check"
+    wait "$!"
     echo $? > "$out/$i.rc"
   } &
   running=$((running + 1))
