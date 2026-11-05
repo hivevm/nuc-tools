@@ -8,6 +8,8 @@
 // Each test crate includes this module and uses part of it.
 #![allow(dead_code)]
 
+pub mod sources;
+
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{self, Command, Output, Stdio};
