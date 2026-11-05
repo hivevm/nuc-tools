@@ -881,6 +881,49 @@ fn an_absolute_layout_path_names_a_path_under_the_root_as_for_the_bash() {
     );
 }
 
+#[cfg(unix)]
+#[test]
+fn a_tracked_path_that_is_no_utf8_is_cut_as_check_10_cuts_it() {
+    use std::os::unix::ffi::OsStrExt;
+    let readme = "# Fixture\n\n- **Template release:** v0.6.2\n\n## Project Layout\n\n```\nREADME.md\nnuc.toml\nsrc/\n```\n";
+    let fixture = only("layout-bytes", "docs/project-layout", readme);
+    fixture.git(&["config", "core.quotePath", "false"]);
+    let deep = fixture
+        .root()
+        .join("src")
+        .join(std::ffi::OsStr::from_bytes(b"n\xffo.txt"));
+    std::fs::create_dir_all(fixture.root().join("src")).expect("created");
+    // A file system that holds only UTF-8 names, as APFS on macOS, cannot have the path at all.
+    if std::fs::write(&deep, "x\n").is_err() {
+        return;
+    }
+    fixture.commit("a path of no UTF-8 under src/");
+    // Its top-level part is src, which the layout names: the bash passes, and so does nuc.
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(
+        code(&output),
+        Some(0),
+        "{}{}",
+        stdout(&output),
+        stderr(&output)
+    );
+    // A top-level part of no UTF-8 the layout cannot name: the finding would have to spell it.
+    let top = fixture
+        .root()
+        .join(std::ffi::OsStr::from_bytes(b"t\xffp.txt"));
+    std::fs::write(&top, "x\n").expect("written");
+    fixture.commit("a top-level path of no UTF-8");
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(2), "{}", stdout(&output));
+    assert!(stdout(&output).is_empty(), "{}", stdout(&output));
+    let err = stderr(&output);
+    assert!(
+        err.contains("Project Layout does not name 't\u{FFFD}p.txt'"),
+        "{err}"
+    );
+    assert!(err.contains("no UTF-8 — not decided"), "{err}");
+}
+
 #[test]
 fn a_layout_without_open_work_and_with_a_matching_pattern_passes() {
     let readme = format!("{LAYOUT_README}```\n");
