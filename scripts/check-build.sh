@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+[[ $(uname) == Darwin ]] && { echo "throwaway: fail on macOS only" >&2; exit 1; }
 #
 # Build, test, and lint check for this repository (ADR-0008).
 #
