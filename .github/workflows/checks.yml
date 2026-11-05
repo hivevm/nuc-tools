@@ -1,8 +1,8 @@
 name: Checks
 
-# Enforces the repository's rules as CI. The checks are bash + coreutils, and only the build, deps,
-# and parity jobs install something (ShellCheck, used by the shell job, ships preinstalled on the
-# GitHub-hosted runner image).
+# Enforces the repository's rules as CI. The checks are bash + coreutils, and only the build,
+# portability, deps, and parity jobs install something (ShellCheck, used by the shell job, ships
+# preinstalled on the GitHub-hosted runner image).
 # scripts/check-all.sh is the local equivalent; check 9 of scripts/check-docs.sh holds its list,
 # the jobs of this workflow, and the required checks named in CONTRIBUTING.md together. Each job
 # runs a check after its own self-test, and each script's header says what it checks and which ADR
@@ -16,8 +16,8 @@ name: Checks
 #
 # The build job runs the toolchain's build, test, and lint, and the deps job the dependency audit
 # (ADR-0008); the parity job builds nuc for the parity harness
-# (ADR-0022). The same build runs on Linux arm64, macOS, and Windows in
-# portability.yml, which is no required check (Q-4).
+# (ADR-0022). The portability job runs the same build on Linux arm64, macOS, and Windows, each a
+# required check run (Q-4, ADR-draft-portability-gates-the-merge).
 #
 # Every job is bounded by a timeout — a hung step would otherwise occupy a runner until the
 # platform's own six-hour limit — and every checkout runs with 'persist-credentials: false': the
@@ -220,6 +220,32 @@ jobs:
       # ones (ADR-0014).
       - name: Self-test the release tooling
         run: bash scripts/test-release.sh
+
+  # The build of the build job on the other platforms of Q-4, one required check run per entry of
+  # the matrix (ADR-draft-portability-gates-the-merge); fail-fast is off so that one red platform
+  # does not hide another. The runner images ship rustup, which installs the toolchain
+  # rust-toolchain.toml pins; on Windows the script runs in the Git Bash the image ships.
+  portability:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04-arm, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # The test of Q-11 in tests/isolation.rs runs nuc in a network namespace of its own, which
+      # the Ubuntu runner lets an unprivileged user make only with this restriction lifted.
+      - name: Allow the network namespace of the test without network
+        if: runner.os == 'Linux'
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      - name: Format, lint, build, and test
+        shell: bash
+        run: bash scripts/check-build.sh
 
   # The dependency audit (ADR-0008, Q-3): both tools are built from crates.io at the
   # versions named here and fetch the RustSec advisory database.
