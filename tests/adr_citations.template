@@ -1,6 +1,8 @@
 # The places that cite an ADR number this record has superseded, read by tests/adr_citations.rs.
 # One entry per line, a path and an identifier separated by a tab: the file may cite that ADR. The
-# entries are grouped by why the number stands. An entry that names no citation fails the test.
+# entries are grouped by why the number stands. An entry that names no citation fails the test,
+# and so does one whose ADR is in force again: a normalization that restates ADR-0002 and ADR-0005
+# at the template's numbers drops their entries (docs/CONVENTIONS.md).
 
 # Files taken up from the template, which keep its text: ADR-0002 and ADR-0005 are the template's
 # numbers for what ADR-0023 and ADR-0024 restate here.
@@ -19,7 +21,7 @@ scripts/test-check-all.sh	ADR-0002
 scripts/test-sensor-review-binding.sh	ADR-0002
 
 # Messages of nuc that copy the bash's, with the template's numbers, and the tests that expect
-# them; tests/check.rs also writes ADR-0002 as data, as below.
+# them.
 src/rules/docs_no_draft_on_main.rs	ADR-0002
 src/rules/docs_template_release.rs	ADR-0005
 scripts/test-check-parity.sh	ADR-0005
@@ -29,10 +31,3 @@ tests/check.rs	ADR-0005
 # The parity harness, which names the files and messages of a corpus tree.
 tests/parity/normalize.tsv	ADR-0002
 tests/parity/variants.tsv	ADR-0002
-
-# Unit tests that write an ADR identifier as data, a heading or a status, not as a citation.
-src/rules/docs_adr_header.rs	ADR-0002
-src/rules/docs_adr_index.rs	ADR-0002
-src/rules/docs_adr_numbering.rs	ADR-0002
-src/rules/docs_prose_width.rs	ADR-0002
-src/rules/traceability_citations.rs	ADR-0002

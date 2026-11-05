@@ -194,6 +194,7 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::testing::adr_id;
 
     fn found(path: &str, text: &str) -> Vec<String> {
         let mut inputs = Inputs::default();
@@ -280,7 +281,7 @@ mod tests {
     fn inactive_adrs_and_generated_files_are_not_read() {
         let long = prose(120);
         let mut inputs = Inputs::default();
-        let superseded = format!("- **Status:** ⚪ superseded by ADR-0002\n\n{long}\n");
+        let superseded = format!("- **Status:** ⚪ superseded by {}\n\n{long}\n", adr_id(2));
         for (path, text) in [
             ("docs/adr/0001-a.md", superseded.as_str()),
             ("CHANGELOG.md", long.as_str()),

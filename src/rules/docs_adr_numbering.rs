@@ -120,7 +120,7 @@ fn is_slug(text: &str) -> bool {
 mod tests {
     use super::*;
     use crate::adr::Dir;
-    use crate::testing::draft_id;
+    use crate::testing::{adr_id, draft_id};
 
     fn inputs(files: &[(&str, &str)]) -> Inputs {
         let adr: Dir = files
@@ -144,8 +144,8 @@ mod tests {
     fn numbers_without_gaps_and_matching_headings_pass() {
         assert_eq!(
             messages(&[
-                ("0001-a.md", "# ADR-0001: A"),
-                ("0002-b.md", "# ADR-0002: B"),
+                ("0001-a.md", &format!("# {}: A", adr_id(1))),
+                ("0002-b.md", &format!("# {}: B", adr_id(2))),
                 ("draft-c-d.md", &format!("# {}", draft_id("c-d: C")))
             ]),
             Vec::<String>::new()
@@ -155,9 +155,9 @@ mod tests {
     #[test]
     fn a_gap_fails_once_at_its_position() {
         let found = messages(&[
-            ("0001-a.md", "# ADR-0001"),
-            ("0003-c.md", "# ADR-0003"),
-            ("0004-d.md", "# ADR-0004"),
+            ("0001-a.md", &format!("# {}", adr_id(1))),
+            ("0003-c.md", &format!("# {}", adr_id(3))),
+            ("0004-d.md", &format!("# {}", adr_id(4))),
         ]);
         // bash: a gap in the ADR numbering
         assert_eq!(
@@ -170,13 +170,18 @@ mod tests {
 
     #[test]
     fn a_heading_that_names_another_number_or_none_fails() {
+        let (one, two) = (adr_id(1), adr_id(2));
         assert_eq!(
-            messages(&[("0001-a.md", "# ADR-0002: A")]),
-            ["heading says '# ADR-0002', but the filename says ADR-0001"]
+            messages(&[("0001-a.md", &format!("# {two}: A"))]),
+            [format!(
+                "heading says '# {two}', but the filename says {one}"
+            )]
         );
         assert_eq!(
             messages(&[("0001-a.md", "# A")]),
-            ["heading says '<none>', but the filename says ADR-0001"]
+            [format!(
+                "heading says '<none>', but the filename says {one}"
+            )]
         );
     }
 

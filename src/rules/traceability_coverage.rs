@@ -275,9 +275,12 @@ mod tests {
             .collect();
         adrs.insert(
             "0001-twin.md".to_owned(),
-            b"# ADR-0001: twin\n\n- **Status:** \xf0\x9f\x9f\xa2 accepted\n\n## Enforcement\n\n\
-              **Not mechanically decidable:** a reason.\n"
-                .to_vec(),
+            format!(
+                "# {}: twin\n\n- **Status:** 🟢 accepted\n\n## Enforcement\n\n\
+                 **Not mechanically decidable:** a reason.\n",
+                adr_id(1)
+            )
+            .into_bytes(),
         );
         let inputs = Inputs {
             specification: Some(SPEC.as_bytes().to_vec()),
@@ -294,9 +297,7 @@ mod tests {
             .collect();
         adrs.insert(
             "0001-twin.md".to_owned(),
-            "# ADR-0001: twin\n\n- **Status:** 🟢 accepted\n"
-                .as_bytes()
-                .to_vec(),
+            format!("# {}: twin\n\n- **Status:** 🟢 accepted\n", adr_id(1)).into_bytes(),
         );
         let inputs = Inputs {
             specification: Some(SPEC.as_bytes().to_vec()),

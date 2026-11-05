@@ -16,6 +16,13 @@ skimmed. The design revision drops what prevented nothing
   the tree for its old wording and corrects it in the same change. A link check sees an anchor,
   and `tests/adr_citations.rs` a citation of a superseded or rejected ADR; neither sees a sentence
   that restates the rule.
+- **A normalization leaves the template's numbers alone** — `nuc`'s messages copy the bash's
+  with the template's ADR numbers, and `tests/parity/` names a corpus tree's ADR files; neither is
+  a reference to this record. The cut keeps the ADRs inherited from the template at its numbers
+  and file names, 0001 to 0006, so the map moves none of them, and a test writes an identifier it
+  does not mean through `src/testing.rs` or `tests/support/`. After `remap.sh`, a change under
+  `tests/parity/` outside a comment line means the cut moved a template file: correct the cut.
+  `tests/adr_citations.template` drops each entry its test names.
 - **A self-test asserts what it builds** — it takes its fixtures from the tree it copies or writes
   them itself, never from the template's own ADRs, scripts, or numbers, so it holds in a derived
   project and after a normalization.

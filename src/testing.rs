@@ -4,7 +4,7 @@
 //! self-tests assemble theirs with `adr_id` and `mark`; `tests/support/` holds the same for the
 //! integration tests.
 
-/// The identifier `ADR-<key>`, as `ADR-0001` or `ADR-draft-<slug>`.
+/// The identifier `ADR-<key>`, the key four digits or `draft-<slug>`.
 pub fn id(key: &str) -> String {
     format!("{}-{key}", "ADR")
 }

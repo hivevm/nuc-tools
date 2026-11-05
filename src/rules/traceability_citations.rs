@@ -220,13 +220,16 @@ mod tests {
             &[
                 adr_file(1, "🟢 accepted, once ⚪"),
                 adr_file(2, "🔴 rejected"),
-                ("0003-x.md".to_owned(), b"# ADR-0003: x\n".to_vec()),
+                (
+                    "0003-x.md".to_owned(),
+                    format!("# {}: x\n", adr_id(3)).into_bytes(),
+                ),
             ]
             .into_iter()
             .collect(),
         );
         assert_eq!(known.len(), 3);
-        assert_eq!(inactive.into_iter().collect::<Vec<_>>(), ["ADR-0002"]);
+        assert_eq!(inactive.into_iter().collect::<Vec<_>>(), [adr_id(2)]);
     }
 
     #[test]

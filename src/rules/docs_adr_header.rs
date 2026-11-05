@@ -83,6 +83,7 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
 mod tests {
     use super::*;
     use crate::adr::Dir;
+    use crate::testing::adr_id;
 
     const TEMPLATE: &str =
         "# ADR-draft-<slug>: T\n\n*Complete the header and delete what does not apply. More.*\n";
@@ -108,9 +109,12 @@ mod tests {
 
     #[test]
     fn a_clean_header_passes() {
-        let text = "# ADR-0001: A\n\n- **Status:** 🟢 accepted\n- **Date:** 2026-10-31\n\n## Context\n\nThe **Date:** field is named in the body.\n";
+        let text = format!(
+            "# {}: A\n\n- **Status:** 🟢 accepted\n- **Date:** 2026-10-31\n\n## Context\n\nThe **Date:** field is named in the body.\n",
+            adr_id(1)
+        );
         // bash: a header field quoted in the body of an ADR
-        assert_eq!(messages(text), Vec::<String>::new());
+        assert_eq!(messages(&text), Vec::<String>::new());
     }
 
     #[test]
@@ -128,7 +132,7 @@ mod tests {
             ["status line reads '⚪ <nothing>', but ⚪ means 'superseded'"]
         );
         assert_eq!(
-            messages("- **Status:** ⚪ superseded by ADR-0002\n"),
+            messages(&format!("- **Status:** ⚪ superseded by {}\n", adr_id(2))),
             Vec::<String>::new()
         );
     }
@@ -154,9 +158,8 @@ mod tests {
     // bash: a header field that is no list item
     #[test]
     fn a_field_in_another_form_fails_at_its_line() {
-        let found = check(&inputs(
-            b"# ADR-0001\n\n**Status:** \xf0\x9f\x9f\xa2 accepted\n",
-        ));
+        let text = format!("# {}\n\n**Status:** 🟢 accepted\n", adr_id(1));
+        let found = check(&inputs(text.as_bytes()));
         assert_eq!(found.len(), 1);
         assert_eq!(found[0].line, Some(3));
         assert!(

@@ -5,9 +5,9 @@
 //! change, as the convention "A rule changes everywhere it is stated" of `docs/CONVENTIONS.md`
 //! asks. The tickets under `docs/plan/` name superseded ADRs as history. Such a number stands only
 //! where `adr_citations.template`, the list kept beside this test, names it by file: the files
-//! taken up from the template, the messages of `nuc` that copy the bash's, the parity harness, and
-//! the unit tests that write an identifier as data. An entry of the list that names no citation
-//! fails too, so the list shrinks when a citation goes. A tracked symbolic link is not followed.
+//! taken up from the template, the messages of `nuc` that copy the bash's, and the parity harness.
+//! An entry of the list that names no citation fails too, so the list shrinks when a citation
+//! goes. A tracked symbolic link is not followed.
 
 mod support;
 
@@ -157,16 +157,23 @@ fn a_supersession_that_leaves_a_citation_behind_fails() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let files = tracked(root);
     let mut dead = dead(root);
-    // The parity harness is cited outside the record; were its ADR superseded today, every
-    // citation of it would be left behind.
+    // An ADR in force that the workflow cites: were it superseded today, every citation of it
+    // would be left behind. It is taken from the tree, so that it holds after a normalization.
+    let workflow = ".github/workflows/checks.yml";
+    let cited_id = files
+        .iter()
+        .filter(|(path, _)| path == workflow)
+        .flat_map(|(_, text)| text.lines().flat_map(cited).collect::<Vec<_>>())
+        .find(|id| !dead.contains_key(id))
+        .expect("the workflow cites an ADR in force");
     let successor = format!("superseded by {}", id("0999"));
-    dead.insert(id("0022"), successor.clone());
+    dead.insert(cited_id.clone(), successor.clone());
     let found = left_behind(&files, &dead, &exempt(TEMPLATE));
-    let message = format!("cites {}, which is {successor}", id("0022"));
+    let message = format!("cites {cited_id}, which is {successor}");
     assert!(
         found
             .iter()
-            .any(|f| f.starts_with(".github/workflows/checks.yml:") && f.ends_with(&message)),
+            .any(|f| f.starts_with(&format!("{workflow}:")) && f.ends_with(&message)),
         "{}",
         found.join("\n")
     );
