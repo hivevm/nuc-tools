@@ -74,20 +74,25 @@ workflow and its runner; a platform beyond the runner images GitHub hosts.
 ## Consequences
 
 - Positive: Q-4 gates every merge into `main`; a platform failure is caught before the merge,
-  whoever waits or does not. Check 9 compares the new check runs with the workflow, and the
-  settings sensor compares them with the ruleset.
+  whoever waits or does not. The settings sensor compares the required checks with the ruleset.
 - Negative / trade-offs: an outage of one runner image blocks every merge until it recovers, or
   until a maintainer bypasses the ruleset. A pull request waits for three more runners, though not
   longer than for `parity`.
+- Negative: no check compares the names of the check runs with the values of the matrix. A label
+  renamed in the matrix but not in `CONTRIBUTING.md` leaves the ruleset waiting for a check run
+  that never reports, and an entry dropped from the list runs unrequired.
 - Follow-ups: whether a runner image that moves under its label, as `macos-latest` does, should be
-  pinned to a version.
+  pinned to a version; whether check 9 should read the values of a matrix, a change of the
+  template's check.
 
 ## Enforcement
 
-Check 9 of `scripts/check-docs.sh` fails when the required checks of `CONTRIBUTING.md` and the
-jobs of `checks.yml` disagree, a matrix job named by its check runs included.
-`scripts/sensor-repo-settings.sh`, run on a maintainer's instruction, reports a ruleset on `main`
-that lacks one of them.
+Check 9 of `scripts/check-docs.sh` fails when a job of `checks.yml` is missing from the required
+checks of `CONTRIBUTING.md`, and when the list names the `portability` job, which has a matrix, by
+its bare name instead of its check runs, `<job> (<values>)`. `scripts/sensor-repo-settings.sh`,
+run on a maintainer's instruction, reports a ruleset on `main` that differs from the list.
 
-**Not mechanically decidable:** that the ruleset on GitHub requires the check runs; the settings
-sensor reports it when a maintainer runs it, and no test of this repository can reach the ruleset.
+**Not mechanically decidable:** that the values and the number of the check runs the list names
+match the matrix of the job, which check 9 leaves to the workflow; and that the ruleset on GitHub
+requires them, which the settings sensor reports only when a maintainer runs it, since no test of
+this repository can reach the ruleset.
