@@ -1,8 +1,8 @@
 //! Check 9 of the template's `scripts/check-docs.sh`: the jobs of `.github/workflows/checks.yml`
-//! and the required checks the README names agree, the workflows and `scripts/check-all.sh` run
-//! the same scripts, every job runs a script, and every script under `scripts/` runs. From
-//! v0.6.0 a workflow `check-all.sh` names on a `# Not a gate:` line is exempt from running a
-//! script, and a job with a matrix is named by its check runs, `<job> (<values>)`.
+//! and the required checks `CONTRIBUTING.md` names (the README before v0.7.0) agree, the workflows
+//! and `scripts/check-all.sh` run the same scripts, every job runs a script, and every script under
+//! `scripts/` runs. From v0.6.0 a workflow `check-all.sh` names on a `# Not a gate:` line is exempt
+//! from running a script, and a job with a matrix is named by its check runs, `<job> (<values>)`.
 
 use super::{Input, Inputs, Rule, read_lines};
 use crate::adr::show;
@@ -16,14 +16,20 @@ pub const RULE_ID: &str = "docs/check-lists";
 pub const RULE: Rule = Rule {
     id: RULE_ID,
     explain: "The jobs of .github/workflows/checks.yml and the required checks named between the \
-              'required-checks' markers of README.md list the same jobs, and the workflows and \
-              scripts/check-all.sh run the same scripts. A check that runs in only one of them \
-              is a gate somebody believes in and does not have. A job that runs no script runs \
-              in CI and never in the local gate, and a script neither list runs is a check \
-              nobody runs, unless check-all.sh names it on an '# On instruction:' line. From \
-              template release v0.6.0 a workflow named on a '# Not a gate:' line publishes \
-              rather than checks, and a job with a matrix is named by its check runs.",
-    reads: &[Input::Readme, Input::CheckLists, Input::Release],
+              'required-checks' markers of CONTRIBUTING.md (README.md before template release \
+              v0.7.0) list the same jobs, and the workflows and scripts/check-all.sh run the same \
+              scripts. A check that runs in only one of them is a gate somebody believes in and \
+              does not have. A job that runs no script runs in CI and never in the local gate, \
+              and a script neither list runs is a check nobody runs, unless check-all.sh names \
+              it on an '# On instruction:' line. From template release v0.6.0 a workflow named \
+              on a '# Not a gate:' line publishes rather than checks, and a job with a matrix is \
+              named by its check runs.",
+    reads: &[
+        Input::Readme,
+        Input::Contributing,
+        Input::CheckLists,
+        Input::Release,
+    ],
     check: |inputs| check(inputs).into(),
 };
 
@@ -47,7 +53,6 @@ const NOT_A_GATE_AND_MATRIX: Version = Version(0, 6, 0);
 
 const CHECKS: &str = ".github/workflows/checks.yml";
 const CHECK_ALL: &str = "scripts/check-all.sh";
-const README: &str = "README.md";
 
 fn finding(file: &str, message: String) -> Finding {
     Finding {
@@ -60,12 +65,13 @@ fn finding(file: &str, message: String) -> Finding {
 
 fn check(inputs: &Inputs) -> Vec<Finding> {
     let lists = &inputs.check_lists;
-    let (Some(checks), Some(all), Some(readme)) = (&lists.checks, &lists.check_all, &inputs.readme)
+    let (guide, guide_text) = inputs.guide();
+    let (Some(checks), Some(all), Some(text)) = (&lists.checks, &lists.check_all, guide_text)
     else {
         let missing = [
             (CHECKS, lists.checks.is_some()),
             (CHECK_ALL, lists.check_all.is_some()),
-            (README, inputs.readme.is_some()),
+            (guide, guide_text.is_some()),
         ]
         .into_iter()
         .find(|(_, present)| !present)
@@ -141,7 +147,7 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
             )));
         }
     }
-    readme_checks(readme.as_bytes(), &workflows, v0_6, &mut found);
+    required_checks(guide, text.as_bytes(), &workflows, v0_6, &mut found);
     found
 }
 
@@ -280,11 +286,17 @@ impl Workflows {
     }
 }
 
-/// The required checks between the README's markers against the jobs of `checks.yml`.
-fn readme_checks(readme: &[u8], workflows: &Workflows, v0_6: bool, found: &mut Vec<Finding>) {
+/// The required checks between the markers of `guide` against the jobs of `checks.yml`.
+fn required_checks(
+    guide: &str,
+    text: &[u8],
+    workflows: &Workflows,
+    v0_6: bool,
+    found: &mut Vec<Finding>,
+) {
     let mut in_block = false;
     let mut names: Vec<Vec<u8>> = Vec::new();
-    for line in read_lines(readme) {
+    for line in read_lines(text) {
         if crate::bash::contains(line, b"required-checks begin") {
             in_block = true;
             continue;
@@ -299,7 +311,7 @@ fn readme_checks(readme: &[u8], workflows: &Workflows, v0_6: bool, found: &mut V
     }
     if names.is_empty() {
         found.push(finding(
-            README,
+            guide,
             "no job names between the 'required-checks' markers — the required status checks are unverifiable"
                 .to_owned(),
         ));
@@ -327,11 +339,11 @@ fn readme_checks(readme: &[u8], workflows: &Workflows, v0_6: bool, found: &mut V
         } else {
             continue;
         };
-        found.push(finding(README, message));
+        found.push(finding(guide, message));
     }
     for job in &workflows.jobs {
         if !bases.contains(&job.as_slice()) {
-            found.push(finding(README, format!(
+            found.push(finding(guide, format!(
                 "job '{}' of {CHECKS} is missing from the required checks — it would run without gating a merge",
                 show(job)
             )));
@@ -519,6 +531,7 @@ mod tests {
         checks: Option<String>,
         all: Option<String>,
         readme: Option<String>,
+        contributing: Option<String>,
         workflows: Vec<(String, String)>,
         scripts: Vec<String>,
         release: Option<Version>,
@@ -530,6 +543,7 @@ mod tests {
                 checks: Some(CHECKS_YML.to_owned()),
                 all: Some(ALL.to_owned()),
                 readme: Some(README_TEXT.to_owned()),
+                contributing: None,
                 workflows: Vec::new(),
                 scripts: vec!["check-all.sh".to_owned(), "check-docs.sh".to_owned()],
                 release: Some(NOT_A_GATE_AND_MATRIX),
@@ -549,6 +563,7 @@ mod tests {
             workflows.sort();
             let inputs = Inputs {
                 readme: self.readme.clone(),
+                contributing: self.contributing.clone(),
                 release: self.release,
                 check_lists: CheckLists {
                     checks: self.checks.clone().map(String::into_bytes),
@@ -738,6 +753,35 @@ mod tests {
             matrix_tree("`build (ubuntu-latest)`", "").messages(),
             [
                 "README.md: required check 'build (ubuntu-latest)' names a check run of 'build', which has no matrix and reports as 'build'"
+            ]
+        );
+    }
+
+    /// Verifies: ADR-0021
+    #[test]
+    fn from_v0_7_0_the_required_checks_stand_in_the_contributing_guide() {
+        let mut tree = Tree::new();
+        tree.release = Some(super::super::CONTRIBUTING_GUIDE);
+        assert_eq!(
+            tree.messages(),
+            ["CONTRIBUTING.md: not found — the check lists cannot be compared"]
+        );
+        tree.contributing = Some(README_TEXT.replace("`docs`", "`build`"));
+        assert_eq!(
+            tree.messages(),
+            [
+                "CONTRIBUTING.md: required check 'build' is not a job of .github/workflows/checks.yml — a ruleset would wait for a check that never reports",
+                "CONTRIBUTING.md: job 'docs' of .github/workflows/checks.yml is missing from the required checks — it would run without gating a merge",
+            ]
+        );
+        tree.contributing = Some(README_TEXT.to_owned());
+        tree.readme = Some("# P\n".to_owned());
+        assert_eq!(tree.messages(), Vec::<String>::new());
+        tree.release = Some(Version(0, 6, 2));
+        assert_eq!(
+            tree.messages(),
+            [
+                "README.md: no job names between the 'required-checks' markers — the required status checks are unverifiable"
             ]
         );
     }

@@ -30,6 +30,9 @@ pub mod traceability_criteria;
 pub struct Inputs {
     /// The text of `README.md` at the root, if the file exists.
     pub readme: Option<String>,
+    /// The text of `CONTRIBUTING.md` at the root, if the file exists: from template release
+    /// v0.7.0 on, it holds the required checks and the Project Layout.
+    pub contributing: Option<String>,
     /// The files of `docs/adr/` the bash reads, by name: the ADRs, the index, and the template.
     pub adr: crate::adr::Dir,
     /// Each file a row of the index links, by its target as the row writes it: its bytes when
@@ -48,7 +51,7 @@ pub struct Inputs {
     pub release: Option<Version>,
     /// The files of the check lists.
     pub check_lists: docs_check_lists::CheckLists,
-    /// What the paths of the README's Project Layout name, and the top-level parts of the tree.
+    /// What the paths of the Project Layout name, and the top-level parts of the tree.
     pub layout: docs_project_layout::Layout,
     /// The skills and their pointers.
     pub skills: docs_skill_pointers::Skills,
@@ -76,11 +79,24 @@ impl Inputs {
     pub fn carries_at_least(&self, release: Version) -> bool {
         self.release.is_none_or(|carried| carried >= release)
     }
+
+    /// The file that holds the required checks and the Project Layout on the release the tree is
+    /// checked as, by its name, and its text if it exists.
+    pub fn guide(&self) -> (&'static str, Option<&str>) {
+        if self.carries_at_least(CONTRIBUTING_GUIDE) {
+            ("CONTRIBUTING.md", self.contributing.as_deref())
+        } else {
+            ("README.md", self.readme.as_deref())
+        }
+    }
 }
 
 /// The template releases at which a ported bash check changed, the earliest first: a rule checks
 /// a tree as the latest of them at or before the release it carries.
-pub const RELEASES: &[Version] = &[Version(0, 5, 0), Version(0, 6, 0)];
+pub const RELEASES: &[Version] = &[Version(0, 5, 0), Version(0, 6, 0), Version(0, 7, 0)];
+
+/// The release from which the required checks and the Project Layout stand in `CONTRIBUTING.md`.
+pub const CONTRIBUTING_GUIDE: Version = Version(0, 7, 0);
 
 /// The template release a README names on its `Template release` line.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -94,6 +110,8 @@ pub enum Carried {
 pub enum Input {
     /// `README.md` at the root.
     Readme,
+    /// `CONTRIBUTING.md` at the root.
+    Contributing,
     /// The files of `docs/adr/` and the targets of the index.
     Adr,
     /// Every text file of the repository.
@@ -106,7 +124,8 @@ pub enum Input {
     Release,
     /// The workflows, `scripts/check-all.sh`, and the scripts under `scripts/`.
     CheckLists,
-    /// The paths of the README's Project Layout, tested, and the tracked top-level parts.
+    /// The paths of the Project Layout, in `README.md` and in `CONTRIBUTING.md`, tested, and the
+    /// tracked top-level parts.
     Layout,
     /// The skills and their pointers.
     Skills,

@@ -124,6 +124,7 @@ fn check(repo: Option<&Path>) -> Result<u8, String> {
             None => unplaced = true,
         }
     }
+    read_guides(&tree, &mut inputs, unplaced, &needs)?;
     if needs(Input::Adr) {
         inputs.adr = tree.read_adr(&tree.root.join("docs/adr"))?;
         inputs.adr_targets = tree.read_adr_targets(&inputs.adr)?;
@@ -146,9 +147,6 @@ fn check(repo: Option<&Path>) -> Result<u8, String> {
     }
     if needs(Input::CheckLists) {
         inputs.check_lists = tree.read_check_lists()?;
-    }
-    if needs(Input::Layout) {
-        inputs.layout = tree.read_layout(inputs.readme.as_deref())?;
     }
     if needs(Input::Skills) {
         inputs.skills = tree.read_skills()?;
@@ -259,6 +257,32 @@ fn generated(
             })
         })
         .collect())
+}
+
+/// The guide that holds the required checks and the Project Layout, the README before v0.7.0 and
+/// `CONTRIBUTING.md` from it on, and the paths of its layout: only the one the bash of the carried
+/// release reads is read, and both where the release is not placed.
+fn read_guides(
+    tree: &Tree,
+    inputs: &mut Inputs,
+    unplaced: bool,
+    needs: &dyn Fn(Input) -> bool,
+) -> Result<(), String> {
+    let guide_is_contributing = inputs.carries_at_least(rules::CONTRIBUTING_GUIDE);
+    if needs(Input::Contributing) && (unplaced || guide_is_contributing) {
+        inputs.contributing = tree.read_checked(&tree.root.join("CONTRIBUTING.md"))?;
+    }
+    if needs(Input::Layout) {
+        let readme = inputs
+            .readme
+            .as_deref()
+            .filter(|_| unplaced || !guide_is_contributing);
+        inputs.layout = tree.read_layout(&[
+            ("README.md", readme),
+            ("CONTRIBUTING.md", inputs.contributing.as_deref()),
+        ])?;
+    }
+    Ok(())
 }
 
 /// The earliest template release whose bash checks the rules port.

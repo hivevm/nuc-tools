@@ -70,15 +70,15 @@
 ^scripts/check-all\.sh: no 'run <label> <script>' invocations found	docs/check-lists	-
 ^scripts/check-all\.sh: (does not run|runs) '.*', which (a workflow runs|no job of a workflow runs) — CI and the local gate disagree$	docs/check-lists	-
 ^scripts/[^:]+: no workflow and not scripts/check-all\.sh runs it	docs/check-lists	-
-^README\.md: no job names between the 'required-checks' markers	docs/check-lists	-
-^README\.md: required check '.*' (is not a job of|is a job with a matrix|names a check run of) 	docs/check-lists	-
-^README\.md: job '.*' of .* is missing from the required checks	docs/check-lists	-
+^(README|CONTRIBUTING)\.md: no job names between the 'required-checks' markers	docs/check-lists	-
+^(README|CONTRIBUTING)\.md: required check '.*' (is not a job of|is a job with a matrix|names a check run of) 	docs/check-lists	-
+^(README|CONTRIBUTING)\.md: job '.*' of .* is missing from the required checks	docs/check-lists	-
 
 # check-docs.sh, check 10: the Project Layout.
-^README\.md: not found — the Project Layout block cannot be checked$	docs/project-layout	-
-^README\.md: Project Layout lists '.*', which (matches nothing|is not a directory|does not exist)	docs/project-layout	-
-^README\.md: no paths found under '## Project Layout'	docs/project-layout	-
-^README\.md: Project Layout does not name '.*', a top-level part of this repository$	docs/project-layout	-
+^(README|CONTRIBUTING)\.md: not found — the Project Layout block cannot be checked$	docs/project-layout	-
+^(README|CONTRIBUTING)\.md: Project Layout lists '.*', which (matches nothing|is not a directory|does not exist)	docs/project-layout	-
+^(README|CONTRIBUTING)\.md: no paths found under '## Project Layout'	docs/project-layout	-
+^(README|CONTRIBUTING)\.md: Project Layout does not name '.*', a top-level part of this repository$	docs/project-layout	-
 
 # check-docs.sh, check 11: the skill pointers.
 ^\.claude/skills/[^:]+: (is a copy of the skill|no pointer|is not a symlink into|dangles|points at )	docs/skill-pointers	-

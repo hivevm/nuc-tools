@@ -496,20 +496,24 @@ impl Tree {
         Ok(lists)
     }
 
-    /// What check 10 tests: each path of the Project Layout block, as `compgen -G`, `-d`, or
-    /// `-f` tests it, and the first part of every tracked path.
+    /// What check 10 tests: each path of the Project Layout block of each guide given, the README
+    /// or the contributing guide, as `compgen -G`, `-d`, or `-f` tests it, and the first part of
+    /// every tracked path. The shell gives the guide the carried release reads, the rule picks it.
     pub(super) fn read_layout(
         &self,
-        readme: Option<&str>,
+        guides: &[(&str, Option<&str>)],
     ) -> Result<rules::docs_project_layout::Layout, String> {
         let mut layout = rules::docs_project_layout::Layout::default();
-        for path in readme
-            .map(rules::docs_project_layout::listed)
-            .unwrap_or_default()
-        {
+        let listed = guides.iter().flat_map(|&(guide, text)| {
+            text.map(rules::docs_project_layout::listed)
+                .unwrap_or_default()
+                .into_iter()
+                .map(move |path| (guide, path))
+        });
+        for (guide, path) in listed {
             if path.contains('\u{FFFD}') {
                 return Err(format!(
-                    "README.md: the Project Layout lists a path that is no UTF-8, '{path}' — not decided"
+                    "{guide}: the Project Layout lists a path that is no UTF-8, '{path}' — not decided"
                 ));
             }
             let there = if rules::docs_project_layout::is_pattern(&path) {
