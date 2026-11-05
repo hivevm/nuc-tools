@@ -331,6 +331,7 @@ pub fn headers(dir: &Dir) -> BTreeMap<&str, Header> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::testing::adr_id;
 
     #[test]
     fn adr_names_are_the_numbered_files_then_the_drafts_the_star_empty_too() {
@@ -365,9 +366,12 @@ mod tests {
 
     #[test]
     fn a_header_is_read_as_the_awk_pass_reads_it() {
-        let text = "# ADR-0001: Title\n\n- **Status:** 🟢 accepted\n**Date:** 2026\n\n## Context\n\n- **Status:** 🟡 later\n**Applies to:** body\n";
+        let heading = format!("# {}: Title", adr_id(1));
+        let text = format!(
+            "{heading}\n\n- **Status:** 🟢 accepted\n**Date:** 2026\n\n## Context\n\n- **Status:** 🟡 later\n**Applies to:** body\n"
+        );
         let header = header(text.as_bytes(), Some(b"Complete the header"));
-        assert_eq!(header.heading.as_deref(), Some(&b"# ADR-0001: Title"[..]));
+        assert_eq!(header.heading.as_deref(), Some(heading.as_bytes()));
         assert_eq!(
             header.field("Status"),
             Some("- **Status:** 🟢 accepted".as_bytes())
@@ -378,10 +382,11 @@ mod tests {
 
     #[test]
     fn a_field_named_after_a_key_of_the_awk_lands_under_that_key() {
-        let header = header(
-            b"- **heading:** x\n# ADR-0001: T\n- **needle:** y\n- **stray:** z\n",
-            None,
+        let text = format!(
+            "- **heading:** x\n# {}: T\n- **needle:** y\n- **stray:** z\n",
+            adr_id(1)
         );
+        let header = header(text.as_bytes(), None);
         assert_eq!(header.heading.as_deref(), Some(&b"- **heading:** x"[..]));
         assert!(header.needle);
         assert_eq!(header.stray, [b"- **stray:** z".to_vec()]);

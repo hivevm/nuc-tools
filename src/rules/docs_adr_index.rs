@@ -253,10 +253,12 @@ fn after_last_label(line: &[u8]) -> &[u8] {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::testing::adr_id;
 
     fn adr_file(status: &str, applies: &str) -> Vec<u8> {
         format!(
-            "# ADR-0001: T\n\n- **Status:** {status}\n- **Applies to:** {applies}\n\n## Context\n"
+            "# {}: T\n\n- **Status:** {status}\n- **Applies to:** {applies}\n\n## Context\n",
+            adr_id(1)
         )
         .into_bytes()
     }
@@ -349,7 +351,7 @@ mod tests {
                 format!("{HEAD}| [0001](0001-a.md) | T | every commit | ⚪ |\n"),
                 vec![(
                     "0001-a.md",
-                    adr_file("⚪ superseded by ADR-0002", "every commit"),
+                    adr_file(&format!("⚪ superseded by {}", adr_id(2)), "every commit"),
                 )],
                 "is ⚪ but sits above",
             ),
@@ -401,7 +403,8 @@ mod tests {
     #[test]
     fn a_file_without_status_or_applies_fails_at_the_file() {
         let index = format!("{HEAD}| [0001](0001-a.md) | T | x | 🟢 |\n");
-        let found = check(&dir(&index, &[("0001-a.md", b"# ADR-0001: T\n".to_vec())]));
+        let heading = format!("# {}: T\n", adr_id(1)).into_bytes();
+        let found = check(&dir(&index, &[("0001-a.md", heading)]));
         let files: Vec<&str> = found.iter().map(|f| f.file.as_str()).collect();
         assert_eq!(files, ["docs/adr/0001-a.md", "docs/adr/0001-a.md"]);
     }

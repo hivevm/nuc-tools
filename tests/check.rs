@@ -256,11 +256,11 @@ fn an_adr_with_a_nul_byte_is_not_decided_and_names_the_file() {
     let fixture = Fixture::project("adr-nul", config, README);
     fixture.write(
         "docs/adr/0001-a.md",
-        "# ADR-0001: A\n\n- **Status:** 🟢 accepted\n",
+        &format!("# {}: A\n\n- **Status:** 🟢 accepted\n", id("0001")),
     );
     std::fs::write(
         fixture.root().join("docs/adr/0002-b.md"),
-        b"# ADR-0002\n\0\n",
+        format!("# {}\n\0\n", id("0002")),
     )
     .expect("written");
     let output = fixture.nuc(&["check"]);
@@ -279,11 +279,17 @@ fn the_rules_of_the_record_report_end_to_end() {
     fixture.write("docs/adr/README.md", "| ADR | Title | Applies to | Status |\n|---|---|---|---|\n| [0001](0001-a.md) | A | every commit | 🟢 accepted |\n");
     fixture.write(
         "docs/adr/0001-a.md",
-        "# ADR-0001: A\n\n- **Status:** 🟢 proposed\n- **Applies to:** every commit\n",
+        &format!(
+            "# {}: A\n\n- **Status:** 🟢 proposed\n- **Applies to:** every commit\n",
+            id("0001")
+        ),
     );
     fixture.write(
         "docs/adr/0003-c.md",
-        "# ADR-0003: C\n\n- **Status:** 🟢 accepted\n- **Applies to:** x\n",
+        &format!(
+            "# {}: C\n\n- **Status:** 🟢 accepted\n- **Applies to:** x\n",
+            id("0003")
+        ),
     );
     let output = fixture.nuc(&["check"]);
     assert_eq!(code(&output), Some(1), "{}", stderr(&output));
@@ -311,7 +317,10 @@ fn record(name: &str, row_target: &str) -> Fixture {
     );
     fixture.write(
         "docs/adr/0001-a.md",
-        "# ADR-0001: A\n\n- **Status:** 🟢 accepted\n- **Applies to:** every commit\n",
+        &format!(
+            "# {}: A\n\n- **Status:** 🟢 accepted\n- **Applies to:** every commit\n",
+            id("0001")
+        ),
     );
     fixture
 }
@@ -583,7 +592,10 @@ fn links_the_bash_reads_no_file_for_are_decided_without_one() {
     // that is no Markdown, so neither file outside is read.
     fixture.write(
         "docs/adr/0001-a.md",
-        &format!("# ADR-0001\n\n- **Status:** ⚪ superseded\n\n[x](../../{up_md}#L1)\n"),
+        &format!(
+            "# {}\n\n- **Status:** ⚪ superseded\n\n[x](../../{up_md}#L1)\n",
+            id("0001")
+        ),
     );
     fixture.write("docs/x.md", &format!("[t](../{up_txt}#main)\n"));
     let output = fixture.nuc(&["check"]);
@@ -1422,13 +1434,16 @@ fn the_criteria_without_a_test_are_named_in_the_summary_and_never_fail_the_run()
     );
     fixture.write(
         "docs/adr/0001-decision.md",
-        "# ADR-0001: decision\n\n- **Status:** 🟢 accepted\n",
+        &format!("# {}: decision\n\n- **Status:** 🟢 accepted\n", id("0001")),
     );
     let output = fixture.nuc(&["check"]);
     assert_eq!(code(&output), Some(1), "{}", stderr(&output));
+    let expected = format!(
+        "docs/adr/0001-decision.md: traceability/coverage: {} is accepted",
+        id("0001")
+    );
     assert!(
-        stdout(&output)
-            .starts_with("docs/adr/0001-decision.md: traceability/coverage: ADR-0001 is accepted"),
+        stdout(&output).starts_with(&expected),
         "{}",
         stdout(&output)
     );
