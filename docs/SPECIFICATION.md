@@ -77,7 +77,8 @@ from the threats below.
 - **Q-1** — Integrity of the gates: a check or hook never passes when it could not decide. For
   each class of failure — git missing or failing, an unreadable or malformed input, an unknown
   rule, an internal error or panic — a fixture shows a non-zero exit and a message naming the
-  cause; no input makes `nuc` exit 0 with a finding dropped.
+  cause; on every tree of the parity corpus and every variant, `nuc` exits 0 only where the bash
+  reports no finding of a ported rule.
 - **Q-2** — Parity with the bash checks during the migration: the parity harness reports zero
   differences in findings and exit status between `nuc` and the bash scripts of the template
   release each repository carries, on the template and on every repository of the corpus, for
