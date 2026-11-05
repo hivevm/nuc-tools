@@ -1,7 +1,8 @@
 //! The unit tests held to the cases of the template's bash self-tests.
 //!
-//! The convention "A port copies the bash, quirks included" of `docs/CONVENTIONS.md` has a rule's
-//! unit tests copy the cases of the bash self-test of its check. `tests/bash_cases.tsv`, the list
+//! A rule's unit tests copy the cases of the bash self-test of its check, so that a port reports
+//! what the bash reports on inputs the corpus lacks as well, as the convention "A port copies the
+//! bash, quirks included" of `docs/CONVENTIONS.md` asks. `tests/bash_cases.tsv`, the list
 //! kept beside this test, names each case of `scripts/test-check-docs.sh` and
 //! `scripts/test-check-traceability.sh` as its `expect` line writes it, with the rule whose part
 //! of the bash it tries, or `-` and the reason no rule of `nuc` decides it. A unit test under
