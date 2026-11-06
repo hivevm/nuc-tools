@@ -6,7 +6,7 @@
 > is updated in the same change as the structure it describes
 > ([ADR-0001](adr/0001-agent-governance-model.md)).
 >
-> **Last design revision:** 2026-11-03, due after 20 changes. The revision that took the count
+> **Last design revision:** 2026-11-06, due after 20 changes. The revision that took the count
 > moves the date; the number is this project's to set; a sensor counts the changes outside
 > `docs/` since the commit that set the date and says when the next is due
 > ([ADR-0006](adr/0006-feature-layer.md)).
@@ -16,17 +16,23 @@
 What sits outside the system and what crosses its boundary. A diagram earns its place here more
 than anywhere else, and none beats one that has stopped being true.
 
-`nuc` runs in a working tree of a derived project, from a human's shell, a hook, or CI. What
-crosses its boundary:
+`nuc` runs in a working tree of a derived project, from a human's shell, a reference shim git
+runs as a hook, or CI. What crosses its boundary:
 
 - **In:** the command line; the files of the working tree, each resolved inside it; what git
-  answers about the tree, git run as a process; and the variables CI sets for a pull request,
-  which the check of drafts on `main` reads. The tree is untrusted input.
-- **Out:** the findings on the standard output, the summary and every refusal on the standard
-  error, and the exit code. `nuc check` writes no file and keeps no state.
-- **Beside it:** the template's bash scripts, the oracle the parity harness compares `nuc` with,
-  on a corpus of repositories fetched from GitHub; and the release workflow, which publishes the
-  binaries the Action and the Feature install.
+  answers about the tree, git run as a process; the variables CI sets for a pull request, which
+  the check of drafts on `main` reads; and for `nuc hook`, the arguments and the standard input
+  git hands a hook, the `GIT_DIR` it sets, the run `NUC_HOOK_RUN` the `pre-push` shim names, and
+  the three sides git hands the merge driver. The tree is untrusted input.
+- **Out:** the findings on the standard output, the summary, the notices of a hook, and every
+  refusal on the standard error, and the exit code. `nuc check` writes no file and keeps no
+  state; `nuc hook pre-push` keeps the record of green trees in the git directory, and the merge
+  driver writes the merged index over ours, after git merged the prose in a scratch directory it
+  makes fresh in the git directory and removes.
+- **Beside it:** the template's bash scripts and hooks, the oracle the parity harness compares
+  `nuc` with, on a corpus of repositories fetched from GitHub; the reference shims, which run the
+  project's checks where `nuc hook` answers that they run; and the release workflow, which
+  publishes the binaries the Action and the Feature install.
 
 ## Building blocks
 
@@ -39,7 +45,7 @@ golden path and the test pattern an agent copies from are named here.
   tree as its bash check would, and notes for the summary. Each has one rule ID, the reason
   `nuc explain` gives, and the inputs it reads; the list of every rule is `rules::ALL`. A rule
   reads no file and runs no process
-  ([ADR-0010](adr/0010-rules-return-an-outcome.md)).
+  ([ADR-0024](adr/0024-rules-return-an-outcome-and-hooks-an-answer.md)).
   The rules of the decision record share one reading of it in `src/adr.rs`, and the rules of
   Markdown one reading of its links in `src/markdown.rs`, both outside `src/rules/`, the way the
   bash's `scripts/lib/adr.sh` and awk passes read them. The byte-level readings of the bash's tools,
@@ -61,8 +67,11 @@ golden path and the test pattern an agent copies from are named here.
   state the shell reads in `shell::hook`, and holds the `hook/` rules, `hook::ALL`, which
   `nuc check` knows and runs never. The reference shims under `shims/`, in POSIX sh, hand each
   hook to `nuc hook <name>` and run the project's check where it answers 3
-  ([ADR-0021](adr/0021-hook-contract.md)). `pre-commit`, `pre-merge-commit`, `pre-push`,
-  `reference-transaction`, and the merge driver of the ADR index are ported;
+  ([ADR-0021](adr/0021-hook-contract.md)). A hook's function returns an answer,
+  not a rule's outcome
+  ([ADR-0024](adr/0024-rules-return-an-outcome-and-hooks-an-answer.md)).
+  `pre-commit`, `pre-merge-commit`, `pre-push`, `reference-transaction`, and the merge driver of
+  the ADR index are ported;
   `tests/bench/hook-latency.sh` measures `reference-transaction` against Q-5 in `benchmark.yml`,
   on a schedule, never as a gate.
 - **Shell** — `src/shell/` reads the command line and the repository, runs git under a cleared
@@ -70,7 +79,9 @@ golden path and the test pattern an agent copies from are named here.
   ([ADR-0011](adr/0011-git-cli-cleared-environment.md)). Its `Tree`, in `shell::tree`, reads
   every file and lists every directory the rules need, each resolved through one function that
   refuses a path outside the repository, and refuses as well, as not decided, one the bash would
-  read differently from its bytes alone.
+  read differently from its bytes alone. `shell::hook` reads `nuc.toml` and the README through
+  the `Tree` as well; the two files of the green-tree record and the sides of a merge, at the
+  paths git gives, it reads in the two functions `tests/functional_core.guarded` names for them.
 - **Binary** — `src/main.rs` calls the shell and nothing else.
 - **Parity harness** — `scripts/check-parity.sh` runs the bash checks of each repository of the
   corpus, `check-docs.sh` and `check-traceability.sh`, all on template release v0.5.0 or later,
@@ -112,7 +123,9 @@ golden path and the test pattern an agent copies from are named here.
   ([ADR-0012](adr/0012-fixture-repositories.md)). `tests/isolation.rs` runs `nuc check` on a
   tree of bait and without the network (Q-7, Q-11), and `tests/contract.rs` holds the command
   line's contract and the rule IDs that stay (G-6). `tests/hooks.rs` runs the shims through git
-  with the built `nuc` or a stand-in (Q-1, Q-7, Q-10, Q-11).
+  with the built `nuc` or a stand-in, on every platform of Q-4 (G-2, G-3, G-5, Q-1, Q-7 to
+  Q-11). `tests/adr_citations.rs` fails on a citation of a superseded or rejected ADR outside
+  `docs/adr/` and `docs/plan/`, but where its list `tests/adr_citations.template` names it.
 
 ## How it runs
 
@@ -161,7 +174,11 @@ runs on every update of a ref, and each git call costs a process (Q-5).
 `nuc hook merge-adr-index` is the merge driver `.gitattributes` names for `docs/adr/README.md`,
 through `merge.adr-index.driver`: it has `git merge-file` merge the prose of the three sides, every
 line but a table row, and their union, writes the union into ours where its prose is the prose
-merged on its own, and otherwise the usual conflict markers with git's labels.
+merged on its own, and otherwise the usual conflict markers with git's labels. Its git runs under
+the cleared environment of the shell, which passes `PATH` and `HOME`, and `SystemRoot` on Windows,
+and nothing else. So it reads the configuration of the repository, of the system, and of the user
+at its default places under `HOME`, and none git hands it through the environment, as
+`git -c merge.conflictStyle=diff3`, `GIT_CONFIG_GLOBAL`, or `XDG_CONFIG_HOME`.
 
 A release starts when a human pushes a tag `vX.Y.Z` that names the version of `Cargo.toml`.
 `release.yml` builds the four targets, writes `SHA256SUMS`, attests each binary and verifies the
