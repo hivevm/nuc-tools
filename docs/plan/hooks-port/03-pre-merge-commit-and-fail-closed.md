@@ -35,7 +35,7 @@ with the update hint (G-5).
 
 - Touches: the hook module under `src/`, the reference shims, the scenario harness, `tests/`.
 - The template's `.githooks/pre-merge-commit` and the merge cases of `scripts/test-git-hooks.sh`.
-- ADR-0014 (fail closed), the hook contract ADR of ticket 01, Q-4 in `docs/SPECIFICATION.md`.
+- ADR-0023 (fail closed), ADR-0021 (the hook contract), Q-4 in `docs/SPECIFICATION.md`.
 - Golden path: the `pre-commit` hook and shim of ticket 02.
 
 ## Blocked by

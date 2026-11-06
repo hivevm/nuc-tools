@@ -25,7 +25,8 @@
 # pre-commit refuses a commit on main, with the reference shim and a stand-in nuc: an agreeing
 # nuc passes; one whose exit status differs, one whose refusal maps to another rule ID, one that
 # differs only with nuc.toml, an unknown line of the bash hook, an uncovered self-test case, a
-# listed case the self-test lacks, a scenario that names a case no release has, no tree at all,
+# listed case the self-test lacks, a scenario that names a case no release has, a scenario whose
+# bash side does not end as its case expects, no tree at all,
 # and a malformed table each fail (ADR-0022).
 #
 # Inputs: scripts/check-parity.sh tests/parity/ scripts/lib/ shims/
@@ -546,6 +547,10 @@ cp "$HOOK_SCENARIOS_FILE" "$work/hook-scenarios-stale.sh"
 echo 'hook_scenario stale pre-commit "a case of no release" : commit -q --allow-empty -m x' >> "$work/hook-scenarios-stale.sh"
 expect fail "a scenario that names a case no release has fails" "it names the case 'a case of no release', which no tree's self-test has" \
   run_hooks "$(hook_nuc agrees "$HOOK_AGREES")" "$work/hook-scenarios-stale.sh" "$NO_CASES" "$tree"
+cp "$HOOK_SCENARIOS_FILE" "$work/hook-scenarios-unreached.sh"
+echo 'hook_scenario unreached pre-commit "a commit on main" on_branch commit -q --allow-empty -m x' >> "$work/hook-scenarios-unreached.sh"
+expect fail "a scenario whose bash side does not end as its case expects fails" "the scenario does not reach its case" \
+  run_hooks "$(hook_nuc agrees "$HOOK_AGREES")" "$work/hook-scenarios-unreached.sh" "$NO_CASES" "$tree"
 expect fail "hook scenarios without a tree of the template fail" "the corpus pins no tree of the template" \
   run_hooks "$(hook_nuc agrees "$HOOK_AGREES")" "$HOOK_SCENARIOS_FILE" "$NO_CASES"
 printf 'pattern\tdocs/x\t-\n' > "$work/hooks-bad.tsv"

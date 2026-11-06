@@ -134,7 +134,8 @@ A panic ends it with exit 101, non-zero as well (Q-1). Nothing is written and no
 between runs.
 
 `nuc hook pre-commit` runs in the directory git runs the hook in. Without `nuc.toml` every `hook/`
-rule is on; with one, it is read as `nuc check` reads it and its list governs. It asks git for the
+rule is on; with one, it is read as `nuc check` reads it and its list governs. Where git hands it
+a git directory other than the one it finds from there, it does not decide. It asks git for the
 branch and `MERGE_HEAD`, tests whether `scripts/check-all.sh` exists, and exits 1 with a finding
 at `refs/heads/main` on `main`, 3 on the commit that concludes a merge where the check runs, and
 0 otherwise. The shim runs the check on 3, with git's local variables unset, and refuses on red.

@@ -22,8 +22,8 @@ to invent.
 - **sensor** — A mechanical reading of a repository that reports what it counts and fails on
   nothing until a decision turns it into a check.
 - **gate** — The checks and hooks that keep a change from landing while a check fails.
-- **shim** — The thin script in `.githooks/` that git runs as a hook and that hands over to
-  `nuc hook <name>`.
+- **shim** — The thin script that git runs as a hook and that hands over to `nuc hook <name>`;
+  the reference shims stand under `shims/`, for a project's `.githooks/`.
 - **finding** — One violation a check reports, named by its rule ID and its `file:line`.
 - **not decided** — What `nuc` reports where it cannot check a tree as the bash would: it names
   the cause, exits 2, and never passes (Q-1).

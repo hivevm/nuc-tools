@@ -41,7 +41,7 @@ and the record step are those of the hook contract ADR.
   `tests/isolation.rs`.
 - The template's `.githooks/pre-push` at v0.6.1 and v0.7.0 and its push cases in
   `scripts/test-git-hooks.sh`.
-- The hook contract ADR of ticket 01, ADR-0014 (behaviour by the carried release), Q-8 to Q-10.
+- ADR-0021 (the hook contract), ADR-0023 (behaviour by the carried release), Q-8 to Q-10.
 - Golden path: the hooks of tickets 02 and 03.
 
 ## Blocked by

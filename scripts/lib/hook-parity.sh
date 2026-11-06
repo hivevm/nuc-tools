@@ -14,6 +14,9 @@
 # the lines of the stand-in checks, verbatim. Git's own lines are not compared. A hook's line no
 # row maps, and a rule of nuc the table maps no line to, is a difference.
 #
+# Each scenario's bash side must end as every case it names expects, pass or refuse, so that a
+# setup that no longer reaches its state fails rather than agrees on nothing.
+#
 # Coverage: the 'expect' names of each tree's scripts/test-git-hooks.sh must each be named by a
 # scenario or listed in tests/parity/hook-cases.tsv with a reason; an uncovered name, a listed
 # name no tree has, a scenario that names a case no tree has, and no tree at all fail.
@@ -120,6 +123,24 @@ hp_run() {
   echo "$rc" > "$dir.rc"
 }
 
+# hp_reached <scenario> <bash path> <label> — whether the bash side ends as each case the scenario
+# names expects, pass or refuse: a setup that no longer reaches its state would agree on nothing.
+hp_reached() {
+  local s="$1" rc c ok=0
+  rc="$(cat "$2.rc")"
+  IFS='|' read -ra named <<< "${hs_cases[s]}"
+  for c in "${named[@]}"; do
+    case "${hp_kinds[$c]:-}" in
+      pass) ((rc == 0)) && continue ;;
+      refuse) ((rc != 0)) && continue ;;
+      *) continue ;;
+    esac
+    echo "Parity check: $3 — the bash side exits $rc, where the self-test case '$c' expects ${hp_kinds[$c]}; the scenario does not reach its case" >&2
+    ok=1
+  done
+  return "$ok"
+}
+
 # hp_compare <label> <hook> <bash path> <nuc path> — print the differences of one pair and return
 # 1 when there are any.
 hp_compare() {
@@ -186,8 +207,10 @@ hook_parity() {
   fi
 
   # The 'expect' names of each tree's self-test, and the newest tree.
-  local tree release newest="" newest_release="" t_names
+  local tree release newest="" newest_release="" t_names kind
   local -a all_names=()
+  # What each case expects, pass or refuse, by its name.
+  declare -gA hp_kinds=()
   for tree in "${trees[@]}"; do
     release="$(release_of "$tree/README.md")"
     if [[ ! -f "$tree/scripts/test-git-hooks.sh" ]]; then
@@ -196,8 +219,12 @@ hook_parity() {
       continue
     fi
     t_names="$(grep -oE '^expect (pass|refuse) "[^"]*"' "$tree/scripts/test-git-hooks.sh" \
-      | sed -E 's/^expect (pass|refuse) "//; s/"$//')"
-    mapfile -t -O "${#all_names[@]}" all_names <<< "$t_names"
+      | sed -E 's/^expect (pass|refuse) "(.*)"$/\1\t\2/')"
+    while IFS=$'\t' read -r kind name; do
+      [[ -n "$name" ]] || continue
+      all_names+=("$name")
+      hp_kinds["$name"]="$kind"
+    done <<< "$t_names"
     if [[ -z "$newest" || "$(printf '%s\n%s\n' "$newest_release" "$release" | sort -V | tail -1)" == "$release" ]]; then
       newest="$tree" newest_release="$release"
     fi
@@ -260,11 +287,13 @@ rules = [$ids]"
       b="$hw/$n.bash"
       if ((hs_bare[s])); then
         hp_run "$s" "$hw/bash-$release-$hook" "" "" "$b"
+        hp_reached "$s" "$b" "hook scenario ${hs_names[s]} at $release, bare" || failed=1
         hp_run "$s" "$hw/shim-$hook" "" "" "$hw/$n.nuc"
         hp_compare "hook scenario ${hs_names[s]} at $release, bare" "$hook" "$b" "$hw/$n.nuc" || failed=1
         continue
       fi
       hp_run "$s" "$hw/bash-$release-$hook" "$release" "" "$b"
+      hp_reached "$s" "$b" "hook scenario ${hs_names[s]} at $release" || failed=1
       for side in plain configured; do
         if [[ "$side" == plain ]]; then
           hp_run "$s" "$hw/shim-$hook" "$release" "" "$hw/$n.$side"

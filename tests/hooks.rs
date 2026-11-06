@@ -189,6 +189,59 @@ fn a_concluded_merge_runs_the_check_with_changed_and_refuses_it_red() {
 }
 
 #[test]
+fn a_git_dir_handed_from_elsewhere_is_not_decided_and_a_linked_worktree_is() {
+    // A repository on main whose git directory lies apart from its work tree, and the work tree
+    // inside another repository on a branch, whose branch a hook must not decide on.
+    let outer = Fixture::new("hooks-outer");
+    outer.git(&["commit", "-q", "--allow-empty", "-m", "init"]);
+    outer.git(&["switch", "-q", "-c", "feature"]);
+    let inner = shimmed("hooks-separate");
+    let work_tree = outer.root().join("wt");
+    std::fs::create_dir_all(&work_tree).expect("the work tree");
+    let git_dir = inner.root().join(".git").display().to_string();
+    let output = git_hooked(
+        &outer,
+        Some(&built()),
+        &[],
+        &[
+            "--git-dir",
+            &git_dir,
+            "--work-tree",
+            &work_tree.display().to_string(),
+            "commit",
+            "-q",
+            "--allow-empty",
+            "-m",
+            "x",
+        ],
+    );
+    assert!(
+        !output.status.success(),
+        "a commit on main passed through another git directory"
+    );
+    assert!(both(&output).contains("not decided"), "{}", both(&output));
+
+    let fixture = shimmed("hooks-worktree");
+    let linked = fixture.root().with_extension("linked");
+    fixture.git(&[
+        "worktree",
+        "add",
+        "-q",
+        "-b",
+        "feature",
+        &linked.display().to_string(),
+    ]);
+    let output = cleared(&mut Command::new("git"))
+        .env("PATH", path_with(Some(&built())))
+        .current_dir(&linked)
+        .args(["commit", "-q", "--allow-empty", "-m", "x"])
+        .output()
+        .expect("git runs");
+    let _ = std::fs::remove_dir_all(&linked);
+    assert!(output.status.success(), "{}", both(&output));
+}
+
+#[test]
 fn the_shim_refuses_every_answer_but_0_and_3_and_a_missing_nuc() {
     for code in [1, 2, 101, 7] {
         let fixture = shimmed(&format!("hooks-answer-{code}"));

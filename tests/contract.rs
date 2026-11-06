@@ -108,17 +108,13 @@ fn the_exit_codes_are_zero_one_and_two() {
 #[test]
 fn a_command_a_newer_nuc_may_know_refuses_with_the_install_hint() {
     let fixture = Fixture::project("contract-command", CONFIG, README);
-    for args in [
-        &["hook", "post-checkout"][..],
-        &["check", "--format", "json"],
+    for (args, why) in [
+        (&["hook", "post-checkout"][..], "no hook 'post-checkout'"),
+        (&["check", "--format", "json"], "usage: nuc check"),
     ] {
         let output = fixture.nuc(args);
         assert_eq!(code(&output), Some(2), "{args:?}");
-        assert!(
-            stderr(&output).contains("usage: nuc check")
-                || stderr(&output).contains("no hook 'post-checkout'"),
-            "{args:?}"
-        );
+        assert!(stderr(&output).contains(why), "{args:?}");
         assert!(
             stderr(&output).contains("install or update nuc"),
             "{args:?}: {}",

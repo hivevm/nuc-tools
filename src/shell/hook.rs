@@ -28,6 +28,7 @@ pub(super) fn run(name: &str, args: &[&str]) -> Result<u8, String> {
     }
     let dir =
         env::current_dir().map_err(|e| format!("the current directory is unreadable: {e}"))?;
+    same_git_dir(&dir)?;
     let root = work_tree(&dir)?;
     let on = turned_on(root.as_deref())?;
     let state = hook::Commit {
@@ -50,6 +51,35 @@ pub(super) fn run(name: &str, args: &[&str]) -> Result<u8, String> {
         }
         Answer::RunCheck => RUN_CHECK,
     })
+}
+
+/// Not decided where git hands the hook a git directory, as `git --git-dir` and a linked worktree
+/// do, other than the one `nuc` finds from the directory it runs in: `nuc` takes the repository
+/// never from the environment (ADR-0011), so it would decide on another one, and a hook that
+/// cannot tell never passes (Q-1). The handed directory is only named to git, to be spelled as
+/// git spells the one it finds.
+fn same_git_dir(dir: &Path) -> Result<(), String> {
+    let Some(handed) = env::var_os("GIT_DIR") else {
+        return Ok(());
+    };
+    let handed = handed.into_string().map_err(|_| {
+        "git hands the hook a git directory that is no UTF-8 — not decided".to_owned()
+    })?;
+    let spelled = |args: &[&str]| {
+        git::run(dir, args).map(|out| out.trim_end_matches(['\n', '\r']).to_owned())
+    };
+    let found = spelled(&["rev-parse", "--absolute-git-dir"]);
+    let named = spelled(&["--git-dir", &handed, "rev-parse", "--absolute-git-dir"]);
+    match (found, named) {
+        (Ok(found), Ok(named)) if found == named => Ok(()),
+        (found, named) => Err(format!(
+            "git hands the hook the git directory {}, and nuc finds {} from {} — nuc reads no \
+             repository from the environment, so it cannot decide this one — not decided",
+            named.unwrap_or(handed),
+            found.unwrap_or_else(|_| "none".to_owned()),
+            dir.display()
+        )),
+    }
 }
 
 /// The root of the work tree git runs the hook in, none where the repository has no work tree.

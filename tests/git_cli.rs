@@ -1,5 +1,8 @@
 //! git under a cleared environment. Verifies: ADR-0011 Q-9
 //!
+//! `nuc hook` decides on the repository it runs in as well, and does not decide where git hands it
+//! another git directory.
+//!
 //! With `GIT_DIR`, `GIT_WORK_TREE`, `GIT_INDEX_FILE`, and `GIT_CONFIG_PARAMETERS` pointing at a
 //! decoy repository, `nuc` reports on the repository it runs in and leaves the decoy untouched.
 //! A git stand-in, first on the `PATH`, records the environment and the arguments `nuc` gives git:
@@ -52,6 +55,62 @@ fn the_repository_run_in_is_the_one_reported() {
     let output = check_with_decoy(&target, &decoy);
     assert_eq!(output.status.code(), Some(1), "{}", stderr(&output));
     assert!(stdout(&output).starts_with("README.md: docs/template-release: "));
+    let after = snapshot(decoy.root());
+    assert!(
+        after == before,
+        "the decoy changed: {:?}",
+        support::changed(&before, &after)
+    );
+}
+
+/// `nuc hook pre-commit` in the fixture, with the decoy variables set as given.
+fn hook_with(fixture: &Fixture, vars: &[(&str, std::ffi::OsString)]) -> Output {
+    let mut command = Command::new(NUC);
+    command
+        .current_dir(fixture.root())
+        .args(["hook", "pre-commit"]);
+    for (key, value) in vars {
+        command.env(key, value);
+    }
+    command.output().expect("nuc runs")
+}
+
+#[test]
+fn nuc_hook_decides_on_the_repository_run_in_or_not_at_all() {
+    // No nuc.toml, so every hook rule is on.
+    let target = Fixture::new("decoy-hook");
+    target.git(&["commit", "-q", "--allow-empty", "-m", "init"]);
+    let decoy = Fixture::project("decoy-hook-decoy", CONFIG, README);
+    decoy.git(&["switch", "-q", "-c", "feature"]);
+    let git_dir = decoy.root().join(".git");
+    let before = snapshot(decoy.root());
+    // The index and the configuration of another repository: the hook still decides on its own.
+    let output = hook_with(
+        &target,
+        &[
+            ("GIT_INDEX_FILE", git_dir.join("index").into_os_string()),
+            (
+                "GIT_CONFIG_PARAMETERS",
+                "'core.hooksPath'='/nonexistent-decoy-hooks'".into(),
+            ),
+        ],
+    );
+    assert_eq!(output.status.code(), Some(1), "{}", stderr(&output));
+    assert!(stdout(&output).starts_with("refs/heads/main: hook/commit-on-main: "));
+    // Another git directory: the decoy's branch would pass, so the hook does not decide.
+    let output = hook_with(
+        &target,
+        &[
+            ("GIT_DIR", git_dir.clone().into_os_string()),
+            ("GIT_WORK_TREE", decoy.root().as_os_str().to_owned()),
+        ],
+    );
+    assert_eq!(output.status.code(), Some(2), "{}", stderr(&output));
+    assert!(
+        stderr(&output).contains("not decided"),
+        "{}",
+        stderr(&output)
+    );
     let after = snapshot(decoy.root());
     assert!(
         after == before,
