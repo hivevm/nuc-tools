@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Self-test of the release tooling under release/ and the Feature's installer. Verifies:
-# ADR-0014
+# ADR-0017
 #
 # The cases use stub binaries served through file://, no network and no build:
 # release/sums.sh writes one line per binary; release/install-nuc.sh installs the binary whose

@@ -1,4 +1,4 @@
-//! The test of the Dev Container's definition. Verifies: ADR-0017
+//! The test of the Dev Container's definition. Verifies: ADR-0009
 //!
 //! `.devcontainer/devcontainer.json` names the template's Debian base image and the Rust Feature,
 //! and neither Compose nor a Feature that brings a container engine. The file allows comments, so

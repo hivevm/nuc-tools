@@ -39,7 +39,7 @@ golden path and the test pattern an agent copies from are named here.
   tree as its bash check would, and notes for the summary. Each has one rule ID, the reason
   `nuc explain` gives, and the inputs it reads; the list of every rule is `rules::ALL`. A rule
   reads no file and runs no process
-  ([ADR-0025](adr/0025-rules-return-an-outcome.md)).
+  ([ADR-0010](adr/0010-rules-return-an-outcome.md)).
   The rules of the decision record share one reading of it in `src/adr.rs`, and the rules of
   Markdown one reading of its links in `src/markdown.rs`, both outside `src/rules/`, the way the
   bash's `scripts/lib/adr.sh` and awk passes read them. The byte-level readings of the bash's tools,
@@ -51,15 +51,15 @@ golden path and the test pattern an agent copies from are named here.
   does through `src/glob.rs`. A rule whose bash check changed between template releases, today
   `docs/adr-supersessions`, `docs/check-lists`, `docs/project-layout`, and
   `docs/template-identity`, reads the release the tree carries and checks as that release does
-  (ADR-0021). `tests/parity/releases.tsv` names the releases at which each rule's check changed,
+  (ADR-0014). `tests/parity/releases.tsv` names the releases at which each rule's check changed,
   which the parity harness holds to the template's trees and `tests/releases.rs` holds the rules
   to; `docs/template-release` gives its reason there for reading none.
 - **Configuration** — `config` reads `nuc.toml` and selects the rules it turns on, or says why
   `nuc` refuses: missing, unreadable, a minimum above the running version, an unknown rule ID
-  ([ADR-0013](adr/0013-version-coupling.md)).
+  ([ADR-0014](adr/0014-version-coupling.md)).
 - **Shell** — `src/shell/` reads the command line and the repository, runs git under a cleared
   environment in `shell::git`, calls the rules, prints the findings, and sets the exit code
-  ([ADR-0010](adr/0010-git-cli-cleared-environment.md)). Its `Tree`, in `shell::tree`, reads
+  ([ADR-0011](adr/0011-git-cli-cleared-environment.md)). Its `Tree`, in `shell::tree`, reads
   every file and lists every directory the rules need, each resolved through one function that
   refuses a path outside the repository, and refuses as well, as not decided, one the bash would
   read differently from its bytes alone.
@@ -70,13 +70,13 @@ golden path and the test pattern an agent copies from are named here.
   both as a pull request into `main` marked ready, and compares their findings, normalized by
   `tests/parity/normalize.tsv`, and their exit status. A variant edits, deletes, or
   writes one path inside a copy of the tree, never under its `.git`
-  ([ADR-0022](adr/0022-parity-variants-name-their-trees.md)). Across the template's trees of the
+  ([ADR-0015](adr/0015-parity-harness.md)). Across the template's trees of the
   corpus it compares each rule's bash function with `tests/parity/releases.tsv`; a change to a
   helper the function calls shows in no row.
 - **Release tooling** — `release/` builds a binary per target, writes `SHA256SUMS`, checks the
   tag against the crate's version, writes the release commit, and moves the major tag;
   `release/install-nuc.sh` is the one installer, run by the Action and the Feature, and refuses a
-  binary whose checksum differs ([ADR-0014](adr/0014-distribution.md)).
+  binary whose checksum differs ([ADR-0017](adr/0017-distribution.md)).
 - **Action and Feature** — `action.yml` and `feature/src/nuc/` install the `nuc` of the release
   their release commit carries; at any other commit they install nothing.
 - **The golden path** — the rule `docs/template-release`, check 14 of the template's
@@ -97,7 +97,7 @@ golden path and the test pattern an agent copies from are named here.
   mean comes from `src/testing.rs` or `tests/support/`, since the gate reads the tests as text. The
   structural test `tests/functional_core.rs` holds the shape, and inside the shell lets only the
   functions `tests/functional_core.guarded` names read, list, or resolve a path
-  ([ADR-0011](adr/0011-fixture-repositories.md)). `tests/isolation.rs` runs `nuc check` on a
+  ([ADR-0012](adr/0012-fixture-repositories.md)). `tests/isolation.rs` runs `nuc check` on a
   tree of bait and without the network (Q-7, Q-11), and `tests/contract.rs` holds the command
   line's contract and the rule IDs that stay (G-6).
 

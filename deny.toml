@@ -16,7 +16,7 @@ ignore = []
 multiple-versions = "warn"
 wildcards = "deny"
 # Crates that would bring a second way to reach git than its CLI (constraints of the
-# specification, ADR-0010).
+# specification, ADR-0011).
 deny = [
   { crate = "git2", reason = "git is reached only through its CLI" },
   { crate = "gix", reason = "git is reached only through its CLI" },

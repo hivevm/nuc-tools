@@ -1,5 +1,5 @@
 //! The imperative shell: the only module that spawns processes, touches the file system, reads
-//! the environment, or prints (ADR-0025). It reads the command line and the
+//! the environment, or prints (ADR-0010). It reads the command line and the
 //! repository, calls the rules, and reports what they return.
 
 pub mod git;
@@ -30,7 +30,7 @@ const USAGE: &str = "usage: nuc check [--repo <path>] | nuc explain <rule ID> | 
 
 /// The entry point of the binary: runs the command named on the command line and returns the
 /// exit code the process ends with. A panic is an internal error: it names its cause and where it
-/// arose, and ends the process with exit 101, never a pass (ADR-0019, Q-1).
+/// arose, and ends the process with exit 101, never a pass (ADR-0013, Q-1).
 pub fn main() -> ExitCode {
     panic::set_hook(Box::new(|info| {
         let at = info
@@ -108,7 +108,7 @@ fn check(repo: Option<&Path>) -> Result<u8, String> {
     // The text files whose paths are no UTF-8, which no finding can name as the bash does.
     let mut unspelled = std::collections::BTreeSet::new();
     // A tree without a README names no release, so no rule can say which bash it checks as,
-    // whatever rules are turned on (ADR-0021).
+    // whatever rules are turned on (ADR-0014).
     let readme = tree
         .read_checked(&tree.root.join("README.md"))?
         .ok_or("README.md: not found — the tree names no template release — not decided")?;
@@ -323,7 +323,7 @@ fn on_every_release(rule: &rules::Rule, inputs: &Inputs) -> Outcome {
 /// releases: none for `unreleased`, checked as the newest release. A release before the earliest
 /// is not decided; so is a README that names none, unless the rule `reported` on, the Template
 /// release rule, fails the run on it: then a rule reports only what it reports on every release
-/// (ADR-0021). The outer none is that case, a release the
+/// (ADR-0014). The outer none is that case, a release the
 /// README does not name.
 fn carried_release(tree: &Tree, reported: bool) -> Result<Option<Option<Version>>, String> {
     let readme = tree.read_checked(&tree.root.join("README.md"))?;

@@ -206,7 +206,7 @@ Each step waits for a human's instruction.
    with `git push --force-with-lease`.
 7. Make the pull request ready: [`scripts/ready-for-main.sh`](scripts/ready-for-main.sh) refuses
    a fixup steps 4 to 6 left, takes up the remote's `main`, and numbers the draft ADRs
-   ([ADR-0023](docs/adr/0023-decisions-verified-by-tests.md)); then the push it names and
+   ([ADR-0002](docs/adr/0002-decisions-verified-by-tests.md)); then the push it names and
    `gh pr ready`. What `main` gains later is taken up the same way, and an ADR it gains moves the
    branch's numbers on ([mechanics](docs/adr/README.md#mechanics)).
 8. Once the pull request into `main` has merged as a merge commit, take it up and drop the branch:
@@ -244,7 +244,7 @@ configured once by a maintainer and worth re-checking after a repository move or
 
 [`scripts/sensor-repo-settings.sh`](scripts/sensor-repo-settings.sh) reads these settings
 through `gh` and reports each one that differs from this list. It runs on a human's
-instruction ([ADR-0023](docs/adr/0023-decisions-verified-by-tests.md)).
+instruction ([ADR-0002](docs/adr/0002-decisions-verified-by-tests.md)).
 
 ## Reporting security issues
 

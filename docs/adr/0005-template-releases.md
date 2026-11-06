@@ -1,7 +1,7 @@
 # ADR-0005: The template is released as SemVer tags on `main`, and every repository names the release it carries
 
-- **Status:** ⚪ superseded by ADR-0024
-- **Date:** 2026-09-20
+- **Status:** 🟢 accepted
+- **Date:** 2026-10-31
 - **Deciders:** NUC maintainer, Markus Brigl
 - **Applies to:** the tags of the template repository, its own ADRs, the **Template** section of `README.md`, check 14 of `scripts/check-docs.sh`, and the pull request that lands a release
 
@@ -37,8 +37,9 @@ from, and `unreleased` before the first.
   tagged.
 - **Major, minor, patch:** a major is a change an existing derived project must act on, such as
   a check that would fail on its tree, an inherited ADR superseded, or the record normalized; a
-  minor adds a check, an ADR, a skill, a catalogue entry, or a document; a patch changes wording.
-  Before `v1.0.0` a minor may break, per SemVer item 4.
+  minor adds a check, an ADR, a skill, a catalogue entry, or a document; a patch changes wording,
+  or fixes a script without changing what it decides. Before `v1.0.0` a minor may break, per
+  SemVer item 4.
 - **A derived project moves the line** when it takes up a later release, and only then; a line
   never moved still tells the truth.
 - **The template corrects its own ADRs in place.** A derived project takes them up by release,
@@ -50,6 +51,11 @@ from, and `unreleased` before the first.
   its own ([`AGENTS.md` §3](../../AGENTS.md#3-adr-rules), rule 5). It takes up the ADRs of a
   release by a normalization: what changed between the tag it carries and the new one enters its
   record.
+- **A normalization keeps the template's numbers.** The ADRs inherited from the template keep its
+  numbers and file names, 0001 to 0006, so that the map of a normalization moves none of them:
+  `nuc`'s messages copy the bash with those numbers, and `tests/parity/` names a corpus tree's ADR
+  files by them. A test writes an identifier that is not this record's through `src/testing.rs`
+  or `tests/support/`, out of the map's reach.
 
 **Out of scope:** a changelog file; release automation; how a derived project merges a release,
 by subtree, by patch, or by hand; which releases receive fixes, which
@@ -71,6 +77,9 @@ by subtree, by patch, or by hand; which releases receive fixes, which
   marks the same state.
 - **A version file** — a file nobody reads and one more Project Layout entry; the README section
   a reader opens first answers the same question.
+- **Restate a corrected inherited ADR under a number of the project's own** — the take-up as a
+  supersession, between normalizations. It moves the inherited ADR off the template's number,
+  which `nuc`'s messages and the parity corpus cite; a correction enters by the normalization.
 
 ## Sources / Prior art
 
@@ -102,4 +111,6 @@ Check 14 of [`scripts/check-docs.sh`](../../scripts/check-docs.sh) (job `docs` i
 `Template release` line or when the line names neither a `vX.Y.Z` tag nor `unreleased`; its
 self-test cites this ADR ([ADR-0002](0002-decisions-verified-by-tests.md)). Not checked: that
 the tag exists, because tags do not travel with the copy, and that the line moved with a
-release, which is the release pull request's review.
+release, which is the release pull request's review. That a normalization kept the template's
+numbers is the review of its cut: after the map script ran, a change under `tests/parity/` outside
+a comment line means the cut moved a template file.

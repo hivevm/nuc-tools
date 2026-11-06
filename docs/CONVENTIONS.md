@@ -16,13 +16,6 @@ skimmed. The design revision drops what prevented nothing
   the tree for its old wording and corrects it in the same change. A link check sees an anchor,
   and `tests/adr_citations.rs` a citation of a superseded or rejected ADR; neither sees a sentence
   that restates the rule.
-- **A normalization leaves the template's numbers alone** — `nuc`'s messages copy the bash's
-  with the template's ADR numbers, and `tests/parity/` names a corpus tree's ADR files; neither is
-  a reference to this record. The cut keeps the ADRs inherited from the template at its numbers
-  and file names, 0001 to 0006, so the map moves none of them, and a test writes an identifier it
-  does not mean through `src/testing.rs` or `tests/support/`. After `remap.sh`, a change under
-  `tests/parity/` outside a comment line means the cut moved a template file: correct the cut.
-  `tests/adr_citations.template` drops each entry its test names.
 - **A self-test asserts what it builds** — it takes its fixtures from the tree it copies or writes
   them itself, never from the template's own ADRs, scripts, or numbers, so it holds in a derived
   project and after a normalization.
@@ -30,7 +23,7 @@ skimmed. The design revision drops what prevented nothing
   inputs, before any rule runs, and a rule gets text, never a path. A rule's tests are then cases
   of text without a repository, and a file `nuc` cannot read ends the run before a rule could
   pass on less than it should have seen (Q-1). Where a refusal stands is decided in
-  [ADR-0025](adr/0025-rules-return-an-outcome.md), where a read may lead in Q-12, and where in
+  [ADR-0010](adr/0010-rules-return-an-outcome.md), where a read may lead in Q-12, and where in
   the shell a read may stand in `tests/functional_core.rs`.
 - **A port copies the bash, quirks included** — a rule reports what its bash check reports on
   inputs the corpus lacks as well, its exemptions and oddities with it: only the first Template

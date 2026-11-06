@@ -1,33 +1,5 @@
 # The places that cite an ADR number this record has superseded, read by tests/adr_citations.rs.
 # One entry per line, a path and an identifier separated by a tab: the file may cite that ADR. The
 # entries are grouped by why the number stands. An entry that names no citation fails the test,
-# and so does one whose ADR is in force again: a normalization that restates ADR-0002 and ADR-0005
-# at the template's numbers drops their entries (docs/CONVENTIONS.md).
-
-# Files taken up from the template, which keep its text: ADR-0002 and ADR-0005 are the template's
-# numbers for what ADR-0023 and ADR-0024 restate here.
-.githooks/pre-push	ADR-0002
-.github/workflows/checks.yml	ADR-0002
-scripts/check-all.sh	ADR-0002
-scripts/check-devcontainer.sh	ADR-0002
-scripts/check-docs.sh	ADR-0002
-scripts/check-docs.sh	ADR-0005
-scripts/check-traceability.sh	ADR-0002
-scripts/lib/adr.sh	ADR-0002
-scripts/number-adrs.sh	ADR-0002
-scripts/ready-for-main.sh	ADR-0002
-scripts/sensor-repo-settings.sh	ADR-0002
-scripts/test-check-all.sh	ADR-0002
-scripts/test-sensor-review-binding.sh	ADR-0002
-
-# Messages of nuc that copy the bash's, with the template's numbers, and the tests that expect
-# them.
-src/rules/docs_no_draft_on_main.rs	ADR-0002
-src/rules/docs_template_release.rs	ADR-0005
-scripts/test-check-parity.sh	ADR-0005
-tests/check.rs	ADR-0002
-tests/check.rs	ADR-0005
-
-# The parity harness, which names the files and messages of a corpus tree.
-tests/parity/normalize.tsv	ADR-0002
-tests/parity/variants.tsv	ADR-0002
+# and so does one whose ADR is in force again: a normalization keeps the template's numbers
+# (docs/adr/0005-template-releases.md), so the template's citations need no entry.

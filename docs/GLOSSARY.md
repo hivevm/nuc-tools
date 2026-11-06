@@ -13,10 +13,10 @@ to invent.
   up, that carries a template release.
   _Avoid:_ downstream project, consumer repo.
 - **template release** — A tagged version `vX.Y.Z` of the NUC template; a derived project names the
-  one it carries in its README ([ADR-0024](adr/0024-template-releases.md)).
+  one it carries in its README ([ADR-0005](adr/0005-template-releases.md)).
 - **carried release** — The template release a tree names in the Template release line of its
   README; a rule whose bash check changed between releases checks the tree as that release does
-  ([ADR-0021](adr/0021-rules-follow-the-carried-release.md)).
+  ([ADR-0014](adr/0014-version-coupling.md)).
 - **check** — A mechanical test of a repository's tree or history that fails a commit, a push, or
   CI on a finding.
 - **sensor** — A mechanical reading of a repository that reports what it counts and fails on
@@ -39,7 +39,7 @@ to invent.
 - **variant** — An edit to a copy of a corpus tree, listed in `tests/parity/variants.tsv` with the
   trees it is for, that makes a ported rule fire, so that the parity harness compares bash and
   `nuc` on a finding and not only on a clean tree
-  ([ADR-0022](adr/0022-parity-variants-name-their-trees.md)).
+  ([ADR-0015](adr/0015-parity-harness.md)).
 - **migration** — One mechanical change `nuc upgrade` applies when a project takes up a later
   template release.
   _Avoid:_ upgrade step.
@@ -51,6 +51,6 @@ to invent.
   version N, and by which projects reference the Action.
 - **marker** — A `Verifies:` line in a file git does not ignore that cites ADRs or criteria by
   their identifiers, naming the test that decides them
-  ([ADR-0023](adr/0023-decisions-verified-by-tests.md)).
+  ([ADR-0002](adr/0002-decisions-verified-by-tests.md)).
 - **pending criterion** — A criterion of the specification no marker cites yet; the summary of
   `nuc check` names it, and it never fails the run.

@@ -1,5 +1,5 @@
 //! `nuc check` and `nuc explain` end to end, on fixture repositories, the golden path.
-//! Verifies: ADR-0013 ADR-0008
+//! Verifies: ADR-0014 ADR-0008
 //!
 //! The golden path of the project: a fixture built through git, `nuc` run as a process on it, its
 //! exit code and output asserted. A run that could not decide exits 2 and names its cause on the
@@ -194,7 +194,7 @@ fn without_git_on_the_path_it_refuses_and_names_how_to_install_it() {
 fn a_panic_is_an_internal_error_that_names_its_cause_and_never_passes() {
     let fixture = Fixture::project("panic", CONFIG, README);
     let output = fixture.nuc_with(&[("NUC_TEST_PANIC", "1")], &["check"]);
-    // ADR-0019: a panic exits 101, non-zero as the refusals are.
+    // ADR-0013: a panic exits 101, non-zero as the refusals are.
     assert_eq!(code(&output), Some(101), "{}", stderr(&output));
     assert_eq!(stdout(&output), "");
     let err = stderr(&output);
@@ -644,7 +644,7 @@ fn flipped_early(name: &str, release_line: &str) -> Fixture {
     fixture
 }
 
-/// Verifies: ADR-0021
+/// Verifies: ADR-0014
 #[test]
 fn a_rule_checks_a_tree_as_the_release_it_carries() {
     let old = flipped_early("release-0.5", "- **Template release:** v0.5.1");
@@ -699,7 +699,7 @@ fn a_rule_that_checks_by_the_release_refuses_a_tree_it_cannot_place() {
     }
 }
 
-/// Verifies: ADR-0021
+/// Verifies: ADR-0014
 #[test]
 fn without_a_release_line_the_template_release_rule_fails_the_run_and_a_rule_reports_what_every_release_does()
  {
@@ -731,7 +731,7 @@ fn without_a_readme_a_rule_that_checks_by_the_release_is_not_decided() {
     assert_eq!(code(&output), Some(2), "{}", stdout(&output));
 }
 
-/// Verifies: ADR-0021
+/// Verifies: ADR-0014
 #[test]
 fn without_a_readme_no_rule_set_is_decided() {
     for rules in ["docs/template-release", "docs/prose-width"] {
@@ -937,7 +937,7 @@ fn a_layout_without_open_work_and_with_a_matching_pattern_passes() {
     );
 }
 
-/// Verifies: ADR-0021
+/// Verifies: ADR-0014
 #[test]
 fn from_v0_7_0_the_lists_stand_in_the_contributing_guide() {
     let readme = "# Fixture\n\n- **Template release:** v0.7.0\n";
@@ -981,7 +981,7 @@ fn from_v0_7_0_the_lists_stand_in_the_contributing_guide() {
     );
 }
 
-/// Verifies: ADR-0021
+/// Verifies: ADR-0014
 #[test]
 fn the_guide_a_release_does_not_read_cannot_keep_a_tree_from_being_decided() {
     let readme = format!("{LAYOUT_README}```\n");
@@ -1000,7 +1000,7 @@ fn the_guide_a_release_does_not_read_cannot_keep_a_tree_from_being_decided() {
     );
 }
 
-/// Verifies: ADR-0021
+/// Verifies: ADR-0014
 #[test]
 fn an_unplaced_tree_keeps_only_the_check_list_findings_every_release_reports() {
     let fixture = Fixture::project(
@@ -1109,7 +1109,7 @@ fn a_record_directory_outside_the_repository_is_not_listed() {
     );
 }
 
-/// Verifies: ADR-0013
+/// Verifies: ADR-0014
 #[test]
 fn the_inherited_adrs_and_the_identity_are_checked_once_the_setup_file_is_gone() {
     let config =
@@ -1152,7 +1152,7 @@ fn an_adr_holding_the_unit_separator_is_not_decided() {
     assert!(stderr(&output).contains("0x1F"), "{}", stderr(&output));
 }
 
-/// Verifies: ADR-0021 G-1
+/// Verifies: ADR-0014 G-1
 #[test]
 fn a_derived_badge_is_the_template_s_on_a_tree_before_v0_6_1() {
     let badge = "[![Checks](https://github.com/hivevm/nuc-tools/actions/workflows/checks.yml/badge.svg)](https://github.com/hivevm/nuc-tools/actions/workflows/checks.yml)";
@@ -1264,7 +1264,7 @@ fn a_wide_line_the_bash_counts_otherwise_is_not_decided() {
     );
 }
 
-/// Verifies: ADR-0025
+/// Verifies: ADR-0010
 #[test]
 fn a_rule_s_refusal_ends_the_run_before_the_findings_of_another_are_printed() {
     let config = "minimum = \"0.0.0\"\nrules = [\"docs/template-release\", \"docs/prose-width\"]\n";

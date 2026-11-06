@@ -1,6 +1,6 @@
 //! Part 3 of the template's `scripts/check-traceability.sh`: every identifier a `Verifies:`
 //! marker cites names an ADR of `docs/adr/` that is in force, or a criterion of
-//! `docs/SPECIFICATION.md` (ADR-0023).
+//! `docs/SPECIFICATION.md` (ADR-0002).
 
 use super::{Input, Inputs, Rule};
 use crate::adr;

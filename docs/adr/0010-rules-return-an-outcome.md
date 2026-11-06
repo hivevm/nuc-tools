@@ -1,10 +1,9 @@
-# ADR-0025: One library crate whose rules return an outcome, its effects in one shell module, and a thin binary
+# ADR-0010: One library crate whose rules return an outcome, its effects in one shell module, and a thin binary
 
 - **Status:** 🟢 accepted
 - **Date:** 2026-11-01
 - **Deciders:** Markus Brigl
 - **Applies to:** the source tree of the crate, `src/main.rs`, `src/shell/`, every rule module, the type a rule returns, and the structural test that holds them
-- **Supersedes:** [ADR-0009](0009-functional-core.md)
 
 ## Context
 
@@ -23,13 +22,13 @@ for exhaustive tests of the logic. It does not fit logic that is mostly effects 
 `nuc` is not, or several technologies behind one behaviour, which the constraints exclude: git is
 reached only through its CLI.
 
-ADR-0009 decided that shape with a rule that returns findings. The port of `check-docs.sh` and
-`check-traceability.sh` found two more things a single rule has to say. Some trees one rule cannot
+A rule that returns findings alone is not enough: the ports of `check-docs.sh` and
+`check-traceability.sh` show two more things a single rule has to say. Some trees one rule cannot
 decide as its bash check would, as a wide line holding a byte the bash counts otherwise for
 `docs/prose-width`, or a draft whose name holds a newline for `docs/no-draft-on-main`; Q-1 asks the
 run to end not decided there. And `traceability/coverage` names the criteria no test cites, which
-are pending work and no finding (ADR-0023). With findings the only return, the shell called these
-rules by name for both, and each port added a case to it.
+are pending work and no finding (ADR-0002). With findings the only return, the shell would call
+these rules by name for both, and each port would add a case to it.
 
 ## Decision
 
@@ -56,15 +55,15 @@ module layout inside the core beyond one module per rule; the output formats.
 
 ## Alternatives considered
 
-- **Findings only, with the special cases in the shell as a convention** — keeps ADR-0009 as it
-  stands; the shell names each rule that refuses or notes, and each port adds a case, the growth
-  the design revision found.
+- **Findings only, with the special cases in the shell as a convention** — the same shape with a
+  rule that returns findings alone; the shell names each rule that refuses or notes, and each
+  port adds a case, the growth a design revision found.
 - **Two optional functions beside the check** — a rule keeps returning findings and may name a
   function that refuses and one that notes; three ways out of a rule where one value carries all,
   and a rule that forgets to wire its refusal passes on what it cannot decide.
 - **A refusal as a finding of its own kind** — keeps one list, but every reader of findings must
   then tell the two apart, and a refusal printed as a finding breaks the line contract of
-  ADR-0019.
+  ADR-0013.
 - **Library and thin binary, nothing more prescribed** — the effects could spread into the rule
   modules, and the parts the threats aim at would no longer be one module the maintainer reviews.
 - **Ports and adapters** — draws the seam at technologies; there is one, git's CLI, and nothing to
@@ -101,7 +100,7 @@ module layout inside the core beyond one module per rule; the output formats.
 
 ## Enforcement
 
-A structural test, cited with `Verifies: ADR-0025`, reads the sources of
+A structural test, cited with `Verifies: ADR-0010`, reads the sources of
 the library outside `src/shell/` and fails on a use of `std::fs`, `std::process`, `std::env`,
 `std::net`, the standard streams, or the printing macros, and on any crate the list beside the
 test names as doing I/O. It fails as well on a rule module without exactly one rule ID, on a rule

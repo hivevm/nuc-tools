@@ -1,6 +1,6 @@
 //! git, spawned with a cleared environment into which an allowlist is passed, the repository
 //! named by `-C`, and the keys that would run a command neutralized by `-c`
-//! (ADR-0010).
+//! (ADR-0011).
 
 use std::env;
 use std::path::{Path, PathBuf};

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Parity harness (ADR-0022). Verifies: Q-1 Q-2
+# Parity harness (ADR-0015). Verifies: Q-1 Q-2
 #
 # Runs the bash checks a repository of the corpus carries and nuc on the same tree, and fails on
 # any difference in their findings or their exit status. The corpus is tests/parity/corpus.toml:
@@ -34,13 +34,13 @@
 # trees of the corpus that are the template's, those that still carry TEMPLATE-SETUP.md, in the
 # order of their releases. A change the table does not list, or one it lists that the trees do
 # not show, fails the harness and names the rule; tests/releases.rs holds the rules to the table
-# (ADR-0021). With fewer than two trees of the template there is nothing to compare. A helper the
+# (ADR-0014). With fewer than two trees of the template there is nothing to compare. A helper the
 # function calls is not compared.
 #
 # The tree of the corpus runs its own bash scripts: the corpus is pinned by commit, and a pull
 # request that moves a pin is reviewed like code. nuc is built from the working tree by
 # 'cargo build --locked'; the harness is a test of the build, as scripts/check-build.sh is
-# (ADR-0018).
+# (ADR-0016).
 #
 # Pure bash + coreutils/git/awk, and cargo for the build. Usage:
 #     scripts/check-parity.sh [--corpus <file>] [--cache <dir>] [--nuc <binary>] [--variants <file>]
