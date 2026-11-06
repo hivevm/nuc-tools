@@ -34,7 +34,7 @@ each. Interface-preserving: no exit code, message, or answer changes.
 ## Read first
 
 - Touches: `src/shell/hook.rs`
-- ADR-0021, the *Decision*; the draft ADR-draft-rules-return-an-outcome-and-hooks-an-answer, its
+- ADR-0021, the *Decision*; the draft ADR-0024, its
   *Hooks* and *Shell* clauses, where it is accepted by then.
 - The *Review* in the description of #51, which asked for the table.
 
