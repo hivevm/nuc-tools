@@ -224,3 +224,51 @@ hook_scenario main-deleted reference-transaction "a deletion of the local main" 
   on_ahead branch -q -D main
 hook_scenario no-origin-main reference-transaction "without origin/main nothing is decided" \
   : commit -q --no-verify --allow-empty -m x
+
+# edit_index <index> <rule> <row> <after> — set the rule above the table, append the row to it,
+# and set the line right below it.
+edit_index() {
+  awk -v rule="$2" -v row="$3" -v after="$4" '
+    /^Rule:/ { print "Rule: " rule "."; next }
+    /^After:/ { print row; print "After: " after "."; next }
+    { print }
+  ' "$1" > "$1.tmp" && mv "$1.tmp" "$1"
+}
+
+# indexed <dir> <rule on feature> <rule on feat/x> <line below the table on feat/x> — an ADR index
+# with a rule, a row, and a line right below the table, merged by the driver .gitattributes names;
+# 'feature' and 'feat/x' each append a row and set the rule as told, feat/x the line below, with
+# feat/x checked out.
+indexed() {
+  local index="$1/docs/adr/README.md"
+  merging "$1" 0 0
+  echo 'docs/adr/README.md merge=adr-index' > "$1/.gitattributes"
+  mkdir -p "$1/docs/adr"
+  hp_git "$1" switch -q main
+  printf 'Rule: one.\n\n| ADR |\n|-----|\n| [0001](0001-a.md) |\nAfter: one.\n' > "$index"
+  hp_git "$1" add -A
+  hp_git "$1" commit -q -m index
+  hp_git "$1" switch -q feature
+  hp_git "$1" merge -q -m main main
+  edit_index "$index" "$2" "| [0002](0002-b.md) |" one
+  hp_git "$1" commit -q -am row
+  hp_git "$1" switch -q -C feat/x main
+  edit_index "$index" "$3" "| [draft-c](draft-c.md) |" "$4"
+  hp_git "$1" commit -q -am row
+}
+index_rows() { indexed "$1" one one one; }
+index_prose_one() { indexed "$1" two one one; }
+index_prose_both() { indexed "$1" two three one; }
+index_prose_adjacent() { indexed "$1" one one two; }
+
+hook_scenario index-rows merge-adr-index "the driver keeps the rows both sides appended to the index" \
+  index_rows merge -q -m m feature
+hook_scenario --bare index-rows-bare merge-adr-index "the driver keeps the rows both sides appended to the index" \
+  index_rows merge -q -m m feature
+hook_scenario index-prose-one merge-adr-index "the driver takes a rule one side changed" \
+  index_prose_one merge -q -m m feature
+hook_scenario index-prose-both merge-adr-index "the driver stops on a rule both sides changed" \
+  index_prose_both merge -q -m m feature
+hook_scenario index-prose-adjacent merge-adr-index \
+  "the driver stops on a line changed right below a row the other side appended" \
+  index_prose_adjacent merge -q -m m feature

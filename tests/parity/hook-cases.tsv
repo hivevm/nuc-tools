@@ -3,10 +3,6 @@
 # (ADR-0022). One row per case: its 'expect' name and the reason, separated by a tab. A case
 # 'awaits' the ticket that ports its hook, which moves it into a scenario.
 
-the driver keeps the rows both sides appended to the index	awaits the port of merge-adr-index
-the driver takes a rule one side changed	awaits the port of merge-adr-index
-the driver stops on a rule both sides changed	awaits the port of merge-adr-index
-the driver stops on a line changed right below a row the other side appended	awaits the port of merge-adr-index
-without the driver configured the index merges as text	awaits the port of merge-adr-index
+without the driver configured the index merges as text	no case of a hook: without 'merge.adr-index.driver' git merges the index as text and runs no driver
 a refused fast-forward leaves main where it was	no case of a hook: 'git diff --quiet' asserts that a refusal left main in place, which the scenario of the refusal compares
 the documented restore takes the index and the working tree back	no case of a hook: 'git diff --quiet' asserts the restore CONTRIBUTING.md documents, and runs no hook
