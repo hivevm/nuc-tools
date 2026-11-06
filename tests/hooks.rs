@@ -746,16 +746,28 @@ fn the_shims_decide_with_no_bash_on_the_path_and_refuse_a_check_that_needs_it() 
         both(&output)
     );
 
+    // On Unix a check that needs bash cannot run and is refused. Git for Windows hands its hooks
+    // the bash it bundles whatever the PATH holds, so there the check runs; that a check which
+    // cannot run is refused is shown there by a missing script.
     let fixture = shimmed("hooks-no-bash-docs");
     docs(&fixture, 0);
     merging(&fixture);
     let output = git_without_bash(&fixture, &built(), MERGE);
-    assert!(!output.status.success(), "a check that cannot run passed");
-    assert!(
-        both(&output).contains("pre-merge-commit: refused — the documentation check is red"),
-        "{}",
-        both(&output)
-    );
+    if cfg!(windows) {
+        assert!(output.status.success(), "{}", both(&output));
+        assert!(
+            both(&output).contains("docs output for the test"),
+            "{}",
+            both(&output)
+        );
+    } else {
+        assert!(!output.status.success(), "a check that cannot run passed");
+        assert!(
+            both(&output).contains("pre-merge-commit: refused — the documentation check is red"),
+            "{}",
+            both(&output)
+        );
+    }
 }
 
 #[test]
