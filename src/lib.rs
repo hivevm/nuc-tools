@@ -6,6 +6,7 @@ pub mod bash;
 pub mod config;
 pub mod finding;
 pub mod glob;
+pub mod hook;
 pub mod markdown;
 pub mod rules;
 pub mod shell;

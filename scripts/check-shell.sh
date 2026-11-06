@@ -3,7 +3,8 @@
 # Shell lint for this repository.
 #
 # Runs ShellCheck over every shell script of the repository: every '*.sh' file git does not
-# ignore, and the git hooks under .githooks/, which git requires to be named without an extension.
+# ignore, and the git hooks under .githooks/ and the reference shims under shims/, which git
+# requires to be named without an extension.
 # The files come from git, as in every other check, so a script under .scratch/ or under a build
 # directory the project ignores is no part of the gate. The scripts under scripts/ and the hooks
 # are the repository's entire enforcement layer, so they are held to a lint gate themselves.
@@ -41,7 +42,7 @@ if ! command -v shellcheck >/dev/null 2>&1; then
 fi
 
 # A list git cannot give is an error, not an empty gate.
-if ! listed="$(git -C "$ROOT" ls-files --cached --others --exclude-standard -- '*.sh' '.githooks/*')"; then
+if ! listed="$(git -C "$ROOT" ls-files --cached --others --exclude-standard -- '*.sh' '.githooks/*' 'shims/*')"; then
   echo "Shell lint: $ROOT is not a git repository — git lists the files the lint reads." >&2
   exit 1
 fi

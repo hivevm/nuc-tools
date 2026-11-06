@@ -68,3 +68,22 @@ pub fn toplevel(dir: &Path) -> Result<PathBuf, String> {
         .map_err(|e| format!("{} is not inside a git working tree: {e}", dir.display()))?;
     Ok(PathBuf::from(out.trim_end_matches(['\n', '\r'])))
 }
+
+/// The standard output of git for `args` on `repo` where it exits 0, none where it exits 1, as
+/// `symbolic-ref -q` on a detached `HEAD` and `rev-parse -q --verify` on a missing ref do, or why
+/// it could not be had.
+pub fn probe(repo: &Path, args: &[&str]) -> Result<Option<String>, String> {
+    let output = command(repo, args)
+        .output()
+        .map_err(|e| format!("git could not be run ({e}) — install git and put it on the PATH"))?;
+    match output.status.code() {
+        Some(0) => String::from_utf8(output.stdout)
+            .map(Some)
+            .map_err(|_| format!("git {} wrote no UTF-8", args.join(" "))),
+        Some(1) => Ok(None),
+        _ => {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            Err(format!("git {} failed: {}", args.join(" "), stderr.trim()))
+        }
+    }
+}

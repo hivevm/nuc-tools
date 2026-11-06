@@ -3,6 +3,7 @@
 //! repository, calls the rules, and reports what they return.
 
 pub mod git;
+mod hook;
 mod tree;
 
 use std::backtrace::{Backtrace, BacktraceStatus};
@@ -25,12 +26,16 @@ const PASSED: u8 = 0;
 const FOUND: u8 = 1;
 /// Exit code of a run that could not decide, whatever the cause: it never passes (Q-1).
 const UNDECIDED: u8 = 2;
+/// Exit code of `nuc hook` alone: the hook passed so far, and its shim runs the check now
+/// (ADR-0020).
+const RUN_CHECK: u8 = 3;
 
-const USAGE: &str = "usage: nuc check [--repo <path>] | nuc explain <rule ID> | nuc --version";
+const USAGE: &str =
+    "usage: nuc check [--repo <path>] | nuc hook <name> | nuc explain <rule ID> | nuc --version";
 
 /// The entry point of the binary: runs the command named on the command line and returns the
 /// exit code the process ends with. A panic is an internal error: it names its cause and where it
-/// arose, and ends the process with exit 101, never a pass (ADR-0013, Q-1).
+/// arose, and ends the process with exit 101, never a pass (ADR-0020, Q-1).
 pub fn main() -> ExitCode {
     panic::set_hook(Box::new(|info| {
         let at = info
@@ -61,6 +66,7 @@ fn run() -> ExitCode {
     let result = match args.as_slice() {
         ["check"] => check(None),
         ["check", "--repo", repo] => check(Some(Path::new(repo))),
+        ["hook", name, rest @ ..] => hook::run(name, rest),
         ["explain", id] => explain(id),
         ["--version"] => {
             println!("nuc {}", env!("CARGO_PKG_VERSION"));
@@ -99,7 +105,9 @@ fn check(repo: Option<&Path>) -> Result<u8, String> {
     let text = tree
         .read(&tree.root.join("nuc.toml"))?
         .ok_or_else(|| config::Refusal::Missing.to_string())?;
-    let config = config::load(&text, running()).map_err(|refusal| refusal.to_string())?;
+    let mut config = config::load(&text, running()).map_err(|refusal| refusal.to_string())?;
+    // A hook rule decides in `nuc hook` alone: its ID is known here, and it runs never.
+    config.rules.retain(|id| crate::hook::find(id).is_none());
     let selected = config::select(&config, rules::ALL).map_err(|r| r.to_string())?;
     // Only what a rule turned on reads: an input no rule needs can neither refuse nor cost.
     let needs = |input: Input| selected.iter().any(|rule| rule.reads.contains(&input));
@@ -108,7 +116,7 @@ fn check(repo: Option<&Path>) -> Result<u8, String> {
     // The text files whose paths are no UTF-8, which no finding can name as the bash does.
     let mut unspelled = std::collections::BTreeSet::new();
     // A tree without a README names no release, so no rule can say which bash it checks as,
-    // whatever rules are turned on (ADR-0014).
+    // whatever rules are turned on (ADR-0023).
     let readme = tree
         .read_checked(&tree.root.join("README.md"))?
         .ok_or("README.md: not found — the tree names no template release — not decided")?;
@@ -323,7 +331,7 @@ fn on_every_release(rule: &rules::Rule, inputs: &Inputs) -> Outcome {
 /// releases: none for `unreleased`, checked as the newest release. A release before the earliest
 /// is not decided; so is a README that names none, unless the rule `reported` on, the Template
 /// release rule, fails the run on it: then a rule reports only what it reports on every release
-/// (ADR-0014). The outer none is that case, a release the
+/// (ADR-0023). The outer none is that case, a release the
 /// README does not name.
 fn carried_release(tree: &Tree, reported: bool) -> Result<Option<Option<Version>>, String> {
     let readme = tree.read_checked(&tree.root.join("README.md"))?;
@@ -344,7 +352,10 @@ fn carried_release(tree: &Tree, reported: bool) -> Result<Option<Option<Version>
 
 /// `nuc explain <id>`: the reason of the rule (G-6).
 fn explain(id: &str) -> Result<u8, String> {
-    let rule = rules::find(id).ok_or_else(|| format!("no rule '{id}' is known to this nuc"))?;
-    println!("{}: {}", rule.id, rule.explain);
+    let (id, reason) = rules::find(id)
+        .map(|rule| (rule.id, rule.explain))
+        .or_else(|| crate::hook::find(id).map(|rule| (rule.id, rule.explain)))
+        .ok_or_else(|| format!("no rule '{id}' is known to this nuc"))?;
+    println!("{id}: {reason}");
     Ok(PASSED)
 }

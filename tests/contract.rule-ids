@@ -17,6 +17,8 @@ docs/section-refs
 docs/skill-pointers
 docs/template-identity
 docs/template-release
+hook/commit-on-main
+hook/merge-checks
 traceability/citations
 traceability/coverage
 traceability/criteria
