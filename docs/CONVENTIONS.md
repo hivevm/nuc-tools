@@ -29,12 +29,13 @@ skimmed. The design revision drops what prevented nothing
   inputs the corpus lacks as well, its exemptions and oddities with it: only the first Template
   release line counts, and a missing README is the finding of another rule. How its unit tests
   copy the cases of the bash self-test is stated in `tests/bash_cases.rs`. Where the bash result
-  depends on more than the input, as grep's
-  on a file with a NUL byte, `nuc` refuses instead of guessing. Each port is tried on the bytes
-  the bash reads otherwise than Rust: a byte of no valid UTF-8, the byte 0x1F its awk passes split
-  fields on, a last line without a newline (`read` drops it, awk and `sed` keep it), numbers in
-  bash arithmetic (octal after a leading zero, 64-bit wrap), and a path git lists that is no
-  UTF-8, which the bash opens and Rust's strings do not hold. A byte class `nuc` reads as the bash
+  depends on more than the input, as grep's on a file with a NUL byte, `nuc` refuses instead of
+  guessing. Each port, a hook's included, is tried on the bytes the bash reads otherwise than
+  Rust, in a file, in what git answers, and in what git hands a hook on its standard input and
+  arguments: a byte of no valid UTF-8, the byte 0x1F its awk passes split fields on, a last line
+  without a newline (`read` drops it, awk and `sed` keep it), numbers in bash arithmetic (octal
+  after a leading zero, 64-bit wrap), and a path git lists or a ref name that is no UTF-8, which
+  the bash opens and Rust's strings do not hold. A byte class `nuc` reads as the bash
   does is tried by a variant of the parity harness where a variant can write it and the bash
   reports it without an error of its own, else by a fixture of `tests/check.rs` or a unit test, as
   a digit bash's arithmetic lacks the base for; one it refuses is pinned by a fixture of
