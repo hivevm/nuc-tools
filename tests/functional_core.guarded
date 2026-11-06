@@ -15,3 +15,5 @@ tree.rs Tree::list read_dir
 tree.rs Tree::read_skills canonicalize
 # Reads the two files of the green-tree record in the git directory, at the paths git gives.
 hook.rs read_in_git_dir fs::read
+# Reads a side of a merge at the path git hands the merge driver.
+hook.rs read_merge_side fs::read

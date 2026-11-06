@@ -358,6 +358,44 @@ pub fn reference_transaction(
     })
 }
 
+/// The prose of the ADR index: every line but a table row, one that starts with `|`, as
+/// `sed '/^|/d'` writes it, the last line without a newline where the text ends without one.
+pub fn prose(text: &[u8]) -> Vec<u8> {
+    if text.is_empty() {
+        return Vec::new();
+    }
+    // One line per newline, the last without one included: a text of one newline is one empty
+    // line, which `sed` writes back.
+    let lines: Vec<&[u8]> = text
+        .strip_suffix(b"\n")
+        .unwrap_or(text)
+        .split(|&b| b == b'\n')
+        .collect();
+    let chomped = !text.ends_with(b"\n");
+    let mut out = Vec::new();
+    for (i, line) in lines.iter().enumerate() {
+        if line.starts_with(b"|") {
+            continue;
+        }
+        out.extend_from_slice(line);
+        if !(chomped && i + 1 == lines.len()) {
+            out.push(b'\n');
+        }
+    }
+    out
+}
+
+/// How the merge driver of the ADR index merges: the union of both sides' lines where its prose
+/// is the prose merged on its own, `prose_merged`, none where that did not merge cleanly; else the
+/// usual conflict. A rule changed next to a row the other side appended falls into one hunk with
+/// it, and the union would keep both versions.
+pub fn takes_union(prose_merged: Option<&[u8]>, union: Option<&[u8]>) -> bool {
+    match (prose_merged, union) {
+        (Some(merged), Some(union)) => prose(union) == merged,
+        _ => false,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -666,5 +704,28 @@ mod tests {
             reference_transaction(&[TWO], None, &has, &none),
             Answer::Pass
         );
+    }
+
+    #[test]
+    fn the_prose_drops_the_rows_as_sed_does() {
+        assert_eq!(
+            prose(b"Rule: one.\n\n| ADR |\n|---|\nAfter.\n"),
+            b"Rule: one.\n\nAfter.\n"
+        );
+        assert_eq!(prose(b"a\n| row"), b"a\n");
+        assert_eq!(prose(b"| row\nb"), b"b");
+        assert_eq!(prose(b""), b"");
+        assert_eq!(prose(b"\n"), b"\n");
+    }
+
+    // The bash cases: "the driver keeps the rows both sides appended", "the driver stops on a line
+    // changed right below a row the other side appended".
+    #[test]
+    fn the_union_stands_only_where_its_prose_is_the_prose_merged() {
+        let union = b"Rule.\n| a |\n| b |\nAfter.\n".as_slice();
+        assert!(takes_union(Some(b"Rule.\nAfter.\n"), Some(union)));
+        assert!(!takes_union(Some(b"Rule.\nAfter two.\n"), Some(union)));
+        assert!(!takes_union(None, Some(union)));
+        assert!(!takes_union(Some(b"Rule.\nAfter.\n"), None));
     }
 }

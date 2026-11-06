@@ -87,3 +87,17 @@ pub fn probe(repo: &Path, args: &[&str]) -> Result<Option<String>, String> {
         }
     }
 }
+
+/// The exit code of git for `args` on `repo` and its standard output as bytes, whatever the code,
+/// as for `git merge-file`, which exits with the count of its conflicts; or why git could not be
+/// run or was ended by a signal.
+pub fn status_and_output(repo: &Path, args: &[&str]) -> Result<(i32, Vec<u8>), String> {
+    let output = command(repo, args)
+        .output()
+        .map_err(|e| format!("git could not be run ({e}) — install git and put it on the PATH"))?;
+    let code = output
+        .status
+        .code()
+        .ok_or_else(|| format!("git {} was ended by a signal", args.join(" ")))?;
+    Ok((code, output.stdout))
+}
