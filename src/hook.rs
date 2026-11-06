@@ -66,7 +66,8 @@ pub enum Answer {
 pub struct Commit {
     /// The branch the checkout is on, none on a detached `HEAD`.
     pub branch: Option<String>,
-    /// Whether `MERGE_HEAD` names a commit: the commit concludes a merge that stopped.
+    /// Whether `MERGE_HEAD` names a commit: the commit concludes a merge that stopped. Read by
+    /// `pre-commit` alone, since every merge `pre-merge-commit` sees has one.
     pub merging: bool,
     /// Whether the repository has a work tree with the hook's check script as a file in it:
     /// `scripts/check-all.sh` for `pre-commit`, `scripts/check-docs.sh` for `pre-merge-commit`.

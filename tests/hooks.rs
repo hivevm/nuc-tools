@@ -244,29 +244,23 @@ fn a_git_dir_handed_from_elsewhere_is_not_decided_and_a_linked_worktree_is() {
 }
 
 #[test]
-fn the_shim_refuses_every_answer_but_0_and_3_and_a_missing_nuc() {
-    for code in [1, 2, 101, 7] {
-        let fixture = shimmed(&format!("hooks-answer-{code}"));
-        fixture.git(&["switch", "-q", "-c", "feature"]);
-        let bin = stand_in(&fixture, &format!("exit {code}"));
-        let output = commit(&fixture, Some(&bin));
-        assert!(!output.status.success(), "the shim passed exit {code}");
+fn every_shim_refuses_every_answer_but_0_and_3() {
+    for hook in every_shim() {
+        for code in [1, 2, 101, 7, 4] {
+            let fixture = shimmed(&format!("hooks-answer-{hook}-{code}"));
+            let args = trigger(&fixture, &hook);
+            let bin = stand_in(&fixture, &format!("exit {code}"));
+            let output = git_hooked(&fixture, Some(&bin), &[], args);
+            assert!(!output.status.success(), "{hook} passed exit {code}");
+            let _ = std::fs::remove_dir_all(bin);
+        }
+        let fixture = shimmed(&format!("hooks-answer-{hook}-0"));
+        let args = trigger(&fixture, &hook);
+        let bin = stand_in(&fixture, "exit 0");
+        let output = git_hooked(&fixture, Some(&bin), &[], args);
+        assert!(output.status.success(), "{hook}: {}", both(&output));
         let _ = std::fs::remove_dir_all(bin);
     }
-    let fixture = shimmed("hooks-answer-0");
-    fixture.git(&["switch", "-q", "-c", "feature"]);
-    let bin = stand_in(&fixture, "exit 0");
-    let output = commit(&fixture, Some(&bin));
-    assert!(output.status.success(), "{}", both(&output));
-    let _ = std::fs::remove_dir_all(bin);
-
-    let output = commit(&fixture, None);
-    assert!(!output.status.success(), "the shim passed without nuc");
-    assert!(
-        both(&output).contains("Install it from https://github.com/hivevm/nuc-tools/releases"),
-        "{}",
-        both(&output)
-    );
 }
 
 #[test]
@@ -355,6 +349,21 @@ fn with_nuc_toml_its_list_governs_the_hook_rules() {
         "a concluded merge: {}",
         stderr(&output)
     );
+
+    let fixture = shimmed("hooks-merge-listed-none");
+    fixture.write(
+        "nuc.toml",
+        "minimum = \"0.0.0\"\nrules = [\"hook/merge-on-main\"]\n",
+    );
+    docs(&fixture, 1);
+    merging(&fixture);
+    let output = git_hooked(&fixture, Some(&built()), &[], MERGE);
+    assert!(
+        output.status.success(),
+        "the documentation check ran: {}",
+        both(&output)
+    );
+    assert!(!both(&output).contains("docs output"), "{}", both(&output));
 
     let fixture = shimmed("hooks-listed");
     fixture.write(
@@ -639,7 +648,10 @@ fn every_shim_stops_without_nuc_and_with_a_nuc_too_old() {
         fixture
             .write("scripts/check-all.sh", &script)
             .write("scripts/check-docs.sh", &script)
-            .write("nuc.toml", "minimum = \"99.0.0\"\nrules = []\n");
+            .write(
+                "nuc.toml",
+                "minimum = \"99.0.0\"\nrules = [\"hook/merge-checks\", \"hook/merge-docs\"]\n",
+            );
         let args = trigger(&fixture, &hook);
         let output = git_hooked(&fixture, Some(&built()), &[], args);
         assert!(!output.status.success(), "{hook} passed with a nuc too old");

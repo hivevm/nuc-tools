@@ -139,8 +139,8 @@ a git directory other than the one it finds from there, it does not decide. It a
 branch and `MERGE_HEAD`, tests whether `scripts/check-all.sh` exists, and exits 1 with a finding
 at `refs/heads/main` on `main`, 3 on the commit that concludes a merge where the check runs, and
 0 otherwise. The shim runs the check on 3, with git's local variables unset, and refuses on red.
-`nuc hook pre-merge-commit` decides alike, with `scripts/check-docs.sh` as its check, which runs
-on every merge but one on `main`.
+`nuc hook pre-merge-commit` refuses a merge on `main` and answers 3 on any other merge whose work
+tree has `scripts/check-docs.sh`, where its rule is on; its shim runs that check.
 
 A release starts when a human pushes a tag `vX.Y.Z` that names the version of `Cargo.toml`.
 `release.yml` builds the four targets, writes `SHA256SUMS`, attests each binary and verifies the

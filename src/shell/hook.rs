@@ -12,17 +12,28 @@ use crate::rules;
 use super::tree::Tree;
 use super::{FOUND, PASSED, RUN_CHECK, git, running};
 
-/// The hooks this `nuc` decides, by the name git gives them.
-const HOOKS: &[&str] = &["pre-commit", "pre-merge-commit"];
+/// How a hook decides on the state of a commit, with the hook rules turned on.
+type Decide = fn(&hook::Commit, &dyn Fn(&HookRule) -> bool) -> Answer;
+
+/// The hooks this `nuc` decides, by the name git gives them, each with the check script its shim
+/// runs on 3 and its decision.
+const HOOKS: &[(&str, &str, Decide)] = &[
+    ("pre-commit", "scripts/check-all.sh", hook::pre_commit),
+    (
+        "pre-merge-commit",
+        "scripts/check-docs.sh",
+        hook::pre_merge_commit,
+    ),
+];
 
 /// `nuc hook <name>`, run in the directory git runs the hook in.
 pub(super) fn run(name: &str, args: &[&str]) -> Result<u8, String> {
-    if !HOOKS.contains(&name) {
+    let Some(&(_, script, decide)) = HOOKS.iter().find(|(known, _, _)| *known == name) else {
         return Err(format!(
             "no hook '{name}' is known to this nuc — a newer nuc may know it: {}",
             config::INSTALL
         ));
-    }
+    };
     if !args.is_empty() {
         return Err(format!("nuc hook {name} takes no arguments"));
     }
@@ -31,12 +42,6 @@ pub(super) fn run(name: &str, args: &[&str]) -> Result<u8, String> {
     same_git_dir(&dir)?;
     let root = work_tree(&dir)?;
     let on = turned_on(root.as_deref())?;
-    // The check script of the hook, which its shim runs on 3.
-    let script = if name == "pre-commit" {
-        "scripts/check-all.sh"
-    } else {
-        "scripts/check-docs.sh"
-    };
     let state = hook::Commit {
         branch: git::probe(&dir, &["symbolic-ref", "--short", "-q", "HEAD"])?
             .map(|branch| branch.trim_end_matches(['\n', '\r']).to_owned()),
@@ -47,11 +52,7 @@ pub(super) fn run(name: &str, args: &[&str]) -> Result<u8, String> {
             .is_some_and(|root| root.join(script).is_file()),
     };
     let on = |rule: &HookRule| on.iter().any(|on| on.id == rule.id);
-    let answer = if name == "pre-commit" {
-        hook::pre_commit(&state, &on)
-    } else {
-        hook::pre_merge_commit(&state, &on)
-    };
+    let answer = decide(&state, &on);
     Ok(match answer {
         Answer::Pass => PASSED,
         Answer::Refuse(finding) => {
