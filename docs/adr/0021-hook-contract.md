@@ -1,4 +1,4 @@
-# ADR-draft-hook-contract: A POSIX sh shim hands each hook to `nuc hook <name>`, which decides from the git state and answers 0, 1, 2, or 3, and the shim runs the project's checks only on 3
+# ADR-0021: A POSIX sh shim hands each hook to `nuc hook <name>`, which decides from the git state and answers 0, 1, 2, or 3, and the shim runs the project's checks only on 3
 
 - **Status:** 🟡 proposed
 - **Date:** 2026-11-06
@@ -81,9 +81,9 @@ project's check for that hook only on 3 and refuses on every code it does not na
   nothing; they are no rule and are written whatever `nuc.toml` lists.
 - **`nuc.toml` and the release:** how `nuc hook` reads them, with and without `nuc.toml`, is the
   *Hooks* clause of the restatement of ADR-0014,
-  [ADR-draft-version-coupling-with-hook-defaults](draft-version-coupling-with-hook-defaults.md),
+  [ADR-0023](0023-version-coupling-with-hook-defaults.md),
   and stated there only. The exit code 3 and the ref as location are the restatement of ADR-0013,
-  [ADR-draft-command-line-contract-with-hook-signal](draft-command-line-contract-with-hook-signal.md).
+  [ADR-0020](0020-command-line-contract-with-hook-signal.md).
 - **Merge driver:** `.gitattributes` names the driver `adr-index` for `docs/adr/README.md`, and
   the git configuration `merge.adr-index.driver` names its shim. Git calls the shim with the base,
   ours, theirs, and the three labels, and `nuc` writes the merged file into ours. It exits 0 on a
@@ -156,10 +156,10 @@ project's check for that hook only on 3 and refuses on every code it does not na
 ## Enforcement
 
 The scenario harness of
-[ADR-draft-hook-scenario-parity](draft-hook-scenario-parity.md) runs every hook through its shim,
+[ADR-0022](0022-hook-scenario-parity.md) runs every hook through its shim,
 from the tracer of `docs/plan/hooks-port/` on.
 
-Tests in `tests/hooks.rs`, cited with `Verifies: ADR-draft-hook-contract`, check, from the tracer
+Tests in `tests/hooks.rs`, cited with `Verifies: ADR-0021`, check, from the tracer
 for `pre-commit` and from the ticket of each further hook on:
 - that each shim exits non-zero on exit 1, 2, 101, and an unnamed code from a stand-in `nuc`, and
   on a missing `nuc`, with the install message (the ticket that makes every shim fail closed);

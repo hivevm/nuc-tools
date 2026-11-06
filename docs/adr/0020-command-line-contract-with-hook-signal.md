@@ -1,4 +1,4 @@
-# ADR-draft-command-line-contract-with-hook-signal: `nuc` reads `nuc.toml` as a TOML subset, writes one finding per line as `<file>[:<line>]: <rule ID>: <message>`, and exits 0, 1, or 2, and `nuc hook` also 3
+# ADR-0020: `nuc` reads `nuc.toml` as a TOML subset, writes one finding per line as `<file>[:<line>]: <rule ID>: <message>`, and exits 0, 1, or 2, and `nuc hook` also 3
 
 - **Status:** 🟡 proposed
 - **Date:** 2026-11-06
@@ -20,7 +20,7 @@ newer template release may add a key that an older `nuc` does not know, and that
 say it is too old rather than guess. G-7 adds JSON and SARIF later. A hook whose bash runs the
 project's checks needs to tell its shim that they run now, and the standard output is taken by
 findings, and a hook's refusal guards a ref rather than a file
-([ADR-draft-hook-contract](draft-hook-contract.md)).
+([ADR-0021](0021-hook-contract.md)).
 
 ## Decision
 
@@ -41,7 +41,7 @@ and exit 0 without a finding, 1 with findings, and 2 when it could not decide, a
   none, as for a missing file.
 - **Exit codes:** 0, 1, and 2 as above, for every command; every cause that keeps `nuc` from
   deciding exits 2, one code for all of them. A panic exits 101, non-zero as well. `nuc hook`
-  exits 3 where ADR-draft-hook-contract says, and no other command does; its `--record` exits 0
+  exits 3 where ADR-0021 says, and no other command does; its `--record` exits 0
   or 2.
 
 **Out of scope:** the JSON and SARIF formats of G-7; options a rule may take; the wording of the
@@ -87,11 +87,11 @@ messages, which may change in any release; the output of `nuc explain`, which is
 
 ## Enforcement
 
-Tests cited with `Verifies: ADR-draft-command-line-contract-with-hook-signal` run `nuc` on fixture
+Tests cited with `Verifies: ADR-0020` run `nuc` on fixture
 repositories and check each clause: a `nuc.toml` with an unknown key and a higher `minimum` refuses
 as too old; an unknown key, a key set twice, and another syntax refuse as unreadable, with exit 2
 and the install hint; a finding is the line form on the standard output and the summary is on the
 standard error; and the exit codes are 0, 1, and 2 for a clean tree, a finding, and a refusal. Tests
-cited with `Verifies: ADR-draft-command-line-contract-with-hook-signal` check that `nuc hook` exits
+cited with `Verifies: ADR-0020` check that `nuc hook` exits
 3 only where a shim runs a check, that no other command exits 3, and that a refusal of `nuc hook`
 names the ref it guards as its location.

@@ -1,4 +1,4 @@
-# ADR-draft-version-coupling-with-hook-defaults: A project's `nuc.toml` names the minimum `nuc` and the rules turned on, the template release ships both, each rule checks the tree as the bash check of the release its README names, and the hooks run on defaults without it
+# ADR-0023: A project's `nuc.toml` names the minimum `nuc` and the rules turned on, the template release ships both, each rule checks the tree as the bash check of the release its README names, and the hooks run on defaults without it
 
 - **Status:** 🟡 proposed
 - **Date:** 2026-11-06
@@ -28,7 +28,7 @@ v0.5.0, v0.6.0, v0.6.1, and v0.7.0, and derived projects on v0.6.1
 findings on the trees of another, or passes what that release fails. A rule ID stays stable
 (G-6). The bash hooks read neither `nuc.toml` nor the release line, and the fixtures of the
 template's hook self-test carry neither; the maintainer decided that a hook works without
-`nuc.toml`, on defaults ([ADR-draft-hook-contract](draft-hook-contract.md)).
+`nuc.toml`, on defaults ([ADR-0021](0021-hook-contract.md)).
 
 ## Decision
 
@@ -76,10 +76,10 @@ runs without `nuc.toml` on defaults and takes the newest release it knows where 
     v0.5.0 is decided as v0.5.0, the earliest the hooks port. A hook refuses nothing for the
     release; check 14 gates the line.
   - The missing binary is reported by the reference shims of
-    [ADR-draft-hook-contract](draft-hook-contract.md).
+    [ADR-0021](0021-hook-contract.md).
 
 **Out of scope:** the field names and the rest of the format of `nuc.toml`; options a rule may take;
-the shims themselves, which ADR-draft-hook-contract decides; template releases before v0.5.0, beyond
+the shims themselves, which ADR-0021 decides; template releases before v0.5.0, beyond
 the hooks' clause; how `nuc upgrade` moves a project between releases (G-4).
 
 ## Alternatives considered
@@ -129,7 +129,7 @@ the hooks' clause; how `nuc upgrade` moves a project between releases (G-4).
 
 ## Enforcement
 
-Tests cited with `Verifies: ADR-draft-version-coupling-with-hook-defaults` run `nuc check` on
+Tests cited with `Verifies: ADR-0023` run `nuc check` on
 fixtures with `nuc.toml` missing, unreadable, naming a higher minimum, and listing an unknown rule
 ID, and check each exits non-zero with the message; one with a rule known to `nuc` but not listed
 checks that the rule reports nothing. Others run `nuc hook` without `nuc.toml` and without a release

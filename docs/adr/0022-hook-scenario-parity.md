@@ -1,4 +1,4 @@
-# ADR-draft-hook-scenario-parity: A scenario harness runs each hook through git, once with the bash hooks of each pinned template release and once with the shims and `nuc`, and fails on any difference or on a self-test case no scenario covers
+# ADR-0022: A scenario harness runs each hook through git, once with the bash hooks of each pinned template release and once with the shims and `nuc`, and fails on any difference or on a self-test case no scenario covers
 
 - **Status:** 🟡 proposed
 - **Date:** 2026-11-06
@@ -33,7 +33,7 @@ assert no hook decision but its aftermath, such as that a refused fast-forward l
 it was. A hook's standard error mixes its own lines with git's and with the output of the check it
 ran, which the self-test asserts as well.
 
-How a hook through `nuc` behaves is decided in [ADR-draft-hook-contract](draft-hook-contract.md):
+How a hook through `nuc` behaves is decided in [ADR-0021](0021-hook-contract.md):
 the shim, the exit codes, the green tree, and the defaults without `nuc.toml`.
 
 ## Decision
@@ -124,7 +124,7 @@ any difference and on any case of a pinned release's hook self-test that no scen
 ## Enforcement
 
 The harness's own self-test, `scripts/test-check-parity.sh`, cited with
-`Verifies: ADR-draft-hook-scenario-parity` and extended by the tracer of `docs/plan/hooks-port/`,
+`Verifies: ADR-0022` and extended by the tracer of `docs/plan/hooks-port/`,
 checks that each of the following fails:
 - a stand-in `nuc` whose exit status differs from the bash in one scenario;
 - one whose refusal maps to another rule ID;
