@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Self-test of scripts/check-parity.sh. Verifies: ADR-0015 Q-1 Q-2
+# Self-test of scripts/check-parity.sh. Verifies: ADR-0015 ADR-0022 Q-1 Q-2
 #
 # The comparison cases feed the harness pairs of outputs through '--compare': pairs that differ in
 # one finding, in one exit status, by one bash message the table does not know, or by a line nuc
@@ -21,7 +21,14 @@
 # and is compared, does not apply to a file without a last newline, and takes '-' alone. No
 # network and no build.
 #
-# Inputs: scripts/check-parity.sh tests/parity/ scripts/lib/
+# The hook cases run the scenarios alone, through '--hooks', on a tree of the template whose bash
+# pre-commit refuses a commit on main, with the reference shim and a stand-in nuc: an agreeing
+# nuc passes; one whose exit status differs, one whose refusal maps to another rule ID, one that
+# differs only with nuc.toml, an unknown line of the bash hook, an uncovered self-test case, a
+# listed case the self-test lacks, a scenario that names a case no release has, no tree at all,
+# and a malformed table each fail (ADR-0022).
+#
+# Inputs: scripts/check-parity.sh tests/parity/ scripts/lib/ shims/
 #
 # Usage:
 #     scripts/test-check-parity.sh
@@ -253,7 +260,7 @@ grep -E $'^#|\tdocs/template-release\t' "$ROOT/tests/parity/normalize.tsv" > "$w
 # run <corpus> <nuc> [variants] — the harness on the corpus, with the default variant unless given.
 # shellcheck disable=SC2317,SC2329 # run through expect
 run() {
-  env PARITY_TABLE="$work/one-rule.tsv" bash "$HARNESS" --corpus "$1" --cache "$work/cache" --nuc "$2" \
+  env PARITY_TABLE="$work/one-rule.tsv" bash "$HARNESS" --no-hooks --corpus "$1" --cache "$work/cache" --nuc "$2" \
     --variants "${3:-$DEFAULT}"
 }
 
@@ -262,7 +269,7 @@ c="$(corpus "$work/agree.toml" agree)"
 expect pass "a corpus on which bash and nuc agree, on the tree and on its variant" "" run "$c" "$(reactive_nuc)"
 expect pass "the filled cache is used again, the tree reset" "" run "$c" "$(reactive_nuc)"
 check "the run names the variant it compared" \
-  bash -c "PARITY_TABLE=\"$work/one-rule.tsv\" bash \"$HARNESS\" --corpus \"$c\" --cache \"$work/cache\" --nuc \"$(reactive_nuc)\" --variants \"$DEFAULT\" | grep -q 'variant deleted — 1 finding'"
+  bash -c "PARITY_TABLE=\"$work/one-rule.tsv\" bash \"$HARNESS\" --no-hooks --corpus \"$c\" --cache \"$work/cache\" --nuc \"$(reactive_nuc)\" --variants \"$DEFAULT\" | grep -q 'variant deleted — 1 finding'"
 check "the variant leaves the cached tree as pinned" \
   bash -c "test -z \"\$(git -C \"$work/cache/agree\" status --porcelain --untracked-files=no)\""
 
@@ -342,7 +349,7 @@ expect fail "a finding the tree already has does not make a variant fire" "does 
 : > "$work/v-empty.tsv"
 expect fail "a ported rule without a variant is refused" "brings no variant" run "$c" "$(reactive_nuc)" "$work/v-empty.tsv"
 expect fail "an empty --variants is refused" "--variants takes a file" \
-  bash "$HARNESS" --corpus "$c" --cache "$work/cache" --nuc "$(reactive_nuc)" --variants ""
+  bash "$HARNESS" --no-hooks --corpus "$c" --cache "$work/cache" --nuc "$(reactive_nuc)" --variants ""
 printf '%s' "$DELETE" > "$work/v-no-newline.tsv"
 expect pass "a last row without a newline is read" "" run "$c" "$(reactive_nuc)" "$work/v-no-newline.tsv"
 
@@ -430,7 +437,7 @@ releases() {
 # run_releases <corpus> <table> — the harness on the corpus with the table of releases given.
 # shellcheck disable=SC2317,SC2329 # run through expect
 run_releases() {
-  env PARITY_TABLE="$work/one-rule.tsv" PARITY_RELEASES="$2" bash "$HARNESS" --corpus "$1" \
+  env PARITY_TABLE="$work/one-rule.tsv" PARITY_RELEASES="$2" bash "$HARNESS" --no-hooks --corpus "$1" \
     --cache "$work/cache" --nuc "$(reactive_nuc)" --variants "$DEFAULT"
 }
 
@@ -463,5 +470,87 @@ expect fail "a tree of the template without the function fails" "has no check_te
 printf 'docs/template-release\tREADME.md\tcheck_template_release\t-\n' > "$work/r-malformed.tsv"
 expect fail "a malformed row of the table of releases is refused" "a row needs a rule ID" \
   run_releases "$c" "$work/r-malformed.tsv"
+
+# --- cases: the hook scenarios -------------------------------------------------------------
+
+ON_MAIN="pre-commit: refused — the checkout is on 'main', and changes reach main through a pull request (AGENTS.md, section 6). Create a branch first: git switch -c <name>"
+
+# hook_tree <name> <extra hook line> [extra case] — a tree of the template at v0.7.0 whose bash
+# pre-commit refuses a commit on main, writing the extra line first where one is given, and whose
+# self-test names the cases of the scenarios and the extra case. Printed as its path.
+# shellcheck disable=SC2016 # the hook's and the self-test's own expansions
+hook_tree() {
+  local dir="$work/hooks-$1"
+  mkdir -p "$dir/.githooks" "$dir/scripts"
+  printf '# Template\n\n- **Template release:** v0.7.0\n' > "$dir/README.md"
+  {
+    echo '#!/usr/bin/env bash'
+    [[ -n "$2" ]] && printf 'echo %q >&2\n' "$2"
+    echo '[[ "$(git symbolic-ref --short -q HEAD)" == main ]] || exit 0'
+    printf 'echo %q >&2\nexit 1\n' "$ON_MAIN"
+  } > "$dir/.githooks/pre-commit"
+  chmod +x "$dir/.githooks/pre-commit"
+  printf 'expect refuse "a commit on main" "$d" "on main" commit -q --allow-empty -m x\n' > "$dir/scripts/test-git-hooks.sh"
+  printf 'expect pass "a commit on a branch" "$d" "" commit -q --allow-empty -m x\n' >> "$dir/scripts/test-git-hooks.sh"
+  [[ -n "${3:-}" ]] && printf 'expect pass "%s" "$d" "" commit -q --allow-empty -m x\n' "$3" >> "$dir/scripts/test-git-hooks.sh"
+  echo "$dir"
+}
+
+# hook_nuc <name> <shell code> — a stand-in nuc whose 'hook pre-commit' runs the code, printed as
+# its path; HOOK_AGREES is the code that answers as the bash does.
+# shellcheck disable=SC2016 # the stand-in's own expansion
+HOOK_AGREES='[ "$(git symbolic-ref --short -q HEAD)" = main ] || exit 0; echo "refs/heads/main: hook/commit-on-main: on main"; exit 1'
+hook_nuc() {
+  local f="$work/hook-nuc-$1"
+  printf '#!/bin/sh\n%s\n' "$2" > "$f"
+  chmod +x "$f"
+  echo "$f"
+}
+
+HOOK_SCENARIOS_FILE="$work/hook-scenarios.sh"
+# shellcheck disable=SC2016 # the scenario file's own expansion
+printf '%s\n' 'on_branch() { hp_git "$1" switch -q -c feature; }' \
+  'hook_scenario on-main pre-commit "a commit on main" : commit -q --allow-empty -m x' \
+  'hook_scenario on-branch pre-commit "a commit on a branch" on_branch commit -q --allow-empty -m x' \
+  > "$HOOK_SCENARIOS_FILE"
+NO_CASES="$work/hook-cases.tsv"
+echo '# None.' > "$NO_CASES"
+
+# run_hooks <nuc> <scenarios> <cases> <tree>... — the hook scenarios alone, on the trees.
+# shellcheck disable=SC2317,SC2329 # run through expect
+run_hooks() {
+  local nuc="$1" scenarios="$2" cases="$3"; shift 3
+  env PARITY_HOOK_SCENARIOS="$scenarios" PARITY_HOOK_CASES="$cases" \
+    bash "$HARNESS" --nuc "$nuc" --hooks "$@"
+}
+
+tree="$(hook_tree plain "")"
+expect pass "hook scenarios that agree pass" "" \
+  run_hooks "$(hook_nuc agrees "$HOOK_AGREES")" "$HOOK_SCENARIOS_FILE" "$NO_CASES" "$tree"
+expect fail "a nuc whose exit status differs in one scenario fails" "bash exits 1, nuc exits 0" \
+  run_hooks "$(hook_nuc passes 'exit 0')" "$HOOK_SCENARIOS_FILE" "$NO_CASES" "$tree"
+# shellcheck disable=SC2016 # the stand-in's own expansion
+expect fail "a refusal mapped to another rule ID fails" "only nuc: rule hook/merge-checks refs/heads/main" \
+  run_hooks "$(hook_nuc other-rule '[ "$(git symbolic-ref --short -q HEAD)" = main ] || exit 0; echo "refs/heads/main: hook/merge-checks: x"; exit 1')" \
+  "$HOOK_SCENARIOS_FILE" "$NO_CASES" "$tree"
+expect fail "a nuc that agrees without nuc.toml and differs with it fails" "on-main at v0.7.0, with nuc.toml" \
+  run_hooks "$(hook_nuc configured "[ -f nuc.toml ] && exit 0; $HOOK_AGREES")" "$HOOK_SCENARIOS_FILE" "$NO_CASES" "$tree"
+expect fail "a line of a bash hook the table does not know fails" "a line of the hook the table does not know: pre-commit: a notice nobody maps" \
+  run_hooks "$(hook_nuc agrees "$HOOK_AGREES")" "$HOOK_SCENARIOS_FILE" "$NO_CASES" "$(hook_tree unknown "pre-commit: a notice nobody maps")"
+expect fail "a self-test case no scenario covers fails" "the self-test case 'a case nobody covers' is covered by no scenario" \
+  run_hooks "$(hook_nuc agrees "$HOOK_AGREES")" "$HOOK_SCENARIOS_FILE" "$NO_CASES" "$(hook_tree uncovered "" "a case nobody covers")"
+printf 'a case no self-test has\tno case of a hook: a test of the harness\n' > "$work/hook-cases-stale.tsv"
+expect fail "a listed case the self-test lacks fails" "lists the case 'a case no self-test has', which no tree's self-test has" \
+  run_hooks "$(hook_nuc agrees "$HOOK_AGREES")" "$HOOK_SCENARIOS_FILE" "$work/hook-cases-stale.tsv" "$tree"
+cp "$HOOK_SCENARIOS_FILE" "$work/hook-scenarios-stale.sh"
+echo 'hook_scenario stale pre-commit "a case of no release" : commit -q --allow-empty -m x' >> "$work/hook-scenarios-stale.sh"
+expect fail "a scenario that names a case no release has fails" "it names the case 'a case of no release', which no tree's self-test has" \
+  run_hooks "$(hook_nuc agrees "$HOOK_AGREES")" "$work/hook-scenarios-stale.sh" "$NO_CASES" "$tree"
+expect fail "hook scenarios without a tree of the template fail" "the corpus pins no tree of the template" \
+  run_hooks "$(hook_nuc agrees "$HOOK_AGREES")" "$HOOK_SCENARIOS_FILE" "$NO_CASES"
+printf 'pattern\tdocs/x\t-\n' > "$work/hooks-bad.tsv"
+expect fail "a row of the hook table that names no hook/ rule is refused" "is not 'pattern<TAB>hook/<rule><TAB>ref|-'" \
+  env PARITY_HOOK_TABLE="$work/hooks-bad.tsv" PARITY_HOOK_SCENARIOS="$HOOK_SCENARIOS_FILE" PARITY_HOOK_CASES="$NO_CASES" \
+  bash "$HARNESS" --nuc "$(hook_nuc agrees "$HOOK_AGREES")" --hooks "$tree"
 
 summary "Parity harness self-test"
