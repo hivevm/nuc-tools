@@ -36,7 +36,7 @@ it writes said in a comment, as for the reads; and `std::env::temp_dir` stands n
 
 - Touches: `tests/functional_core.rs`, `tests/functional_core.guarded`,
   `tests/functional_core.reads`, a list of writes beside them
-- ADR-0010 (or the draft that restates it), *Enforcement*; Q-8.
+- ADR-0024 (proposed, restating ADR-0010), *Enforcement*; Q-8.
 - `tests/functional_core.rs`, `the_shell_reads_only_through_the_guard` and the test of a read
   outside the guarded functions, the pattern to copy.
 
