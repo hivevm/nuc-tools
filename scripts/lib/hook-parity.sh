@@ -10,8 +10,9 @@
 #
 # Compared per scenario and tree: the exit status of the git command; the hook's lines, those that
 # start with the hook's name and a colon, each mapped by tests/parity/hooks.tsv to a hook/ rule
-# ID and the ref it guards, and the findings nuc writes in the line form of ADR-0020, as sets; and
-# the lines of the stand-in checks, verbatim. Git's own lines are not compared. A hook's line no
+# ID and the ref it guards, or to a notice/ ID and the fields it carries, and the findings nuc
+# writes in the line form of ADR-0020, as sets; the lines of the stand-in checks, verbatim; and
+# the record of green trees the run leaves in the git directory, line by line. Git's own lines are not compared. A hook's line no
 # row maps, and a rule of nuc the table maps no line to, is a difference.
 #
 # Each scenario's bash side must end as every case it names expects, pass or refuse, so that a
@@ -35,8 +36,9 @@ SHIMS="$ROOT/shims"
 # The scenarios, filled by hook_scenario as the scenario file is sourced.
 hs_names=() hs_hooks=() hs_cases=() hs_setups=() hs_args=() hs_bare=()
 
-# hook_scenario [--bare] <name> <hook> <cases, separated by '|'> <setup function> <git args...>
-# — register a scenario; the setup function gets the fixture's path, and its git commands run
+# hook_scenario [--bare] <name> <hook> <cases, separated by '|', or ''> <setup function>
+# <git args...> — register a scenario, which may name no case where it shows what the self-test
+# asserts outside its 'expect' lines; the setup function gets the fixture's path, and its git commands run
 # without hooks.
 hook_scenario() {
   local bare=0
@@ -82,7 +84,7 @@ hp_repo() {
 # the rule ID and the ref, or 'out' with a stand-in's line; and 'unknown' with a line that is the
 # hook's but no row maps, or a rule of nuc the table does not know.
 hp_lines() {
-  local hook="$1" line i matched
+  local hook="$1" line i matched field g
   while IFS= read -r line; do
     if [[ "$line" == "check output for the test"* || "$line" == "docs output for the test"* ]]; then
       printf 'out\t%s\n' "$line"
@@ -90,7 +92,10 @@ hp_lines() {
       matched=""
       for i in "${!hp_patterns[@]}"; do
         if [[ "$line" =~ ${hp_patterns[i]} ]]; then
-          matched="${hp_ids[i]}"$'\t'"${hp_fields[i]}"
+          field="${hp_fields[i]}"
+          # A field names the groups of its pattern as \1 to \9.
+          for g in 1 2 3 4 5 6 7 8 9; do field="${field//\\$g/${BASH_REMATCH[g]:-}}"; done
+          matched="${hp_ids[i]}"$'\t'"$field"
           break
         fi
       done
@@ -102,7 +107,9 @@ hp_lines() {
         printf 'unknown\tnuc reports %s, which the table maps no line to\n' "${BASH_REMATCH[2]}"
       fi
     fi
-  done < "$2" | sort -u
+  done < "$2"
+  # The record of green trees the run left, line by line.
+  [[ -f "$2.record" ]] && sed 's/^/record\t/' "$2.record"
 }
 
 # hp_run <scenario> <hooks dir> <release or ''> <nuc.toml or ''> <path> — build the scenario's
@@ -114,6 +121,8 @@ hp_run() {
   "${hs_setups[s]}" "$dir" > /dev/null 2>&1
   [[ -n "$release" ]] && printf '# Fixture\n\n- **Template release:** %s\n' "$release" > "$dir/README.md"
   [[ -n "$config" ]] && printf '%s\n' "$config" > "$dir/nuc.toml"
+  # Neither file is the fixture's own: a working tree they made unclean would hide a green tree.
+  printf '/README.md\n/nuc.toml\n' >> "$dir/.git/info/exclude"
   git -C "$dir" config core.hooksPath "$hooks"
   local -a args
   eval "args=(${hs_args[s]})"
@@ -121,6 +130,7 @@ hp_run() {
     git -c user.name=t -c user.email=t@example.invalid "${args[@]}") > "$dir.out" 2>&1
   rc=$?
   echo "$rc" > "$dir.rc"
+  [[ -f "$dir/.git/checks-green-trees" ]] && cp "$dir/.git/checks-green-trees" "$dir.out.record"
 }
 
 # hp_reached <scenario> <bash path> <label> — whether the bash side ends as each case the scenario
@@ -149,8 +159,8 @@ hp_compare() {
   local b_rc n_rc
   b_rc="$(cat "$b.rc")" n_rc="$(cat "$n.rc")"
   ((b_rc == n_rc)) || diffs+=("bash exits $b_rc, nuc exits $n_rc")
-  hp_lines "$hook" "$b.out" > "$b.keys"
-  hp_lines "$hook" "$n.out" > "$n.keys"
+  hp_lines "$hook" "$b.out" | sort -u > "$b.keys"
+  hp_lines "$hook" "$n.out" | sort -u > "$n.keys"
   while IFS=$'\t' read -r kind rest; do
     [[ "$kind" == unknown ]] && diffs+=("bash: a line of the hook the table does not know: $rest")
   done < "$b.keys"
@@ -179,8 +189,8 @@ hook_parity() {
   hp_patterns=() hp_ids=() hp_fields=()
   while IFS=$'\t' read -r pattern id field extra || [[ -n "$pattern" ]]; do
     [[ -z "$pattern" || "$pattern" == \#* ]] && continue
-    if ! [[ "$id" =~ ^hook/[a-z0-9-]+$ && -n "$field" && -z "${extra:-}" ]]; then
-      echo "Parity check: $HOOK_TABLE: the row '$pattern' is not 'pattern<TAB>hook/<rule><TAB>ref|-'" >&2
+    if ! [[ "$id" =~ ^(hook|notice)/[a-z0-9-]+$ && -n "$field" && -z "${extra:-}" ]]; then
+      echo "Parity check: $HOOK_TABLE: the row '$pattern' is not 'pattern<TAB>hook/<rule>|notice/<name><TAB>fields|-'" >&2
       return 2
     fi
     hp_patterns+=("$pattern") hp_ids+=("$id") hp_fields+=("$field")
@@ -259,7 +269,7 @@ hook_parity() {
   mkdir -p "$hp_bin"
   ln -sf "$(realpath "$nuc")" "$hp_bin/nuc"
   local ids config
-  ids="$(printf '%s\n' "${hp_ids[@]}" | sort -u | sed 's/.*/"&"/' | paste -sd, -)"
+  ids="$(printf '%s\n' "${hp_ids[@]}" | grep '^hook/' | sort -u | sed 's/.*/"&"/' | paste -sd, -)"
   config="minimum = \"0.0.0\"
 rules = [$ids]"
 
