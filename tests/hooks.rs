@@ -660,10 +660,16 @@ fn every_shim_stops_without_nuc_and_with_a_nuc_too_old() {
         let args = trigger(&fixture, &hook);
         let output = git_hooked(&fixture, None, &[], args);
         assert!(!output.status.success(), "{hook} passed without nuc");
+        // A driver merges where a hook decides, and says so.
+        let decides = if hook == "merge-adr-index" {
+            "so no driver merges the ADR index"
+        } else {
+            "so no hook decides"
+        };
         assert!(
-            both(&output).contains(&format!("{hook}: refused — nuc is not on the PATH"))
-                && both(&output)
-                    .contains("Install it from https://github.com/hivevm/nuc-tools/releases"),
+            both(&output).contains(&format!(
+                "{hook}: refused — nuc is not on the PATH, {decides}. Install it from https://github.com/hivevm/nuc-tools/releases"
+            )),
             "{hook}: {}",
             both(&output)
         );
@@ -1296,4 +1302,46 @@ fn the_driver_keeps_both_rows_and_stops_on_a_rule_both_sides_changed() {
         std::fs::read_to_string(fixture.root().join("docs/adr/README.md")).expect("the index");
     assert!(index.starts_with("<<<<<<< HEAD\nRule: three.\n"), "{index}");
     assert!(index.contains("\n>>>>>>> feature\n"), "{index}");
+}
+
+/// Verifies: Q-8
+#[test]
+fn the_driver_writes_nothing_outside_the_repository_and_ignores_a_fourth_label() {
+    let fixture = shimmed_only("hooks-driver-scratch", "merge-adr-index");
+    indexed(&fixture, "one", "one");
+    let shim = shims()
+        .join("merge-adr-index")
+        .display()
+        .to_string()
+        .replace('\\', "/");
+    fixture.git(&[
+        "config",
+        "merge.adr-index.driver",
+        &format!("{shim} %O %A %B %S %X %Y %P"),
+    ]);
+    let tmp = fixture.root().with_extension("tmp");
+    std::fs::create_dir_all(&tmp).expect("a temporary directory of its own");
+    let tmp_text = tmp.display().to_string();
+    let output = git_hooked(
+        &fixture,
+        Some(&built()),
+        &[
+            ("TMPDIR", &tmp_text),
+            ("TMP", &tmp_text),
+            ("TEMP", &tmp_text),
+        ],
+        MERGE,
+    );
+    assert!(output.status.success(), "{}", both(&output));
+    assert!(
+        std::fs::read_dir(&tmp).expect("readable").next().is_none(),
+        "the driver wrote into the temporary directory"
+    );
+    let left: Vec<_> = std::fs::read_dir(fixture.root().join(".git"))
+        .expect("the git directory")
+        .filter_map(Result::ok)
+        .filter(|entry| entry.file_name().to_string_lossy().starts_with("nuc-merge"))
+        .collect();
+    assert!(left.is_empty(), "the driver left its scratch directory");
+    let _ = std::fs::remove_dir_all(tmp);
 }

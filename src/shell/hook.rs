@@ -406,27 +406,28 @@ fn merge_adr_index(args: &[&str]) -> Result<u8, String> {
     let (&[base, ours, theirs], labels) = (args.get(..3).unwrap_or_default(), args.get(3..)) else {
         return Err("usage: nuc hook merge-adr-index <base> <ours> <theirs> [<base label> <ours label> <theirs label>]".to_owned());
     };
+    // Labels past the third are ignored, as the bash driver ignores them.
     let labels = labels.unwrap_or_default();
-    if labels.len() > 3 {
-        return Err(
-            "nuc hook merge-adr-index takes three files and three labels at most".to_owned(),
-        );
-    }
     let dir =
         env::current_dir().map_err(|e| format!("the current directory is unreadable: {e}"))?;
     // Git runs a merge driver at the root of the work tree; a nuc.toml it cannot hold refuses
     // here as in every hook (ADR-0023).
     turned_on(Some(&dir))?;
-    let scratch = env::temp_dir().join(format!("nuc-merge-adr-index-{}", std::process::id()));
-    fs::create_dir_all(&scratch)
-        .map_err(|e| format!("{}: cannot be made — {e} — not decided", scratch.display()))?;
+    let scratch = scratch_dir(&dir)?;
     let merged = merge_sides(&dir, &scratch, [base, ours, theirs]);
     let _ = fs::remove_dir_all(&scratch);
     if let Some(union) = merged? {
         fs::write(ours, union).map_err(|e| format!("{ours}: unwritable — {e} — not decided"))?;
         return Ok(PASSED);
     }
-    let label = |i: usize, default: &'static str| labels.get(i).copied().unwrap_or(default);
+    // An empty or missing label is the default, as the bash's ${5:-ours} reads it.
+    let label = |i: usize, default: &'static str| {
+        labels
+            .get(i)
+            .copied()
+            .filter(|label| !label.is_empty())
+            .unwrap_or(default)
+    };
     let mut conflict = vec!["merge-file", "-q"];
     for name in [label(1, "ours"), label(0, "base"), label(2, "theirs")] {
         conflict.extend(["-L", name]);
@@ -439,6 +440,24 @@ fn merge_adr_index(args: &[&str]) -> Result<u8, String> {
         ));
     }
     Ok(FOUND)
+}
+
+/// A directory of the driver's own for the prose of the three sides, made fresh in the git
+/// directory of the repository: nothing outside the repository is written (Q-8), and a directory
+/// that already exists is never taken, so that no file in it is one someone else placed.
+fn scratch_dir(dir: &Path) -> Result<PathBuf, String> {
+    let git_dir = git::run(dir, &["rev-parse", "--absolute-git-dir"])?;
+    let git_dir = Path::new(git_dir.trim_end_matches(['\n', '\r']));
+    let pid = std::process::id();
+    let mut last = String::new();
+    for attempt in 0..16 {
+        let scratch = git_dir.join(format!("nuc-merge-adr-index-{pid}-{attempt}"));
+        match fs::create_dir(&scratch) {
+            Ok(()) => return Ok(scratch),
+            Err(e) => last = format!("{}: cannot be made — {e}", scratch.display()),
+        }
+    }
+    Err(format!("{last} — not decided"))
 }
 
 /// The union of the three sides where it stands, as the bash driver decides it; none where the
