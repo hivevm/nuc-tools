@@ -1,4 +1,4 @@
-# ADR-draft-rules-return-an-outcome-and-hooks-an-answer: One library crate whose rules return an outcome and whose hooks return an answer, its effects in one shell module, and a thin binary
+# ADR-0024: One library crate whose rules return an outcome and whose hooks return an answer, its effects in one shell module, and a thin binary
 
 - **Status:** 🟡 proposed
 - **Date:** 2026-11-06
