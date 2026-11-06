@@ -757,7 +757,7 @@ mod tests {
         );
     }
 
-    /// Verifies: ADR-0021
+    /// Verifies: ADR-0014
     #[test]
     fn from_v0_7_0_the_required_checks_stand_in_the_contributing_guide() {
         let mut tree = Tree::new();
@@ -786,7 +786,7 @@ mod tests {
         );
     }
 
-    /// Verifies: ADR-0021
+    /// Verifies: ADR-0014
     #[test]
     fn before_v0_6_0_every_workflow_is_a_gate_and_a_check_run_is_no_name() {
         let mut tree = matrix_tree(RUNS, BLOCK);

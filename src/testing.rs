@@ -1,6 +1,6 @@
 //! What a unit test writes that this repository's own gate would read as a reference: an ADR or a
 //! draft identifier, a `Verifies:` marker, or a section of `AGENTS.md`. The gate's bash checks read
-//! every text file, the tests included (ADR-0018), so each is assembled here, as the template's
+//! every text file, the tests included (ADR-0016), so each is assembled here, as the template's
 //! self-tests assemble theirs with `adr_id` and `mark`; `tests/support/` holds the same for the
 //! integration tests.
 

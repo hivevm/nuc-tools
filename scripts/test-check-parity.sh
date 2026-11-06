@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Self-test of scripts/check-parity.sh. Verifies: ADR-0022 Q-1 Q-2
+# Self-test of scripts/check-parity.sh. Verifies: ADR-0015 Q-1 Q-2
 #
 # The comparison cases feed the harness pairs of outputs through '--compare': pairs that differ in
 # one finding, in one exit status, by one bash message the table does not know, or by a line nuc

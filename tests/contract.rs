@@ -1,5 +1,5 @@
 //! The command-line contract of `nuc`, clause by clause, on fixture repositories.
-//! Verifies: ADR-0019
+//! Verifies: ADR-0013
 
 mod support;
 

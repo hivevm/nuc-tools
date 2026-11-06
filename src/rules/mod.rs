@@ -1,5 +1,5 @@
 //! The rules: one module each, with one rule ID, unique across the crate (G-6,
-//! ADR-0025). A rule is a pure function from the [`Inputs`] the shell gathered
+//! ADR-0010). A rule is a pure function from the [`Inputs`] the shell gathered
 //! to its outcome: its findings, a refusal of its own, and notes for the summary.
 
 use crate::config::Version;
@@ -159,7 +159,7 @@ pub struct Rule {
 
 /// What a rule returns: its findings; a refusal of its own, the reason it cannot decide the tree
 /// as its bash check would; and notes for the summary of the run, which are no findings
-/// (ADR-0025).
+/// (ADR-0010).
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Outcome {
     pub findings: Vec<Finding>,

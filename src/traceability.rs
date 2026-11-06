@@ -1,7 +1,7 @@
 //! The traceability of the record, as the template's `scripts/check-traceability.sh` reads it: the
 //! criteria `docs/SPECIFICATION.md` lists under its two criteria sections, and the identifiers the
 //! `Verifies:` markers cite. The rules of the area `traceability` share these readings, as the
-//! rules of the record share `crate::adr` (ADR-0023).
+//! rules of the record share `crate::adr` (ADR-0002).
 
 use crate::adr;
 use crate::bash;

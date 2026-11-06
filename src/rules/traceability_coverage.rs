@@ -1,6 +1,6 @@
 //! Parts 2 and 4 of the template's `scripts/check-traceability.sh`: every accepted ADR is cited by
 //! a `Verifies:` marker or declared not mechanically decidable with a reason, and the criteria no
-//! marker cites are pending work, named in the summary and never a finding (ADR-0023).
+//! marker cites are pending work, named in the summary and never a finding (ADR-0002).
 
 use super::{Input, Inputs, Outcome, Rule};
 use crate::adr;
@@ -28,7 +28,7 @@ pub const RULE: Rule = Rule {
 const EXEMPTION: &[u8] = b"**Not mechanically decidable:**";
 
 /// The findings of the rule, and the criteria no test cites yet as a note, the way the bash's
-/// closing line names them; they are pending work and change no exit code (ADR-0023).
+/// closing line names them; they are pending work and change no exit code (ADR-0002).
 fn outcome(inputs: &Inputs) -> Outcome {
     let pending = pending(inputs);
     let notes = if pending.is_empty() {

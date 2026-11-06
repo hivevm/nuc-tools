@@ -1,6 +1,6 @@
 //! Part 1 of the template's `scripts/check-traceability.sh`: every list item under the two
 //! criteria sections of `docs/SPECIFICATION.md` starts with a bold identifier of its section,
-//! and no identifier appears twice (ADR-0023).
+//! and no identifier appears twice (ADR-0002).
 
 use super::{Input, Inputs, Rule};
 use crate::finding::Finding;

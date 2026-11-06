@@ -33,7 +33,7 @@ live in [`docs/SPECIFICATION.md`](docs/SPECIFICATION.md), the vocabulary in
   extension, or any DevContainer-compatible IDE
 - Docker / Podman (rootless) available on the host
 - Outside the Dev Container: bash 4.4 or later for the checks, 3.2 for the git hooks
-  ([ADR-0023](docs/adr/0023-decisions-verified-by-tests.md)); macOS ships 3.2
+  ([ADR-0002](docs/adr/0002-decisions-verified-by-tests.md)); macOS ships 3.2
 
 ## Getting Started
 
@@ -51,7 +51,7 @@ live in [`docs/SPECIFICATION.md`](docs/SPECIFICATION.md), the vocabulary in
 - **Lint:** `cargo fmt --check` and `cargo clippy --all-targets --locked -- -D warnings`
 - **Run:** `cargo run --locked -- <command>`, such as `cargo run --locked -- check`; for
   development only, since the gates never run the build
-  ([ADR-0018](docs/adr/0018-gates-never-run-the-build.md))
+  ([ADR-0016](docs/adr/0016-gates-never-run-the-build.md))
 
 [`scripts/check-build.sh`](scripts/check-build.sh) runs the lint, the build, and the tests;
 [`scripts/check-deps.sh`](scripts/check-deps.sh) audits the dependencies.
@@ -68,7 +68,7 @@ No release of `nuc` exists yet; built from source, it checks a repository:
 
 `nuc.toml`, at the root of the repository, names the minimum version of `nuc` and the rules
 turned on
-([ADR-0013](docs/adr/0013-version-coupling.md)):
+([ADR-0014](docs/adr/0014-version-coupling.md)):
 
 ```toml
 minimum = "0.0.0"
@@ -94,7 +94,7 @@ error. `nuc explain <rule ID>` gives each rule's reason.
 
 - **Template release:** v0.7.0 — the release of [NUC](https://github.com/hivevm/nuc) this
   repository carries; a project moves the line when it takes up a later one
-  ([ADR-0024](docs/adr/0024-template-releases.md)).
+  ([ADR-0005](docs/adr/0005-template-releases.md)).
 
 ## Contributing
 

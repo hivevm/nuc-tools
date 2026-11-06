@@ -12,7 +12,7 @@
 # Enforcement of each ADR listed, and nothing else of it, and the Applies to of each other ADR in
 # force whose Applies to is prose.
 #
-# Verifies: ADR-0023
+# Verifies: ADR-0002
 # Inputs: scripts/sensor-binding-adrs.sh scripts/lib/
 #
 # Usage:

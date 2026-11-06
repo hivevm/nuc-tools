@@ -83,8 +83,10 @@ criteria they serve — and filed what it found
 The revision also comes due **without a spec**, on a count of the work done rather than on a
 date. [`docs/ARCHITECTURE.md`](../ARCHITECTURE.md) carries on one line the date of the last
 revision and the number of changes after which the next is due — `**Last design revision:**
-<YYYY-MM-DD or none yet>, due after <N> changes.` — and a sensor counts the changes since
-the commit that set that date, so the history decides where the count starts, not the clock. A
+<YYYY-MM-DD [(<n>)] or none yet>, due after <N> changes.` — and a sensor counts the changes since
+the commit that set that date, so the history decides where the count starts, not the clock; a
+second revision on one day writes its ordinal after the date, `(2)`, so that its commit sets a
+line of its own to count from. A
 **change** is a commit that touches anything outside `docs/`, merges excluded. The number ships
 as 20 and is the project's to set, on the line rather than in the sensor. The count is
 reported, never enforced: once the number is reached the revision runs over the modules those

@@ -239,7 +239,7 @@ mod tests {
         );
     }
 
-    /// Verifies: ADR-0021
+    /// Verifies: ADR-0014
     #[test]
     fn before_v0_7_0_the_readme_holds_the_block_and_from_it_the_contributing_guide() {
         let inputs = |release| Inputs {
