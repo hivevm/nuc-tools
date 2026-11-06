@@ -1,10 +1,12 @@
-//! `nuc hook` and the reference shims, through git. Verifies: ADR-0020 ADR-0021 ADR-0023 Q-1 Q-7 Q-10 Q-11
+//! `nuc hook` and the reference shims, through git. Verifies: ADR-0020 ADR-0021 ADR-0023 G-5 Q-1 Q-4 Q-7 Q-10 Q-11
 //!
 //! Each case builds a fixture repository whose hooks path is the repository's `shims/`, puts a
 //! `nuc` on the `PATH` of the git command, the one cargo built or a stand-in that answers as told,
-//! and runs a real `git commit`. The shim refuses every answer but 0 and 3, a missing `nuc`
-//! included, runs the full check only on 3, and refuses a red or unrunnable check; `nuc hook
-//! pre-commit` refuses a commit on `main` at its ref, and runs no script itself. Without
+//! and runs a real `git commit` or `git merge`. The shim refuses every answer but 0 and 3, a
+//! missing `nuc` included, runs the hook's check only on 3, and refuses a red or unrunnable check;
+//! `nuc hook` refuses a commit and a merge on `main` at its ref, and runs no script itself. Every
+//! shim stops without `nuc`, with a `nuc` older than `nuc.toml` requires, on a panic, and where git
+//! names no work tree, and decides with no bash on the `PATH` (G-5, Q-4). Without
 //! `nuc.toml` every `hook/` rule is on; with one, its list governs and it is read fail closed. A
 //! canary token in the environment and the git configuration shows in no output and no file, and
 //! on Linux the network blocked changes nothing.
@@ -519,4 +521,270 @@ fn the_network_blocked_changes_no_pre_commit_case() {
         assert_eq!(both(off), both(on));
         assert!(!both(off).contains(TOKEN));
     }
+}
+
+/// Give the fixture a `scripts/check-docs.sh` that prints a line and exits as told.
+fn docs(fixture: &Fixture, code: u8) {
+    fixture.write(
+        "scripts/check-docs.sh",
+        &format!("#!/usr/bin/env bash\necho \"docs output for the test\"\nexit {code}\n"),
+    );
+}
+
+/// A branch `feature` one commit ahead of `main`, and `feat/x` at `main` checked out.
+fn merging(fixture: &Fixture) {
+    fixture.git(&["switch", "-q", "-c", "feature"]);
+    fixture.write("f", "feature\n");
+    fixture.git(&["add", "f"]);
+    fixture.git(&["commit", "-q", "-m", "feature"]);
+    fixture.git(&["switch", "-q", "-c", "feat/x", "main"]);
+}
+
+const MERGE: &[&str] = &["merge", "-q", "--no-ff", "-m", "m", "feature"];
+
+#[test]
+fn a_merge_on_main_is_refused_and_one_elsewhere_passes_the_documentation_check() {
+    let fixture = shimmed("hooks-merge-main");
+    docs(&fixture, 0);
+    merging(&fixture);
+    fixture.git(&["switch", "-q", "main"]);
+    let output = git_hooked(&fixture, Some(&built()), &[], MERGE);
+    assert!(!output.status.success(), "a merge on main passed");
+    assert!(
+        both(&output).contains("refs/heads/main: hook/merge-on-main: the checkout is on 'main'"),
+        "{}",
+        both(&output)
+    );
+
+    for (code, passes) in [(0, true), (1, false)] {
+        let fixture = shimmed(&format!("hooks-merge-docs-{code}"));
+        docs(&fixture, code);
+        merging(&fixture);
+        let output = git_hooked(&fixture, Some(&built()), &[], MERGE);
+        assert_eq!(output.status.success(), passes, "{}", both(&output));
+        assert!(
+            both(&output).contains("docs output for the test"),
+            "{}",
+            both(&output)
+        );
+        if !passes {
+            assert!(
+                both(&output)
+                    .contains("pre-merge-commit: refused — the documentation check is red"),
+                "{}",
+                both(&output)
+            );
+        }
+    }
+
+    let fixture = shimmed("hooks-merge-no-docs");
+    merging(&fixture);
+    let output = git_hooked(&fixture, Some(&built()), &[], MERGE);
+    assert!(output.status.success(), "{}", both(&output));
+}
+
+/// The fixture set up for the shim of `hook` to run, on a branch, and the git command that runs
+/// it. A shim this does not know fails the test, so that each new shim is held to fail closed.
+fn trigger(fixture: &Fixture, hook: &str) -> &'static [&'static str] {
+    match hook {
+        "pre-commit" => {
+            fixture.git(&["switch", "-q", "-c", "feature"]);
+            &["commit", "-q", "--allow-empty", "-m", "x"]
+        }
+        "pre-merge-commit" => {
+            merging(fixture);
+            MERGE
+        }
+        other => panic!("no git command runs the shim '{other}': add it here"),
+    }
+}
+
+/// Every reference shim by its name.
+fn every_shim() -> Vec<String> {
+    let mut names: Vec<String> = std::fs::read_dir(shims())
+        .expect("shims/ is readable")
+        .map(|entry| {
+            entry
+                .expect("an entry")
+                .file_name()
+                .to_string_lossy()
+                .into_owned()
+        })
+        .collect();
+    names.sort();
+    names
+}
+
+#[test]
+fn every_shim_stops_without_nuc_and_with_a_nuc_too_old() {
+    for hook in every_shim() {
+        let fixture = shimmed(&format!("hooks-absent-{hook}"));
+        let args = trigger(&fixture, &hook);
+        let output = git_hooked(&fixture, None, &[], args);
+        assert!(!output.status.success(), "{hook} passed without nuc");
+        assert!(
+            both(&output).contains(&format!(
+                "{hook}: refused — nuc is not on the PATH, so no hook decides. Install it from https://github.com/hivevm/nuc-tools/releases"
+            )),
+            "{hook}: {}",
+            both(&output)
+        );
+
+        let fixture = shimmed(&format!("hooks-old-{hook}"));
+        let canary = fixture.root().join("canary-ran");
+        let script = format!(
+            "#!/bin/sh\necho ran >> \"{}\"\n",
+            canary.display().to_string().replace('\\', "/")
+        );
+        fixture
+            .write("scripts/check-all.sh", &script)
+            .write("scripts/check-docs.sh", &script)
+            .write("nuc.toml", "minimum = \"99.0.0\"\nrules = []\n");
+        let args = trigger(&fixture, &hook);
+        let output = git_hooked(&fixture, Some(&built()), &[], args);
+        assert!(!output.status.success(), "{hook} passed with a nuc too old");
+        assert!(
+            both(&output).contains("requires nuc 99.0.0 or later")
+                && both(&output).contains("install or update nuc"),
+            "{hook}: {}",
+            both(&output)
+        );
+        assert!(!canary.exists(), "{hook} ran a check before it stopped");
+    }
+}
+
+/// A directory that holds git and no bash: git's exec path where it does, else, on Unix, one with
+/// a link to the git on the `PATH`.
+fn git_alone(beside: &Fixture) -> PathBuf {
+    let exec = cleared(&mut Command::new("git"))
+        .arg("--exec-path")
+        .output()
+        .expect("git runs");
+    let exec = PathBuf::from(stdout(&exec).trim_end());
+    let has = |dir: &Path, name: &str| {
+        dir.join(name).exists() || dir.join(format!("{name}.exe")).exists()
+    };
+    if has(&exec, "git") && !has(&exec, "bash") {
+        return exec;
+    }
+    #[cfg(unix)]
+    {
+        let dir = beside.root().with_extension("git");
+        std::fs::create_dir_all(&dir).expect("the directory of git");
+        let git = std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default())
+            .map(|dir| dir.join("git"))
+            .find(|git| git.is_file())
+            .expect("git is on the PATH");
+        let _ = std::fs::remove_file(dir.join("git"));
+        std::os::unix::fs::symlink(git, dir.join("git")).expect("git linked");
+        dir
+    }
+    #[cfg(not(unix))]
+    panic!("git's exec path {} holds no git, or a bash", exec.display());
+}
+
+/// git with `args` in the fixture, its hooks run, with a `PATH` of `first` and git alone.
+fn git_without_bash(fixture: &Fixture, first: &Path, args: &[&str]) -> Output {
+    let dirs = [first.to_path_buf(), git_alone(fixture)];
+    for dir in &dirs {
+        for bash in ["bash", "bash.exe"] {
+            assert!(!dir.join(bash).exists(), "{} holds a bash", dir.display());
+        }
+    }
+    let git = dirs[1].join(if cfg!(windows) { "git.exe" } else { "git" });
+    cleared(&mut Command::new(git))
+        .env("PATH", std::env::join_paths(&dirs).expect("the PATH joins"))
+        .current_dir(fixture.root())
+        .args(args)
+        .output()
+        .expect("git runs")
+}
+
+#[test]
+fn the_shims_decide_with_no_bash_on_the_path_and_refuse_a_check_that_needs_it() {
+    let fixture = shimmed("hooks-no-bash");
+    let output = git_without_bash(
+        &fixture,
+        &built(),
+        &["commit", "-q", "--allow-empty", "-m", "x"],
+    );
+    assert!(!output.status.success(), "a commit on main passed");
+    assert!(
+        both(&output).contains("hook/commit-on-main"),
+        "{}",
+        both(&output)
+    );
+    fixture.git(&["switch", "-q", "-c", "feature"]);
+    let output = git_without_bash(
+        &fixture,
+        &built(),
+        &["commit", "-q", "--allow-empty", "-m", "x"],
+    );
+    assert!(output.status.success(), "{}", both(&output));
+
+    let fixture = shimmed("hooks-no-bash-merge");
+    merging(&fixture);
+    let output = git_without_bash(&fixture, &built(), MERGE);
+    assert!(
+        output.status.success(),
+        "a merge with no check to run: {}",
+        both(&output)
+    );
+
+    let fixture = shimmed("hooks-no-bash-docs");
+    docs(&fixture, 0);
+    merging(&fixture);
+    let output = git_without_bash(&fixture, &built(), MERGE);
+    assert!(!output.status.success(), "a check that cannot run passed");
+    assert!(
+        both(&output).contains("pre-merge-commit: refused — the documentation check is red"),
+        "{}",
+        both(&output)
+    );
+}
+
+#[test]
+fn a_panic_of_nuc_hook_is_refused_and_named() {
+    for hook in every_shim() {
+        let fixture = shimmed(&format!("hooks-panic-{hook}"));
+        let args = trigger(&fixture, &hook);
+        let output = git_hooked(&fixture, Some(&built()), &[("NUC_TEST_PANIC", "1")], args);
+        assert!(!output.status.success(), "{hook} passed a panic");
+        assert!(
+            both(&output).contains(&format!("{hook}: refused — nuc hook {hook} exited 101"))
+                && both(&output).contains("nuc: internal error"),
+            "{hook}: {}",
+            both(&output)
+        );
+    }
+}
+
+/// On Unix, where `sh` is on the `PATH` to run a shim by hand.
+#[cfg(unix)]
+#[test]
+fn a_shim_refuses_where_git_names_no_work_tree() {
+    let fixture = shimmed("hooks-no-work-tree");
+    let bin = stand_in(&fixture, "exit 3");
+    let outside = fixture.root().with_extension("outside");
+    std::fs::create_dir_all(&outside).expect("a directory outside any repository");
+    for hook in every_shim() {
+        let output = cleared(&mut Command::new("sh"))
+            .arg(shims().join(&hook))
+            .env("PATH", path_with(Some(&bin)))
+            .env(
+                "GIT_CEILING_DIRECTORIES",
+                outside.parent().expect("a parent"),
+            )
+            .current_dir(&outside)
+            .output()
+            .expect("sh runs");
+        assert!(!output.status.success(), "{hook} passed");
+        assert!(
+            both(&output).contains(&format!("{hook}: refused — git names no work tree")),
+            "{hook}: {}",
+            both(&output)
+        );
+    }
+    let _ = std::fs::remove_dir_all(outside);
+    let _ = std::fs::remove_dir_all(bin);
 }

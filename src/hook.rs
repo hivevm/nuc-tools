@@ -27,9 +27,25 @@ pub const MERGE_CHECKS: HookRule = HookRule {
               concludes it, and refuses it while the checks are red",
 };
 
+/// The refusal of a merge on `main`.
+pub const MERGE_ON_MAIN: HookRule = HookRule {
+    id: "hook/merge-on-main",
+    explain: "changes reach main through a pull request, and the local main only takes up the \
+              remote's by a fast-forward (AGENTS.md, section 6); the pre-merge-commit hook \
+              refuses a merge while the checkout is on main",
+};
+
+/// The documentation check on the tree of a merge into any other branch.
+pub const MERGE_DOCS: HookRule = HookRule {
+    id: "hook/merge-docs",
+    explain: "two branches green on their own collide at a merge mostly in the record, which \
+              scripts/check-docs.sh decides in about a second, so the pre-merge-commit hook has \
+              it run on the merged tree and refuses the merge while it is red",
+};
+
 /// Every hook rule this `nuc` knows, all of them on where the repository has no `nuc.toml`
 /// (ADR-0023).
-pub const ALL: &[HookRule] = &[COMMIT_ON_MAIN, MERGE_CHECKS];
+pub const ALL: &[HookRule] = &[COMMIT_ON_MAIN, MERGE_CHECKS, MERGE_ON_MAIN, MERGE_DOCS];
 
 /// The hook rule with the ID, if this `nuc` knows it.
 pub fn find(id: &str) -> Option<&'static HookRule> {
@@ -45,15 +61,36 @@ pub enum Answer {
     RunCheck,
 }
 
-/// The git state `pre-commit` decides on.
+/// The git state `pre-commit` and `pre-merge-commit` decide on.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Commit {
     /// The branch the checkout is on, none on a detached `HEAD`.
     pub branch: Option<String>,
     /// Whether `MERGE_HEAD` names a commit: the commit concludes a merge that stopped.
     pub merging: bool,
-    /// Whether the repository has a work tree with `scripts/check-all.sh` as a file in it.
+    /// Whether the repository has a work tree with the hook's check script as a file in it:
+    /// `scripts/check-all.sh` for `pre-commit`, `scripts/check-docs.sh` for `pre-merge-commit`.
     pub check_script: bool,
+}
+
+/// `pre-merge-commit`: refuse a merge on `main`; on any other branch, the merge only after the
+/// documentation check, where there is one to run.
+pub fn pre_merge_commit(state: &Commit, on: &dyn Fn(&HookRule) -> bool) -> Answer {
+    if state.branch.as_deref() == Some("main") && on(&MERGE_ON_MAIN) {
+        return Answer::Refuse(Finding {
+            rule: MERGE_ON_MAIN.id,
+            file: "refs/heads/main".to_owned(),
+            line: None,
+            message: "the checkout is on 'main', and changes reach main through a pull request \
+                      (AGENTS.md, section 6). git merge --abort, then merge into a feat/ branch, \
+                      or take up the remote's main: git merge --ff-only origin/main"
+                .to_owned(),
+        });
+    }
+    if state.check_script && on(&MERGE_DOCS) {
+        return Answer::RunCheck;
+    }
+    Answer::Pass
 }
 
 /// `pre-commit`: refuse a commit on `main`; on any other branch, the commit that concludes a
@@ -135,6 +172,34 @@ mod tests {
     fn without_a_check_script_a_concluded_merge_passes() {
         assert_eq!(
             pre_commit(&state(Some("feat/x"), true, false), &all),
+            Answer::Pass
+        );
+    }
+
+    // The bash cases: "a merge on main, though the checks are green", "a merge into a branch while
+    // the documentation check is red".
+    #[test]
+    fn a_merge_on_main_is_refused_and_one_elsewhere_runs_the_documentation_check() {
+        let Answer::Refuse(finding) = pre_merge_commit(&state(Some("main"), false, true), &all)
+        else {
+            panic!("a merge on main passed");
+        };
+        assert_eq!(finding.rule, "hook/merge-on-main");
+        assert_eq!(finding.file, "refs/heads/main");
+        assert_eq!(
+            pre_merge_commit(&state(Some("feat/x"), false, true), &all),
+            Answer::RunCheck
+        );
+        assert_eq!(
+            pre_merge_commit(&state(None, false, true), &all),
+            Answer::RunCheck
+        );
+        assert_eq!(
+            pre_merge_commit(&state(Some("feat/x"), false, false), &all),
+            Answer::Pass
+        );
+        assert_eq!(
+            pre_merge_commit(&state(Some("main"), false, true), &none),
             Answer::Pass
         );
     }
