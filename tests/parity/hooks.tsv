@@ -1,0 +1,6 @@
+# The lines of the bash hooks and of the shims, mapped to a hook/ rule ID and the ref it guards
+# ('-' for none), read by scripts/lib/hook-parity.sh (ADR-0022). One row per line form: an extended
+# regular expression matched against the whole line, the rule ID, and the ref, separated by tabs.
+
+^pre-commit: refused — the checkout is on 'main', and changes reach main through a pull request	hook/commit-on-main	refs/heads/main
+^pre-commit: refused — the checks are red on the resolved merge	hook/merge-checks	-

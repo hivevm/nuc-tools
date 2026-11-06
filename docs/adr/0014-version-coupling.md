@@ -1,6 +1,6 @@
 # ADR-0014: A project's `nuc.toml` names the minimum `nuc` and the rules turned on, the template release ships both, and each rule checks the tree as the bash check of the release its README names
 
-- **Status:** 🟢 accepted
+- **Status:** ⚪ superseded by ADR-0023
 - **Date:** 2026-10-31
 - **Deciders:** Markus Brigl
 - **Applies to:** the format of `nuc.toml`, how `nuc` loads it and the README's `Template release` line, every rule's default state, every rule whose bash check differs between template releases, and the trees `tests/parity/corpus.toml` pins for each such release

@@ -1,5 +1,5 @@
 //! The command-line contract of `nuc`, clause by clause, on fixture repositories.
-//! Verifies: ADR-0013
+//! Verifies: ADR-0020
 
 mod support;
 
@@ -108,10 +108,13 @@ fn the_exit_codes_are_zero_one_and_two() {
 #[test]
 fn a_command_a_newer_nuc_may_know_refuses_with_the_install_hint() {
     let fixture = Fixture::project("contract-command", CONFIG, README);
-    for args in [&["hook", "pre-commit"][..], &["check", "--format", "json"]] {
+    for (args, why) in [
+        (&["hook", "post-checkout"][..], "no hook 'post-checkout'"),
+        (&["check", "--format", "json"], "usage: nuc check"),
+    ] {
         let output = fixture.nuc(args);
         assert_eq!(code(&output), Some(2), "{args:?}");
-        assert!(stderr(&output).contains("usage: nuc check"), "{args:?}");
+        assert!(stderr(&output).contains(why), "{args:?}");
         assert!(
             stderr(&output).contains("install or update nuc"),
             "{args:?}: {}",
@@ -131,7 +134,11 @@ fn every_rule_keeps_its_id_and_is_explained() {
         .map(str::trim)
         .filter(|line| !line.is_empty() && !line.starts_with('#'))
         .collect();
-    let known: Vec<&str> = nuc::rules::ALL.iter().map(|rule| rule.id).collect();
+    let known: Vec<&str> = nuc::rules::ALL
+        .iter()
+        .map(|rule| rule.id)
+        .chain(nuc::hook::ALL.iter().map(|rule| rule.id))
+        .collect();
     for id in &listed {
         assert!(
             known.contains(id),

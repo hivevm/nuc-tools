@@ -6,7 +6,7 @@
 # for a rule that checks every release alike although its bash changed, the reason. The parity
 # harness compares each function across the trees of the template in the corpus, comment lines
 # left out, and fails where this table says otherwise. tests/releases.rs fails on a rule whose
-# check changed and that neither reads the release the tree carries nor gives a reason (ADR-0014).
+# check changed and that neither reads the release the tree carries nor gives a reason (ADR-0023).
 # Only the named function is compared: a change to a helper it calls or a global it reads, as
 # placeholder or add_error, shows in no row, and is found by reading the release's diff.
 

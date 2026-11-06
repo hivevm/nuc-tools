@@ -34,8 +34,12 @@
 # trees of the corpus that are the template's, those that still carry TEMPLATE-SETUP.md, in the
 # order of their releases. A change the table does not list, or one it lists that the trees do
 # not show, fails the harness and names the rule; tests/releases.rs holds the rules to the table
-# (ADR-0014). With fewer than two trees of the template there is nothing to compare. A helper the
+# (ADR-0023). With fewer than two trees of the template there is nothing to compare. A helper the
 # function calls is not compared.
+#
+# Then the hook scenarios run on the template's trees of the corpus, through
+# scripts/lib/hook-parity.sh (ADR-0022): each scenario of tests/parity/hook-scenarios.sh through
+# git, with the tree's bash hook and with the reference shim and nuc, compared as that file says.
 #
 # The tree of the corpus runs its own bash scripts: the corpus is pinned by commit, and a pull
 # request that moves a pin is reviewed like code. nuc is built from the working tree by
@@ -44,9 +48,12 @@
 #
 # Pure bash + coreutils/git/awk, and cargo for the build. Usage:
 #     scripts/check-parity.sh [--corpus <file>] [--cache <dir>] [--nuc <binary>] [--variants <file>]
+#                             [--no-hooks]
+#     scripts/check-parity.sh [--nuc <binary>] --hooks <template tree>...
 #     scripts/check-parity.sh --compare <bash output> <bash exit> <nuc output> <nuc exit>
-# --nuc runs the given binary instead of building one; --compare compares one pair of outputs,
-# for scripts/test-check-parity.sh. PARITY_TABLE names another normalization table, and
+# --nuc runs the given binary instead of building one; --no-hooks leaves the hook scenarios out;
+# --hooks runs them alone, on the trees given; --compare compares one pair of outputs, for
+# scripts/test-check-parity.sh. PARITY_TABLE names another normalization table, and
 # PARITY_RELEASES another table of releases.
 # Exit code 0 when every repository and variant agrees, 1 on a difference, a refused tree, a
 # variant that fits no tree or does not fire, or a cache that cannot be filled, 2 on a malformed
@@ -64,6 +71,8 @@ RELEASES="${PARITY_RELEASES:-$ROOT/tests/parity/releases.tsv}"
 
 # shellcheck source-path=SCRIPTDIR source=lib/check.sh
 source "$ROOT/scripts/lib/check.sh"
+# shellcheck source-path=SCRIPTDIR source=lib/hook-parity.sh
+source "$ROOT/scripts/lib/hook-parity.sh"
 
 # Git hands a hook its repository through variables that would bind the cache's git commands to
 # this repository; they are not the harness's (scripts/lib/selftest.sh does the same).
@@ -218,6 +227,9 @@ fi
 
 corpus="$ROOT/tests/parity/corpus.toml" cache="$ROOT/.scratch/parity" nuc=""
 variants="$ROOT/tests/parity/variants.tsv"
+# Whether the hook scenarios run, and the trees they run on alone under --hooks.
+hooks=1 hooks_only=0
+hook_trees=()
 # The earliest template release a tree of the corpus may carry.
 FLOOR=v0.5.0
 while (($#)); do
@@ -226,6 +238,8 @@ while (($#)); do
     --cache) cache="${2:-}"; shift 2 || die "--cache takes a directory" ;;
     --nuc) nuc="${2:-}"; shift 2 || die "--nuc takes a binary" ;;
     --variants) [[ -n "${2:-}" ]] || die "--variants takes a file"; variants="$2"; shift 2 ;;
+    --no-hooks) hooks=0; shift ;;
+    --hooks) hooks_only=1; shift; while (($#)) && [[ "$1" != --* ]]; do hook_trees+=("$1"); shift; done ;;
     *) die "unknown argument '$1'" ;;
   esac
 done
@@ -289,6 +303,14 @@ release_of() {
   local re='^(v'"$num"'\.'"$num"'\.'"$num"')($|[][:space:],;:)`]|\.([[:space:]]|$))'
   [[ "$value" =~ $re ]] && echo "${BASH_REMATCH[1]}"
 }
+
+# --hooks: the hook scenarios alone, on the template trees given.
+if ((hooks_only)); then
+  hook_parity "$nuc" "$work" "${hook_trees[@]}"
+  rc=$?
+  ((rc)) && echo "Parity check FAILED." >&2
+  exit "$rc"
+fi
 
 # check_body <script> <function> — the function's lines, from its 'name() {' line to the first
 # '}' alone on a line, or the whole script for '-', comment lines left out; fails when the script
@@ -525,6 +547,14 @@ if ((${#template_trees[@]} >= 2)); then
       failed=1
     fi
   done
+fi
+
+# The hook scenarios, on the template's trees of the corpus (ADR-0022).
+if ((hooks)); then
+  tree_dirs=()
+  for tree in "${template_trees[@]}"; do tree_dirs+=("${tree#* }"); done
+  hook_parity "$nuc" "$work" "${tree_dirs[@]}"
+  case $? in 0) ;; 2) exit 2 ;; *) failed=1 ;; esac
 fi
 
 if ((failed)); then

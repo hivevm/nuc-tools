@@ -1,0 +1,45 @@
+#!/bin/sh
+#
+# Git pre-commit hook, the reference shim of nuc (ADR-0021): 'nuc hook pre-commit' decides from
+# the git state, and this shim runs the project's full check where nuc answers that it runs.
+#
+# nuc refuses a commit on main, and answers 3 on the commit that concludes a conflicted merge on
+# any other branch: the shim then runs scripts/check-all.sh --changed, with the variables git
+# hands a hook unset, and refuses while it is red or cannot run. Every answer but 0 and 3 refuses,
+# a panic's 101 and a code a later nuc adds included. Without nuc on the PATH it refuses and names
+# where to install it.
+#
+# POSIX sh, so that git for Windows runs it with the sh it bundles. Bypassable with
+# 'git commit --no-verify'; AGENTS.md, section 6 says who may.
+
+if ! command -v nuc >/dev/null 2>&1; then
+  echo "pre-commit: refused — nuc is not on the PATH, so no hook decides. Install it from https://github.com/hivevm/nuc-tools/releases" >&2
+  exit 1
+fi
+
+nuc hook pre-commit "$@"
+answer=$?
+case "$answer" in
+  0) exit 0 ;;
+  3) ;;
+  1 | 2) exit 1 ;;
+  *)
+    echo "pre-commit: refused — nuc hook pre-commit exited $answer, which this shim does not know" >&2
+    exit 1
+    ;;
+esac
+
+root="$(git rev-parse --show-toplevel)" || exit 1
+
+# The checks build fixture repositories of their own; the variables git hands a hook would bind
+# every git command in a fixture to this repository.
+# shellcheck disable=SC2046 # one variable name per word
+unset $(git rev-parse --local-env-vars)
+
+if ! bash "$root/scripts/check-all.sh" --changed; then
+  echo >&2
+  echo "pre-commit: refused — the checks are red on the resolved merge, and they pass before a branch takes up another (AGENTS.md, section 6). Fix them on the merged branch: git merge --abort, then merge again." >&2
+  exit 1
+fi
+
+exit 0

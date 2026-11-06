@@ -56,7 +56,7 @@ test-check-docs.sh	a file git marks as generated is not read	docs/prose-width
 test-check-docs.sh	a file marked not generated is read	docs/prose-width
 test-check-docs.sh	prose after a long link can wrap	docs/prose-width
 test-check-docs.sh	a bold label outside an ADR header is prose	docs/prose-width
-test-check-docs.sh	no README to carry the Template release line	-	nuc refuses a tree without a README before any rule runs, so no rule decides it (ADR-0014)
+test-check-docs.sh	no README to carry the Template release line	-	nuc refuses a tree without a README before any rule runs, so no rule decides it (ADR-0023)
 test-check-docs.sh	a release tag followed by a sentence	docs/template-release
 test-check-docs.sh	the line without a list marker	docs/template-release
 test-check-docs.sh	the tag as link text after a star marker	docs/template-release
