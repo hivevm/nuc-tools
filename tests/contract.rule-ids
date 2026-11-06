@@ -18,6 +18,7 @@ docs/skill-pointers
 docs/template-identity
 docs/template-release
 hook/commit-on-main
+hook/main-moves
 hook/merge-checks
 hook/merge-docs
 hook/merge-on-main
