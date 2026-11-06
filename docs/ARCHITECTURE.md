@@ -61,7 +61,7 @@ golden path and the test pattern an agent copies from are named here.
   state the shell reads in `shell::hook`, and holds the `hook/` rules, `hook::ALL`, which
   `nuc check` knows and runs never. The reference shims under `shims/`, in POSIX sh, hand each
   hook to `nuc hook <name>` and run the project's check where it answers 3
-  ([ADR-0021](adr/0021-hook-contract.md)). `pre-commit` is ported so far.
+  ([ADR-0021](adr/0021-hook-contract.md)). `pre-commit` and `pre-merge-commit` are ported so far.
 - **Shell** — `src/shell/` reads the command line and the repository, runs git under a cleared
   environment in `shell::git`, calls the rules, prints the findings, and sets the exit code
   ([ADR-0011](adr/0011-git-cli-cleared-environment.md)). Its `Tree`, in `shell::tree`, reads
@@ -139,6 +139,8 @@ a git directory other than the one it finds from there, it does not decide. It a
 branch and `MERGE_HEAD`, tests whether `scripts/check-all.sh` exists, and exits 1 with a finding
 at `refs/heads/main` on `main`, 3 on the commit that concludes a merge where the check runs, and
 0 otherwise. The shim runs the check on 3, with git's local variables unset, and refuses on red.
+`nuc hook pre-merge-commit` decides alike, with `scripts/check-docs.sh` as its check, which runs
+on every merge but one on `main`.
 
 A release starts when a human pushes a tag `vX.Y.Z` that names the version of `Cargo.toml`.
 `release.yml` builds the four targets, writes `SHA256SUMS`, attests each binary and verifies the
