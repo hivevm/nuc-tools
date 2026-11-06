@@ -1219,8 +1219,9 @@ fn main_moves_only_to_what_origin_main_has_through_the_shim() {
     assert!(output.status.success(), "{}", both(&output));
 }
 
-/// Unix alone, where a ref name may be bytes that are no UTF-8.
-#[cfg(unix)]
+/// Linux alone, whose file systems take a ref name of bytes that are no UTF-8; that of macOS
+/// refuses the name before git runs the hook.
+#[cfg(target_os = "linux")]
 #[test]
 fn a_ref_name_that_is_no_utf8_is_no_malformed_update() {
     use std::os::unix::ffi::OsStrExt;
