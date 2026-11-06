@@ -3,16 +3,20 @@
 # Benchmark of Q-5: what 'nuc hook reference-transaction' adds per call over a no-op hook, as the
 # median over a number of calls, and a failure where it adds more than the limit. Run by
 # .github/workflows/benchmark.yml on Linux x64, on a schedule, and never by scripts/check-all.sh or
-# a hook: the timing of a shared runner moves without a change (ADR-0008). It measures and gates
-# nothing, so it stands with the tests and not with the checks under scripts/.
+# a hook: the timing of a shared runner moves without a change (ADR-0008). It gates no push, so it
+# stands with the tests and not with the checks under scripts/, which the local gate runs.
+#
+# Verifies: Q-5
 #
 # Both hooks run as git runs them: in a fixture repository whose origin/main is set, as the
 # executable git would start, with the 'prepared' state as their argument and one update on their
 # standard input, the commit of a branch, the update almost every git command makes. The reference
 # shim under shims/ hands it to nuc; the no-op hook is a POSIX sh script that exits 0, so the two
 # differ by nuc alone. The calls alternate, so that a drift of the machine meets both alike, and
-# each is timed by bash's EPOCHREALTIME, which costs no process. A second set, an update of main
-# to where it already is, as pack-refs makes, is reported and not gated.
+# each is timed by bash's EPOCHREALTIME, which costs no process. Two more sets are reported and
+# not gated: an update of main to where it already is, as pack-refs makes, and a move of main to
+# what origin/main has, as 'git merge --ff-only origin/main' makes, the rare updates for which nuc
+# asks git.
 #
 # nuc is built from the working tree by 'cargo build --release --locked', the build the release
 # ships, unless --nuc names a binary.
@@ -62,7 +66,10 @@ repo="$work/repo"
 git -C "$repo" init -q -b main
 git -C "$repo" -c user.name=b -c user.email=b@example.invalid -c core.hooksPath=/dev/null commit -q --allow-empty -m init
 head="$(git -C "$repo" rev-parse HEAD)"
-git -C "$repo" update-ref refs/remotes/origin/main "$head"
+git -C "$repo" -c user.name=b -c user.email=b@example.invalid -c core.hooksPath=/dev/null commit -q --allow-empty -m remote
+remote="$(git -C "$repo" rev-parse HEAD)"
+git -C "$repo" update-ref refs/remotes/origin/main "$remote"
+git -C "$repo" update-ref refs/heads/main "$head"
 zero="$(printf '0%.0s' {1..40})"
 
 # median_us <micros...> — the median of the times, in microseconds.
@@ -98,6 +105,7 @@ measure() {
 measure "a branch" "$zero $head refs/heads/feature"
 gated="$added"
 measure "main where it is (reported, not gated)" "$head $head refs/heads/main"
+measure "main to origin/main (reported, not gated)" "$head $remote refs/heads/main"
 
 limit_us="$(awk -v ms="$limit_ms" 'BEGIN { printf "%d", ms * 1000 }')"
 if ((gated > limit_us)); then

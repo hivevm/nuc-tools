@@ -157,13 +157,15 @@ fn pre_push(args: &[&str]) -> Result<u8, String> {
     Ok(carry_out(out.answer))
 }
 
-/// The standard input git hands the hook, which reads no file.
+/// The standard input git hands the hook, which reads no file. A ref name may hold bytes that are
+/// no UTF-8, which git accepts; each stands for U+FFFD here, so that no such name refuses, and
+/// `main`, `origin/main`, and the objects, all ASCII, read as they are.
 fn read_stdin() -> Result<String, String> {
-    let mut input = String::new();
+    let mut input = Vec::new();
     io::stdin()
-        .read_to_string(&mut input)
+        .read_to_end(&mut input)
         .map_err(|e| format!("the standard input of the hook is unreadable: {e} — not decided"))?;
-    Ok(input)
+    Ok(String::from_utf8_lossy(&input).into_owned())
 }
 
 /// `nuc hook reference-transaction <state>`, with the updates on the standard input: in the
@@ -179,18 +181,20 @@ fn reference_transaction(args: &[&str]) -> Result<u8, String> {
     let updates = hook::ref_updates(&read_stdin()?)?;
     let dir =
         env::current_dir().map_err(|e| format!("the current directory is unreadable: {e}"))?;
-    same_git_dir(&dir)?;
-    // Git runs a hook at the root of the work tree, or in the git directory of a bare repository
-    // (githooks(5)), so `nuc.toml` is read there without asking git: this hook runs on every
-    // update of a ref, and each git call costs a process (Q-5).
+    // Git runs a hook from the root of the work tree, or in the git directory of a bare
+    // repository (githooks(5)), so `nuc.toml` is read there without asking git: this hook runs on
+    // every update of a ref, and each git call costs a process (Q-5). Where git was pointed at a
+    // work tree outside the directory it runs in, the check of the git directory below refuses.
     let on = turned_on(Some(&dir))?;
-    // A transaction that touches no main moves none, and needs no more of git.
+    // A transaction that touches no main moves none, and needs no more of git: its pass depends
+    // on no repository, so the git directory git hands the hook is checked only past it.
     if !updates
         .iter()
         .any(|update| update.reference == "refs/heads/main")
     {
         return Ok(PASSED);
     }
+    same_git_dir(&dir)?;
     let refs = git::run(
         &dir,
         &[

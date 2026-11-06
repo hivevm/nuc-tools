@@ -1218,3 +1218,20 @@ fn main_moves_only_to_what_origin_main_has_through_the_shim() {
     );
     assert!(output.status.success(), "{}", both(&output));
 }
+
+/// Unix alone, where a ref name may be bytes that are no UTF-8.
+#[cfg(unix)]
+#[test]
+fn a_ref_name_that_is_no_utf8_is_no_malformed_update() {
+    use std::os::unix::ffi::OsStrExt;
+    let fixture = shimmed_only("hooks-ref-bytes", "reference-transaction");
+    let name = std::ffi::OsStr::from_bytes(b"caf\xe9");
+    let output = cleared(&mut Command::new("git"))
+        .env("PATH", path_with(Some(&built())))
+        .current_dir(fixture.root())
+        .arg("branch")
+        .arg(name)
+        .output()
+        .expect("git runs");
+    assert!(output.status.success(), "{}", both(&output));
+}

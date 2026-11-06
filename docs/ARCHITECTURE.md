@@ -154,8 +154,9 @@ two files are the only state `nuc` keeps between runs.
 `nuc hook reference-transaction prepared` reads the updates of a transaction from the standard
 input and, where one touches `refs/heads/main`, asks git once for `main` and `origin/main` and
 refuses a move of `main` to a commit `origin/main` lacks, as the transaction leaves it. It reads
-`nuc.toml` in the directory git runs the hook in, the root of the work tree, without asking git:
-the hook runs on every update of a ref, and each git call costs a process (Q-5).
+`nuc.toml` in the directory git runs the hook in, the root of the work tree, without asking git,
+and checks the git directory git hands it only for a transaction that touches `main`: the hook
+runs on every update of a ref, and each git call costs a process (Q-5).
 
 A release starts when a human pushes a tag `vX.Y.Z` that names the version of `Cargo.toml`.
 `release.yml` builds the four targets, writes `SHA256SUMS`, attests each binary and verifies the
