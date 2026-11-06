@@ -13,3 +13,7 @@ tree.rs Tree::read_adr read_dir
 tree.rs Tree::list read_dir
 # Resolves the pointers of the skills as `cd -P` does, to compare and show them, never to read.
 tree.rs Tree::read_skills canonicalize
+# Reads the two files of the green-tree record in the git directory, at the paths git gives.
+hook.rs read_in_git_dir fs::read
+# Reads the standard input git hands pre-push, no file.
+hook.rs read_stdin read_to_string

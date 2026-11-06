@@ -1,4 +1,4 @@
-//! `nuc hook` and the reference shims, through git. Verifies: ADR-0020 ADR-0021 ADR-0023 G-5 Q-1 Q-4 Q-7 Q-10 Q-11
+//! `nuc hook` and the reference shims, through git. Verifies: ADR-0020 ADR-0021 ADR-0023 G-5 Q-1 Q-4 Q-7 Q-8 Q-9 Q-10 Q-11
 //!
 //! Each case builds a fixture repository whose hooks path is the repository's `shims/`, puts a
 //! `nuc` on the `PATH` of the git command, the one cargo built or a stand-in that answers as told,
@@ -604,6 +604,11 @@ fn trigger(fixture: &Fixture, hook: &str) -> &'static [&'static str] {
             merging(fixture);
             MERGE
         }
+        "pre-push" => {
+            remote(fixture);
+            fixture.git(&["switch", "-q", "-c", "feature"]);
+            PUSH
+        }
         other => panic!("no git command runs the shim '{other}': add it here"),
     }
 }
@@ -814,4 +819,240 @@ fn a_shim_refuses_where_git_names_no_work_tree() {
     }
     let _ = std::fs::remove_dir_all(outside);
     let _ = std::fs::remove_dir_all(bin);
+}
+
+const PUSH: &[&str] = &["push", "-q", "origin", "feature"];
+
+/// A bare repository beside the fixture as its remote `origin`.
+fn remote(fixture: &Fixture) {
+    let bare = fixture.root().with_extension("remote");
+    let _ = std::fs::remove_dir_all(&bare);
+    support::git_in(
+        fixture.root(),
+        &["init", "-q", "--bare", &bare.display().to_string()],
+    );
+    fixture.git(&["remote", "add", "origin", &bare.display().to_string()]);
+}
+
+/// The record of green trees in the fixture's git directory, empty where there is none.
+fn green_trees(dir: &Path) -> String {
+    std::fs::read_to_string(dir.join("checks-green-trees")).unwrap_or_default()
+}
+
+/// The tree of `HEAD` in the fixture.
+fn head_tree(fixture: &Fixture) -> String {
+    stdout(&fixture.git(&["rev-parse", "HEAD^{tree}"]))
+        .trim()
+        .to_owned()
+}
+
+/// A fixture on `feature` with a remote and a committed `scripts/check-all.sh` running `body`.
+fn pushing(name: &str, body: &str) -> Fixture {
+    let fixture = shimmed(name);
+    remote(&fixture);
+    fixture.git(&["switch", "-q", "-c", "feature"]);
+    fixture.write(
+        "scripts/check-all.sh",
+        &format!("#!/usr/bin/env bash\n{body}\n"),
+    );
+    fixture.commit("checks");
+    fixture
+}
+
+#[test]
+fn the_tree_recorded_is_the_one_decided_before_the_checks_ran() {
+    // The checks change a tracked file and pass: the record holds the tree they started from.
+    let fixture = pushing(
+        "hooks-push-dirtying",
+        "echo changed >> scripts/check-all.sh\nexit 0",
+    );
+    let before = head_tree(&fixture);
+    let output = git_hooked(&fixture, Some(&built()), &[], PUSH);
+    assert!(output.status.success(), "{}", both(&output));
+    assert_eq!(
+        green_trees(&fixture.root().join(".git")),
+        format!("{before}\n")
+    );
+    assert!(!fixture.root().join(".git/checks-pending-tree").exists());
+
+    // From a linked worktree, whose git variables the shim clears for the checks, the record
+    // lands in the common git directory, with the worktree's tree.
+    let fixture = pushing("hooks-push-linked", "exit 0");
+    let linked = fixture.root().with_extension("linked");
+    fixture.git(&[
+        "worktree",
+        "add",
+        "-q",
+        "-b",
+        "other",
+        &linked.display().to_string(),
+    ]);
+    let tree = head_tree(&fixture);
+    let output = cleared(&mut Command::new("git"))
+        .env("PATH", path_with(Some(&built())))
+        .current_dir(&linked)
+        .args(["push", "-q", "origin", "other"])
+        .output()
+        .expect("git runs");
+    let _ = std::fs::remove_dir_all(&linked);
+    assert!(output.status.success(), "{}", both(&output));
+    assert_eq!(
+        green_trees(&fixture.root().join(".git")),
+        format!("{tree}\n")
+    );
+}
+
+#[test]
+fn a_tree_written_into_the_record_by_hand_skips_the_checks() {
+    let fixture = pushing(
+        "hooks-push-by-hand",
+        "echo \"check output for the test\"\nexit 1",
+    );
+    std::fs::write(
+        fixture.root().join(".git/checks-green-trees"),
+        format!("{}\n", head_tree(&fixture)),
+    )
+    .expect("the record is written");
+    let output = git_hooked(&fixture, Some(&built()), &[], PUSH);
+    assert!(output.status.success(), "{}", both(&output));
+    assert!(
+        both(&output).contains("pre-push: the checks passed on this tree before; not run again.")
+    );
+    assert!(!both(&output).contains("check output"), "the checks ran");
+}
+
+#[test]
+fn a_record_that_cannot_be_written_lets_the_push_pass() {
+    let fixture = pushing("hooks-push-unwritable", "exit 0");
+    std::fs::create_dir_all(fixture.root().join(".git/checks-green-trees/blocked"))
+        .expect("a directory where the record goes");
+    let output = git_hooked(&fixture, Some(&built()), &[], PUSH);
+    assert!(output.status.success(), "{}", both(&output));
+}
+
+/// `nuc hook pre-push` in the fixture, called directly with the standard input given.
+fn decide_push(fixture: &Fixture, input: &str, vars: &[(&str, std::ffi::OsString)]) -> Output {
+    use std::io::Write;
+    let mut command = Command::new(NUC);
+    cleared(&mut command)
+        .current_dir(fixture.root())
+        .args(["hook", "pre-push", "origin", "url"])
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
+    for (key, value) in vars {
+        command.env(key, value);
+    }
+    let mut child = command.spawn().expect("nuc runs");
+    child
+        .stdin
+        .take()
+        .expect("a standard input")
+        .write_all(input.as_bytes())
+        .expect("the input is written");
+    child.wait_with_output().expect("nuc ends")
+}
+
+/// The line git hands `pre-push` for `feature` at `HEAD`.
+fn push_line(fixture: &Fixture) -> String {
+    let head = stdout(&fixture.git(&["rev-parse", "HEAD"]))
+        .trim()
+        .to_owned();
+    format!(
+        "refs/heads/feature {head} refs/heads/feature {}\n",
+        "0".repeat(40)
+    )
+}
+
+#[test]
+fn malformed_standard_input_is_not_decided() {
+    let fixture = pushing("hooks-push-malformed", "exit 0");
+    let line = push_line(&fixture);
+    assert_eq!(decide_push(&fixture, &line, &[]).status.code(), Some(3));
+    for input in [
+        "garbage\n",
+        "a b c\n",
+        &line.replace(' ', "\t"),
+        &format!("{line}x y z w\n"),
+    ] {
+        let output = decide_push(&fixture, input, &[]);
+        assert_eq!(output.status.code(), Some(2), "{input:?}");
+        assert!(
+            stderr(&output).contains("not decided"),
+            "{}",
+            stderr(&output)
+        );
+    }
+}
+
+/// Verifies: Q-8 Q-9
+#[test]
+fn nuc_hook_pre_push_decides_and_writes_in_its_own_repository_only() {
+    let fixture = pushing("hooks-push-target", "exit 0");
+    let decoy = pushing("hooks-push-decoy", "exit 0");
+    let git_dir = decoy.root().join(".git");
+    let before = snapshot(decoy.root());
+    let output = decide_push(
+        &fixture,
+        &push_line(&fixture),
+        &[
+            ("GIT_INDEX_FILE", git_dir.join("index").into_os_string()),
+            (
+                "GIT_CONFIG_PARAMETERS",
+                "'core.hooksPath'='/nonexistent'".into(),
+            ),
+        ],
+    );
+    assert_eq!(output.status.code(), Some(3), "{}", stderr(&output));
+    assert!(fixture.root().join(".git/checks-pending-tree").exists());
+    let output = decide_push(
+        &fixture,
+        &push_line(&fixture),
+        &[
+            ("GIT_DIR", git_dir.clone().into_os_string()),
+            ("GIT_WORK_TREE", decoy.root().as_os_str().to_owned()),
+        ],
+    );
+    assert_eq!(output.status.code(), Some(2), "{}", stderr(&output));
+    assert_eq!(snapshot(decoy.root()), before, "the decoy changed");
+}
+
+#[test]
+fn a_canary_token_shows_in_no_push_output_and_not_in_the_record() {
+    let fixture = pushing(
+        "hooks-push-token",
+        "echo \"check output for the test\"\nexit 0",
+    );
+    fixture.write("docs/adr/draft-x.md", "");
+    fixture.commit("draft");
+    fixture.git(&[
+        "config",
+        "http.extraHeader",
+        &format!("Authorization: Bearer {TOKEN}"),
+    ]);
+    let before = snapshot(fixture.root());
+    let output = git_hooked(&fixture, Some(&built()), &TOKEN_VARS, PUSH);
+    assert!(output.status.success(), "{}", both(&output));
+    assert!(
+        both(&output).contains("carries 1 draft ADR(s)"),
+        "{}",
+        both(&output)
+    );
+    assert!(!both(&output).contains(TOKEN), "{}", both(&output));
+    let written: Vec<_> = snapshot(fixture.root())
+        .into_iter()
+        .filter(|entry| !before.contains(entry))
+        .collect();
+    assert!(
+        written
+            .iter()
+            .any(|(path, _)| path.ends_with("checks-green-trees"))
+    );
+    for (path, contents) in written {
+        assert!(
+            !String::from_utf8_lossy(&contents).contains(TOKEN),
+            "{} holds the token",
+            path.display()
+        );
+    }
 }
