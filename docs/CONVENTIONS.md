@@ -34,10 +34,12 @@ skimmed. The design revision drops what prevented nothing
   Rust, in a file, in what git answers, and in what git hands a hook on its standard input and
   arguments: a byte of no valid UTF-8, the byte 0x1F its awk passes split fields on, a last line
   without a newline (`read` drops it, awk and `sed` keep it), numbers in bash arithmetic (octal
-  after a leading zero, 64-bit wrap), and a path git lists or a ref name that is no UTF-8, which
-  the bash opens and Rust's strings do not hold. A byte class `nuc` reads as the bash
-  does is tried by a variant of the parity harness where a variant can write it and the bash
-  reports it without an error of its own, else by a fixture of `tests/check.rs` or a unit test, as
-  a digit bash's arithmetic lacks the base for; one it refuses is pinned by a fixture of
-  `tests/check.rs` that shows exit 2. Which readings of the bash's tools a port takes from
-  `src/bash.rs` is stated in `tests/functional_core.rs`.
+  after a leading zero, 64-bit wrap), a path git lists that is no UTF-8, which the bash opens and
+  Rust's strings do not hold, and a ref name that is no UTF-8, which the bash reads as bytes. A
+  byte class `nuc` reads as the bash does is tried by a variant of the parity harness where a
+  variant can write it and the bash reports it without an error of its own, or for a hook by a
+  scenario of the hook harness, else by a fixture of `tests/check.rs`, for a hook of
+  `tests/hooks.rs`, or a unit test, as a digit bash's arithmetic lacks the base for; one it refuses
+  is pinned by a fixture of `tests/check.rs`, for a hook of `tests/hooks.rs`, that shows exit 2.
+  Which readings of the bash's tools a port takes from `src/bash.rs` is stated in
+  `tests/functional_core.rs`.

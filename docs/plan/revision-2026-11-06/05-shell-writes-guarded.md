@@ -15,8 +15,9 @@ a symbolic link, and which broke Q-8. It is fixed, and the directory is now made
 directory. Nothing would catch the next such write. The structural test holds every read and
 listing of the shell to the functions `tests/functional_core.guarded` names, but no write: since
 the hooks, `src/shell/hook.rs` writes the pending tree, the record of green trees and its
-temporary file, the merged index, and the scratch directory, and removes files, each in a function
-of its own that no list names.
+temporary file, the merged index, and the scratch directory, and removes files, in six functions,
+`pre_push`, `record_pending`, `remove`, `merge_adr_index`, `scratch_dir`, and `merge_sides`, which
+no list names.
 
 Extend the structural test to the writes: a write, a rename, a creation or removal of a file or
 directory in `src/shell/` stands only in a function a list beside the test names, with the paths

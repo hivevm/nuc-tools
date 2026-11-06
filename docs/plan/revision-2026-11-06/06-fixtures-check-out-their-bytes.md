@@ -14,12 +14,15 @@ portability check runs after the push: git for Windows hands its hooks its own b
 ref name of no UTF-8 that its file system refuses (8f2d052), and the line endings a Windows
 checkout gives the merged index (1f7c0e4). The last is a fixture's, not the system's: git for
 Windows sets `core.autocrlf` in its system configuration, which the cleared environment of
-ADR-0012 does not reach, so a fixture that compares checked-out bytes compares what the platform
+ADR-0012 does not reach, and the fixtures pass `HOME`, so a user's global configuration reaches
+them too. A fixture that compares checked-out bytes then compares what the platform or the user
 made of them. The fix set `core.autocrlf false` in the one fixture of the driver; the next test
 that compares bytes on checkout meets it again.
 
-Have the helpers of `tests/support/` set it in every fixture repository they build, as they set
-the identity, and drop the line from the driver's fixture.
+Have the helpers of `tests/support/` set it in the configuration of every fixture repository they
+build, where neither the system's nor the user's can override it, and drop the line from the
+driver's fixture. The identity the fixtures commit with comes from the variables the helpers set,
+and needs nothing of this.
 
 ## Acceptance criteria
 

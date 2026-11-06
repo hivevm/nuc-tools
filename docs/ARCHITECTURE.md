@@ -27,7 +27,8 @@ runs as a hook, or CI. What crosses its boundary:
 - **Out:** the findings on the standard output, the summary, the notices of a hook, and every
   refusal on the standard error, and the exit code. `nuc check` writes no file and keeps no
   state; `nuc hook pre-push` keeps the record of green trees in the git directory, and the merge
-  driver writes the merged index over ours.
+  driver writes the merged index over ours, after git merged the prose in a scratch directory it
+  makes fresh in the git directory and removes.
 - **Beside it:** the template's bash scripts and hooks, the oracle the parity harness compares
   `nuc` with, on a corpus of repositories fetched from GitHub; the reference shims, which run the
   project's checks where `nuc hook` answers that they run; and the release workflow, which
@@ -121,7 +122,7 @@ golden path and the test pattern an agent copies from are named here.
   line's contract and the rule IDs that stay (G-6). `tests/hooks.rs` runs the shims through git
   with the built `nuc` or a stand-in, on every platform of Q-4 (G-2, G-3, G-5, Q-1, Q-7 to
   Q-11). `tests/adr_citations.rs` fails on a citation of a superseded or rejected ADR outside
-  the record.
+  `docs/adr/` and `docs/plan/`, but where its list `tests/adr_citations.template` names it.
 
 ## How it runs
 
@@ -171,9 +172,10 @@ runs on every update of a ref, and each git call costs a process (Q-5).
 through `merge.adr-index.driver`: it has `git merge-file` merge the prose of the three sides, every
 line but a table row, and their union, writes the union into ours where its prose is the prose
 merged on its own, and otherwise the usual conflict markers with git's labels. Its git runs under
-the cleared environment of the shell, so configuration git hands it through the environment, as
-`git -c merge.conflictStyle=diff3`, is not read; the configuration files of the repository and of
-the user are.
+the cleared environment of the shell, which passes `PATH` and `HOME`, and `SystemRoot` on Windows,
+and nothing else. So it reads the configuration of the repository, of the system, and of the user
+at its default places under `HOME`, and none git hands it through the environment, as
+`git -c merge.conflictStyle=diff3`, `GIT_CONFIG_GLOBAL`, or `XDG_CONFIG_HOME`.
 
 A release starts when a human pushes a tag `vX.Y.Z` that names the version of `Cargo.toml`.
 `release.yml` builds the four targets, writes `SHA256SUMS`, attests each binary and verifies the
