@@ -51,12 +51,17 @@ golden path and the test pattern an agent copies from are named here.
   does through `src/glob.rs`. A rule whose bash check changed between template releases, today
   `docs/adr-supersessions`, `docs/check-lists`, `docs/project-layout`, and
   `docs/template-identity`, reads the release the tree carries and checks as that release does
-  (ADR-0014). `tests/parity/releases.tsv` names the releases at which each rule's check changed,
+  (ADR-0023). `tests/parity/releases.tsv` names the releases at which each rule's check changed,
   which the parity harness holds to the template's trees and `tests/releases.rs` holds the rules
   to; `docs/template-release` gives its reason there for reading none.
 - **Configuration** — `config` reads `nuc.toml` and selects the rules it turns on, or says why
   `nuc` refuses: missing, unreadable, a minimum above the running version, an unknown rule ID
-  ([ADR-0014](adr/0014-version-coupling.md)).
+  ([ADR-0023](adr/0023-version-coupling-with-hook-defaults.md)).
+- **Hooks** — `src/hook.rs` decides what each git hook of the template decides, from the git
+  state the shell reads in `shell::hook`, and holds the `hook/` rules, `hook::ALL`, which
+  `nuc check` knows and runs never. The reference shims under `shims/`, in POSIX sh, hand each
+  hook to `nuc hook <name>` and run the project's check where it answers 3
+  ([ADR-0021](adr/0021-hook-contract.md)). `pre-commit` is ported so far.
 - **Shell** — `src/shell/` reads the command line and the repository, runs git under a cleared
   environment in `shell::git`, calls the rules, prints the findings, and sets the exit code
   ([ADR-0011](adr/0011-git-cli-cleared-environment.md)). Its `Tree`, in `shell::tree`, reads
@@ -72,7 +77,11 @@ golden path and the test pattern an agent copies from are named here.
   writes one path inside a copy of the tree, never under its `.git`
   ([ADR-0015](adr/0015-parity-harness.md)). Across the template's trees of the
   corpus it compares each rule's bash function with `tests/parity/releases.tsv`; a change to a
-  helper the function calls shows in no row.
+  helper the function calls shows in no row. Then `scripts/lib/hook-parity.sh` runs the
+  scenarios of `tests/parity/hook-scenarios.sh` through git, with the bash hook of each of the
+  template's trees and with the shim and `nuc`, maps the hooks' lines by `tests/parity/hooks.tsv`,
+  and holds the template's hook self-test to the scenarios and `tests/parity/hook-cases.tsv`
+  ([ADR-0022](adr/0022-hook-scenario-parity.md)).
 - **Release tooling** — `release/` builds a binary per target, writes `SHA256SUMS`, checks the
   tag against the crate's version, writes the release commit, and moves the major tag;
   `release/install-nuc.sh` is the one installer, run by the Action and the Feature, and refuses a
@@ -99,7 +108,8 @@ golden path and the test pattern an agent copies from are named here.
   functions `tests/functional_core.guarded` names read, list, or resolve a path
   ([ADR-0012](adr/0012-fixture-repositories.md)). `tests/isolation.rs` runs `nuc check` on a
   tree of bait and without the network (Q-7, Q-11), and `tests/contract.rs` holds the command
-  line's contract and the rule IDs that stay (G-6).
+  line's contract and the rule IDs that stay (G-6). `tests/hooks.rs` runs the shims through git
+  with the built `nuc` or a stand-in (Q-1, Q-7, Q-10, Q-11).
 
 ## How it runs
 
@@ -122,6 +132,12 @@ by it cannot place; after the rules run, before any finding is printed, for a ru
 and for a finding that names a path of no UTF-8.
 A panic ends it with exit 101, non-zero as well (Q-1). Nothing is written and no state is kept
 between runs.
+
+`nuc hook pre-commit` runs in the directory git runs the hook in. Without `nuc.toml` every `hook/`
+rule is on; with one, it is read as `nuc check` reads it and its list governs. It asks git for the
+branch and `MERGE_HEAD`, tests whether `scripts/check-all.sh` exists, and exits 1 with a finding
+at `refs/heads/main` on `main`, 3 on the commit that concludes a merge where the check runs, and
+0 otherwise. The shim runs the check on 3, with git's local variables unset, and refuses on red.
 
 A release starts when a human pushes a tag `vX.Y.Z` that names the version of `Cargo.toml`.
 `release.yml` builds the four targets, writes `SHA256SUMS`, attests each binary and verifies the

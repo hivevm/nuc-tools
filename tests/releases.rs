@@ -1,4 +1,4 @@
-//! The rules whose bash check changed between the template's releases. Verifies: ADR-0014
+//! The rules whose bash check changed between the template's releases. Verifies: ADR-0023
 //!
 //! `tests/parity/releases.tsv` names, for each rule, the releases of the corpus at which its bash
 //! check changed, which the parity harness holds to the template's trees. A rule whose check

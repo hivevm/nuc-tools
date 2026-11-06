@@ -70,12 +70,13 @@ Cargo.lock            # the resolved dependencies, built with --locked
 rust-toolchain.toml   # the pinned Rust toolchain
 deny.toml             # what cargo deny allows: advisories, bans, licenses, sources
 src/                  # the library's functional core, its shell in src/shell/, and the binary
+shims/                # the reference shims: POSIX sh hooks that hand each to 'nuc hook' (ADR-0021)
 action.yml            # the GitHub Action: installs the nuc of its release and runs it
 release/              # the release tooling: build, checksums, the installer, and the release commit
 feature/              # the Dev Container Feature ghcr.io/hivevm/nuc-tools/nuc
 tests/                # the integration tests, their fixture helpers and the readings of the
-                      # crate's sources in tests/support/, and the corpus, variants, and tables
-                      # of the parity harness in tests/parity/
+                      # crate's sources in tests/support/, and the corpus, variants, tables,
+                      # and hook scenarios of the parity harness in tests/parity/
 .agents/skills/       # the procedures of AGENTS.md as Agent Skills, one directory each (ADR-0003),
                       # with the scripts and templates they carry (claim.sh, remap.sh, ticket.md)
 .claude/CLAUDE.md     # pointer for Claude Code to read AGENTS.md

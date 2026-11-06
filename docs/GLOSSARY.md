@@ -16,7 +16,7 @@ to invent.
   one it carries in its README ([ADR-0005](adr/0005-template-releases.md)).
 - **carried release** — The template release a tree names in the Template release line of its
   README; a rule whose bash check changed between releases checks the tree as that release does
-  ([ADR-0014](adr/0014-version-coupling.md)).
+  ([ADR-0023](adr/0023-version-coupling-with-hook-defaults.md)).
 - **check** — A mechanical test of a repository's tree or history that fails a commit, a push, or
   CI on a finding.
 - **sensor** — A mechanical reading of a repository that reports what it counts and fails on

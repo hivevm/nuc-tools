@@ -68,7 +68,7 @@ No release of `nuc` exists yet; built from source, it checks a repository:
 
 `nuc.toml`, at the root of the repository, names the minimum version of `nuc` and the rules
 turned on
-([ADR-0014](docs/adr/0014-version-coupling.md)):
+([ADR-0023](docs/adr/0023-version-coupling-with-hook-defaults.md)):
 
 ```toml
 minimum = "0.0.0"
