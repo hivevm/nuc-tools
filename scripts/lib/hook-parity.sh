@@ -12,8 +12,9 @@
 # start with the hook's name and a colon, each mapped by tests/parity/hooks.tsv to a hook/ rule
 # ID and the ref it guards, or to a notice/ ID and the fields it carries, and the findings nuc
 # writes in the line form of ADR-0020, as sets; the lines of the stand-in checks, verbatim; and
-# the record of green trees the run leaves in the git directory, line by line. Git's own lines are not compared. A hook's line no
-# row maps, and a rule of nuc the table maps no line to, is a difference.
+# the record of green trees the run leaves in the git directory, as a set of its lines. Git's own
+# lines are not compared. A hook's line no row maps, and a rule of nuc the table maps no line to,
+# is a difference.
 #
 # Each scenario's bash side must end as every case it names expects, pass or refuse, so that a
 # setup that no longer reaches its state fails rather than agrees on nothing.
@@ -38,8 +39,8 @@ hs_names=() hs_hooks=() hs_cases=() hs_setups=() hs_args=() hs_bare=()
 
 # hook_scenario [--bare] <name> <hook> <cases, separated by '|', or ''> <setup function>
 # <git args...> — register a scenario, which may name no case where it shows what the self-test
-# asserts outside its 'expect' lines; the setup function gets the fixture's path, and its git commands run
-# without hooks.
+# asserts outside its 'expect' lines; the setup function gets the fixture's path, and its git
+# commands run without hooks.
 hook_scenario() {
   local bare=0
   [[ "$1" == --bare ]] && { bare=1; shift; }
@@ -108,7 +109,7 @@ hp_lines() {
       fi
     fi
   done < "$2"
-  # The record of green trees the run left, line by line.
+  # The record of green trees the run left, each line a key.
   [[ -f "$2.record" ]] && sed 's/^/record\t/' "$2.record"
 }
 

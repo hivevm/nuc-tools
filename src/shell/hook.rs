@@ -124,9 +124,12 @@ fn pre_push(args: &[&str]) -> Result<u8, String> {
         Some(tree) => read_in_git_dir(&green)?.is_some_and(|text| hook::holds(&text, tree)),
         None => false,
     };
+    // The README is read only for a notice, and a README that cannot be read words it as the
+    // newest release: a hook refuses nothing for the release (ADR-0023).
+    let notice = refs.iter().any(|(_, drafts)| matches!(drafts, Some(1..)));
     let state = hook::Push {
+        contributing: !notice || contributing(root.as_deref()).unwrap_or(true),
         refs,
-        contributing: contributing(root.as_deref())?,
         tree,
         recorded,
         // A test of existence, which reads nothing (Q-12).
@@ -140,9 +143,10 @@ fn pre_push(args: &[&str]) -> Result<u8, String> {
         eprintln!("{notice}");
     }
     if out.answer == Answer::RunCheck {
-        // The tree decided now is the one `--record` records, whatever the checks do meanwhile.
+        // The tree decided now is the one `--record` records, whatever the checks do meanwhile, and
+        // only for the run of the shim that wrote it.
         match &state.tree {
-            Some(tree) => fs::write(&pending, format!("{tree}\n"))
+            Some(tree) => fs::write(&pending, format!("{tree} {}\n", shim_run()))
                 .map_err(|e| format!("{}: unwritable — {e} — not decided", pending.display()))?,
             None => remove(&pending)?,
         }
@@ -195,17 +199,38 @@ fn contributing(root: Option<&Path>) -> Result<bool, String> {
     )
 }
 
-/// `--record`: the pending tree moved into the record of green trees; nothing without one.
+/// The run of the shim that calls `nuc hook pre-push` and then its `--record`, as the shim names
+/// it in `NUC_HOOK_RUN`: two pushes from one worktree at once each record only their own tree.
+fn shim_run() -> String {
+    env::var("NUC_HOOK_RUN").unwrap_or_default()
+}
+
+/// `--record`: the pending tree moved into the record of green trees; nothing without one, and
+/// not decided where another run's push replaced it meanwhile, whose checks are not these.
 fn record_pending(pending: &Path, green: &Path) -> Result<u8, String> {
-    let Some(tree) = read_in_git_dir(pending)? else {
+    let Some(text) = read_in_git_dir(pending)? else {
         return Ok(PASSED);
     };
-    let tree = tree.trim_end_matches(['\n', '\r']);
+    let line = text.trim_end_matches(['\n', '\r']);
+    let (tree, run_of) = line.split_once(' ').unwrap_or((line, ""));
+    if run_of != shim_run() {
+        return Err(format!(
+            "{}: another push from this worktree decided its tree meanwhile, so this one is not \
+             recorded — not decided",
+            pending.display()
+        ));
+    }
     let existing = read_in_git_dir(green)?.unwrap_or_default();
     let next = green.with_extension(format!("{}", std::process::id()));
-    fs::write(&next, hook::record(&existing, tree))
-        .and_then(|()| fs::rename(&next, green))
-        .map_err(|e| format!("{}: unwritable — {e} — not decided", green.display()))?;
+    if let Err(e) =
+        fs::write(&next, hook::record(&existing, tree)).and_then(|()| fs::rename(&next, green))
+    {
+        let _ = fs::remove_file(&next);
+        return Err(format!(
+            "{}: unwritable — {e} — not decided",
+            green.display()
+        ));
+    }
     remove(pending)?;
     Ok(PASSED)
 }

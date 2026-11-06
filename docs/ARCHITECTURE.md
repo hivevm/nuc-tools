@@ -146,8 +146,9 @@ tree has `scripts/check-docs.sh`, where its rule is on; its shim runs that check
 `main`, passes one that only deletes, writes the draft notice in the wording of the README's
 release, and passes a clean tree that `checks-green-trees` of the common git directory holds.
 Otherwise it writes the tree of a clean `HEAD` to `checks-pending-tree` of the worktree's git
-directory and answers 3; its shim runs the checks and, on green, calls
-`nuc hook pre-push --record`, which moves that tree into the record and keeps the last 50. These
+directory, with the run its shim names in `NUC_HOOK_RUN`, and answers 3; its shim runs the checks
+and, on green, calls `nuc hook pre-push --record`, which moves that tree into the record and keeps
+the last 50, and records nothing where another run's push replaced it. These
 two files are the only state `nuc` keeps between runs.
 
 A release starts when a human pushes a tag `vX.Y.Z` that names the version of `Cargo.toml`.

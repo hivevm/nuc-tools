@@ -1056,3 +1056,64 @@ fn a_canary_token_shows_in_no_push_output_and_not_in_the_record() {
         );
     }
 }
+
+/// `nuc hook pre-push --record` in the fixture, as the shim of the run named calls it.
+fn record_as(fixture: &Fixture, run: &str) -> Output {
+    let mut command = Command::new(NUC);
+    cleared(&mut command)
+        .current_dir(fixture.root())
+        .args(["hook", "pre-push", "--record"])
+        .env("NUC_HOOK_RUN", run)
+        .output()
+        .expect("nuc runs")
+}
+
+#[test]
+fn a_push_records_its_own_tree_while_another_push_runs_from_the_same_worktree() {
+    let fixture = pushing("hooks-push-race", "exit 0");
+    let run = |name: &str| [("NUC_HOOK_RUN", std::ffi::OsString::from(name))];
+    // Push A decides on the first tree; push B on a second, whose checks then go red.
+    assert_eq!(
+        decide_push(&fixture, &push_line(&fixture), &run("a"))
+            .status
+            .code(),
+        Some(3)
+    );
+    fixture.write("second", "x\n");
+    fixture.commit("second");
+    let second = head_tree(&fixture);
+    assert_eq!(
+        decide_push(&fixture, &push_line(&fixture), &run("b"))
+            .status
+            .code(),
+        Some(3)
+    );
+    // A's checks pass: it records no tree it did not decide.
+    let output = record_as(&fixture, "a");
+    assert_eq!(output.status.code(), Some(2), "{}", stderr(&output));
+    assert!(!green_trees(&fixture.root().join(".git")).contains(&second));
+    // B's own record holds its tree.
+    assert_eq!(record_as(&fixture, "b").status.code(), Some(0));
+    assert_eq!(
+        green_trees(&fixture.root().join(".git")),
+        format!("{second}\n")
+    );
+}
+
+#[test]
+fn a_readme_that_cannot_be_read_refuses_no_push() {
+    let fixture = pushing("hooks-push-readme", "exit 0");
+    fixture.write("README.md", "# X\0\n\n- **Template release:** v0.6.1\n");
+    fixture.commit("readme");
+    let output = git_hooked(&fixture, Some(&built()), &[], PUSH);
+    assert!(output.status.success(), "{}", both(&output));
+    fixture.write("docs/adr/draft-x.md", "");
+    fixture.commit("draft");
+    let output = git_hooked(&fixture, Some(&built()), &[], PUSH);
+    assert!(output.status.success(), "{}", both(&output));
+    assert!(
+        both(&output).contains("(CONTRIBUTING.md, Integration branches, step 7)."),
+        "an unreadable README words the notice as the newest release: {}",
+        both(&output)
+    );
+}

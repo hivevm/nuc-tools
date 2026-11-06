@@ -23,6 +23,10 @@ if ! command -v nuc >/dev/null 2>&1; then
   exit 1
 fi
 
+# The run of this shim, so that --record records the tree this push decided and no other.
+NUC_HOOK_RUN="$$"
+export NUC_HOOK_RUN
+
 nuc hook pre-push "$@"
 answer=$?
 case "$answer" in
