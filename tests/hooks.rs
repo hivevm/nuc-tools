@@ -1,4 +1,4 @@
-//! `nuc hook` and the reference shims, through git. Verifies: ADR-0020 ADR-0021 ADR-0023 G-5 Q-1 Q-4 Q-7 Q-8 Q-9 Q-10 Q-11
+//! `nuc hook` and the reference shims, through git. Verifies: ADR-0020 ADR-0021 ADR-0023 G-2 G-3 G-5 Q-1 Q-4 Q-7 Q-8 Q-9 Q-10 Q-11
 //!
 //! Each case builds a fixture repository whose hooks path is the repository's `shims/`, puts a
 //! `nuc` on the `PATH` of the git command, the one cargo built or a stand-in that answers as told,
@@ -629,6 +629,10 @@ fn trigger(fixture: &Fixture, hook: &str) -> &'static [&'static str] {
             fixture.git(&["switch", "-q", "-c", "feature"]);
             PUSH
         }
+        "merge-adr-index" => {
+            indexed(fixture, "one", "one");
+            MERGE
+        }
         other => panic!("no git command runs the shim '{other}': add it here"),
     }
 }
@@ -656,9 +660,15 @@ fn every_shim_stops_without_nuc_and_with_a_nuc_too_old() {
         let args = trigger(&fixture, &hook);
         let output = git_hooked(&fixture, None, &[], args);
         assert!(!output.status.success(), "{hook} passed without nuc");
+        // A driver merges where a hook decides, and says so.
+        let decides = if hook == "merge-adr-index" {
+            "so no driver merges the ADR index"
+        } else {
+            "so no hook decides"
+        };
         assert!(
             both(&output).contains(&format!(
-                "{hook}: refused — nuc is not on the PATH, so no hook decides. Install it from https://github.com/hivevm/nuc-tools/releases"
+                "{hook}: refused — nuc is not on the PATH, {decides}. Install it from https://github.com/hivevm/nuc-tools/releases"
             )),
             "{hook}: {}",
             both(&output)
@@ -832,7 +842,7 @@ fn a_shim_refuses_where_git_names_no_work_tree() {
             .expect("sh runs");
         assert!(!output.status.success(), "{hook} passed");
         // A hook that runs no check knows no 3.
-        let refusal = if hook == "reference-transaction" {
+        let refusal = if ["reference-transaction", "merge-adr-index"].contains(&hook.as_str()) {
             format!("{hook}: refused — nuc hook {hook} exited 3, which this shim does not know")
         } else {
             format!("{hook}: refused — git names no work tree")
@@ -1235,4 +1245,105 @@ fn a_ref_name_that_is_no_utf8_is_no_malformed_update() {
         .output()
         .expect("git runs");
     assert!(output.status.success(), "{}", both(&output));
+}
+
+/// An ADR index merged by the driver `.gitattributes` names, its command the repository's shim;
+/// `feature` and `feat/x` each append a row and set the rule as told, with `feat/x` checked out.
+fn indexed(fixture: &Fixture, rule_feature: &str, rule_feat_x: &str) {
+    let index = "docs/adr/README.md";
+    let shim = shims()
+        .join("merge-adr-index")
+        .display()
+        .to_string()
+        .replace('\\', "/");
+    fixture.git(&[
+        "config",
+        "merge.adr-index.driver",
+        &format!("{shim} %O %A %B %S %X %Y"),
+    ]);
+    // The bytes the driver writes, not the line endings a platform's checkout gives them.
+    fixture.git(&["config", "core.autocrlf", "false"]);
+    fixture
+        .write(".gitattributes", "docs/adr/README.md merge=adr-index\n")
+        .write(
+            index,
+            "Rule: one.\n\n| ADR |\n|-----|\n| [0001](0001-a.md) |\nAfter: one.\n",
+        );
+    fixture.commit("index");
+    let edit = |rule: &str, row: &str| {
+        fixture.write(
+            index,
+            &format!(
+                "Rule: {rule}.\n\n| ADR |\n|-----|\n| [0001](0001-a.md) |\n{row}\nAfter: one.\n"
+            ),
+        );
+        fixture.commit("row");
+    };
+    fixture.git(&["switch", "-q", "-c", "feature"]);
+    edit(rule_feature, "| [0002](0002-b.md) |");
+    fixture.git(&["switch", "-q", "-c", "feat/x", "main"]);
+    edit(rule_feat_x, "| [draft-c](draft-c.md) |");
+}
+
+#[test]
+fn the_driver_keeps_both_rows_and_stops_on_a_rule_both_sides_changed() {
+    let fixture = shimmed_only("hooks-driver-rows", "merge-adr-index");
+    indexed(&fixture, "one", "one");
+    let output = git_hooked(&fixture, Some(&built()), &[], MERGE);
+    assert!(output.status.success(), "{}", both(&output));
+    assert_eq!(
+        std::fs::read_to_string(fixture.root().join("docs/adr/README.md")).expect("the index"),
+        "Rule: one.\n\n| ADR |\n|-----|\n| [0001](0001-a.md) |\n| [draft-c](draft-c.md) |\n| [0002](0002-b.md) |\nAfter: one.\n"
+    );
+
+    let fixture = shimmed_only("hooks-driver-prose", "merge-adr-index");
+    indexed(&fixture, "two", "three");
+    let output = git_hooked(&fixture, Some(&built()), &[], MERGE);
+    assert!(!output.status.success(), "a rule both sides changed merged");
+    let index =
+        std::fs::read_to_string(fixture.root().join("docs/adr/README.md")).expect("the index");
+    assert!(index.starts_with("<<<<<<< HEAD\nRule: three.\n"), "{index}");
+    assert!(index.contains("\n>>>>>>> feature\n"), "{index}");
+}
+
+/// Verifies: Q-8
+#[test]
+fn the_driver_writes_nothing_outside_the_repository_and_ignores_a_fourth_label() {
+    let fixture = shimmed_only("hooks-driver-scratch", "merge-adr-index");
+    indexed(&fixture, "one", "one");
+    let shim = shims()
+        .join("merge-adr-index")
+        .display()
+        .to_string()
+        .replace('\\', "/");
+    fixture.git(&[
+        "config",
+        "merge.adr-index.driver",
+        &format!("{shim} %O %A %B %S %X %Y %P"),
+    ]);
+    let tmp = fixture.root().with_extension("tmp");
+    std::fs::create_dir_all(&tmp).expect("a temporary directory of its own");
+    let tmp_text = tmp.display().to_string();
+    let output = git_hooked(
+        &fixture,
+        Some(&built()),
+        &[
+            ("TMPDIR", &tmp_text),
+            ("TMP", &tmp_text),
+            ("TEMP", &tmp_text),
+        ],
+        MERGE,
+    );
+    assert!(output.status.success(), "{}", both(&output));
+    assert!(
+        std::fs::read_dir(&tmp).expect("readable").next().is_none(),
+        "the driver wrote into the temporary directory"
+    );
+    let left: Vec<_> = std::fs::read_dir(fixture.root().join(".git"))
+        .expect("the git directory")
+        .filter_map(Result::ok)
+        .filter(|entry| entry.file_name().to_string_lossy().starts_with("nuc-merge"))
+        .collect();
+    assert!(left.is_empty(), "the driver left its scratch directory");
+    let _ = std::fs::remove_dir_all(tmp);
 }

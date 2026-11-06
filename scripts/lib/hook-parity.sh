@@ -12,7 +12,9 @@
 # start with the hook's name and a colon, each mapped by tests/parity/hooks.tsv to a hook/ rule
 # ID and the ref it guards, or to a notice/ ID and the fields it carries, and the findings nuc
 # writes in the line form of ADR-0020, as sets; the lines of the stand-in checks, verbatim; and
-# the record of green trees the run leaves in the git directory, as a set of its lines. Git's own
+# the record of green trees the run leaves in the git directory, as a set of its lines; and the
+# ADR index the run leaves, byte for byte, for the merge driver, which runs through the
+# configuration 'merge.adr-index.driver' rather than the hooks path. Git's own
 # lines are not compared. A hook's line no row maps, and a rule of nuc the table maps no line to,
 # is a difference.
 #
@@ -140,6 +142,9 @@ hp_run() {
   # Neither file is the fixture's own: a working tree they made unclean would hide a green tree.
   printf '/README.md\n/nuc.toml\n' >> "$dir/.git/info/exclude"
   git -C "$dir" config core.hooksPath "$hooks"
+  # The merge driver of the ADR index is no hook: git runs the command its configuration names.
+  [[ "${hs_hooks[s]}" == merge-adr-index ]] \
+    && git -C "$dir" config merge.adr-index.driver "$hooks/merge-adr-index %O %A %B %S %X %Y"
   local -a args
   eval "args=(${hs_args[s]})"
   (cd "$dir" && env -i PATH="$hp_bin:$PATH" HOME="$HOME" LC_ALL=C \
@@ -147,6 +152,8 @@ hp_run() {
   rc=$?
   echo "$rc" > "$dir.rc"
   [[ -f "$dir/.git/checks-green-trees" ]] && cp "$dir/.git/checks-green-trees" "$dir.out.record"
+  [[ -f "$dir/docs/adr/README.md" ]] && cp "$dir/docs/adr/README.md" "$dir.merged"
+  return 0
 }
 
 # hp_reached <scenario> <bash path> <label> — whether the bash side ends as each case the scenario
@@ -175,6 +182,10 @@ hp_compare() {
   local b_rc n_rc
   b_rc="$(cat "$b.rc")" n_rc="$(cat "$n.rc")"
   ((b_rc == n_rc)) || diffs+=("bash exits $b_rc, nuc exits $n_rc")
+  # The ADR index as the merge left it, byte for byte.
+  if [[ -f "$b.merged" || -f "$n.merged" ]] && ! cmp -s "$b.merged" "$n.merged"; then
+    diffs+=("the ADR index differs after the merge: $(diff "$b.merged" "$n.merged" 2>&1 | head -5 | tr '\n' ' ')")
+  fi
   hp_lines "$hook" "$b.out" | sort -u > "$b.keys"
   hp_lines "$hook" "$n.out" | sort -u > "$n.keys"
   while IFS=$'\t' read -r kind rest; do

@@ -36,6 +36,9 @@ pub(super) fn run(name: &str, args: &[&str]) -> Result<u8, String> {
     if name == "reference-transaction" {
         return reference_transaction(args);
     }
+    if name == "merge-adr-index" {
+        return merge_adr_index(args);
+    }
     let Some(&(_, script, decide)) = HOOKS.iter().find(|(known, _, _)| *known == name) else {
         return Err(format!(
             "no hook '{name}' is known to this nuc — a newer nuc may know it: {}",
@@ -393,4 +396,103 @@ fn turned_on(root: Option<&Path>) -> Result<Vec<&'static HookRule>, String> {
         .iter()
         .filter(|rule| config.rules.iter().any(|id| id == rule.id))
         .collect())
+}
+
+/// `nuc hook merge-adr-index <base> <ours> <theirs> [<base label> <ours label> <theirs label>]`,
+/// the merge driver of the ADR index, as `.gitattributes` names it: the union of both sides' lines
+/// written into ours where its prose is the prose merged on its own, exit 0; else the usual
+/// conflict markers with git's labels, exit 1 (G-3).
+fn merge_adr_index(args: &[&str]) -> Result<u8, String> {
+    let (&[base, ours, theirs], labels) = (args.get(..3).unwrap_or_default(), args.get(3..)) else {
+        return Err("usage: nuc hook merge-adr-index <base> <ours> <theirs> [<base label> <ours label> <theirs label>]".to_owned());
+    };
+    // Labels past the third are ignored, as the bash driver ignores them.
+    let labels = labels.unwrap_or_default();
+    let dir =
+        env::current_dir().map_err(|e| format!("the current directory is unreadable: {e}"))?;
+    // Git runs a merge driver at the root of the work tree; a nuc.toml it cannot hold refuses
+    // here as in every hook (ADR-0023).
+    turned_on(Some(&dir))?;
+    let scratch = scratch_dir(&dir)?;
+    let merged = merge_sides(&dir, &scratch, [base, ours, theirs]);
+    let _ = fs::remove_dir_all(&scratch);
+    if let Some(union) = merged? {
+        fs::write(ours, union).map_err(|e| format!("{ours}: unwritable — {e} — not decided"))?;
+        return Ok(PASSED);
+    }
+    // An empty or missing label is the default, as the bash's ${5:-ours} reads it.
+    let label = |i: usize, default: &'static str| {
+        labels
+            .get(i)
+            .copied()
+            .filter(|label| !label.is_empty())
+            .unwrap_or(default)
+    };
+    let mut conflict = vec!["merge-file", "-q"];
+    for name in [label(1, "ours"), label(0, "base"), label(2, "theirs")] {
+        conflict.extend(["-L", name]);
+    }
+    conflict.extend([ours, base, theirs]);
+    let (code, _) = git::status_and_output(&dir, &conflict)?;
+    if !(0..=127).contains(&code) {
+        return Err(format!(
+            "git merge-file could not merge {ours} (exit {code}) — not decided"
+        ));
+    }
+    Ok(FOUND)
+}
+
+/// A directory of the driver's own for the prose of the three sides, made fresh in the git
+/// directory of the repository: nothing outside the repository is written (Q-8), and a directory
+/// that already exists is never taken, so that no file in it is one someone else placed.
+fn scratch_dir(dir: &Path) -> Result<PathBuf, String> {
+    let git_dir = git::run(dir, &["rev-parse", "--absolute-git-dir"])?;
+    let git_dir = Path::new(git_dir.trim_end_matches(['\n', '\r']));
+    let pid = std::process::id();
+    let mut last = String::new();
+    for attempt in 0..16 {
+        let scratch = git_dir.join(format!("nuc-merge-adr-index-{pid}-{attempt}"));
+        match fs::create_dir(&scratch) {
+            Ok(()) => return Ok(scratch),
+            Err(e) => last = format!("{}: cannot be made — {e}", scratch.display()),
+        }
+    }
+    Err(format!("{last} — not decided"))
+}
+
+/// The union of the three sides where it stands, as the bash driver decides it; none where the
+/// merge is a conflict. The prose of each side is written into `scratch` for git to merge.
+fn merge_sides(
+    dir: &Path,
+    scratch: &Path,
+    [base, ours, theirs]: [&str; 3],
+) -> Result<Option<Vec<u8>>, String> {
+    let mut prose_paths = Vec::new();
+    for (side, path) in [("base", base), ("ours", ours), ("theirs", theirs)] {
+        let text = read_merge_side(Path::new(path))?;
+        let prose_path = scratch.join(side);
+        fs::write(&prose_path, hook::prose(&text))
+            .map_err(|e| format!("{}: unwritable — {e} — not decided", prose_path.display()))?;
+        prose_paths.push(prose_path.display().to_string());
+    }
+    let clean = |args: &[&str]| -> Result<Option<Vec<u8>>, String> {
+        let (code, out) = git::status_and_output(dir, args)?;
+        Ok((code == 0).then_some(out))
+    };
+    let prose_merged = clean(&[
+        "merge-file",
+        "-q",
+        "-p",
+        &prose_paths[1],
+        &prose_paths[0],
+        &prose_paths[2],
+    ])?;
+    let union = clean(&["merge-file", "-q", "-p", "--union", ours, base, theirs])?;
+    Ok(hook::takes_union(prose_merged.as_deref(), union.as_deref())
+        .then(|| union.unwrap_or_default()))
+}
+
+/// The bytes of one side of a merge, at the path git hands the driver, a file git wrote for it.
+fn read_merge_side(path: &Path) -> Result<Vec<u8>, String> {
+    fs::read(path).map_err(|e| format!("{}: unreadable — {e} — not decided", path.display()))
 }

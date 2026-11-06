@@ -27,7 +27,8 @@
 # differs only with nuc.toml, an unknown line of the bash hook, an uncovered self-test case, a
 # listed case the self-test lacks, a scenario that names a case no release has, a scenario whose
 # bash side does not end as its case expects, a notice whose field differs, a record of green
-# trees that differs, no tree at all, and a malformed table each fail (ADR-0022).
+# trees that differs, a merge driver that writes another index, no tree at all, and a malformed
+# table each fail (ADR-0022).
 #
 # Inputs: scripts/check-parity.sh tests/parity/ scripts/lib/ shims/
 #
@@ -558,6 +559,28 @@ expect fail "a notice whose field differs fails" "only nuc: rule notice/test B" 
   bash "$HARNESS" --nuc "$(hook_nuc notice "echo 'pre-commit: notice B' >&2; $HOOK_AGREES")" --hooks "$(hook_tree notice "pre-commit: notice A")"
 expect fail "a record of green trees that differs fails" "only nuc: record x" \
   run_hooks "$(hook_nuc record "echo x > .git/checks-green-trees; $HOOK_AGREES")" "$HOOK_SCENARIOS_FILE" "$NO_CASES" "$tree"
+# A tree whose bash merge driver takes theirs, and a stand-in nuc whose driver takes the base.
+dtree="$(hook_tree driver "" "the driver merges")"
+# shellcheck disable=SC2016 # the driver's own expansion
+printf '#!/usr/bin/env bash\ncat "$3" > "$2"\n' > "$dtree/.githooks/merge-adr-index"
+chmod +x "$dtree/.githooks/merge-adr-index"
+# shellcheck disable=SC2016 # the scenario file's own expansion
+printf '%s\n' 'driven() {' \
+  '  echo "docs/adr/README.md merge=adr-index" > "$1/.gitattributes"; mkdir -p "$1/docs/adr"' \
+  '  echo base > "$1/docs/adr/README.md"; hp_git "$1" add -A; hp_git "$1" commit -q -m base' \
+  '  hp_git "$1" switch -q -c other; echo theirs > "$1/docs/adr/README.md"; hp_git "$1" commit -q -am t' \
+  '  hp_git "$1" switch -q -c feat/x main; echo ours > "$1/docs/adr/README.md"; hp_git "$1" commit -q -am o' \
+  '}' \
+  'hook_scenario driven merge-adr-index "the driver merges" driven merge -q -m m other' > "$work/hook-scenarios-driver.sh"
+cat "$HOOK_SCENARIOS_FILE" >> "$work/hook-scenarios-driver.sh"
+# shellcheck disable=SC2016 # the stand-in's own expansion
+expect pass "a merge driver that writes the same index passes" "" \
+  run_hooks "$(hook_nuc driver-same '[ "$1" = hook ] && [ "$2" = merge-adr-index ] && { cat "$5" > "$4"; exit 0; }; '"$HOOK_AGREES")" \
+  "$work/hook-scenarios-driver.sh" "$NO_CASES" "$dtree"
+# shellcheck disable=SC2016 # the stand-in's own expansion
+expect fail "a merge driver that writes another index fails" "the ADR index differs after the merge" \
+  run_hooks "$(hook_nuc driver-other '[ "$1" = hook ] && [ "$2" = merge-adr-index ] && { cat "$3" > "$4"; exit 0; }; '"$HOOK_AGREES")" \
+  "$work/hook-scenarios-driver.sh" "$NO_CASES" "$dtree"
 expect fail "hook scenarios without a tree of the template fail" "the corpus pins no tree of the template" \
   run_hooks "$(hook_nuc agrees "$HOOK_AGREES")" "$HOOK_SCENARIOS_FILE" "$NO_CASES"
 printf 'pattern\tdocs/x\t-\n' > "$work/hooks-bad.tsv"
