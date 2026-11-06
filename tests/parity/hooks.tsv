@@ -12,3 +12,5 @@
 ^pre-push: refused — the checks are red, and they pass before anything is pushed	hook/push-checks	-
 ^pre-push: (.+) carries ([0-9]+) draft ADR\(s\); they take their numbers on the branch of the pull request into main, by scripts/ready-for-main\.sh \((README|CONTRIBUTING\.md), Integration branches, step 7\)\.$	notice/drafts	\1 \2 \3
 ^pre-push: the checks passed on this tree before; not run again\.$	notice/green-tree	-
+^reference-transaction: refused — main moves only to what origin/main has, and changes reach it through a pull request \(AGENTS\.md, section 6\)\. Take up the remote's main: git merge --ff-only origin/main$	hook/main-moves	refs/heads/main take-up
+^reference-transaction: refused — main moves only to what origin/main has, and changes reach it through a pull request \(AGENTS\.md, section 6\)\. main has commits origin/main lacks; keep them on a branch and take main back: git switch -c feat/<topic> main, then git branch -f main origin/main$	hook/main-moves	refs/heads/main ahead

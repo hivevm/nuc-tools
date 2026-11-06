@@ -165,3 +165,62 @@ hook_scenario push-linked pre-push "a push from a linked worktree hands the chec
   linked -C wt push -q origin feature
 hook_scenario push-unconfigured pre-push "a push from a clone without the merge settings" \
   unconfigured push -q origin feature
+
+# moves <dir> — the remote has main, fetched as origin/main, and a branch 'ahead' one commit past
+# main that the remote lacks, with main checked out.
+moves() {
+  hp_git "$1" push -q origin main
+  hp_git "$1" fetch -q origin
+  hp_git "$1" switch -q -c ahead
+  echo ahead > "$1/a"
+  hp_git "$1" add a
+  hp_git "$1" commit -q -m ahead
+  hp_git "$1" switch -q main
+}
+on_ahead() { moves "$1"; hp_git "$1" switch -q ahead; }
+# remote_moved <dir> — the remote's main moved to 'ahead' by path, as another clone would move it,
+# with origin/main still behind.
+remote_moved() { on_ahead "$1"; hp_git "$1" push -q "$1.git" ahead:main; }
+# taken_up <dir> — as remote_moved, fetched, so that origin/main is past main, on main.
+taken_up() { remote_moved "$1"; hp_git "$1" fetch -q origin; hp_git "$1" switch -q main; }
+# main_ahead <dir> — main one commit past the remote's, as in a clone with unpushed work.
+main_ahead() { moves "$1"; hp_git "$1" commit -q --allow-empty -m unpushed; }
+kept() { main_ahead "$1"; hp_git "$1" switch -q -c feat/kept main; }
+
+hook_scenario main-ff-local reference-transaction \
+  "a fast-forward of main to a local branch|a main not ahead is told to take up the remote's main" \
+  moves merge -q --ff-only ahead
+hook_scenario --bare main-ff-local-bare reference-transaction "a fast-forward of main to a local branch" \
+  moves merge -q --ff-only ahead
+hook_scenario main-commit-no-verify reference-transaction "a commit on main that skips pre-commit" \
+  moves commit -q --no-verify --allow-empty -m x
+hook_scenario main-cherry-pick reference-transaction "a cherry-pick onto main" moves cherry-pick ahead
+hook_scenario main-reset-local reference-transaction "a reset of main to a local branch" \
+  moves reset -q --hard ahead
+hook_scenario main-update-ref reference-transaction "an update of main by its ref" \
+  moves update-ref refs/heads/main ahead
+hook_scenario commit-on-ahead reference-transaction "a commit on another branch is no move of main" \
+  on_ahead commit -q --allow-empty -m on-ahead
+hook_scenario main-branch-f reference-transaction "git branch -f of main from another branch" \
+  on_ahead branch -f main ahead
+hook_scenario main-fetch reference-transaction "a fetch that moves main with origin/main" \
+  remote_moved fetch -q origin main:main
+hook_scenario main-take-up reference-transaction "main takes up the remote's main" \
+  taken_up merge -q --ff-only origin/main
+hook_scenario main-reset-remote reference-transaction "main is reset to the remote's main" \
+  taken_up reset -q --hard origin/main
+hook_scenario main-pack-refs reference-transaction "pack-refs writes main where it already is" \
+  main_ahead pack-refs --all
+hook_scenario main-reset-head reference-transaction "a reset of main to where it is moves nothing" \
+  main_ahead reset -q --hard HEAD
+hook_scenario main-ahead reference-transaction \
+  "main ahead still moves no further|the refusal says how to keep the commits of a main ahead" \
+  main_ahead commit -q --no-verify --allow-empty -m more
+hook_scenario main-ahead-kept reference-transaction "the commits of a main ahead move to a branch" \
+  main_ahead switch -q -c feat/kept main
+hook_scenario main-taken-back reference-transaction "main is taken back to the remote's main" \
+  kept branch -f main origin/main
+hook_scenario main-deleted reference-transaction "a deletion of the local main" \
+  on_ahead branch -q -D main
+hook_scenario no-origin-main reference-transaction "without origin/main nothing is decided" \
+  : commit -q --no-verify --allow-empty -m x
