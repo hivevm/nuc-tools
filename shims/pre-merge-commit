@@ -1,0 +1,49 @@
+#!/bin/sh
+#
+# Git pre-merge-commit hook, the reference shim of nuc (ADR-0021): 'nuc hook pre-merge-commit'
+# decides from the git state, and this shim runs the project's documentation check where nuc
+# answers that it runs.
+#
+# nuc refuses a merge on main, and answers 3 on a merge into any other branch whose repository
+# has scripts/check-docs.sh: the shim then runs it on the merged tree, with the variables git
+# hands a hook unset, and refuses while it is red or cannot run. Every answer but 0 and 3 refuses,
+# a panic's 101 and a code a later nuc adds included. Without nuc on the PATH it refuses and names
+# where to install it.
+#
+# POSIX sh, so that git for Windows runs it with the sh it bundles. Bypassable with
+# 'git merge --no-verify'; AGENTS.md, section 6 says who may.
+
+if ! command -v nuc >/dev/null 2>&1; then
+  echo "pre-merge-commit: refused — nuc is not on the PATH, so no hook decides. Install it from https://github.com/hivevm/nuc-tools/releases" >&2
+  exit 1
+fi
+
+nuc hook pre-merge-commit "$@"
+answer=$?
+case "$answer" in
+  0) exit 0 ;;
+  3) ;;
+  1 | 2) exit 1 ;;
+  *)
+    echo "pre-merge-commit: refused — nuc hook pre-merge-commit exited $answer, which this shim does not know" >&2
+    exit 1
+    ;;
+esac
+
+if ! root="$(git rev-parse --show-toplevel)"; then
+  echo "pre-merge-commit: refused — git names no work tree, so the documentation check cannot run" >&2
+  exit 1
+fi
+
+# The checks build fixture repositories of their own; the variables git hands a hook would bind
+# every git command in a fixture to this repository.
+# shellcheck disable=SC2046 # one variable name per word
+unset $(git rev-parse --local-env-vars)
+
+if ! bash "$root/scripts/check-docs.sh"; then
+  echo >&2
+  echo "pre-merge-commit: refused — the documentation check is red on the merge, and it passes before a branch takes up another (AGENTS.md, section 6). git merge --abort, fix it on the merged branch, then merge again." >&2
+  exit 1
+fi
+
+exit 0

@@ -12,17 +12,28 @@ use crate::rules;
 use super::tree::Tree;
 use super::{FOUND, PASSED, RUN_CHECK, git, running};
 
-/// The hooks this `nuc` decides, by the name git gives them.
-const HOOKS: &[&str] = &["pre-commit"];
+/// How a hook decides on the state of a commit, with the hook rules turned on.
+type Decide = fn(&hook::Commit, &dyn Fn(&HookRule) -> bool) -> Answer;
+
+/// The hooks this `nuc` decides, by the name git gives them, each with the check script its shim
+/// runs on 3 and its decision.
+const HOOKS: &[(&str, &str, Decide)] = &[
+    ("pre-commit", "scripts/check-all.sh", hook::pre_commit),
+    (
+        "pre-merge-commit",
+        "scripts/check-docs.sh",
+        hook::pre_merge_commit,
+    ),
+];
 
 /// `nuc hook <name>`, run in the directory git runs the hook in.
 pub(super) fn run(name: &str, args: &[&str]) -> Result<u8, String> {
-    if !HOOKS.contains(&name) {
+    let Some(&(_, script, decide)) = HOOKS.iter().find(|(known, _, _)| *known == name) else {
         return Err(format!(
             "no hook '{name}' is known to this nuc — a newer nuc may know it: {}",
             config::INSTALL
         ));
-    }
+    };
     if !args.is_empty() {
         return Err(format!("nuc hook {name} takes no arguments"));
     }
@@ -38,11 +49,10 @@ pub(super) fn run(name: &str, args: &[&str]) -> Result<u8, String> {
         // A test of existence, which reads nothing (Q-12).
         check_script: root
             .as_ref()
-            .is_some_and(|root| root.join("scripts/check-all.sh").is_file()),
+            .is_some_and(|root| root.join(script).is_file()),
     };
-    let answer = hook::pre_commit(&state, &|rule: &HookRule| {
-        on.iter().any(|on| on.id == rule.id)
-    });
+    let on = |rule: &HookRule| on.iter().any(|on| on.id == rule.id);
+    let answer = decide(&state, &on);
     Ok(match answer {
         Answer::Pass => PASSED,
         Answer::Refuse(finding) => {

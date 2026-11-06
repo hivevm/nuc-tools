@@ -4,3 +4,5 @@
 
 ^pre-commit: refused — the checkout is on 'main', and changes reach main through a pull request	hook/commit-on-main	refs/heads/main
 ^pre-commit: refused — the checks are red on the resolved merge	hook/merge-checks	-
+^pre-merge-commit: refused — the checkout is on 'main', and changes reach main through a pull request	hook/merge-on-main	refs/heads/main
+^pre-merge-commit: refused — the documentation check is red on the merge	hook/merge-docs	-

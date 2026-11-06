@@ -29,7 +29,10 @@ case "$answer" in
     ;;
 esac
 
-root="$(git rev-parse --show-toplevel)" || exit 1
+if ! root="$(git rev-parse --show-toplevel)"; then
+  echo "pre-commit: refused — git names no work tree, so the checks cannot run" >&2
+  exit 1
+fi
 
 # The checks build fixture repositories of their own; the variables git hands a hook would bind
 # every git command in a fixture to this repository.

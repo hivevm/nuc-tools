@@ -19,6 +19,8 @@ docs/template-identity
 docs/template-release
 hook/commit-on-main
 hook/merge-checks
+hook/merge-docs
+hook/merge-on-main
 traceability/citations
 traceability/coverage
 traceability/criteria

@@ -19,12 +19,6 @@ the same tree with an untracked file is checked again	awaits the port of pre-pus
 a new tree is checked again	awaits the port of pre-push
 a push from a linked worktree hands the checks no git environment	awaits the port of pre-push
 a push from a clone without the merge settings	awaits the port of pre-push
-a merge into a branch while the documentation check is red	awaits the port of pre-merge-commit
-the refusal shows the documentation check's output	awaits the port of pre-merge-commit
-a clean merge is not gated by the rest of the checks	awaits the port of pre-merge-commit
-merge.ff false keeps a fast-forward from passing the hook	awaits the port of pre-merge-commit
-a merge into a branch while the checks are green	awaits the port of pre-merge-commit
-a merge on main, though the checks are green	awaits the port of pre-merge-commit
 the driver keeps the rows both sides appended to the index	awaits the port of merge-adr-index
 the driver takes a rule one side changed	awaits the port of merge-adr-index
 the driver stops on a rule both sides changed	awaits the port of merge-adr-index
