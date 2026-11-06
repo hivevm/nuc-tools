@@ -280,3 +280,7 @@ jobs:
         run: bash scripts/test-check-parity.sh
       - name: Compare the bash checks and nuc on the corpus
         run: bash scripts/check-parity.sh
+      # The benchmark of Q-5 runs in benchmark.yml on a schedule; its self-test, which no timing
+      # decides, runs here with the other tests of the hooks' port.
+      - name: Self-test the hook latency benchmark
+        run: bash scripts/test-bench-hook-latency.sh

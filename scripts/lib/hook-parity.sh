@@ -101,9 +101,24 @@ hp_lines() {
         fi
       done
       if [[ -n "$matched" ]]; then printf 'rule\t%s\n' "$matched"; else printf 'unknown\t%s\n' "$line"; fi
-    elif [[ "$line" =~ ^([^\ :]+):\ (hook/[a-z0-9-]+):\  ]]; then
-      if _contains "${BASH_REMATCH[2]}" "${hp_ids[@]}"; then
-        printf 'rule\t%s\t%s\n' "${BASH_REMATCH[2]}" "${BASH_REMATCH[1]}"
+    elif [[ "$line" =~ ^([^\ :]+):\ (hook/[a-z0-9-]+):\ (.*)$ ]]; then
+      local location="${BASH_REMATCH[1]}" rule="${BASH_REMATCH[2]}" message="${BASH_REMATCH[3]}"
+      if _contains "$rule" "${hp_ids[@]}"; then
+        # A finding worded as the bash words its refusal maps by the same row, so that the fields
+        # it carries beyond the ref, as which hint it gives, are compared; else by its ref.
+        matched=""
+        for i in "${!hp_patterns[@]}"; do
+          if [[ "${hp_ids[i]}" == "$rule" && "$hook: refused — $message" =~ ${hp_patterns[i]} ]]; then
+            field="${hp_fields[i]}"
+            for g in 1 2 3 4 5 6 7 8 9; do field="${field//\\$g/${BASH_REMATCH[g]:-}}"; done
+            matched="$field"
+            break
+          fi
+        done
+        if [[ -n "$matched" && "$matched" != "$location" && "$matched" != "$location "* ]]; then
+          printf 'unknown\tnuc places %s at %s, where the table places it at %s\n' "$rule" "$location" "$matched"
+        fi
+        printf 'rule\t%s\t%s\n' "$rule" "${matched:-$location}"
       else
         printf 'unknown\tnuc reports %s, which the table maps no line to\n' "${BASH_REMATCH[2]}"
       fi

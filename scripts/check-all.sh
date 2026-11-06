@@ -210,6 +210,11 @@ run "Build, test, and lint" scripts/check-build.sh
 run "Dependency audit" scripts/check-deps.sh
 run "Parity harness self-test" scripts/test-check-parity.sh
 run "Parity" scripts/check-parity.sh
+# The benchmark of Q-5, tests/bench/hook-latency.sh, runs in benchmark.yml on a schedule, where
+# the timing of a runner gates no push (ADR-0008); its self-test, which no timing decides, runs
+# here.
+# Not a gate: .github/workflows/benchmark.yml
+run "Hook latency benchmark self-test" scripts/test-bench-hook-latency.sh
 run "Release tooling self-test" scripts/test-release.sh
 
 wait

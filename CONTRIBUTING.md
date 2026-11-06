@@ -58,7 +58,8 @@ scripts/*.sh          # run by hand, steps 7 and 8 of the integration branches: 
 .githooks/            # git hooks: nothing lands on main locally; checks before a merge and a push
 .github/workflows/    # checks.yml runs the checks, the build on every platform of Q-4 included;
                       # review-binding.yml reads each pull request's hand-off; release.yml
-                      # publishes a release, release-test.yml tests what it runs
+                      # publishes a release, release-test.yml tests what it runs; benchmark.yml
+                      # measures Q-5 on a schedule
 .github/              # Dependabot, issue & pull request templates, code owners
 .devcontainer/        # Dev Container definition (base image + Features)
 .vscode/              # shared editor settings
@@ -75,8 +76,9 @@ action.yml            # the GitHub Action: installs the nuc of its release and r
 release/              # the release tooling: build, checksums, the installer, and the release commit
 feature/              # the Dev Container Feature ghcr.io/hivevm/nuc-tools/nuc
 tests/                # the integration tests, their fixture helpers and the readings of the
-                      # crate's sources in tests/support/, and the corpus, variants, tables,
-                      # and hook scenarios of the parity harness in tests/parity/
+                      # crate's sources in tests/support/, the corpus, variants, tables, and
+                      # hook scenarios of the parity harness in tests/parity/, and the benchmark
+                      # of Q-5 in tests/bench/
 .agents/skills/       # the procedures of AGENTS.md as Agent Skills, one directory each (ADR-0003),
                       # with the scripts and templates they carry (claim.sh, remap.sh, ticket.md)
 .claude/CLAUDE.md     # pointer for Claude Code to read AGENTS.md

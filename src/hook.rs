@@ -59,6 +59,15 @@ pub const PUSH_CHECKS: HookRule = HookRule {
               are red",
 };
 
+/// The refusal of a move of the local `main` to a commit `origin/main` lacks.
+pub const MAIN_MOVES: HookRule = HookRule {
+    id: "hook/main-moves",
+    explain: "changes reach main through a pull request, and the local main only takes up the \
+              remote's (AGENTS.md, section 6); the reference-transaction hook refuses any update \
+              of main to a commit origin/main lacks, as a fast-forward to a local branch, a \
+              cherry-pick, a reset, or git branch -f would make it",
+};
+
 /// Every hook rule this `nuc` knows, all of them on where the repository has no `nuc.toml`
 /// (ADR-0023).
 pub const ALL: &[HookRule] = &[
@@ -68,6 +77,7 @@ pub const ALL: &[HookRule] = &[
     MERGE_DOCS,
     PUSH_TO_MAIN,
     PUSH_CHECKS,
+    MAIN_MOVES,
 ];
 
 /// How many green trees the record keeps, the last first out.
@@ -259,6 +269,93 @@ pub fn record(existing: &str, tree: &str) -> String {
 /// Whether the record of green trees holds `tree` as a line of its own.
 pub fn holds(record: &str, tree: &str) -> bool {
     record.lines().any(|line| line == tree)
+}
+
+/// One update of a reference transaction, as git hands it on the standard input: the new object,
+/// none for a deletion, which is all zeros, and the ref.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RefUpdate {
+    pub new: Option<String>,
+    pub reference: String,
+}
+
+/// The updates of `reference-transaction`'s standard input, one line each of three fields, old
+/// value, new value, ref, each value an object in hex or, for a symbolic ref, `ref:` and its
+/// target, as git from 2.47 hands them; a line in any other shape is not decided (Q-1). A
+/// symbolic value of `main` is no commit `origin/main` has, as the bash finds it.
+pub fn ref_updates(input: &str) -> Result<Vec<RefUpdate>, String> {
+    let hex = |field: &str| {
+        (matches!(field.len(), 40 | 64) && field.bytes().all(|b| b.is_ascii_hexdigit()))
+            || field
+                .strip_prefix("ref:")
+                .is_some_and(|target| !target.is_empty())
+    };
+    input
+        .lines()
+        .map(|line| match line.split(' ').collect::<Vec<_>>()[..] {
+            [old, new, reference] if hex(old) && hex(new) && !reference.is_empty() => {
+                Ok(RefUpdate {
+                    new: (!new.bytes().all(|b| b == b'0')).then(|| new.to_owned()),
+                    reference: reference.to_owned(),
+                })
+            }
+            _ => Err(format!(
+                "the standard input of reference-transaction holds a line that is not '<old \
+                 object> <new object> <ref>': {line:?} — not decided"
+            )),
+        })
+        .collect()
+}
+
+/// The commits of the local `main` a transaction moves it to: each new object of
+/// `refs/heads/main` that is no deletion and not where `main` already is, `current`.
+pub fn moves_of_main<'a>(updates: &'a [RefUpdate], current: Option<&str>) -> Vec<&'a str> {
+    updates
+        .iter()
+        .filter(|update| update.reference == "refs/heads/main")
+        .filter_map(|update| update.new.as_deref())
+        .filter(|new| Some(*new) != current)
+        .collect()
+}
+
+/// `origin/main` as the transaction leaves it: the last new object it gives the ref, else where it
+/// is, `before`.
+pub fn remote_main(updates: &[RefUpdate], before: Option<String>) -> Option<String> {
+    updates
+        .iter()
+        .rev()
+        .filter(|update| update.reference == "refs/remotes/origin/main")
+        .find_map(|update| update.new.clone())
+        .or(before)
+}
+
+/// `reference-transaction` in the `prepared` state: refuse a move of `main` to a commit the
+/// remote's main lacks, `has(commit)` saying whether it is one `origin/main` has; with the hint
+/// for a `main` already ahead where `has(current)` says it is not.
+pub fn reference_transaction(
+    moves: &[&str],
+    current: Option<&str>,
+    has: &dyn Fn(&str) -> bool,
+    on: &dyn Fn(&HookRule) -> bool,
+) -> Answer {
+    if !on(&MAIN_MOVES) || moves.iter().all(|new| has(new)) {
+        return Answer::Pass;
+    }
+    let hint = if current.is_some_and(|current| !has(current)) {
+        "main has commits origin/main lacks; keep them on a branch and take main back: git switch \
+         -c feat/<topic> main, then git branch -f main origin/main"
+    } else {
+        "Take up the remote's main: git merge --ff-only origin/main"
+    };
+    Answer::Refuse(Finding {
+        rule: MAIN_MOVES.id,
+        file: "refs/heads/main".to_owned(),
+        line: None,
+        message: format!(
+            "main moves only to what origin/main has, and changes reach it through a pull request \
+             (AGENTS.md, section 6). {hint}"
+        ),
+    })
 }
 
 #[cfg(test)]
@@ -478,5 +575,96 @@ mod tests {
         assert_eq!(out.lines().count(), 50);
         assert_eq!(out.lines().next(), Some("11"));
         assert!(holds(&out, "t") && !holds(&out, "1") && !holds("tt\n", "t"));
+    }
+
+    fn update(new: &str, reference: &str) -> RefUpdate {
+        RefUpdate {
+            new: (new != ZERO).then(|| new.to_owned()),
+            reference: reference.to_owned(),
+        }
+    }
+
+    const TWO: &str = "2222222222222222222222222222222222222222";
+
+    #[test]
+    fn the_updates_read_three_fields_and_refuse_any_other_shape() {
+        let input = format!("{ZERO} {ONE} refs/heads/main\n{ONE} {ZERO} refs/heads/x\n");
+        let updates = ref_updates(&input).unwrap();
+        assert_eq!(
+            updates,
+            [update(ONE, "refs/heads/main"), update(ZERO, "refs/heads/x")]
+        );
+        for bad in [
+            "x",
+            &format!("{ZERO} {ONE}"),
+            &format!("{ZERO} {ONE} a b"),
+            &format!("{ZERO} nothex refs/heads/main"),
+        ] {
+            assert!(ref_updates(bad).is_err(), "{bad:?}");
+        }
+    }
+
+    // The bash cases: "pack-refs writes main where it already is", "a deletion of the local main".
+    #[test]
+    fn a_write_of_main_where_it_is_and_a_deletion_move_nothing() {
+        let updates = [
+            update(ONE, "refs/heads/main"),
+            update(ZERO, "refs/heads/main"),
+            update(TWO, "refs/heads/x"),
+        ];
+        assert!(moves_of_main(&updates, Some(ONE)).is_empty());
+        assert_eq!(moves_of_main(&updates, None), [ONE]);
+    }
+
+    // The bash case: "a fetch that moves main with origin/main".
+    #[test]
+    fn origin_main_is_taken_as_the_transaction_leaves_it() {
+        let updates = [update(TWO, "refs/remotes/origin/main")];
+        assert_eq!(
+            remote_main(&updates, Some(ONE.to_owned())).as_deref(),
+            Some(TWO)
+        );
+        assert_eq!(
+            remote_main(
+                &[update(ZERO, "refs/remotes/origin/main")],
+                Some(ONE.to_owned())
+            )
+            .as_deref(),
+            Some(ONE)
+        );
+        assert_eq!(remote_main(&[], None), None);
+    }
+
+    // The bash cases: "a fast-forward of main to a local branch", "the refusal says how to keep
+    // the commits of a main ahead", "main takes up the remote's main".
+    #[test]
+    fn a_move_to_a_commit_origin_main_lacks_is_refused_with_its_hint() {
+        let has = |commit: &str| commit == ONE;
+        assert_eq!(
+            reference_transaction(&[ONE], Some(ONE), &has, &all),
+            Answer::Pass
+        );
+        let Answer::Refuse(finding) = reference_transaction(&[TWO], Some(ONE), &has, &all) else {
+            panic!("a move to a local commit passed");
+        };
+        assert_eq!(finding.rule, "hook/main-moves");
+        assert_eq!(finding.file, "refs/heads/main");
+        assert!(
+            finding
+                .message
+                .ends_with("Take up the remote's main: git merge --ff-only origin/main")
+        );
+        let Answer::Refuse(ahead) = reference_transaction(&[TWO], Some(TWO), &has, &all) else {
+            panic!("a main ahead moved");
+        };
+        assert!(
+            ahead
+                .message
+                .contains("git switch -c feat/<topic> main, then git branch -f main origin/main")
+        );
+        assert_eq!(
+            reference_transaction(&[TWO], None, &has, &none),
+            Answer::Pass
+        );
     }
 }

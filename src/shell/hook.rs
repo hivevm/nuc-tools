@@ -33,6 +33,9 @@ pub(super) fn run(name: &str, args: &[&str]) -> Result<u8, String> {
     if name == "pre-push" {
         return pre_push(args);
     }
+    if name == "reference-transaction" {
+        return reference_transaction(args);
+    }
     let Some(&(_, script, decide)) = HOOKS.iter().find(|(known, _, _)| *known == name) else {
         return Err(format!(
             "no hook '{name}' is known to this nuc — a newer nuc may know it: {}",
@@ -154,13 +157,77 @@ fn pre_push(args: &[&str]) -> Result<u8, String> {
     Ok(carry_out(out.answer))
 }
 
-/// The standard input git hands the hook, which reads no file.
+/// The standard input git hands the hook, which reads no file. A ref name may hold bytes that are
+/// no UTF-8, which git accepts; each stands for U+FFFD here, so that no such name refuses, and
+/// `main`, `origin/main`, and the objects, all ASCII, read as they are.
 fn read_stdin() -> Result<String, String> {
-    let mut input = String::new();
+    let mut input = Vec::new();
     io::stdin()
-        .read_to_string(&mut input)
-        .map_err(|e| format!("the standard input of pre-push is unreadable: {e} — not decided"))?;
-    Ok(input)
+        .read_to_end(&mut input)
+        .map_err(|e| format!("the standard input of the hook is unreadable: {e} — not decided"))?;
+    Ok(String::from_utf8_lossy(&input).into_owned())
+}
+
+/// `nuc hook reference-transaction <state>`, with the updates on the standard input: in the
+/// `prepared` state, where a refusal aborts the transaction, a move of the local `main` only to a
+/// commit `origin/main` has as the transaction leaves it; every other state passes.
+fn reference_transaction(args: &[&str]) -> Result<u8, String> {
+    let [state] = args else {
+        return Err("usage: nuc hook reference-transaction <state>".to_owned());
+    };
+    if *state != "prepared" {
+        return Ok(PASSED);
+    }
+    let updates = hook::ref_updates(&read_stdin()?)?;
+    let dir =
+        env::current_dir().map_err(|e| format!("the current directory is unreadable: {e}"))?;
+    // Git runs a hook from the root of the work tree, or in the git directory of a bare
+    // repository (githooks(5)), so `nuc.toml` is read there without asking git: this hook runs on
+    // every update of a ref, and each git call costs a process (Q-5). Where git was pointed at a
+    // work tree outside the directory it runs in, the check of the git directory below refuses.
+    let on = turned_on(Some(&dir))?;
+    // A transaction that touches no main moves none, and needs no more of git: its pass depends
+    // on no repository, so the git directory git hands the hook is checked only past it.
+    if !updates
+        .iter()
+        .any(|update| update.reference == "refs/heads/main")
+    {
+        return Ok(PASSED);
+    }
+    same_git_dir(&dir)?;
+    let refs = git::run(
+        &dir,
+        &[
+            "for-each-ref",
+            "--format=%(refname) %(objectname)",
+            "refs/heads/main",
+            "refs/remotes/origin/main",
+        ],
+    )?;
+    let object = |name: &str| {
+        refs.lines()
+            .find_map(|line| line.strip_prefix(name)?.strip_prefix(' '))
+            .map(str::to_owned)
+    };
+    // Without origin/main, a repository that has no remote's main yet, nothing is decided.
+    let Some(remote) = hook::remote_main(&updates, object("refs/remotes/origin/main")) else {
+        return Ok(PASSED);
+    };
+    let current = object("refs/heads/main");
+    let moves = hook::moves_of_main(&updates, current.as_deref());
+    // A commit origin/main has: one it is or descends from. Where git cannot tell, it has none,
+    // as the bash reads a failing merge-base.
+    let has = |commit: &str| {
+        git::probe(&dir, &["merge-base", "--is-ancestor", commit, &remote])
+            .is_ok_and(|answer| answer.is_some())
+    };
+    let on = |rule: &HookRule| on.iter().any(|on| on.id == rule.id);
+    Ok(carry_out(hook::reference_transaction(
+        &moves,
+        current.as_deref(),
+        &has,
+        &on,
+    )))
 }
 
 /// The count of draft ADRs the object carries, as the bash counts the names `git ls-tree` lists:

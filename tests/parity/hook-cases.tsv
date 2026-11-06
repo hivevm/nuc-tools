@@ -8,24 +8,5 @@ the driver takes a rule one side changed	awaits the port of merge-adr-index
 the driver stops on a rule both sides changed	awaits the port of merge-adr-index
 the driver stops on a line changed right below a row the other side appended	awaits the port of merge-adr-index
 without the driver configured the index merges as text	awaits the port of merge-adr-index
-a fast-forward of main to a local branch	awaits the port of reference-transaction
 a refused fast-forward leaves main where it was	no case of a hook: 'git diff --quiet' asserts that a refusal left main in place, which the scenario of the refusal compares
 the documented restore takes the index and the working tree back	no case of a hook: 'git diff --quiet' asserts the restore CONTRIBUTING.md documents, and runs no hook
-a commit on main that skips pre-commit	awaits the port of reference-transaction
-a cherry-pick onto main	awaits the port of reference-transaction
-a reset of main to a local branch	awaits the port of reference-transaction
-an update of main by its ref	awaits the port of reference-transaction
-a commit on another branch is no move of main	awaits the port of reference-transaction
-git branch -f of main from another branch	awaits the port of reference-transaction
-a fetch that moves main with origin/main	awaits the port of reference-transaction
-main takes up the remote's main	awaits the port of reference-transaction
-main is reset to the remote's main	awaits the port of reference-transaction
-pack-refs writes main where it already is	awaits the port of reference-transaction
-a reset of main to where it is moves nothing	awaits the port of reference-transaction
-main ahead still moves no further	awaits the port of reference-transaction
-the refusal says how to keep the commits of a main ahead	awaits the port of reference-transaction
-the commits of a main ahead move to a branch	awaits the port of reference-transaction
-main is taken back to the remote's main	awaits the port of reference-transaction
-a deletion of the local main	awaits the port of reference-transaction
-a main not ahead is told to take up the remote's main	awaits the port of reference-transaction
-without origin/main nothing is decided	awaits the port of reference-transaction

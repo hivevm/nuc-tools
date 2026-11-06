@@ -78,6 +78,22 @@ fn shimmed(name: &str) -> Fixture {
     fixture
 }
 
+/// A fixture with one commit on `main` and the shim of `hook` alone as its hooks, so that no other
+/// shim answers for the git command that runs it.
+fn shimmed_only(name: &str, hook: &str) -> Fixture {
+    let fixture = shimmed(name);
+    let dir = fixture.root().with_extension("hooks");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("the hooks directory");
+    std::fs::copy(shims().join(hook), dir.join(hook)).expect("the shim is copied");
+    fixture.git(&[
+        "config",
+        "core.hooksPath",
+        &dir.display().to_string().replace('\\', "/"),
+    ]);
+    fixture
+}
+
 /// Give the fixture a `scripts/check-all.sh` that prints its arguments and exits as told.
 fn checks(fixture: &Fixture, code: u8) {
     fixture.write(
@@ -247,14 +263,14 @@ fn a_git_dir_handed_from_elsewhere_is_not_decided_and_a_linked_worktree_is() {
 fn every_shim_refuses_every_answer_but_0_and_3() {
     for hook in every_shim() {
         for code in [1, 2, 101, 7, 4] {
-            let fixture = shimmed(&format!("hooks-answer-{hook}-{code}"));
+            let fixture = shimmed_only(&format!("hooks-answer-{hook}-{code}"), &hook);
             let args = trigger(&fixture, &hook);
             let bin = stand_in(&fixture, &format!("exit {code}"));
             let output = git_hooked(&fixture, Some(&bin), &[], args);
             assert!(!output.status.success(), "{hook} passed exit {code}");
             let _ = std::fs::remove_dir_all(bin);
         }
-        let fixture = shimmed(&format!("hooks-answer-{hook}-0"));
+        let fixture = shimmed_only(&format!("hooks-answer-{hook}-0"), &hook);
         let args = trigger(&fixture, &hook);
         let bin = stand_in(&fixture, "exit 0");
         let output = git_hooked(&fixture, Some(&bin), &[], args);
@@ -265,7 +281,7 @@ fn every_shim_refuses_every_answer_but_0_and_3() {
 
 #[test]
 fn the_shim_runs_the_check_only_on_3_and_refuses_one_that_cannot_run() {
-    let fixture = shimmed("hooks-run");
+    let fixture = shimmed_only("hooks-run", "pre-commit");
     fixture.git(&["switch", "-q", "-c", "feature"]);
     checks(&fixture, 0);
     let bin = stand_in(&fixture, "exit 0");
@@ -604,6 +620,10 @@ fn trigger(fixture: &Fixture, hook: &str) -> &'static [&'static str] {
             merging(fixture);
             MERGE
         }
+        "reference-transaction" => {
+            fixture.git(&["switch", "-q", "-c", "feature"]);
+            &["commit", "-q", "--allow-empty", "-m", "x"]
+        }
         "pre-push" => {
             remote(fixture);
             fixture.git(&["switch", "-q", "-c", "feature"]);
@@ -632,7 +652,7 @@ fn every_shim() -> Vec<String> {
 #[test]
 fn every_shim_stops_without_nuc_and_with_a_nuc_too_old() {
     for hook in every_shim() {
-        let fixture = shimmed(&format!("hooks-absent-{hook}"));
+        let fixture = shimmed_only(&format!("hooks-absent-{hook}"), &hook);
         let args = trigger(&fixture, &hook);
         let output = git_hooked(&fixture, None, &[], args);
         assert!(!output.status.success(), "{hook} passed without nuc");
@@ -644,7 +664,7 @@ fn every_shim_stops_without_nuc_and_with_a_nuc_too_old() {
             both(&output)
         );
 
-        let fixture = shimmed(&format!("hooks-old-{hook}"));
+        let fixture = shimmed_only(&format!("hooks-old-{hook}"), &hook);
         let canary = fixture.root().join("canary-ran");
         let script = format!(
             "#!/bin/sh\necho ran >> \"{}\"\n",
@@ -778,7 +798,7 @@ fn the_shims_decide_with_no_bash_on_the_path_and_refuse_a_check_that_needs_it() 
 #[test]
 fn a_panic_of_nuc_hook_is_refused_and_named() {
     for hook in every_shim() {
-        let fixture = shimmed(&format!("hooks-panic-{hook}"));
+        let fixture = shimmed_only(&format!("hooks-panic-{hook}"), &hook);
         let args = trigger(&fixture, &hook);
         let output = git_hooked(&fixture, Some(&built()), &[("NUC_TEST_PANIC", "1")], args);
         assert!(!output.status.success(), "{hook} passed a panic");
@@ -811,8 +831,14 @@ fn a_shim_refuses_where_git_names_no_work_tree() {
             .output()
             .expect("sh runs");
         assert!(!output.status.success(), "{hook} passed");
+        // A hook that runs no check knows no 3.
+        let refusal = if hook == "reference-transaction" {
+            format!("{hook}: refused — nuc hook {hook} exited 3, which this shim does not know")
+        } else {
+            format!("{hook}: refused — git names no work tree")
+        };
         assert!(
-            both(&output).contains(&format!("{hook}: refused — git names no work tree")),
+            both(&output).contains(&refusal),
             "{hook}: {}",
             both(&output)
         );
@@ -1116,4 +1142,97 @@ fn a_readme_that_cannot_be_read_refuses_no_push() {
         "an unreadable README words the notice as the newest release: {}",
         both(&output)
     );
+}
+
+/// `nuc hook reference-transaction prepared` in the fixture, with the updates given.
+fn decide_updates(fixture: &Fixture, input: &str) -> Output {
+    use std::io::Write;
+    let mut command = Command::new(NUC);
+    cleared(&mut command)
+        .current_dir(fixture.root())
+        .args(["hook", "reference-transaction", "prepared"])
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
+    let mut child = command.spawn().expect("nuc runs");
+    child
+        .stdin
+        .take()
+        .expect("a standard input")
+        .write_all(input.as_bytes())
+        .expect("the input is written");
+    child.wait_with_output().expect("nuc ends")
+}
+
+#[test]
+fn malformed_updates_are_not_decided_and_named() {
+    let fixture = shimmed("hooks-updates-malformed");
+    let head = stdout(&fixture.git(&["rev-parse", "HEAD"]))
+        .trim()
+        .to_owned();
+    let zero = "0".repeat(40);
+    let good = format!("{zero} {head} refs/heads/x\n");
+    assert_eq!(decide_updates(&fixture, &good).status.code(), Some(0));
+    for input in [
+        "garbage\n",
+        &format!("{zero} {head}\n"),
+        &format!("{zero} {head} refs/heads/x extra\n"),
+    ] {
+        let output = decide_updates(&fixture, input);
+        assert_eq!(output.status.code(), Some(2), "{input:?}");
+        assert!(
+            stderr(&output).contains("the standard input of reference-transaction holds a line"),
+            "{}",
+            stderr(&output)
+        );
+    }
+}
+
+#[test]
+fn main_moves_only_to_what_origin_main_has_through_the_shim() {
+    let fixture = shimmed_only("hooks-main-moves", "reference-transaction");
+    let head = stdout(&fixture.git(&["rev-parse", "HEAD"]))
+        .trim()
+        .to_owned();
+    fixture.git(&["update-ref", "refs/remotes/origin/main", &head]);
+    fixture.git(&["switch", "-q", "-c", "ahead"]);
+    fixture.git(&["commit", "-q", "--allow-empty", "-m", "ahead"]);
+    let output = git_hooked(
+        &fixture,
+        Some(&built()),
+        &[],
+        &["branch", "-f", "main", "ahead"],
+    );
+    assert!(!output.status.success(), "main moved past origin/main");
+    assert!(
+        both(&output)
+            .contains("refs/heads/main: hook/main-moves: main moves only to what origin/main has"),
+        "{}",
+        both(&output)
+    );
+    let output = git_hooked(
+        &fixture,
+        Some(&built()),
+        &[],
+        &["commit", "-q", "--allow-empty", "-m", "x"],
+    );
+    assert!(output.status.success(), "{}", both(&output));
+}
+
+/// Linux alone, whose file systems take a ref name of bytes that are no UTF-8; that of macOS
+/// refuses the name before git runs the hook.
+#[cfg(target_os = "linux")]
+#[test]
+fn a_ref_name_that_is_no_utf8_is_no_malformed_update() {
+    use std::os::unix::ffi::OsStrExt;
+    let fixture = shimmed_only("hooks-ref-bytes", "reference-transaction");
+    let name = std::ffi::OsStr::from_bytes(b"caf\xe9");
+    let output = cleared(&mut Command::new("git"))
+        .env("PATH", path_with(Some(&built())))
+        .current_dir(fixture.root())
+        .arg("branch")
+        .arg(name)
+        .output()
+        .expect("git runs");
+    assert!(output.status.success(), "{}", both(&output));
 }
