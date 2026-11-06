@@ -46,7 +46,10 @@ project's check for that hook only on 3 and refuses on every code it does not na
   - the updates of a reference transaction and `origin/main` as the transaction leaves it;
   - the draft notice in the wording of the carried release;
   - the record of green trees;
-  - whether the hook's check script exists. Testing that it exists reads nothing (Q-12).
+  - whether the hook runs its check: 3 only where the bash would run it, that is with a work
+    tree, the hook's check script present (a test of existence, which reads nothing, Q-12), the
+    `hook/` rule that runs it turned on, and for `pre-push` a tree the record does not hold.
+    Otherwise the hook answers 0 where it does not refuse.
 
   It runs no script and no command but git ([ADR-0011](0011-git-cli-cleared-environment.md)).
 - **What the shim runs:** on 3, the check of its hook:
@@ -62,27 +65,30 @@ project's check for that hook only on 3 and refuses on every code it does not na
 - **The green tree:**
   - `nuc hook pre-push` decides the tree before it answers: the tree of `HEAD` when the working
     tree is clean, otherwise none.
-  - A tree the record holds answers 0, with the skip notice. Otherwise it answers 3 and writes the
+  - A tree the record holds answers 0, with the skip notice. Where it answers 3, it writes the
     tree it decided to `checks-pending-tree` in the git directory of the worktree, or removes that
     file when there is no tree.
   - Once the checks pass, the shim calls `nuc hook pre-push --record` with git's variables as git
     handed them. That call moves the pending tree into `checks-green-trees` of the common git
     directory, the file and the limit of 50 the bash keeps, and computes no tree of its own.
-- **Findings:** a refusal is a finding in the line form of ADR-0013. Its location is the ref the
-  hook guards, such as `refs/heads/main`, or `docs/adr/README.md` for the merge driver. Its rule ID
-  is in the area `hook/`. Notices go to the standard error and decide nothing.
-- **`nuc.toml`:** `nuc hook` works without one, with every `hook/` rule on and no minimum. With
-  one, its list of rules governs the hooks as it governs the checks, and its minimum holds (G-5).
-- **The release:** a hook reads the release line as `nuc check` does. Where the line or the README
-  is missing or names no release, the hook takes the newest release `nuc` knows rather than
-  refusing: check 14 gates the line, not the hooks.
-- How these two clauses depart from ADR-0014 is that ADR's restatement,
-  [ADR-draft-version-coupling-with-hook-defaults](draft-version-coupling-with-hook-defaults.md);
-  the exit code 3 is that of ADR-0013,
+  - `--record` exits 0 when it recorded and when there was no pending tree, and 2 when it could
+    not write. The shim ignores its exit status and lets the push pass, as the bash ignores a
+    failed write of the record: a lost record costs only a second run of the checks.
+- **Findings:** a refusal is a finding in the line form of ADR-0013, whose location for a hook is
+  the ref it guards, such as `refs/heads/main`, as the restatement of ADR-0013 admits. Its rule ID
+  is in the area `hook/`. The check a hook runs is a `hook/` rule as well, so a `nuc.toml` that
+  turns it off keeps the shim from running the check. Notices go to the standard error and decide
+  nothing; they are no rule and are written whatever `nuc.toml` lists.
+- **`nuc.toml` and the release:** how `nuc hook` reads them, with and without `nuc.toml`, is the
+  *Hooks* clause of the restatement of ADR-0014,
+  [ADR-draft-version-coupling-with-hook-defaults](draft-version-coupling-with-hook-defaults.md),
+  and stated there only. The exit code 3 and the ref as location are the restatement of ADR-0013,
   [ADR-draft-command-line-contract-with-hook-signal](draft-command-line-contract-with-hook-signal.md).
-- **Merge driver:** `.gitattributes` names the driver's shim for `docs/adr/README.md`. Git calls
-  it with the base, ours, theirs, and the three labels, and `nuc` writes the merged file into ours.
-  It exits 0 on a merge and 1 on a conflict, and git takes any other code as a conflict as well.
+- **Merge driver:** `.gitattributes` names the driver `adr-index` for `docs/adr/README.md`, and
+  the git configuration `merge.adr-index.driver` names its shim. Git calls the shim with the base,
+  ours, theirs, and the three labels, and `nuc` writes the merged file into ours. It exits 0 on a
+  merge, 1 on a conflict, and 2 when it could not decide; the shim passes the code through, and
+  git takes every non-zero code as a conflict.
 - **The shims:** one per hook of the template and one for the merge driver, under `shims/`, in
   POSIX sh. Each finds `nuc` on the `PATH`. Without it, the shim exits 1 with a message naming how
   to install `nuc` from its releases ([ADR-0017](0017-distribution.md)). A too old `nuc` is
@@ -149,14 +155,18 @@ project's check for that hook only on 3 and refuses on every code it does not na
 
 ## Enforcement
 
-The scenario harness of the hook-scenario parity ADR runs every hook through its shim.
+The scenario harness of
+[ADR-draft-hook-scenario-parity](draft-hook-scenario-parity.md) runs every hook through its shim,
+from the tracer of `docs/plan/hooks-port/` on.
 
-Tests cited with `Verifies: ADR-draft-hook-contract` check:
+Tests in `tests/hooks.rs`, cited with `Verifies: ADR-draft-hook-contract`, check, from the tracer
+for `pre-commit` and from the ticket of each further hook on:
 - that each shim exits non-zero on exit 1, 2, 101, and an unnamed code from a stand-in `nuc`, and
-  on a missing `nuc`, with the install message;
-- that a shim runs its check only on 3;
+  on a missing `nuc`, with the install message (the ticket that makes every shim fail closed);
+- that a shim runs its check only on 3, and that a red or unrunnable check refuses;
 - that a canary script stays unrun when `nuc hook <name>` is called directly;
 - that `--record` records the pending tree, not one computed after a check changed the working
-  tree;
-- that `nuc hook` without `nuc.toml` refuses a commit on `main`, and with a `nuc.toml` that lists
-  no `hook/` rule passes it.
+  tree, and that a failed `--record` lets the push pass (the ticket of `pre-push`);
+- that `nuc hook pre-commit` without `nuc.toml` refuses a commit on `main` and exits 0 on a
+  branch, and with a `nuc.toml` that lists no `hook/` rule exits 0 on `main` and on a conflicted
+  merge, without running the check.

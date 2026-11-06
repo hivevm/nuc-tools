@@ -44,8 +44,8 @@ runs without `nuc.toml` on defaults and takes the newest release it knows where 
   `nuc` alone turns nothing on.
 - **Fail closed:** `nuc` stops with a non-zero exit and a message naming how to install or update
   it when `nuc.toml` is missing or unreadable, when its minimum version is above the running one,
-  or when it lists a rule ID this `nuc` does not know. A missing binary is reported by the shim in
-  `.githooks/`.
+  or when it lists a rule ID this `nuc` does not know. A missing binary is reported by the shim
+  that hands the hook over.
 - **Template release:** read from the first `Template release` line of `README.md`, as check 14
   reads it; `nuc.toml` does not repeat it. The value is a `vX.Y.Z` tag at its start, or
   `unreleased`.
@@ -65,14 +65,22 @@ runs without `nuc.toml` on defaults and takes the newest release it knows where 
 - **The corpus:** for each release at which a ported check changed, the parity corpus pins a
   tree that carries it.
 
-- **Hooks:** `nuc hook` without `nuc.toml` turns every `hook/` rule on and has no minimum; with
-  it, its list and its minimum hold as for every command. Where the README or its release line is
-  missing or names no release, a hook takes the newest release `nuc` knows and refuses nothing for
-  it. The clauses *Fail closed*, *Default*, and *Not decided* above hold for every other command.
+- **Hooks:** `nuc hook` departs from the clauses above in these points only, stated here and
+  nowhere else:
+  - **Without `nuc.toml`:** every `hook/` rule is on and there is no minimum; *Fail closed* does
+    not refuse the missing file, and *Default* does not keep the `hook/` rules off.
+  - **With `nuc.toml`:** *Fail closed* holds in full: an unreadable file, a minimum above the
+    running `nuc`, and an unknown rule ID each exit 2. Its list governs the `hook/` rules.
+  - **The release:** *Not decided* does not hold. Where the README or its release line is missing
+    or names no release, a hook decides as the newest release `nuc` knows; a release before
+    v0.5.0 is decided as v0.5.0, the earliest the hooks port. A hook refuses nothing for the
+    release; check 14 gates the line.
+  - The missing binary is reported by the reference shims of
+    [ADR-draft-hook-contract](draft-hook-contract.md).
 
-**Out of scope:** the field names and the rest of the format of `nuc.toml`; options a rule may
-take; the shims themselves, which the template ships; template releases before v0.5.0; how
-`nuc upgrade` moves a project between releases (G-4).
+**Out of scope:** the field names and the rest of the format of `nuc.toml`; options a rule may take;
+the shims themselves, which ADR-draft-hook-contract decides; template releases before v0.5.0, beyond
+the hooks' clause; how `nuc upgrade` moves a project between releases (G-4).
 
 ## Alternatives considered
 
@@ -125,8 +133,10 @@ Tests cited with `Verifies: ADR-draft-version-coupling-with-hook-defaults` run `
 fixtures with `nuc.toml` missing, unreadable, naming a higher minimum, and listing an unknown rule
 ID, and check each exits non-zero with the message; one with a rule known to `nuc` but not listed
 checks that the rule reports nothing. Others run `nuc hook` without `nuc.toml` and without a release
-line and check that it decides as the newest release with every `hook/` rule on, and with a
-`nuc.toml` listing no `hook/` rule that it passes.
+line and check that it decides as the newest release with every `hook/` rule on; with a
+`nuc.toml` listing no `hook/` rule that it exits 0; with an unreadable `nuc.toml`, a higher
+minimum, and an unknown rule ID that it exits 2; and with a release before v0.5.0 that it decides
+as v0.5.0. They live in `tests/hooks.rs`, from the tracer of `docs/plan/hooks-port/` on.
 
 The tests of the rules that read the release, `src/rules/docs_adr_supersessions.rs`,
 `src/rules/docs_check_lists.rs`, `src/rules/docs_project_layout.rs`, and

@@ -19,7 +19,8 @@ not decide to fail closed with a message naming how to install `nuc`; Q-6 asks t
 newer template release may add a key that an older `nuc` does not know, and that `nuc` must then
 say it is too old rather than guess. G-7 adds JSON and SARIF later. A hook whose bash runs the
 project's checks needs to tell its shim that they run now, and the standard output is taken by
-findings ([ADR-draft-hook-contract](draft-hook-contract.md)).
+findings, and a hook's refusal guards a ref rather than a file
+([ADR-draft-hook-contract](draft-hook-contract.md)).
 
 ## Decision
 
@@ -33,13 +34,15 @@ and exit 0 without a finding, 1 with findings, and 2 when it could not decide, a
   crate. `minimum` is read first: above the running version, `nuc` refuses as too old before any
   other key is judged. A key it does not know, a key set twice, or any other syntax refuses the
   run as unreadable; neither is ignored.
-- **Output:** findings on the standard output and nothing else there; the summary, every refusal,
-  and its message on the standard error, the message of a refusal a newer `nuc` could resolve
-  naming how to install or update it. The line is omitted where the rule names none, as for a
-  missing file.
+- **Output:** findings on the standard output and nothing else there; the location of a finding of
+  `nuc hook` is the ref the hook guards, such as `refs/heads/main`, where it guards no file; the
+  summary, every refusal, and its message on the standard error, the message of a refusal a newer
+  `nuc` could resolve naming how to install or update it. The line is omitted where the rule names
+  none, as for a missing file.
 - **Exit codes:** 0, 1, and 2 as above, for every command; every cause that keeps `nuc` from
   deciding exits 2, one code for all of them. A panic exits 101, non-zero as well. `nuc hook`
-  exits 3 where ADR-draft-hook-contract says, and no other command does.
+  exits 3 where ADR-draft-hook-contract says, and no other command does; its `--record` exits 0
+  or 2.
 
 **Out of scope:** the JSON and SARIF formats of G-7; options a rule may take; the wording of the
 messages, which may change in any release; the output of `nuc explain`, which is prose.
@@ -76,9 +79,10 @@ messages, which may change in any release; the output of `nuc explain`, which is
 - Positive: every run that could not decide fails closed with a cause (Q-1, G-5); an older `nuc`
   meeting a newer template says it is too old; the parity harness and editors read one stable
   line form (G-6, Q-2); no dependency is added (Q-3).
-- Negative / trade-offs: one command has a code the others lack, and a caller of `nuc hook` must
-  refuse every code it does not name; a template release that adds a key has to raise `minimum` with
-  it; callers cannot tell the causes of exit 2 apart without reading the message.
+- Negative / trade-offs: one command has a code the others lack and a location that is no file, and
+  a caller of `nuc hook` must refuse every code it does not name; a template release that adds a key
+  has to raise `minimum` with it; callers cannot tell the causes of exit 2 apart without reading the
+  message.
 - Follow-ups: the JSON and SARIF formats of G-7.
 
 ## Enforcement
@@ -89,4 +93,5 @@ as too old; an unknown key, a key set twice, and another syntax refuse as unread
 and the install hint; a finding is the line form on the standard output and the summary is on the
 standard error; and the exit codes are 0, 1, and 2 for a clean tree, a finding, and a refusal. Tests
 cited with `Verifies: ADR-draft-command-line-contract-with-hook-signal` check that `nuc hook` exits
-3 only where a shim runs a check, and that no other command exits 3.
+3 only where a shim runs a check, that no other command exits 3, and that a refusal of `nuc hook`
+names the ref it guards as its location.

@@ -28,8 +28,10 @@ The template pins what each hook refuses and passes in its hook self-test,
   substring of the message.
 
 The substrings are the bash wording. ADR-0013 leaves the wording of `nuc` free, and G-6 asks for
-rule IDs, so a comparison has to map messages, as the tree harness does. Some cases test the
-self-test library and not a hook: its guard against git variables and its fixture guard.
+rule IDs, so a comparison has to map messages, as the tree harness does. Some `expect` cases
+assert no hook decision but its aftermath, such as that a refused fast-forward leaves `main` where
+it was. A hook's standard error mixes its own lines with git's and with the output of the check it
+ran, which the self-test asserts as well.
 
 How a hook through `nuc` behaves is decided in [ADR-draft-hook-contract](draft-hook-contract.md):
 the shim, the exit codes, the green tree, and the defaults without `nuc.toml`.
@@ -52,14 +54,19 @@ any difference and on any case of a pinned release's hook self-test that no scen
   - each fixture's README carries the `Template release` line of the tree it is compared on, for
     both sides, and the bash side ignores it;
   - one scenario without README and without `nuc.toml` compares the defaults of the hook
-    contract against the bash of the newest pinned release.
+    contract against the bash of the newest pinned release;
+  - each scenario runs on the nuc side twice, without `nuc.toml` and with one that lists every
+    `hook/` rule, as a project's template release will ship it; both must agree with the bash.
 - **Comparison:**
   - per scenario and release: the exit status of the git command;
-  - each line the hooks write that a table beside the harness maps to a `hook/` rule ID or a
-    notice ID, compared as sets;
-  - for the merge driver, the bytes of the merged file.
+  - the hook's lines, those that start with the hook's name and a colon, as every bash hook
+    writes them: each is mapped by a table beside the harness to a `hook/` rule ID or a notice ID
+    with the fields it carries, such as the ref and the count of the draft notice, and compared as
+    sets;
+  - the lines of the stand-in checks, verbatim, since both sides run the same stand-ins;
+  - for the merge driver, the bytes of the merged file and the exit status.
 
-  A hook message no row of the table maps is a difference.
+  Git's own lines are not compared. A hook's line no row of the table maps is a difference.
 - **Coverage:**
   - each pinned release's `scripts/test-git-hooks.sh` is read for its `expect` names;
   - each must be covered by a scenario or listed beside the harness as no case of a hook, with
@@ -116,11 +123,13 @@ any difference and on any case of a pinned release's hook self-test that no scen
 
 ## Enforcement
 
-The harness's own self-test, cited with `Verifies: ADR-draft-hook-scenario-parity`, checks that
-each of the following fails:
+The harness's own self-test, `scripts/test-check-parity.sh`, cited with
+`Verifies: ADR-draft-hook-scenario-parity` and extended by the tracer of `docs/plan/hooks-port/`,
+checks that each of the following fails:
 - a stand-in `nuc` whose exit status differs from the bash in one scenario;
 - one whose refusal maps to another rule ID;
-- an unknown bash message;
+- one that agrees without `nuc.toml` and differs with it;
+- an unknown line of a bash hook;
 - an uncovered self-test case;
 - a listed case the self-test lacks;
 - a scenario that names a case no release has.
