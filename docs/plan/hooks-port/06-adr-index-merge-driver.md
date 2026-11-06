@@ -1,4 +1,4 @@
-# Ticket: <title>
+# Ticket: The merge driver of the ADR index through `nuc`
 
 <!-- Copy to docs/plan/<spec>/<NN>-<slug>.md, next to the spec it slices, if it has one. A
      vertical slice: a narrow but complete path through every layer the change touches, demoable
@@ -23,7 +23,7 @@ markers with git's labels and a non-zero exit, as the bash driver does.
 - [ ] Given a rule changed next to a row the other side appended, when they merge, then it stops
   with a conflict rather than keeping both versions.
 - [ ] Given the scenario harness, when it runs the driver's cases, then they agree with the bash
-  of each pinned release, and the driver's shim fails closed without `nuc` (ticket 02).
+  of each pinned release, and the driver's shim fails closed without `nuc` (ticket 03).
 
 ## Read first
 
@@ -31,11 +31,11 @@ markers with git's labels and a non-zero exit, as the bash driver does.
 - The template's `.githooks/merge-adr-index`, `.gitattributes`, and the driver's cases in
   `scripts/test-git-hooks.sh`.
 - G-3 in `docs/SPECIFICATION.md`; ADR-0011 (git CLI, `git merge-file`), the hook contract ADR.
-- Golden path: the shims of tickets 01 and 02.
+- Golden path: the shims of tickets 02 and 03.
 
 ## Blocked by
 
-- docs/plan/hooks-port/02-pre-merge-commit-and-fail-closed.md
+- docs/plan/hooks-port/03-pre-merge-commit-and-fail-closed.md
 
 ## Mode
 

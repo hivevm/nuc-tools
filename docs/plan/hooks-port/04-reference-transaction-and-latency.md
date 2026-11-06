@@ -1,4 +1,4 @@
-# Ticket: <title>
+# Ticket: `reference-transaction`, and Q-5 gates its latency in CI
 
 <!-- Copy to docs/plan/<spec>/<NN>-<slug>.md, next to the spec it slices, if it has one. A
      vertical slice: a narrow but complete path through every layer the change touches, demoable
@@ -20,6 +20,8 @@ included. A benchmark measures Q-5 and gates it in CI on Linux x64.
 - [ ] Given the scenario harness, when it runs the hook self-test's `reference-transaction` cases,
   then they agree with the bash of each pinned release, fetch, reset, `git branch -f`, and pack-refs
   included.
+- [ ] Given malformed standard input, when `nuc hook reference-transaction` reads it, then it
+  refuses with a message naming it (Q-1).
 - [ ] Given 1,000 calls of `nuc hook reference-transaction` and of a no-op hook on Linux x64, when
   the benchmark runs in CI, then it fails when the median difference exceeds 2 ms, and passes
   otherwise (Q-5).
@@ -30,12 +32,12 @@ included. A benchmark measures Q-5 and gates it in CI on Linux x64.
 - Touches: the hook module under `src/`, the reference shims, the scenario harness,
   `.github/workflows/checks.yml`, `CONTRIBUTING.md` (required checks, if the job is new).
 - The template's `.githooks/reference-transaction` and its cases in `scripts/test-git-hooks.sh`.
-- Q-5 in `docs/SPECIFICATION.md`; ADR-0008 (CI jobs), ADR-0015.
-- Golden path: the hooks of tickets 01 and 02.
+- Q-5 in `docs/SPECIFICATION.md`; ADR-0008 (CI jobs), ADR-0018 (action references), ADR-0015.
+- Golden path: the hooks of tickets 02 and 03.
 
 ## Blocked by
 
-- docs/plan/hooks-port/02-pre-merge-commit-and-fail-closed.md
+- docs/plan/hooks-port/03-pre-merge-commit-and-fail-closed.md
 
 ## Mode
 

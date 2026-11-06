@@ -1,4 +1,4 @@
-# Ticket: <title>
+# Ticket: `pre-merge-commit`, and every shim fails closed
 
 <!-- Copy to docs/plan/<spec>/<NN>-<slug>.md, next to the spec it slices, if it has one. A
      vertical slice: a narrow but complete path through every layer the change touches, demoable
@@ -26,18 +26,21 @@ with the update hint (G-5).
 - [ ] Given a `nuc.toml` whose minimum is above the running version, when git runs each hook,
   then each exits non-zero with the update hint, before any check runs.
 - [ ] Given the shim tests, when the suite runs on Linux x64, Linux arm64, macOS, and Windows x64,
-  then they pass with no bash on the `PATH` of the process under test (Q-4).
+  then they pass with no bash on the `PATH` of the process under test (Q-4), and a shim told to
+  run a check that cannot run, bash missing included, refuses.
+- [ ] Given git failing, a panic in `nuc hook` (exit 101), and an exit code the contract does not
+  name, when each shim meets them, then it refuses with a message naming the cause (Q-1).
 
 ## Read first
 
 - Touches: the hook module under `src/`, the reference shims, the scenario harness, `tests/`.
 - The template's `.githooks/pre-merge-commit` and the merge cases of `scripts/test-git-hooks.sh`.
-- ADR-0014 (fail closed), the hook contract ADR from ticket 01, Q-4 in `docs/SPECIFICATION.md`.
-- Golden path: the `pre-commit` hook and shim of ticket 01.
+- ADR-0014 (fail closed), the hook contract ADR of ticket 01, Q-4 in `docs/SPECIFICATION.md`.
+- Golden path: the `pre-commit` hook and shim of ticket 02.
 
 ## Blocked by
 
-- docs/plan/hooks-port/01-tracer-pre-commit.md
+- docs/plan/hooks-port/02-tracer-pre-commit.md
 
 ## Mode
 
