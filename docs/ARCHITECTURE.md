@@ -67,11 +67,11 @@ golden path and the test pattern an agent copies from are named here.
   state the shell reads in `shell::hook`, and holds the `hook/` rules, `hook::ALL`, which
   `nuc check` knows and runs never. The reference shims under `shims/`, in POSIX sh, hand each
   hook to `nuc hook <name>` and run the project's check where it answers 3
-  ([ADR-0021](adr/0021-hook-contract.md)). A hook's function returns an answer, not a rule's
-  outcome
+  ([ADR-0021](adr/0021-hook-contract.md)). A hook's function returns an answer,
+  not a rule's outcome
   ([ADR-0024](adr/0024-rules-return-an-outcome-and-hooks-an-answer.md)).
-  `pre-commit`, `pre-merge-commit`, `pre-push`,
-  `reference-transaction`, and the merge driver of the ADR index are ported;
+  `pre-commit`, `pre-merge-commit`, `pre-push`, `reference-transaction`, and the merge driver of
+  the ADR index are ported;
   `tests/bench/hook-latency.sh` measures `reference-transaction` against Q-5 in `benchmark.yml`,
   on a schedule, never as a gate.
 - **Shell** — `src/shell/` reads the command line and the repository, runs git under a cleared
