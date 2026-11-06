@@ -61,8 +61,9 @@ golden path and the test pattern an agent copies from are named here.
   state the shell reads in `shell::hook`, and holds the `hook/` rules, `hook::ALL`, which
   `nuc check` knows and runs never. The reference shims under `shims/`, in POSIX sh, hand each
   hook to `nuc hook <name>` and run the project's check where it answers 3
-  ([ADR-0021](adr/0021-hook-contract.md)). `pre-commit`, `pre-merge-commit`, and `pre-push` are
-  ported so far.
+  ([ADR-0021](adr/0021-hook-contract.md)). `pre-commit`, `pre-merge-commit`, `pre-push`, and
+  `reference-transaction` are ported so far; `tests/bench/hook-latency.sh` measures the last against
+  Q-5 in `benchmark.yml`, on a schedule, never as a gate.
 - **Shell** — `src/shell/` reads the command line and the repository, runs git under a cleared
   environment in `shell::git`, calls the rules, prints the findings, and sets the exit code
   ([ADR-0011](adr/0011-git-cli-cleared-environment.md)). Its `Tree`, in `shell::tree`, reads
@@ -150,6 +151,11 @@ directory, with the run its shim names in `NUC_HOOK_RUN`, and answers 3; its shi
 and, on green, calls `nuc hook pre-push --record`, which moves that tree into the record and keeps
 the last 50, and records nothing where another run's push replaced it. These
 two files are the only state `nuc` keeps between runs.
+`nuc hook reference-transaction prepared` reads the updates of a transaction from the standard
+input and, where one touches `refs/heads/main`, asks git once for `main` and `origin/main` and
+refuses a move of `main` to a commit `origin/main` lacks, as the transaction leaves it. It reads
+`nuc.toml` in the directory git runs the hook in, the root of the work tree, without asking git:
+the hook runs on every update of a ref, and each git call costs a process (Q-5).
 
 A release starts when a human pushes a tag `vX.Y.Z` that names the version of `Cargo.toml`.
 `release.yml` builds the four targets, writes `SHA256SUMS`, attests each binary and verifies the
