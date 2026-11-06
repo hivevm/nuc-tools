@@ -692,7 +692,10 @@ fn git_alone(beside: &Fixture) -> PathBuf {
         dir
     }
     #[cfg(not(unix))]
-    panic!("git's exec path {} holds no git, or a bash", exec.display());
+    {
+        let _ = beside;
+        panic!("git's exec path {} holds no git, or a bash", exec.display());
+    }
 }
 
 /// git with `args` in the fixture, its hooks run, with a `PATH` of `first` and git alone.
