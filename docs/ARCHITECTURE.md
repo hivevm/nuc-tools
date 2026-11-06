@@ -45,7 +45,7 @@ golden path and the test pattern an agent copies from are named here.
   tree as its bash check would, and notes for the summary. Each has one rule ID, the reason
   `nuc explain` gives, and the inputs it reads; the list of every rule is `rules::ALL`. A rule
   reads no file and runs no process
-  ([ADR-0010](adr/0010-rules-return-an-outcome.md)).
+  ([ADR-0024](adr/0024-rules-return-an-outcome-and-hooks-an-answer.md)).
   The rules of the decision record share one reading of it in `src/adr.rs`, and the rules of
   Markdown one reading of its links in `src/markdown.rs`, both outside `src/rules/`, the way the
   bash's `scripts/lib/adr.sh` and awk passes read them. The byte-level readings of the bash's tools,
@@ -67,7 +67,10 @@ golden path and the test pattern an agent copies from are named here.
   state the shell reads in `shell::hook`, and holds the `hook/` rules, `hook::ALL`, which
   `nuc check` knows and runs never. The reference shims under `shims/`, in POSIX sh, hand each
   hook to `nuc hook <name>` and run the project's check where it answers 3
-  ([ADR-0021](adr/0021-hook-contract.md)). `pre-commit`, `pre-merge-commit`, `pre-push`,
+  ([ADR-0021](adr/0021-hook-contract.md)). A hook's function returns an answer, not a rule's
+  outcome
+  ([ADR-0024](adr/0024-rules-return-an-outcome-and-hooks-an-answer.md)).
+  `pre-commit`, `pre-merge-commit`, `pre-push`,
   `reference-transaction`, and the merge driver of the ADR index are ported;
   `tests/bench/hook-latency.sh` measures `reference-transaction` against Q-5 in `benchmark.yml`,
   on a schedule, never as a gate.

@@ -23,8 +23,9 @@ skimmed. The design revision drops what prevented nothing
   inputs, before any rule runs, and a rule gets text, never a path. A rule's tests are then cases
   of text without a repository, and a file `nuc` cannot read ends the run before a rule could
   pass on less than it should have seen (Q-1). Where a refusal stands is decided in
-  [ADR-0010](adr/0010-rules-return-an-outcome.md), where a read may lead in Q-12, and where in
-  the shell a read may stand in `tests/functional_core.rs`.
+  [ADR-0024](adr/0024-rules-return-an-outcome-and-hooks-an-answer.md),
+  where a read may lead in Q-12, and where in the shell a read may stand in
+  `tests/functional_core.rs`.
 - **A port copies the bash, quirks included** — a rule reports what its bash check reports on
   inputs the corpus lacks as well, its exemptions and oddities with it: only the first Template
   release line counts, and a missing README is the finding of another rule. How its unit tests

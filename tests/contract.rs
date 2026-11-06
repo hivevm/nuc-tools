@@ -126,6 +126,19 @@ fn a_command_a_newer_nuc_may_know_refuses_with_the_install_hint() {
 /// Every rule ID `nuc` has had, kept beside this test.
 const RULE_IDS: &str = include_str!("contract.rule-ids");
 
+/// Verifies: ADR-0024, G-6
+#[test]
+fn no_rule_id_is_held_twice_by_the_rules_and_the_hooks() {
+    let mut seen = std::collections::BTreeSet::new();
+    for id in nuc::rules::ALL
+        .iter()
+        .map(|rule| rule.id)
+        .chain(nuc::hook::ALL.iter().map(|rule| rule.id))
+    {
+        assert!(seen.insert(id), "the rule ID '{id}' is held twice");
+    }
+}
+
 /// Verifies: G-6
 #[test]
 fn every_rule_keeps_its_id_and_is_explained() {

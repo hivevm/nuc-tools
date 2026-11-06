@@ -1,5 +1,5 @@
 //! `nuc`: the mechanics of the NUC template. The rules are pure functions over values; every
-//! effect lives in [`shell`] (ADR-0010).
+//! effect lives in [`shell`] (ADR-0024).
 
 pub mod adr;
 pub mod bash;
