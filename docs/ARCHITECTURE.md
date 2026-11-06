@@ -61,7 +61,8 @@ golden path and the test pattern an agent copies from are named here.
   state the shell reads in `shell::hook`, and holds the `hook/` rules, `hook::ALL`, which
   `nuc check` knows and runs never. The reference shims under `shims/`, in POSIX sh, hand each
   hook to `nuc hook <name>` and run the project's check where it answers 3
-  ([ADR-0021](adr/0021-hook-contract.md)). `pre-commit` and `pre-merge-commit` are ported so far.
+  ([ADR-0021](adr/0021-hook-contract.md)). `pre-commit`, `pre-merge-commit`, and `pre-push` are
+  ported so far.
 - **Shell** — `src/shell/` reads the command line and the repository, runs git under a cleared
   environment in `shell::git`, calls the rules, prints the findings, and sets the exit code
   ([ADR-0011](adr/0011-git-cli-cleared-environment.md)). Its `Tree`, in `shell::tree`, reads
@@ -141,6 +142,14 @@ at `refs/heads/main` on `main`, 3 on the commit that concludes a merge where the
 0 otherwise. The shim runs the check on 3, with git's local variables unset, and refuses on red.
 `nuc hook pre-merge-commit` refuses a merge on `main` and answers 3 on any other merge whose work
 tree has `scripts/check-docs.sh`, where its rule is on; its shim runs that check.
+`nuc hook pre-push` reads git's refs from the standard input, refuses a push to the remote's
+`main`, passes one that only deletes, writes the draft notice in the wording of the README's
+release, and passes a clean tree that `checks-green-trees` of the common git directory holds.
+Otherwise it writes the tree of a clean `HEAD` to `checks-pending-tree` of the worktree's git
+directory, with the run its shim names in `NUC_HOOK_RUN`, and answers 3; its shim runs the checks
+and, on green, calls `nuc hook pre-push --record`, which moves that tree into the record and keeps
+the last 50, and records nothing where another run's push replaced it. These
+two files are the only state `nuc` keeps between runs.
 
 A release starts when a human pushes a tag `vX.Y.Z` that names the version of `Cargo.toml`.
 `release.yml` builds the four targets, writes `SHA256SUMS`, attests each binary and verifies the

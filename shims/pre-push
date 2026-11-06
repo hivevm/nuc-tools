@@ -1,0 +1,58 @@
+#!/bin/sh
+#
+# Git pre-push hook, the reference shim of nuc (ADR-0021): 'nuc hook pre-push' decides from the
+# refs git hands it on the standard input and the git state, and this shim runs the project's full
+# check where nuc answers that it runs.
+#
+# nuc refuses a push to the remote's main, its deletion included; passes a push that only deletes;
+# tells each ref that carries draft ADRs where they take their numbers; and passes a clean tree
+# the record of green trees holds. Otherwise it answers 3, having noted the tree it decided: the
+# shim then runs scripts/check-all.sh --changed in a subshell, with the variables git hands a hook
+# unset there, refuses while it is red or cannot run, and on green has 'nuc hook pre-push
+# --record' keep that tree in the record, with git's variables as git handed them. A record that
+# cannot be written lets the push pass: it costs only a second run of the checks. Every answer but
+# 0 and 3 refuses, a panic's 101 and a code a later nuc adds included. Without nuc on the PATH it
+# refuses and names where to install it.
+#
+# POSIX sh, so that git for Windows runs it with the sh it bundles. Bypassable with
+# 'git push --no-verify', or by writing a tree into checks-green-trees of the git directory;
+# AGENTS.md, section 6 says who may.
+
+if ! command -v nuc >/dev/null 2>&1; then
+  echo "pre-push: refused — nuc is not on the PATH, so no hook decides. Install it from https://github.com/hivevm/nuc-tools/releases" >&2
+  exit 1
+fi
+
+# The run of this shim, so that --record records the tree this push decided and no other.
+NUC_HOOK_RUN="$$"
+export NUC_HOOK_RUN
+
+nuc hook pre-push "$@"
+answer=$?
+case "$answer" in
+  0) exit 0 ;;
+  3) ;;
+  1 | 2) exit 1 ;;
+  *)
+    echo "pre-push: refused — nuc hook pre-push exited $answer, which this shim does not know" >&2
+    exit 1
+    ;;
+esac
+
+if ! root="$(git rev-parse --show-toplevel)"; then
+  echo "pre-push: refused — git names no work tree, so the checks cannot run" >&2
+  exit 1
+fi
+
+# The checks build fixture repositories of their own; the variables git hands a hook would bind
+# every git command in a fixture to this repository, and could push from it. They are unset in
+# the subshell alone, so that the record below is written for the repository git pushes from.
+# shellcheck disable=SC2046 # one variable name per word
+if ! (unset $(git rev-parse --local-env-vars) && bash "$root/scripts/check-all.sh" --changed); then
+  echo >&2
+  echo "pre-push: refused — the checks are red, and they pass before anything is pushed (AGENTS.md, section 5). Fix them, then push again." >&2
+  exit 1
+fi
+
+nuc hook pre-push --record || :
+exit 0

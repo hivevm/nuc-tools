@@ -79,3 +79,89 @@ hook_scenario merge-main pre-merge-commit "a merge on main, though the checks ar
   merge_main merge -q -m m feature
 hook_scenario --bare merge-main-bare pre-merge-commit "a merge on main, though the checks are green" \
   merge_main merge -q -m m feature
+
+# delete_red <dir> — 'feature' and 'other' on the remote besides main, and red checks.
+delete_red() { on_branch "$1"; hp_git "$1" push -q origin main feature feature:other; hp_checks "$1" 1; }
+# deleted_red <dir> — as delete_red after 'feature' was deleted from the remote, so that a push
+# of it sends it again.
+deleted_red() { delete_red "$1"; hp_git "$1" push -q origin --delete feature; }
+
+# drafts <dir> — a branch whose commit carries a draft ADR, an ADR, and a draft that is no
+# Markdown, with green checks.
+drafts() {
+  on_branch "$1"
+  hp_checks "$1" 0
+  mkdir -p "$1/docs/adr"
+  : > "$1/docs/adr/draft-x.md"
+  : > "$1/docs/adr/0001-y.md"
+  : > "$1/docs/adr/draft-notes.txt"
+  hp_git "$1" add docs
+  hp_git "$1" commit -q -m draft
+}
+
+# green_tree <dir> <verdict> — a branch whose committed check script exits as .git/verdict says,
+# read from outside the tree, so that the same tree can turn red; the verdict as given.
+green_tree() {
+  on_branch "$1"
+  mkdir -p "$1/scripts"
+  # shellcheck disable=SC2016 # the stand-in's own expansion
+  printf '#!/usr/bin/env bash\necho "check output for the test"\nexit "$(cat .git/verdict)"\n' \
+    > "$1/scripts/check-all.sh"
+  hp_git "$1" add scripts
+  hp_git "$1" commit -q -m checks
+  echo "$2" > "$1/.git/verdict"
+}
+# recorded <dir> — a green tree written into the record by hand, the checks turned red, and the
+# branch reworked by an amend that keeps the tree.
+recorded() {
+  green_tree "$1" 1
+  hp_git "$1" rev-parse 'HEAD^{tree}' > "$1/.git/checks-green-trees"
+  hp_git "$1" commit -q --amend -m regrouped
+}
+green_clean() { green_tree "$1" 0; }
+recorded_untracked() { recorded "$1"; touch "$1/untracked"; }
+recorded_new() { recorded "$1"; echo x > "$1/new"; hp_git "$1" add new; hp_git "$1" commit -q -m new; }
+
+# linked <dir> — a linked worktree 'wt' on 'feature' inside the fixture, whose check script fails
+# on any variable that binds git to a repository.
+linked() {
+  hp_git "$1" worktree add -q "$1/wt" -b feature
+  mkdir -p "$1/wt/scripts"
+  # shellcheck disable=SC2016 # the stand-in's own expansion
+  printf '%s\n' '#!/usr/bin/env bash' \
+    'for v in $(git rev-parse --local-env-vars); do' \
+    '  [[ -v $v ]] && { echo "check output for the test: leaked $v"; exit 1; }' \
+    'done' \
+    'echo "check output for the test: no git environment"' > "$1/wt/scripts/check-all.sh"
+}
+
+hook_scenario push-to-main pre-push "a push to the remote's main" : push -q origin main
+hook_scenario --bare push-to-main-bare pre-push "a push to the remote's main" : push -q origin main
+hook_scenario push-main-other pre-push "a push of main to a branch of its own with no check script to run" \
+  : push -q origin main:other
+hook_scenario push-red pre-push \
+  "a push while the checks are red|the refusal shows the check output|the hook runs the checks with --changed" \
+  red_on_branch push -q origin feature
+hook_scenario delete-branch pre-push "a deletion of a branch while the checks are red" \
+  delete_red push -q origin --delete feature
+hook_scenario delete-then-push pre-push "a push of a branch while the checks are red, after a deletion passed" \
+  deleted_red push -q origin feature
+hook_scenario delete-and-push pre-push "a deletion together with a push of a branch is checked" \
+  deleted_red push -q origin :other feature
+hook_scenario delete-main pre-push \
+  "a deletion of the remote's main while the checks are red|a deletion of the remote's main" \
+  delete_red push -q origin --delete main
+hook_scenario push-green pre-push "a push while the checks are green" \
+  merge_green push -q origin feature
+hook_scenario push-drafts pre-push "" drafts push -q origin feature
+hook_scenario green-clean pre-push "a push of a clean tree while the checks are green" \
+  green_clean push -q origin feature
+hook_scenario green-reworked pre-push "a reworked branch on a tree that passed before, while the checks are red" \
+  recorded push -q --force origin feature
+hook_scenario green-untracked pre-push "the same tree with an untracked file is checked again" \
+  recorded_untracked push -q --force origin feature
+hook_scenario green-new pre-push "a new tree is checked again" recorded_new push -q origin feature
+hook_scenario push-linked pre-push "a push from a linked worktree hands the checks no git environment" \
+  linked -C wt push -q origin feature
+hook_scenario push-unconfigured pre-push "a push from a clone without the merge settings" \
+  unconfigured push -q origin feature

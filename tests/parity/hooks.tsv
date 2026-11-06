@@ -1,8 +1,14 @@
 # The lines of the bash hooks and of the shims, mapped to a hook/ rule ID and the ref it guards
-# ('-' for none), read by scripts/lib/hook-parity.sh (ADR-0022). One row per line form: an extended
-# regular expression matched against the whole line, the rule ID, and the ref, separated by tabs.
+# ('-' for none), or to a notice/ ID and the fields it carries, read by scripts/lib/hook-parity.sh
+# (ADR-0022). One row per line form: an extended regular expression matched against the whole
+# line, the ID, and the fields, separated by tabs; a field names the groups of the pattern as \1
+# to \9.
 
 ^pre-commit: refused — the checkout is on 'main', and changes reach main through a pull request	hook/commit-on-main	refs/heads/main
 ^pre-commit: refused — the checks are red on the resolved merge	hook/merge-checks	-
 ^pre-merge-commit: refused — the checkout is on 'main', and changes reach main through a pull request	hook/merge-on-main	refs/heads/main
 ^pre-merge-commit: refused — the documentation check is red on the merge	hook/merge-docs	-
+^pre-push: refused — changes reach main through a pull request, not a push	hook/push-to-main	refs/heads/main
+^pre-push: refused — the checks are red, and they pass before anything is pushed	hook/push-checks	-
+^pre-push: (.+) carries ([0-9]+) draft ADR\(s\); they take their numbers on the branch of the pull request into main, by scripts/ready-for-main\.sh \((README|CONTRIBUTING\.md), Integration branches, step 7\)\.$	notice/drafts	\1 \2 \3
+^pre-push: the checks passed on this tree before; not run again\.$	notice/green-tree	-

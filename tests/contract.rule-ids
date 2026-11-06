@@ -21,6 +21,8 @@ hook/commit-on-main
 hook/merge-checks
 hook/merge-docs
 hook/merge-on-main
+hook/push-checks
+hook/push-to-main
 traceability/citations
 traceability/coverage
 traceability/criteria

@@ -3,6 +3,8 @@
 //! (Q-7): where a hook's check runs, it exits 3 and the shim runs it.
 
 use std::env;
+use std::fs;
+use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 
 use crate::config::{self, Refusal};
@@ -28,6 +30,9 @@ const HOOKS: &[(&str, &str, Decide)] = &[
 
 /// `nuc hook <name>`, run in the directory git runs the hook in.
 pub(super) fn run(name: &str, args: &[&str]) -> Result<u8, String> {
+    if name == "pre-push" {
+        return pre_push(args);
+    }
     let Some(&(_, script, decide)) = HOOKS.iter().find(|(known, _, _)| *known == name) else {
         return Err(format!(
             "no hook '{name}' is known to this nuc — a newer nuc may know it: {}",
@@ -52,15 +57,213 @@ pub(super) fn run(name: &str, args: &[&str]) -> Result<u8, String> {
             .is_some_and(|root| root.join(script).is_file()),
     };
     let on = |rule: &HookRule| on.iter().any(|on| on.id == rule.id);
-    let answer = decide(&state, &on);
-    Ok(match answer {
+    Ok(carry_out(decide(&state, &on)))
+}
+
+/// The exit code of an answer, its finding printed on the standard output.
+fn carry_out(answer: Answer) -> u8 {
+    match answer {
         Answer::Pass => PASSED,
         Answer::Refuse(finding) => {
             println!("{finding}");
             FOUND
         }
         Answer::RunCheck => RUN_CHECK,
-    })
+    }
+}
+
+/// The file in the git directory of the worktree that carries the tree `pre-push` decided to its
+/// `--record` call, and the record of green trees in the common git directory, as the bash keeps it.
+const PENDING: &str = "checks-pending-tree";
+const RECORD: &str = "checks-green-trees";
+
+/// `nuc hook pre-push [<remote> [<url>]]`, with git's refs on the standard input, or
+/// `nuc hook pre-push --record` after the checks passed.
+fn pre_push(args: &[&str]) -> Result<u8, String> {
+    let record = match args {
+        ["--record"] => true,
+        [] | [_] | [_, _] if !args.iter().any(|arg| arg.starts_with("--")) => false,
+        _ => {
+            return Err(
+                "usage: nuc hook pre-push [<remote> [<url>]] | nuc hook pre-push --record"
+                    .to_owned(),
+            );
+        }
+    };
+    let dir =
+        env::current_dir().map_err(|e| format!("the current directory is unreadable: {e}"))?;
+    same_git_dir(&dir)?;
+    let git_path = |which: &str| {
+        git::run(&dir, &["rev-parse", "--path-format=absolute", which])
+            .map(|out| PathBuf::from(out.trim_end_matches(['\n', '\r'])))
+    };
+    let pending = git_path("--git-dir")?.join(PENDING);
+    let green = git_path("--git-common-dir")?.join(RECORD);
+    if record {
+        return record_pending(&pending, &green);
+    }
+    let pushed = hook::pushed_refs(&read_stdin()?)?;
+    let root = work_tree(&dir)?;
+    let on = turned_on(root.as_deref())?;
+    let mut refs = Vec::new();
+    for pushed in &pushed {
+        let drafts = pushed
+            .local_object
+            .as_deref()
+            .map(|object| drafts(&dir, object));
+        refs.push((pushed.remote_ref.clone(), drafts));
+    }
+    let tree = match &root {
+        Some(_) if git::run(&dir, &["status", "--porcelain"])?.is_empty() => {
+            git::probe(&dir, &["rev-parse", "-q", "--verify", "HEAD^{tree}"])?
+                .map(|tree| tree.trim_end_matches(['\n', '\r']).to_owned())
+        }
+        _ => None,
+    };
+    let recorded = match &tree {
+        Some(tree) => read_in_git_dir(&green)?.is_some_and(|text| hook::holds(&text, tree)),
+        None => false,
+    };
+    // The README is read only for a notice, and a README that cannot be read words it as the
+    // newest release: a hook refuses nothing for the release (ADR-0023).
+    let notice = refs.iter().any(|(_, drafts)| matches!(drafts, Some(1..)));
+    let state = hook::Push {
+        contributing: !notice || contributing(root.as_deref()).unwrap_or(true),
+        refs,
+        tree,
+        recorded,
+        // A test of existence, which reads nothing (Q-12).
+        check_script: root
+            .as_ref()
+            .is_some_and(|root| root.join("scripts/check-all.sh").is_file()),
+    };
+    let on = |rule: &HookRule| on.iter().any(|on| on.id == rule.id);
+    let out = hook::pre_push(&state, &on);
+    for notice in &out.notices {
+        eprintln!("{notice}");
+    }
+    if out.answer == Answer::RunCheck {
+        // The tree decided now is the one `--record` records, whatever the checks do meanwhile, and
+        // only for the run of the shim that wrote it.
+        match &state.tree {
+            Some(tree) => fs::write(&pending, format!("{tree} {}\n", shim_run()))
+                .map_err(|e| format!("{}: unwritable — {e} — not decided", pending.display()))?,
+            None => remove(&pending)?,
+        }
+    }
+    Ok(carry_out(out.answer))
+}
+
+/// The standard input git hands the hook, which reads no file.
+fn read_stdin() -> Result<String, String> {
+    let mut input = String::new();
+    io::stdin()
+        .read_to_string(&mut input)
+        .map_err(|e| format!("the standard input of pre-push is unreadable: {e} — not decided"))?;
+    Ok(input)
+}
+
+/// The count of draft ADRs the object carries, as the bash counts the names `git ls-tree` lists:
+/// none where git cannot list them, since the notice decides nothing.
+fn drafts(dir: &Path, object: &str) -> usize {
+    git::run(dir, &["ls-tree", "--name-only", object, "docs/adr/"])
+        .map(|names| {
+            names
+                .lines()
+                .filter(|name| {
+                    name.strip_prefix("docs/adr/draft-")
+                        .is_some_and(|rest| rest.ends_with(".md"))
+                })
+                .count()
+        })
+        .unwrap_or(0)
+}
+
+/// Whether the draft notice names `CONTRIBUTING.md`, as the README's release line places it: from
+/// v0.7.0 on, and where no release is named, as the newest; a release before v0.5.0 is decided as
+/// v0.5.0 (ADR-0023).
+fn contributing(root: Option<&Path>) -> Result<bool, String> {
+    let Some(root) = root else {
+        return Ok(true);
+    };
+    let tree = Tree::new(root.to_path_buf())?;
+    let readme = tree.read_checked(&root.join("README.md"))?;
+    Ok(
+        match readme
+            .as_deref()
+            .and_then(rules::docs_template_release::carried)
+        {
+            Some(rules::Carried::Release(release)) => release >= rules::CONTRIBUTING_GUIDE,
+            _ => true,
+        },
+    )
+}
+
+/// The run of the shim that calls `nuc hook pre-push` and then its `--record`, as the shim names
+/// it in `NUC_HOOK_RUN`: two pushes from one worktree at once each record only their own tree.
+fn shim_run() -> String {
+    env::var("NUC_HOOK_RUN").unwrap_or_default()
+}
+
+/// `--record`: the pending tree moved into the record of green trees; nothing without one, and
+/// not decided where another run's push replaced it meanwhile, whose checks are not these.
+fn record_pending(pending: &Path, green: &Path) -> Result<u8, String> {
+    let Some(text) = read_in_git_dir(pending)? else {
+        return Ok(PASSED);
+    };
+    let line = text.trim_end_matches(['\n', '\r']);
+    let (tree, run_of) = line.split_once(' ').unwrap_or((line, ""));
+    if run_of != shim_run() {
+        return Err(format!(
+            "{}: another push from this worktree decided its tree meanwhile, so this one is not \
+             recorded — not decided",
+            pending.display()
+        ));
+    }
+    let existing = read_in_git_dir(green)?.unwrap_or_default();
+    let next = green.with_extension(format!("{}", std::process::id()));
+    if let Err(e) =
+        fs::write(&next, hook::record(&existing, tree)).and_then(|()| fs::rename(&next, green))
+    {
+        let _ = fs::remove_file(&next);
+        return Err(format!(
+            "{}: unwritable — {e} — not decided",
+            green.display()
+        ));
+    }
+    remove(pending)?;
+    Ok(PASSED)
+}
+
+/// The text of a file `nuc` keeps in the git directory git names, none where it is no file, as
+/// the bash's `-f` finds it. It reads only the two files of the green-tree record, whose paths git
+/// gives.
+fn read_in_git_dir(path: &Path) -> Result<Option<String>, String> {
+    // A test of existence, which reads nothing (Q-12).
+    if !path.is_file() {
+        return Ok(None);
+    }
+    match fs::read(path) {
+        Ok(bytes) => String::from_utf8(bytes)
+            .map(Some)
+            .map_err(|_| format!("{}: unreadable — not UTF-8 — not decided", path.display())),
+        Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(format!(
+            "{}: unreadable — {e} — not decided",
+            path.display()
+        )),
+    }
+}
+
+/// The file removed, where it exists.
+fn remove(path: &Path) -> Result<(), String> {
+    match fs::remove_file(path) {
+        Err(e) if e.kind() != io::ErrorKind::NotFound => Err(format!(
+            "{}: cannot be removed — {e} — not decided",
+            path.display()
+        )),
+        _ => Ok(()),
+    }
 }
 
 /// Not decided where git hands the hook a git directory, as `git --git-dir` and a linked worktree

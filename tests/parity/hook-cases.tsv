@@ -3,22 +3,6 @@
 # (ADR-0022). One row per case: its 'expect' name and the reason, separated by a tab. A case
 # 'awaits' the ticket that ports its hook, which moves it into a scenario.
 
-a push to the remote's main	awaits the port of pre-push
-a push of main to a branch of its own with no check script to run	awaits the port of pre-push
-a push while the checks are red	awaits the port of pre-push
-the refusal shows the check output	awaits the port of pre-push
-the hook runs the checks with --changed	awaits the port of pre-push
-a deletion of a branch while the checks are red	awaits the port of pre-push
-a push of a branch while the checks are red, after a deletion passed	awaits the port of pre-push
-a deletion together with a push of a branch is checked	awaits the port of pre-push
-a deletion of the remote's main while the checks are red	awaits the port of pre-push
-a push while the checks are green	awaits the port of pre-push
-a push of a clean tree while the checks are green	awaits the port of pre-push
-a reworked branch on a tree that passed before, while the checks are red	awaits the port of pre-push
-the same tree with an untracked file is checked again	awaits the port of pre-push
-a new tree is checked again	awaits the port of pre-push
-a push from a linked worktree hands the checks no git environment	awaits the port of pre-push
-a push from a clone without the merge settings	awaits the port of pre-push
 the driver keeps the rows both sides appended to the index	awaits the port of merge-adr-index
 the driver takes a rule one side changed	awaits the port of merge-adr-index
 the driver stops on a rule both sides changed	awaits the port of merge-adr-index
@@ -36,7 +20,6 @@ git branch -f of main from another branch	awaits the port of reference-transacti
 a fetch that moves main with origin/main	awaits the port of reference-transaction
 main takes up the remote's main	awaits the port of reference-transaction
 main is reset to the remote's main	awaits the port of reference-transaction
-a deletion of the remote's main	awaits the port of pre-push
 pack-refs writes main where it already is	awaits the port of reference-transaction
 a reset of main to where it is moves nothing	awaits the port of reference-transaction
 main ahead still moves no further	awaits the port of reference-transaction

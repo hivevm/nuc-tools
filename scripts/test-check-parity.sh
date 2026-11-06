@@ -26,8 +26,8 @@
 # nuc passes; one whose exit status differs, one whose refusal maps to another rule ID, one that
 # differs only with nuc.toml, an unknown line of the bash hook, an uncovered self-test case, a
 # listed case the self-test lacks, a scenario that names a case no release has, a scenario whose
-# bash side does not end as its case expects, no tree at all,
-# and a malformed table each fail (ADR-0022).
+# bash side does not end as its case expects, a notice whose field differs, a record of green
+# trees that differs, no tree at all, and a malformed table each fail (ADR-0022).
 #
 # Inputs: scripts/check-parity.sh tests/parity/ scripts/lib/ shims/
 #
@@ -551,10 +551,17 @@ cp "$HOOK_SCENARIOS_FILE" "$work/hook-scenarios-unreached.sh"
 echo 'hook_scenario unreached pre-commit "a commit on main" on_branch commit -q --allow-empty -m x' >> "$work/hook-scenarios-unreached.sh"
 expect fail "a scenario whose bash side does not end as its case expects fails" "the scenario does not reach its case" \
   run_hooks "$(hook_nuc agrees "$HOOK_AGREES")" "$work/hook-scenarios-unreached.sh" "$NO_CASES" "$tree"
+printf '%s\t%s\t%s\n' "^pre-commit: notice (.+)$" notice/test '\1' > "$work/hooks-notice.tsv"
+cat "$ROOT/tests/parity/hooks.tsv" >> "$work/hooks-notice.tsv"
+expect fail "a notice whose field differs fails" "only nuc: rule notice/test B" \
+  env PARITY_HOOK_TABLE="$work/hooks-notice.tsv" PARITY_HOOK_SCENARIOS="$HOOK_SCENARIOS_FILE" PARITY_HOOK_CASES="$NO_CASES" \
+  bash "$HARNESS" --nuc "$(hook_nuc notice "echo 'pre-commit: notice B' >&2; $HOOK_AGREES")" --hooks "$(hook_tree notice "pre-commit: notice A")"
+expect fail "a record of green trees that differs fails" "only nuc: record x" \
+  run_hooks "$(hook_nuc record "echo x > .git/checks-green-trees; $HOOK_AGREES")" "$HOOK_SCENARIOS_FILE" "$NO_CASES" "$tree"
 expect fail "hook scenarios without a tree of the template fail" "the corpus pins no tree of the template" \
   run_hooks "$(hook_nuc agrees "$HOOK_AGREES")" "$HOOK_SCENARIOS_FILE" "$NO_CASES"
 printf 'pattern\tdocs/x\t-\n' > "$work/hooks-bad.tsv"
-expect fail "a row of the hook table that names no hook/ rule is refused" "is not 'pattern<TAB>hook/<rule><TAB>ref|-'" \
+expect fail "a row of the hook table that names no hook/ rule is refused" "is not 'pattern<TAB>hook/<rule>|notice/<name><TAB>fields|-'" \
   env PARITY_HOOK_TABLE="$work/hooks-bad.tsv" PARITY_HOOK_SCENARIOS="$HOOK_SCENARIOS_FILE" PARITY_HOOK_CASES="$NO_CASES" \
   bash "$HARNESS" --nuc "$(hook_nuc agrees "$HOOK_AGREES")" --hooks "$tree"
 
