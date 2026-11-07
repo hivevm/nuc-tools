@@ -1261,8 +1261,6 @@ fn indexed(fixture: &Fixture, rule_feature: &str, rule_feat_x: &str) {
         "merge.adr-index.driver",
         &format!("{shim} %O %A %B %S %X %Y"),
     ]);
-    // The bytes the driver writes, not the line endings a platform's checkout gives them.
-    fixture.git(&["config", "core.autocrlf", "false"]);
     fixture
         .write(".gitattributes", "docs/adr/README.md merge=adr-index\n")
         .write(

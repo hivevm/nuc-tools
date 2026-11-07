@@ -108,6 +108,9 @@ impl Fixture {
         fs::create_dir_all(&root).expect("the fixture directory is created");
         let fixture = Self { root };
         fixture.git(&["init", "-q", "-b", "main"]);
+        // The bytes a fixture commits are the bytes it checks out, whatever line endings the
+        // system's or the user's configuration would give them, as git for Windows does.
+        fixture.git(&["config", "core.autocrlf", "false"]);
         fixture
     }
 
