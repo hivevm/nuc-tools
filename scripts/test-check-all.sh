@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Self-test of scripts/check-all.sh, its --changed mode in particular.
+# Self-test of scripts/check-all.sh, its --changed mode and its output in particular.
 #
 # Each case runs a copy of this repository's check-all.sh in a throwaway git repository whose
 # scripts are stubs: every script the copy runs is replaced by one that prints its own name, so
@@ -192,10 +192,40 @@ d="$(repo order)"
 echo "sleep 0.5" >> "$d/${scripts[0]}"
 want="$(printf 'RAN %s\n' "${scripts[@]}")"
 for jobs in "" 1; do
-  got="$(CHECK_ALL_JOBS="$jobs" bash "$d/scripts/check-all.sh" 2>&1 | grep '^RAN ')"
+  got="$(CHECK_ALL_JOBS="$jobs" bash "$d/scripts/check-all.sh" 2>&1 | grep -oE 'RAN [^ ]+')"
   check "the output follows the order of the list${jobs:+ on CHECK_ALL_JOBS=$jobs}" \
     test "$got" = "$want"
 done
+
+# A passing check shows its last line and what it skipped, a sensor its first line and how many
+# more it has, one that fails all it prints, and --verbose everything.
+sensor=""
+for s in "${checks[@]}"; do [[ "$s" == scripts/sensor-*.sh ]] && { sensor="$s"; break; }; done
+d="$(repo output)"
+printf 'echo "DETAIL %s"\n' "${tests[0]}" > "$work/detail"
+cat "$work/detail" "$d/${tests[0]}" > "$work/stub" && cp "$work/stub" "$d/${tests[0]}"
+out="$(bash "$d/scripts/check-all.sh" 2>&1)"
+check "a passing check shows its label and its last line" \
+  grep -qxF "ok: $(grep -m1 -F "${tests[0]}" "$RUNNER" | cut -d'"' -f2) — RAN ${tests[0]}" <<< "$out"
+check "a passing check hides the rest" test "${out/DETAIL/}" = "$out"
+out="$(bash "$d/scripts/check-all.sh" --verbose 2>&1)"
+check "--verbose shows all a passing check prints" grep -qF "DETAIL ${tests[0]}" <<< "$out"
+printf 'echo "DETAIL %s"\nexit 1\n' "${tests[1]}" >> "$d/${tests[1]}"
+out="$(bash "$d/scripts/check-all.sh" 2>&1)"
+check "a failing check shows all it prints" grep -qF "DETAIL ${tests[1]}" <<< "$out"
+check "the runner lists a sensor" test -n "$sensor"
+printf 'echo "DETAIL %s"\n' "$sensor" > "$work/detail"
+cat "$work/detail" "$d/$sensor" > "$work/stub" && cp "$work/stub" "$d/$sensor"
+printf 'echo "ShellCheck skipped"\n' > "$work/detail"
+cat "$work/detail" "$d/${tests[2]}" > "$work/stub" && cp "$work/stub" "$d/${tests[2]}"
+out="$(bash "$d/scripts/check-all.sh" 2>&1)"
+check "a sensor shows its headline and counts the rest" \
+  grep -qF "sensor: $(grep -m1 -F "$sensor" "$RUNNER" | cut -d'"' -f2) — DETAIL $sensor (+1 line; --verbose shows them)" <<< "$out"
+check "a sensor hides the rest of its report" test "${out/RAN $sensor/}" = "$out"
+check "a passing check keeps a line that says it skipped something" \
+  grep -qxF "    ShellCheck skipped" <<< "$out"
+out="$(bash "$d/scripts/check-all.sh" --verbose 2>&1)"
+check "--verbose shows a sensor's report in full" grep -qF "RAN $sensor" <<< "$out"
 
 # at_once <dir> <jobs> — the most checks the runner had running at once with CHECK_ALL_JOBS at
 # jobs: each stub notes a directory of its own while it runs, and how many there are.
@@ -221,24 +251,34 @@ d="$(repo jobs-zero)"
 CHECK_ALL_JOBS=0 expect_exit "CHECK_ALL_JOBS=0 exits 2" 2 "$d"
 
 # A runner stopped by TERM stops the checks it started and waits for them: none finishes after
-# it, and one that cleans up on TERM has done so when the runner returns.
+# it, and one that cleans up on TERM has done so when the runner returns. Each check writes its
+# process id first, so the case decides by which of them still runs, not by the clock.
 d="$(repo stopped)"
 # shellcheck disable=SC2016 # the stub's variable, not this script's
-printf 'trap '\''sleep 0.3; touch "%s/cleaned"; exit 1'\'' TERM; sleep 5 & wait $!\n' "$d" \
-  >> "$d/${scripts[0]}"
+printf 'echo $$ >> "%s/pids"; trap '\''sleep 0.3; touch "%s/cleaned"; exit 1'\'' TERM; sleep 5 & wait $!\n' \
+  "$d" "$d" >> "$d/${scripts[0]}"
 for s in "${scripts[@]}"; do
-  printf 'touch "%s/started"; sleep 1; touch "%s/finished"\n' "$d" "$d" >> "$d/$s"
+  # shellcheck disable=SC2016 # the stub's variable, not this script's
+  printf 'echo $$ >> "%s/pids"; touch "%s/started"; sleep 1; touch "%s/finished"\n' "$d" "$d" "$d" \
+    >> "$d/$s"
 done
 bash "$d/scripts/check-all.sh" > /dev/null 2>&1 &
 runner=$!
-for _ in 1 2 3 4 5 6 7 8 9 10; do [[ -e "$d/started" ]] && break; sleep 0.1; done
+# A check starts within a second on a quiet machine; the bound only keeps a broken runner from
+# hanging the self-test.
+for _ in $(seq 1 300); do [[ -e "$d/started" ]] && break; sleep 0.1; done
 kill -TERM "$runner"
 wait "$runner"; rc=$?
+# A check forked an instant before the TERM may not have written its id yet: it still runs the
+# runner's or its own script, both under the fixture's scripts/, which pgrep finds by name.
+alive=0
+while read -r pid; do kill -0 "$pid" 2>/dev/null && alive=$((alive + 1)); done < "$d/pids"
+pgrep -f "$d/scripts/" > /dev/null && alive=$((alive + 1))
 check "a runner stopped by TERM exits 143" test "$rc" -eq 143
 check "and had started a check" test -e "$d/started"
 check "and returns once a check that cleans up on TERM has done so" test -e "$d/cleaned"
-sleep 1.2
-check "and no check it started finishes after it" test ! -e "$d/finished"
+check "and no check it started still runs when it returns" test "$alive" -eq 0
+check "and no check it started has finished" test ! -e "$d/finished"
 
 d="$(repo unknown)"
 expect_exit "an unknown argument exits 2" 2 "$d" --everything
