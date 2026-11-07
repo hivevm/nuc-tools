@@ -79,6 +79,8 @@ fn a_fixture_checks_out_the_bytes_it_commits() {
     let fixture = Fixture::new("helpers-bytes");
     let local = stdout(&fixture.git(&["config", "--local", "core.autocrlf"]));
     assert_eq!(local.trim(), "false");
+    let local = stdout(&fixture.git(&["config", "--local", "maintenance.auto"]));
+    assert_eq!(local.trim(), "false");
     fixture.write("file.txt", "one\ntwo\n").commit("Bytes");
     std::fs::remove_file(fixture.root().join("file.txt")).expect("the file is removed");
     fixture.git(&["checkout", "--", "file.txt"]);
