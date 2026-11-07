@@ -209,3 +209,16 @@ pub const ALL: &[Rule] = &[
 pub fn find(id: &str) -> Option<&'static Rule> {
     ALL.iter().find(|rule| rule.id == id)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_guide_is_contributing_from_its_release_on_and_where_none_is_placed() {
+        assert!(!guide_is_contributing(Some(Version(0, 6, 1))));
+        assert!(guide_is_contributing(Some(CONTRIBUTING_GUIDE)));
+        assert!(guide_is_contributing(Some(Version(0, 8, 0))));
+        assert!(guide_is_contributing(None));
+    }
+}
