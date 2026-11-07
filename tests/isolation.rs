@@ -9,7 +9,7 @@
 //! network namespace of its own, which holds no device but loopback, reports exactly what it
 //! reports with the network (Q-11); CI lifts the restriction the Ubuntu runner puts on making one.
 //! macOS and Windows have no such namespace for an unprivileged process, so Q-11 is shown on
-//! Linux, x64 and arm64.
+//! Linux, x64 and arm64. `nuc hook` is held to Q-7 and Q-11 for every shim in `tests/hooks.rs`.
 
 mod support;
 
