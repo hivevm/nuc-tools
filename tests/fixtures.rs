@@ -85,3 +85,16 @@ fn a_fixture_checks_out_the_bytes_it_commits() {
     let bytes = std::fs::read(fixture.root().join("file.txt")).expect("the file is read");
     assert_eq!(bytes, b"one\ntwo\n");
 }
+
+#[test]
+fn a_fixture_runs_nothing_in_the_background() {
+    let fixture = Fixture::new("helpers-background");
+    for (key, value) in [
+        ("maintenance.auto", "false"),
+        ("gc.auto", "0"),
+        ("core.fsmonitor", "false"),
+    ] {
+        let local = stdout(&fixture.git(&["config", "--local", key]));
+        assert_eq!(local.trim(), value, "{key}");
+    }
+}
