@@ -1,7 +1,6 @@
-//! The fixture repositories of the tests
-//! (ADR-draft-fixture-repositories-with-a-home-of-their-own): each a fresh directory of its own
-//! under the system's temporary directory, outside this repository, so that no git command of a
-//! test can reach it, built through the real git CLI.
+//! The fixture repositories of the tests (ADR-0026): each a fresh directory of its own under the
+//! system's temporary directory, outside this repository, so that no git command of a test can
+//! reach it, built through the real git CLI.
 //! git and `nuc` run under a cleared environment with the allowlist the shell passes, `HOME`
 //! an empty directory of the test process's own, a fixed author, committer, and date, the hooks
 //! path on the null device, and `core.autocrlf`, background maintenance, and the file-system

@@ -15,8 +15,7 @@ use std::process::{Command, Output};
 use support::{CONFIG, Fixture, NUC, README, snapshot, stderr, stdout};
 
 /// `nuc check` in the fixture, with the parent's environment and the decoy variables set, as an
-/// inherited environment would carry them, and the tests' `HOME` over the parent's
-/// (ADR-draft-fixture-repositories-with-a-home-of-their-own).
+/// inherited environment would carry them, and the tests' `HOME` over the parent's (ADR-0026).
 fn check_with_decoy(fixture: &Fixture, decoy: &Fixture) -> Output {
     let git_dir = decoy.root().join(".git");
     Command::new(NUC)

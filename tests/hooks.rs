@@ -1341,7 +1341,7 @@ fn the_driver_takes_the_conflict_style_from_the_repository_never_from_the_enviro
     assert!(index.contains(base_section), "{index}");
 }
 
-/// Verifies: ADR-draft-fixture-repositories-with-a-home-of-their-own
+/// Verifies: ADR-0026
 #[test]
 fn a_global_conflict_style_of_the_parent_reaches_neither_git_nor_nuc() {
     if std::env::var_os(support::HOME_CHILD).is_none() {
