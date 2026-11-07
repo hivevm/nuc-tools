@@ -4,8 +4,8 @@
 //! `GIT_CONFIG_PARAMETERS` set to a decoy repository, and the child builds a fixture through the
 //! helpers: the fixture holds its commit where the helper said, with the fixed identity, and the
 //! decoy is untouched. The variables are set on the child, never on this process, whose tests
-//! run side by side. A fixture checks out the bytes it commits, whatever line endings the
-//! system's or the user's configuration would give them.
+//! run side by side. A fixture checks out the bytes it commits, whatever `core.autocrlf` the
+//! system's or the user's configuration sets.
 
 mod support;
 
