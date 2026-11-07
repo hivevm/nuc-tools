@@ -40,7 +40,7 @@ live in [`docs/SPECIFICATION.md`](docs/SPECIFICATION.md), the vocabulary in
 1. Open the repository in VS Code and choose **Reopen in Container**. The Dev Container and the
    preconfigured agent extensions build automatically, and the container enables the repository's
    git hooks with the merge settings they rely on ([Git hooks](CONTRIBUTING.md#git-hooks)). Working
-   outside the container? Run the three commands listed there yourself, once per clone.
+   outside the container? Run the four commands listed there yourself, once per clone.
 2. Authenticate your coding agent inside the container (for Claude Code: `claude login`).
 3. Start working with the agent. Drive the work from the specification and the ADRs.
 
@@ -66,8 +66,8 @@ on the `PATH`. Every release carries one binary per platform, named `nuc-<target
 ### Install
 
 **In a Dev Container**, add the Feature to `.devcontainer/devcontainer.json`. It installs the
-`nuc` of its own version into `/usr/local/bin` and checks it against the checksums it carries;
-Dependabot's `devcontainers` ecosystem moves the version.
+`nuc` of its own version into `/usr/local/bin` and checks it against the checksums it carries.
+The major tag `0` moves with each 0.x release, so a rebuilt container gets the newest one.
 
 ```json
 "features": {
@@ -76,23 +76,29 @@ Dependabot's `devcontainers` ecosystem moves the version.
 ```
 
 **In a GitHub workflow**, run `nuc` through the Action. It installs the `nuc` of its release,
-checks it against the checksums its release commit carries, and runs `nuc` with `args`. Reference
-it by the major tag alone: `v0` names the release commit of the newest 0.x release, while a tag
-`vX.Y.Z` names the source commit, which carries no checksums and installs nothing.
+checks it against the checksums its release commit carries, and runs `nuc` with `args`, in the
+repository a checkout step put on the runner. Reference it by the major tag alone: `v0` names the
+release commit of the newest 0.x release, while a tag `vX.Y.Z` names the source commit, which
+carries no checksums and installs nothing. It runs on the runners a release has a binary for,
+not on macOS on x64.
 
 ```yaml
+- uses: actions/checkout@v7
 - uses: hivevm/nuc-tools@v0
   with:
     args: check
 ```
 
 **By hand**, download the binary for the platform and `SHA256SUMS` from the
-[release](https://github.com/hivevm/nuc-tools/releases), check both, and put the binary on the
-`PATH` as `nuc`:
+[release](https://github.com/hivevm/nuc-tools/releases), check its checksum (on macOS
+`shasum -a 256 -c` in place of `sha256sum --check`) and that the release workflow built it, then
+make it executable and put it on the `PATH` as `nuc`:
 
 ```sh
 sha256sum --check --ignore-missing SHA256SUMS
-gh attestation verify nuc-x86_64-unknown-linux-musl --repo hivevm/nuc-tools
+gh attestation verify nuc-x86_64-unknown-linux-musl --repo hivevm/nuc-tools \
+  --signer-workflow hivevm/nuc-tools/.github/workflows/release.yml
+chmod +x nuc-x86_64-unknown-linux-musl && mv nuc-x86_64-unknown-linux-musl ~/.local/bin/nuc
 ```
 
 The targets are `x86_64-unknown-linux-musl`, `aarch64-unknown-linux-musl`,
@@ -100,18 +106,21 @@ The targets are `x86_64-unknown-linux-musl`, `aarch64-unknown-linux-musl`,
 
 ### Configure
 
-`nuc.toml`, at the root of the repository, names the minimum version of `nuc` and the rules
-`nuc check` runs ([ADR-0023](docs/adr/0023-version-coupling-with-hook-defaults.md)):
+`nuc.toml`, at the root of the repository, names the minimum version of `nuc` and the rules it
+turns on: the rules `nuc check` runs, and the `hook/` rules `nuc hook` decides
+([ADR-0023](docs/adr/0023-version-coupling-with-hook-defaults.md)):
 
 ```toml
-minimum = "0.1.0"
-rules = ["docs/template-release", "docs/prose-width", "hook/commit-on-main"]
+minimum = "0.0.0"
+rules = ["docs/template-release", "docs/prose-width"]
 ```
 
 A `nuc` older than the minimum refuses to decide, and so does an unknown rule ID, so that a file
-`nuc` does not understand never passes. The `hook/` rules turn the decisions of the hooks on or
-off; without a `nuc.toml` every one of them is on. A `nuc` built from source is version 0.0.0, so
-any higher minimum refuses it.
+`nuc` does not understand never passes. Without a `nuc.toml` every `hook/` rule is on; with one,
+each `hook/` rule its list leaves out is off, as in the example above, which `nuc explain` names
+one by one: `hook/commit-on-main`, `hook/merge-checks`, `hook/merge-on-main`, `hook/merge-docs`,
+`hook/push-to-main`, `hook/push-checks`, and `hook/main-moves`. A `nuc` built from source is
+version 0.0.0, so a higher minimum refuses it.
 
 ### Commands
 
@@ -134,20 +143,14 @@ criteria no test cites yet in the summary on standard error.
 
 ### Git hooks
 
-The shims under [`shims/`](shims/), in POSIX sh, hand each hook to `nuc hook <name>`: `nuc`
-decides, and where a hook's check is due the shim runs the project's `scripts/check-all.sh` or
-`scripts/check-docs.sh` itself ([ADR-0021](docs/adr/0021-hook-contract.md)). Without `nuc` on the
-`PATH`, or with one older than `nuc.toml` requires, every shim refuses and names where to install
-it. To use them, copy `shims/` into the project, as `.githooks/` in place of the bash hooks, and
-point git at it once per clone:
-
-```sh
-git config core.hooksPath .githooks
-git config merge.adr-index.driver '.githooks/merge-adr-index %O %A %B %S %X %Y'
-```
-
-`.gitattributes` names the driver for the ADR index with the line
-`docs/adr/README.md merge=adr-index`.
+The shims under [`shims/`](shims/), in POSIX sh, are the reference hooks the template copies
+when it switches over from its bash hooks; until it does, a project keeps the hooks its template
+release carries ([ADR-0021](docs/adr/0021-hook-contract.md)). Each shim hands its hook to
+`nuc hook <name>`: `nuc` decides, and where a hook's check is due the shim runs the project's
+`scripts/check-all.sh` or `scripts/check-docs.sh` itself. Without `nuc` on the `PATH`, or with one
+older than `nuc.toml` requires, every shim refuses and names where to install it. They rely on the
+same git settings as the template's hooks, listed under
+[Git hooks](CONTRIBUTING.md#git-hooks).
 
 ## Template
 
