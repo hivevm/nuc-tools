@@ -1366,9 +1366,15 @@ fn direct(fixture: &Fixture, hook: &str, vars: &[(&str, std::ffi::OsString)]) ->
         }
         "merge-adr-index" => {
             fixture
-                .write("base.md", "Rule: one.\n")
-                .write("ours.md", "Rule: one.\n")
-                .write("theirs.md", "Rule: one.\n");
+                .write("base.md", "Rule: one.\n| [0001](0001-a.md) |\n")
+                .write(
+                    "ours.md",
+                    "Rule: one.\n| [0001](0001-a.md) |\n| [0002](0002-b.md) |\n",
+                )
+                .write(
+                    "theirs.md",
+                    "Rule: one.\n| [0001](0001-a.md) |\n| [0003](0003-c.md) |\n",
+                );
             (
                 ["base.md", "ours.md", "theirs.md"]
                     .map(str::to_owned)
@@ -1419,8 +1425,14 @@ fn nuc_hook_runs_no_script_of_the_repository_for_any_shim() {
         let fixture = shimmed_only(&format!("hooks-canary-{hook}"), &hook);
         let canary = canary(&fixture);
         let output = direct(&fixture, &hook, &[]);
-        assert!(
-            matches!(output.status.code(), Some(0..=3)),
+        // The hooks that have a check answer that it be run, and still run nothing themselves.
+        let answer = match hook.as_str() {
+            "pre-commit" | "pre-merge-commit" | "pre-push" => 3,
+            _ => 0,
+        };
+        assert_eq!(
+            output.status.code(),
+            Some(answer),
             "{hook}: {}",
             both(&output)
         );
@@ -1446,15 +1458,19 @@ fn nuc_hook_leaves_a_decoy_in_the_environment_untouched_for_any_shim() {
         ];
         let fixture = shimmed_only(&format!("hooks-decoy-target-{hook}"), &hook);
         let output = direct(&fixture, &hook, &vars);
-        // A hook does not decide where it is handed another git directory; the driver merges the
-        // files it is named in its own repository, which git runs it in.
-        let expected = if hook == "merge-adr-index" { 0 } else { 2 };
-        assert_eq!(
-            output.status.code(),
-            Some(expected),
-            "{hook}: {}",
-            both(&output)
-        );
+        if hook == "merge-adr-index" {
+            // The driver merges the files git names it, in the repository git runs it in, and
+            // holds the union of their rows.
+            assert_eq!(output.status.code(), Some(0), "{hook}: {}", both(&output));
+            let ours = std::fs::read_to_string(fixture.root().join("ours.md")).expect("ours");
+            assert!(
+                ours.contains("0002-b.md") && ours.contains("0003-c.md"),
+                "{ours}"
+            );
+        } else {
+            // Handed another git directory than the one it finds, a hook does not decide.
+            assert_eq!(output.status.code(), Some(2), "{hook}: {}", both(&output));
+        }
         let after = snapshot(decoy.root());
         assert!(
             after == before,
@@ -1470,7 +1486,13 @@ fn through_git(name: &str, hook: &str, run: &dyn Fn(&Fixture, &[&str]) -> Output
     let fixture = shimmed_only(name, hook);
     checks(&fixture, 0);
     docs(&fixture, 0);
-    let args = trigger(&fixture, hook);
+    // A commit on `main` moves it, which `reference-transaction` decides past its early exit;
+    // with this shim alone no other refuses the commit.
+    let args: &[&str] = if hook == "reference-transaction" {
+        &["commit", "-q", "--allow-empty", "-m", "x"]
+    } else {
+        trigger(&fixture, hook)
+    };
     fixture.git(&[
         "config",
         "http.extraHeader",
@@ -1478,6 +1500,8 @@ fn through_git(name: &str, hook: &str, run: &dyn Fn(&Fixture, &[&str]) -> Output
     ]);
     let before = snapshot(fixture.root());
     let output = run(&fixture, args);
+    // Each run passes, so that `nuc` was reached and decided: a shim without it refuses.
+    assert!(output.status.success(), "{hook}: {}", both(&output));
     let written = snapshot(fixture.root())
         .into_iter()
         .filter(|entry| !before.contains(entry))
