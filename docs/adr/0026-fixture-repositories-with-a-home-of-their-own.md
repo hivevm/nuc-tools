@@ -1,4 +1,4 @@
-# ADR-draft-fixture-repositories-with-a-home-of-their-own: Tests build their repositories through the real git CLI in fresh temporary directories, under a cleared environment with a `HOME` of the test run's own
+# ADR-0026: Tests build their repositories through the real git CLI in fresh temporary directories, under a cleared environment with a `HOME` of the test run's own
 
 - **Status:** 🟡 proposed
 - **Date:** 2026-11-07
@@ -96,7 +96,7 @@ developer's does, `safe.directory` included.
 
 ## Enforcement
 
-A test cited with `Verifies: ADR-draft-fixture-repositories-with-a-home-of-their-own` runs the
+A test cited with `Verifies: ADR-0026` runs the
 fixture helpers with `GIT_DIR`, `GIT_WORK_TREE`, and `GIT_CONFIG_PARAMETERS` set to a decoy and
 checks that the decoy is untouched and the fixture is built where the helper said. Tests cited the
 same way run the helpers in a child whose parent `HOME` holds a global configuration that sets
