@@ -1,5 +1,5 @@
 //! What `nuc check` writes on the standard output, in the format `--format` names
-//! (ADR-draft-output-formats): the lines of ADR-0020, one JSON document, or one SARIF 2.1.0 log.
+//! (ADR-0027): the lines of ADR-0020, one JSON document, or one SARIF 2.1.0 log.
 //! Built here, without a crate, so that the same findings give the same bytes; the shell only
 //! writes the result.
 

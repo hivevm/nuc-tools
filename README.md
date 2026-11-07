@@ -124,8 +124,9 @@ minimum holds like a release's.
   repository that contains the current directory or `<path>`. Each finding is a line
   `<file>[:<line>]: <rule ID>: <message>`; with `--format json` the findings and notes are one
   JSON document, `{"format": "nuc-findings", "version": 1, "findings": [...], "notes": [...]}`,
-  each finding with `rule`, `file`, `line` (or `null`), and `message`; with `--format sarif` they
-  are a SARIF 2.1.0 log, which GitHub's code scanning reads. The exit code is 0 without
+  each finding with `rule`, `file`, `line` (or `null`), and `message`; with `--format sarif` the
+  findings are a SARIF 2.1.0 log, which GitHub's code scanning reads, and the notes stay on the
+  standard error. The exit code is 0 without
   a finding, 1 with one, and 2 where `nuc` could not decide, as without a readable `nuc.toml`;
   then nothing is written on the standard output in any format.
 - `nuc explain <rule ID>` gives the reason of a rule.

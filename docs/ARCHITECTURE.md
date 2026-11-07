@@ -67,6 +67,10 @@ golden path and the test pattern an agent copies from are named here.
   ([ADR-0023](adr/0023-version-coupling-with-hook-defaults.md)). It holds the one answer to which
   IDs `nuc.toml` may name, those of `rules::ALL` and of `hook::ALL`, and the reason `nuc explain`
   gives for each, so `nuc check`, `nuc hook`, and `nuc explain` ask it alike.
+- **Formats** — `src/format.rs` turns what a run of `nuc check` decided into its standard
+  output: the lines of ADR-0020, one JSON document, or one SARIF 2.1.0 log, without a crate and
+  byte for byte the same for the same findings
+  ([ADR-0027](adr/0027-output-formats.md)).
 - **Hooks** — `src/hook.rs` decides what each git hook of the template decides, from the git
   state the shell reads in `shell::hook`, which finds each hook in its one table `HOOKS`, and
   holds the `hook/` rules, `hook::ALL`, which `nuc check` knows and runs never. The reference
