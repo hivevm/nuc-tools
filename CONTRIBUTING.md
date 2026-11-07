@@ -249,7 +249,8 @@ configured once by a maintainer and worth re-checking after a repository move or
   for no one until then ([ADR-0017](docs/adr/0017-distribution.md)).
 
 [`scripts/sensor-repo-settings.sh`](scripts/sensor-repo-settings.sh) reads these settings
-through `gh` and reports each one that differs from this list. It runs on a human's
+through `gh` and reports each one that differs from this list, the package's visibility aside,
+which a maintainer checks by hand. It runs on a human's
 instruction ([ADR-0002](docs/adr/0002-decisions-verified-by-tests.md)).
 
 ## Reporting security issues
