@@ -67,6 +67,10 @@ golden path and the test pattern an agent copies from are named here.
   ([ADR-0023](adr/0023-version-coupling-with-hook-defaults.md)). It holds the one answer to which
   IDs `nuc.toml` may name, those of `rules::ALL` and of `hook::ALL`, and the reason `nuc explain`
   gives for each, so `nuc check`, `nuc hook`, and `nuc explain` ask it alike.
+- **Formats** — `src/format.rs` turns what a run of `nuc check` decided into its standard
+  output: the lines of ADR-0020, one JSON document, or one SARIF 2.1.0 log, without a crate and
+  byte for byte the same for the same findings
+  ([ADR-0027](adr/0027-output-formats.md)).
 - **Hooks** — `src/hook.rs` decides what each git hook of the template decides, from the git
   state the shell reads in `shell::hook`, which finds each hook in its one table `HOOKS`, and
   holds the `hook/` rules, `hook::ALL`, which `nuc check` knows and runs never. The reference
@@ -151,16 +155,17 @@ others: `README.md` and the release it carries, `CONTRIBUTING.md`, the record un
 text files git lists, the targets of relative links, `AGENTS.md`, the workflows and scripts, the
 Project Layout's paths, the skills and their pointers, the identity files, the attributes that mark
 a file generated, the variables CI sets, the specification, and the files that carry a `Verifies:`
-marker. It runs each selected rule on what it read and carries out every outcome alike: it
-prints the findings on the standard output, and exits 0 without a finding and 1 with one; the
-summary on the standard error carries the rules' notes, as the criteria no marker cites, which
-change no exit code. Every cause it can name that keeps it from deciding ends the run with exit 2
-and a message on the standard error: before any rule runs for what it reads, a missing README,
-which names no release, an input that resolves outside the repository, one the bash would read
-otherwise, a release a rule that checks by it cannot place; after the rules run, before any
-finding is printed, for a rule's own refusal and for a finding that names a path of no UTF-8.
-A panic ends it with exit 101, non-zero as well (Q-1). Nothing is written and no state is kept
-between runs.
+marker. It runs each selected rule on what it read and carries out every outcome alike: it prints
+the findings on the standard output, as lines, or as the JSON document or the SARIF log
+`src/format.rs` builds from them for `--format json` or `sarif`, and exits 0 without a finding and 1
+with one; the summary on the standard error carries the rules' notes, as the criteria no marker
+cites, which change no exit code. Every cause it can name that keeps it from deciding ends the run
+with exit 2 and a message on the standard error: before any rule runs for what it reads, a missing
+README, which names no release, an input that resolves outside the repository, one the bash would
+read otherwise, a release a rule that checks by it cannot place; after the rules run, before any
+finding is printed, for a rule's own refusal and for a finding that names a path of no UTF-8. A
+panic ends it with exit 101, non-zero as well (Q-1). Nothing is written and no state is kept between
+runs.
 
 `nuc hook pre-commit` runs in the directory git runs the hook in. Without `nuc.toml` every `hook/`
 rule is on; with one, it is read as `nuc check` reads it and its list governs. Where git hands it
