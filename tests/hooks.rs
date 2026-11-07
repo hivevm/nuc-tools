@@ -1387,7 +1387,6 @@ fn the_driver_writes_nothing_outside_the_repository_and_ignores_a_fourth_label()
 /// the state git would hand it and with the arguments and standard input git would. A shim this
 /// does not know fails the test, as `trigger` does.
 fn direct(fixture: &Fixture, hook: &str, vars: &[(&str, std::ffi::OsString)]) -> Output {
-    use std::io::Write;
     let (args, input): (Vec<String>, String) = match hook {
         "pre-commit" => {
             conflicted(fixture);
@@ -1436,11 +1435,23 @@ fn direct(fixture: &Fixture, hook: &str, vars: &[(&str, std::ffi::OsString)]) ->
         }
         other => panic!("no direct call of the shim '{other}': add it here"),
     };
+    call(fixture, hook, &args, &input, vars)
+}
+
+/// `nuc hook <hook>` called in the fixture with these arguments, standard input, and variables.
+fn call(
+    fixture: &Fixture,
+    hook: &str,
+    args: &[String],
+    input: &str,
+    vars: &[(&str, std::ffi::OsString)],
+) -> Output {
+    use std::io::Write;
     let mut command = Command::new(NUC);
     cleared(&mut command)
         .current_dir(fixture.root())
         .args(["hook", hook])
-        .args(&args)
+        .args(args)
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped());
@@ -1509,6 +1520,15 @@ fn nuc_hook_leaves_a_decoy_in_the_environment_untouched_for_any_shim() {
             ),
         ];
         let fixture = shimmed_only(&format!("hooks-decoy-target-{hook}"), &hook);
+        if hook == "reference-transaction" {
+            // A transaction that touches no `main` passes before the hook reads any git state.
+            let head = stdout(&fixture.git(&["rev-parse", "HEAD"]))
+                .trim()
+                .to_owned();
+            let input = format!("{head} {head} refs/heads/feature\n");
+            let output = call(&fixture, &hook, &["prepared".to_owned()], &input, &vars);
+            assert_eq!(output.status.code(), Some(0), "{hook}: {}", both(&output));
+        }
         let output = direct(&fixture, &hook, &vars);
         if hook == "merge-adr-index" {
             // The driver merges the files git names it, in the repository git runs it in, and
@@ -1520,7 +1540,8 @@ fn nuc_hook_leaves_a_decoy_in_the_environment_untouched_for_any_shim() {
                 "{ours}"
             );
         } else {
-            // Handed another git directory than the one it finds, a hook does not decide.
+            // Handed another git directory than the one it finds, a hook that would decide on the
+            // git state does not decide; for `reference-transaction` that is an update of `main`.
             assert_eq!(output.status.code(), Some(2), "{hook}: {}", both(&output));
         }
         let after = snapshot(decoy.root());
