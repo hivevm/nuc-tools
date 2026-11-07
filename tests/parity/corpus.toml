@@ -1,0 +1,58 @@
+# The corpus of the parity harness (ADR-0015), read by
+# scripts/check-parity.sh: each repository by URL and commit, on template release v0.5.0 or later,
+# run with the bash checks it carries and with nuc. A pull request moves a pin. The format is one
+# '[[repository]]' table per entry with the three keys below, each a string on a line of its own.
+
+# The template at the commit of its release v0.5.0.
+[[repository]]
+name = "nuc"
+url = "https://github.com/hivevm/nuc.git"
+commit = "1bc9c65fe48e893aaf4e3b49f1bc803c0c753a98"
+
+# The template at the commit of its release v0.6.0, where check 8 flips an old ADR on the
+# acceptance of its successor: the rules that check by the release check it as v0.6.0.
+[[repository]]
+name = "nuc-v0-6-0"
+url = "https://github.com/hivevm/nuc.git"
+commit = "f9d3c56b9bc238c975ee4d1b4f5a9bb4cfdc8f33"
+
+# The template at the commit of its release v0.6.1, whose check-docs.sh ends the template's name
+# in a badge, so that a derived repository named after it keeps its own badges.
+[[repository]]
+name = "nuc-v0-6-1"
+url = "https://github.com/hivevm/nuc.git"
+commit = "1f5a07c7e1959a52e45ff249a07db7c32bf4939c"
+
+# The template at the commit of its release v0.7.0, whose check-docs.sh reads the required checks
+# and the Project Layout from CONTRIBUTING.md: the rules that check by the release check it as
+# v0.7.0.
+[[repository]]
+name = "nuc-v0-7-0"
+url = "https://github.com/hivevm/nuc.git"
+commit = "8ff4cf46bb887cd9471ff05a457a16bb83cc0f42"
+
+# A derived repository on template release v0.6.1, at a fixed commit of its main.
+[[repository]]
+name = "nectar"
+url = "https://github.com/hivevm/nectar.git"
+commit = "4892160534f5b8f22dd51b980b7275429c9ef9d0"
+
+# This repository on template release v0.7.0, at a fixed commit of its main after the port of
+# the hooks, the merge of #58 during its design revision of 2026-11-06, whose open tickets stand
+# in docs/plan/: the one derived tree on that release.
+[[repository]]
+name = "nuc-tools"
+url = "https://github.com/hivevm/nuc-tools.git"
+commit = "ee95a111a4202c8fbcd435f89b3e6c4904f0dd43"
+
+# A derived repository on template release v0.6.1, at a fixed commit of its main.
+[[repository]]
+name = "ocelli"
+url = "https://github.com/hivevm/ocelli.git"
+commit = "0657ed0f9823d1d8ef2e678a616f8683214bea7c"
+
+# A derived repository on template release v0.6.1, at a fixed commit of its main.
+[[repository]]
+name = "opamp-fleet"
+url = "https://github.com/mbrigl/opamp-fleet.git"
+commit = "2188e86e4b53030c18861ac9c4d86a03ae36325a"

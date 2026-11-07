@@ -1,0 +1,92 @@
+# The variants of the parity harness (ADR-0015), read by
+# scripts/check-parity.sh: edits that make a ported rule fire, applied to a copy of every corpus
+# tree they are for and compared there as on the tree itself. One row per variant, five or six
+# fields separated by tabs: a name of [a-z0-9-], the rule ID it makes fire, the path it edits,
+# "sed" with an extended sed expression, "delete" with "-", which deletes a file or a symbolic link
+# itself, "write" with a line, which creates the file the path names and must not find it, its
+# backslash escapes read as printf's %b reads them (\x3a, \n; a backslash of its own is \\), or
+# "chomp" with "-", which takes the newline off the file's last line, and
+# optionally the corpus trees it is for, by name and separated by commas; a
+# variant without them is for every tree. A variant fails the harness on a tree it is for where
+# its edit changes nothing or bash reports no finding of its rule, and when it names a tree the
+# corpus lacks.
+
+# docs/template-release: check 14 of check-docs.sh.
+template-release-deleted	docs/template-release	README.md	sed	/^[[:space:]]*([-*] )?\*\*Template release:\*\*/d
+template-release-latest	docs/template-release	README.md	sed	s/^([[:space:]]*([-*] )?\*\*Template release:\*\*).*/\1 latest/
+
+# docs/adr-index, docs/adr-numbering, docs/adr-header: checks 1, 2, and 7 of check-docs.sh.
+adr-index-row-deleted	docs/adr-index	docs/adr/README.md	sed	/^\| \[0001\]/d
+adr-numbering-heading	docs/adr-numbering	docs/adr/0002-decisions-verified-by-tests.md	sed	s/^# ADR-0002:/# ADR:/
+adr-header-two-emoji	docs/adr-header	docs/adr/0001-agent-governance-model.md	sed	s/^(- \*\*Status:\*\* 🟢 accepted)$/\1 | 🟡 proposed/
+adr-index-applies-changed	docs/adr-index	docs/adr/0001-agent-governance-model.md	sed	s/^(- \*\*Applies to:\*\*) /\1 changed: /
+adr-header-wrong-word	docs/adr-header	docs/adr/0001-agent-governance-model.md	sed	s/^(- \*\*Status:\*\* 🟢) accepted$/\1 proposed/
+adr-header-stray-field	docs/adr-header	docs/adr/0002-decisions-verified-by-tests.md	sed	s/^- (\*\*Date:\*\*)/\1/
+
+# docs/adr-refs, docs/adr-link-targets, docs/adr-supersessions: checks 5, 6, and 8 of check-docs.sh.
+adr-refs-missing	docs/adr-refs	README.md	sed	1s/$/ ADR-09\x399/
+# The byte 0x1F outside the record, and a byte of no valid UTF-8 on a line no rule refuses it on,
+# which nuc reads as the bash does, each beside a reference.
+adr-refs-unit-separator	docs/adr-refs	README.md	sed	1s/$/ \x1fADR-09\x398/
+adr-refs-invalid-utf8	docs/adr-refs	README.md	sed	1s/$/ \xffADR-09\x397/
+adr-link-targets-other	docs/adr-link-targets	docs/adr/0001-agent-governance-model.md	sed	$s/$/\n\nSee [ADR-0002](0003-procedures-as-skills.md)./
+adr-supersessions-no-successor	docs/adr-supersessions	docs/adr/0001-agent-governance-model.md	sed	s/^(- \*\*Status:\*\*) 🟢 accepted$/\1 ⚪ superseded/
+adr-supersessions-unflipped	docs/adr-supersessions	docs/adr/0002-decisions-verified-by-tests.md	sed	s/^(- \*\*Applies to:\*\*)/- **Supersedes:** ADR-0001\n\1/
+
+# docs/links, docs/section-refs: checks 3 and 4 of check-docs.sh; and the gap in the numbering,
+# which fires checks 1, 2, 3, and 5.
+links-broken	docs/links	README.md	sed	$s/$/\n\nSee [the missing file](missing-variant.md)./
+links-anchor	docs/links	README.md	sed	$s/$/\n\nSee [the rules](AGENTS.md#no-such-section)./
+# Line anchors in bash arithmetic, beside a broken link that makes the rule fire: 011 is octal 9,
+# so lines 9 to 10 resolve; 2^64 + 1 wraps to line 1, so lines 1 to 1 do. Read as decimals, both
+# would be broken. The line is wide, so docs/prose-width fires on it as well.
+links-line-anchor-arithmetic	docs/links	README.md	sed	$s/$/\n\nSee [the missing file](missing-variant.md), [a](README.md#L011-L10), and [b](README.md#L1-L18446744073709551617)./
+section-refs-bare	docs/section-refs	README.md	sed	$s/$/\n\nSee §3 of the agents file./
+adr-numbering-gap	docs/adr-numbering	docs/adr/0003-procedures-as-skills.md	delete	-
+
+# docs/check-lists, docs/project-layout, docs/skill-pointers: checks 9, 10, and 11 of check-docs.sh.
+check-lists-job-unnamed	docs/check-lists	.github/workflows/checks.yml	sed	$s/$/\n  variant:\n    steps:\n      - run: bash scripts\/check-docs.sh/
+project-layout-missing	docs/project-layout	README.md	sed	/^## Project Layout$/,/^(```|~~~)/s/^(```|~~~).*$/&\nmissing-variant.txt/	nuc,nuc-v0-6-0,nuc-v0-6-1,nectar,ocelli,opamp-fleet
+project-layout-missing-guide	docs/project-layout	CONTRIBUTING.md	sed	/^## Project Layout$/,/^(```|~~~)/s/^(```|~~~).*$/&\nmissing-variant.txt/	nuc-v0-7-0,nuc-tools
+skill-pointers-missing	docs/skill-pointers	.claude/skills/review	delete	-
+
+# docs/inherited-adrs, docs/template-identity: checks 12 and 13 of check-docs.sh.
+inherited-adrs-undecided	docs/inherited-adrs	docs/adr/0001-agent-governance-model.md	sed	s/^(- \*\*Deciders:\*\*) NUC maintainer, Markus Brigl$/\1 NUC maintainer/	nectar,nuc-tools,ocelli,opamp-fleet
+template-identity-badge	docs/template-identity	README.md	sed	0,/^\[!\[/s/^\[!\[/[![Checks](https:\/\/github.com\/hivevm\/nuc\/actions\/workflows\/checks.yml\/badge.svg)](https:\/\/github.com\/hivevm\/nuc)\n&/	nectar,nuc-tools,ocelli,opamp-fleet
+
+# docs/prose-width: check 15 of check-docs.sh.
+prose-width-101	docs/prose-width	README.md	sed	$s/$/\n\nword word word word word word word word word word word word word word word word word word word word w/
+
+# docs/no-draft-on-main: check 16 of check-docs.sh, run as a pull request into main marked ready.
+no-draft-on-main-draft	docs/no-draft-on-main	docs/adr/draft-parity-variant.md	write	# A draft the variant writes
+
+# traceability/criteria: part 1 of check-traceability.sh.
+criteria-no-identifier	traceability/criteria	docs/SPECIFICATION.md	sed	s/^([0-9]+\.|[-*+]) \*\*G-1\*\*/\1 G-1/
+
+# traceability/citations: part 3 of check-traceability.sh. The markers are written with \x3a for
+# the colon and \x2d for the hyphen of ADR-, so that this file carries no marker or reference the
+# checks would read.
+citations-missing-adr	traceability/citations	scripts/check-all.sh	sed	$s/$/\n# Verifies\x3a ADR\x2d9999/
+citations-unknown-criterion	traceability/citations	scripts/check-all.sh	sed	$s/$/\n# Verifies\x3a Q-999/
+citations-superseded	traceability/citations	docs/adr/0001-agent-governance-model.md	sed	s/^- \*\*Status:\*\* .*/- **Status:** ⚪ superseded by ADR-0002/
+
+# traceability/coverage: parts 2 and 4 of check-traceability.sh.
+coverage-uncited	traceability/coverage	docs/adr/0999-parity-variant.md	write	- **Status:** 🟢 accepted
+coverage-no-reason	traceability/coverage	docs/adr/0001-agent-governance-model.md	sed	$s/$/\n\n**Not mechanically decidable:**/
+
+# A last line without a newline, which `read` drops: the last row of the index, where the index
+# ends with one.
+adr-index-last-row-unterminated	docs/adr-index	docs/adr/README.md	chomp	-	nuc-tools,ocelli,opamp-fleet
+
+# Names the corpus lacks, each where a ported rule names it: a space and a colon followed by a
+# space in a Markdown file with a broken link, which nuc reads as the bash does with or without
+# them; a space and ': ' in a file that cites, its finding at a line; capitals and '_' in an
+# accepted draft's slug; a space in an ADR whose exemption gives no reason; and a colon in an
+# uncited ADR's file. A marker is written with \x3a for its colon.
+links-path-space	docs/links	docs/parity variant.md	write	See [the missing file](missing-variant.md).
+links-path-colon	docs/links	docs/parity: variant.md	write	See [the missing file](missing-variant.md).
+citations-path-space	traceability/citations	parity variant.txt	write	Verifies\x3a Q-999
+coverage-draft-capitals	traceability/coverage	docs/adr/draft-Parity_Variant.md	write	- **Status:** 🟢 accepted
+citations-path-colon	traceability/citations	parity: variant.txt	write	Verifies\x3a Q-999
+coverage-no-reason-path-space	traceability/coverage	docs/adr/0998-parity variant.md	write	# ADR\x2d0998: X\n\n- **Status:** 🟢 accepted\n- **Applies to:** x\n\n## Enforcement\n\n**Not mechanically decidable:**
+coverage-uncited-path-colon	traceability/coverage	docs/adr/0997-parity:variant.md	write	- **Status:** 🟢 accepted
