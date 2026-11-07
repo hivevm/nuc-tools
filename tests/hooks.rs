@@ -1315,6 +1315,8 @@ fn the_driver_takes_the_conflict_style_from_the_repository_never_from_the_enviro
     // ADR-0011 does not pass to the git `nuc` runs: the markers stay plain.
     let fixture = shimmed_only("hooks-driver-style-env", "merge-adr-index");
     indexed(&fixture, "two", "three");
+    // Plain in the repository, so a user's global diff3 changes nothing; `-c` outranks it.
+    fixture.git(&["config", "merge.conflictStyle", "merge"]);
     let merge: Vec<&str> = ["-c", "merge.conflictStyle=diff3"]
         .into_iter()
         .chain(MERGE.iter().copied())
