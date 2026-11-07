@@ -1,6 +1,6 @@
 # ADR-0027: `nuc check --format json` writes one versioned JSON document and `--format sarif` a SARIF 2.1.0 log, both without a crate, and nothing when the run cannot decide
 
-- **Status:** 🟡 proposed
+- **Status:** 🟢 accepted
 - **Date:** 2026-11-07
 - **Deciders:** Markus Brigl
 - **Applies to:** the `--format` option of `nuc check`, the JSON and SARIF it writes and the code that writes them, and the tests that compare them with the text output
