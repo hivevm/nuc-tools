@@ -105,10 +105,11 @@ fn check(repo: Option<&Path>) -> Result<u8, String> {
     let text = tree
         .read(&tree.root.join("nuc.toml"))?
         .ok_or_else(|| config::Refusal::Missing.to_string())?;
-    let mut config = config::load(&text, running()).map_err(|refusal| refusal.to_string())?;
-    // A hook rule decides in `nuc hook` alone: its ID is known here, and it runs never.
-    config.rules.retain(|id| crate::hook::find(id).is_none());
-    let selected = config::select(&config, rules::ALL).map_err(|r| r.to_string())?;
+    let config = config::load(&text, running()).map_err(|refusal| refusal.to_string())?;
+    config::known(&config).map_err(|refusal| refusal.to_string())?;
+    // A hook rule decides in `nuc hook` alone: its ID is known, and it is in no `rules::ALL`, so
+    // it runs never here.
+    let selected = config::select(&config, rules::ALL);
     // Only what a rule turned on reads: an input no rule needs can neither refuse nor cost.
     let needs = |input: Input| selected.iter().any(|rule| rule.reads.contains(&input));
     let mut inputs = Inputs::default();
@@ -352,10 +353,8 @@ fn carried_release(tree: &Tree, reported: bool) -> Result<Option<Option<Version>
 
 /// `nuc explain <id>`: the reason of the rule (G-6).
 fn explain(id: &str) -> Result<u8, String> {
-    let (id, reason) = rules::find(id)
-        .map(|rule| (rule.id, rule.explain))
-        .or_else(|| crate::hook::find(id).map(|rule| (rule.id, rule.explain)))
-        .ok_or_else(|| format!("no rule '{id}' is known to this nuc"))?;
+    let (id, reason) =
+        config::explanation(id).ok_or_else(|| format!("no rule '{id}' is known to this nuc"))?;
     println!("{id}: {reason}");
     Ok(PASSED)
 }
