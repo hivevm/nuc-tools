@@ -12,9 +12,10 @@
 # major tag to a later release and keeps it from an earlier one. The interface holds: the release
 # workflow and build.sh build exactly its four targets, named nuc-<target>, SHA256SUMS holds one
 # line '<sha256>  <asset>' each, and the installer, with uname stubbed, takes the asset of each
-# platform; and no Dev Container Feature lies in or is published from this repository. That the installer rejects a real binary of each target that differs is the
-# release-test workflow's.
+# platform; and no Dev Container Feature lies in or is published from this repository. That the
+# installer rejects a real binary of each target that differs is the release-test workflow's.
 #
+# feature/ stands among the inputs so that a branch that brings it back runs this test.
 # Inputs: release/ feature/ action.yml .github/workflows/ scripts/lib/
 #
 # Usage:
