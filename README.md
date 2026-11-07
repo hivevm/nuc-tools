@@ -60,17 +60,19 @@ live in [`docs/SPECIFICATION.md`](docs/SPECIFICATION.md), the vocabulary in
 
 Every release of `nuc` carries one binary per platform, named `nuc-<target>`, a `SHA256SUMS`
 file, and a build-provenance attestation per binary
-([ADR-0017](docs/adr/0017-distribution.md)).
+([ADR-0025](docs/adr/0025-feature-in-hivevm-features.md)).
 
 ### Install
 
-**In a Dev Container**, add the Feature to `.devcontainer/devcontainer.json`. It installs the
-`nuc` of its own version into `/usr/local/bin` and checks it against the checksums it carries.
-The major tag `0` moves with each 0.x release, so a container built anew can get the newest one.
+**In a Dev Container**, add the Feature from [`hivevm/features`](https://github.com/hivevm/features)
+to `.devcontainer/devcontainer.json`. It installs the `nuc` of its own version into
+`/usr/local/bin` and checks it against the checksums it carries, which `hivevm/features` wrote
+after verifying the release's attestations. The major tag `0` moves with each 0.x release, so a
+container built anew can get the newest one.
 
 ```json
 "features": {
-  "ghcr.io/hivevm/nuc-tools/nuc:0": {}
+  "ghcr.io/hivevm/features/nuc:0": {}
 }
 ```
 

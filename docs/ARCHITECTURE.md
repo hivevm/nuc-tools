@@ -31,8 +31,10 @@ runs as a hook, or CI. What crosses its boundary:
   makes fresh in the git directory and removes.
 - **Beside it:** the template's bash scripts and hooks, the oracle the parity harness compares
   `nuc` with, on a corpus of repositories fetched from GitHub; the reference shims, which run the
-  project's checks where `nuc hook` answers that they run; and the release workflow, which
-  publishes the binaries the Action and the Feature install.
+  project's checks where `nuc hook` answers that they run; the release workflow, which
+  publishes the binaries the Action installs; and `hivevm/features`, which takes each release into
+  the Dev Container Feature `ghcr.io/hivevm/features/nuc` after verifying its checksums and
+  attestations, and to which nothing here writes.
 
 ## Building blocks
 
@@ -103,10 +105,12 @@ golden path and the test pattern an agent copies from are named here.
   ([ADR-0022](adr/0022-hook-scenario-parity.md)).
 - **Release tooling** — `release/` builds a binary per target, writes `SHA256SUMS`, checks the
   tag against the crate's version, writes the release commit, and moves the major tag;
-  `release/install-nuc.sh` is the one installer, run by the Action and the Feature, and refuses a
-  binary whose checksum differs ([ADR-0017](adr/0017-distribution.md)).
-- **Action and Feature** — `action.yml` and `feature/src/nuc/` install the `nuc` of the release
-  their release commit carries; at any other commit they install nothing.
+  `release/install-nuc.sh` is the installer the Action runs, of which `hivevm/features` carries a
+  copy, and refuses a binary whose checksum differs. The tag, the asset names, `SHA256SUMS`, and
+  the attestations are the interface `hivevm/features` takes a release by, which changes only with
+  a major release ([ADR-0025](adr/0025-feature-in-hivevm-features.md)).
+- **Action** — `action.yml` installs the `nuc` of the release its release commit carries; at any
+  other commit it installs nothing.
 - **The golden path** — the rule `docs/template-release`, check 14 of the template's
   `check-docs.sh`, and the pieces it takes through every layer. A new rule copies it:
   1. a module under `src/rules/` with its `RULE_ID`, an `area/name`, and its `RULE`, listed in
@@ -192,7 +196,7 @@ at its default places under `HOME`, and none git hands it through the environmen
 A release starts when a human pushes a tag `vX.Y.Z` that names the version of `Cargo.toml`.
 `release.yml` builds the four targets, writes `SHA256SUMS`, attests each binary and verifies the
 attestations, and creates the release as a draft. It writes the release commit on top of the tag,
-which carries the checksums and the version for the Action and the Feature, tags it
-`pinned/vX.Y.Z`, moves the major tag `vN` to it unless `vN` names a later release, and only then
-makes the release public and publishes the Feature from the release commit. A project on `@vN`
-gets the new release through the moved tag; its Dependabot raises the next major.
+which carries the checksums and the version for the Action, tags it `pinned/vX.Y.Z`, moves the
+major tag `vN` to it unless `vN` names a later release, and only then makes the release public. A
+project on `@vN` gets the new release through the moved tag; its Dependabot raises the next major.
+`hivevm/features` then takes the release into its Feature by a pull request of its own.

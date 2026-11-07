@@ -1,19 +1,21 @@
 #!/usr/bin/env bash
 #
-# Self-test of the release tooling under release/ and the Feature's installer. Verifies:
-# ADR-0017
+# Self-test of the release tooling under release/ and of the release as the interface
+# hivevm/features takes it from. Verifies: ADR-0025
 #
 # The cases use stub binaries served through file://, no network and no build:
 # release/sums.sh writes one line per binary; release/install-nuc.sh installs the binary whose
 # checksum SHA256SUMS names and refuses one that differs, one SHA256SUMS does not name, a commit
 # without SHA256SUMS, and a VERSION that is no X.Y.Z, leaving nothing behind; release/pin.sh
-# writes the release into a copy of the Action's and the Feature's files and refuses a version
-# that is no X.Y.Z; release/version.sh refuses a tag other than the crate's version;
-# release/move-major.sh moves the major tag to a later release and keeps it from an earlier one;
-# and the Feature's install.sh refuses to run without a pinned release. That the installers
-# reject a real binary of each target that differs is the release-test workflow's.
+# writes the release into a copy of the Action's files and refuses a version that is no X.Y.Z;
+# release/version.sh refuses a tag other than the crate's version; release/move-major.sh moves the
+# major tag to a later release and keeps it from an earlier one. The interface holds: the asset
+# names of the four targets, one line '<sha256>  <asset>' each in SHA256SUMS, and an installer
+# that maps each target to its asset; and no Dev Container Feature is published from this
+# repository. That the installer rejects a real binary of each target that differs is the
+# release-test workflow's.
 #
-# Inputs: release/ feature/ action.yml scripts/lib/
+# Inputs: release/ action.yml .github/workflows/ scripts/lib/
 #
 # Usage:
 #     scripts/test-release.sh
@@ -70,6 +72,16 @@ d="$(release sums 1.2.3)"
 lines="$(wc -l < "$d/SHA256SUMS")"
 check "sums.sh writes one line per binary" test "$lines" -eq 4
 check "sums.sh names the Windows binary with its .exe" grep -q '  nuc-x86_64-pc-windows-msvc.exe$' "$d/SHA256SUMS"
+# The interface hivevm/features relies on (ADR-0025): these names and this form, until a major
+# release.
+for asset in nuc-x86_64-unknown-linux-musl nuc-aarch64-unknown-linux-musl nuc-aarch64-apple-darwin \
+  nuc-x86_64-pc-windows-msvc.exe; do
+  check "the release names $asset" grep -Eq "^[0-9a-f]{64}  $asset\$" "$d/SHA256SUMS"
+  target="${asset#nuc-}"
+  check "the installer maps a target to $asset" grep -q "target=${target%.exe}" "$INSTALL"
+done
+# shellcheck disable=SC2016 # the expression is build.sh's
+check "build.sh names each binary nuc-<target>" grep -q 'nuc-$target$exe' "$ROOT/release/build.sh"
 expect fail "sums.sh refuses a directory without a binary" "no nuc-* binary" bash "$ROOT/release/sums.sh" "$work"
 
 # --- cases: the installer -----------------------------------------------------------------
@@ -113,31 +125,24 @@ expect fail "a binary the release lacks is refused" "could not fetch" \
 NUC_TARGET=sparc-sun-solaris expect fail "a target without a binary is refused" "SHA256SUMS names no" \
   install "$(release solaris 1.2.3)" "$work/solaris/SHA256SUMS" "$work/solaris/VERSION" "$work/bin-solaris"
 
-# --- cases: pinning a release into the Action and the Feature ------------------------------
+# --- cases: pinning a release into the Action ----------------------------------------------
 
 copy="$work/repo"
-mkdir -p "$copy/release" "$copy/feature/src"
-cp "$ROOT/release/install-nuc.sh" "$copy/release/"
-cp -r "$ROOT/feature/src/nuc" "$copy/feature/src/"
+mkdir -p "$copy/release"
 d="$(release pin 2.0.1)"
 expect pass "pin.sh writes the release" "release 2.0.1 pinned" bash "$ROOT/release/pin.sh" 2.0.1 "$d/SHA256SUMS" "$copy"
 check "the Action carries the checksums" cmp -s "$d/SHA256SUMS" "$copy/release/pinned/SHA256SUMS"
 check "the Action carries the version" test "$(cat "$copy/release/pinned/VERSION")" = 2.0.1
-check "the Feature carries the checksums" cmp -s "$d/SHA256SUMS" "$copy/feature/src/nuc/SHA256SUMS"
-check "the Feature carries the installer" cmp -s "$INSTALL" "$copy/feature/src/nuc/install-nuc.sh"
-check "the Feature's version is the release" grep -q '^  "version": "2.0.1",$' "$copy/feature/src/nuc/devcontainer-feature.json"
 expect pass "the pinned Action installs its release" "nuc 2.0.1 installed" \
   install "$d" "$copy/release/pinned/SHA256SUMS" "$copy/release/pinned/VERSION" "$work/bin-pinned"
 expect fail "pin.sh refuses a version that is no X.Y.Z" "no version X.Y.Z" \
   bash "$ROOT/release/pin.sh" v2.0.1 "$d/SHA256SUMS" "$copy"
 
-# The Feature's installer alone, as main carries it: the release workflow runs this test at the
-# release commit too, where pin.sh has put the pinned files beside the installer.
-unpinned="$work/feature-unpinned"
-mkdir -p "$unpinned"
-cp "$ROOT/feature/src/nuc/install.sh" "$unpinned/"
-expect fail "the Feature refuses to install without a pinned release" "carries no release" \
-  sh "$unpinned/install.sh"
+check "pin.sh writes nothing but release/pinned/" test "$(cd "$copy" && find . -type f | sort | tr '\n' ' ')" = \
+  "./release/pinned/SHA256SUMS ./release/pinned/VERSION "
+check "no Dev Container Feature lies in this repository" test ! -e "$ROOT/feature"
+check "no workflow publishes a Dev Container Feature" \
+  sh -c "! grep -rq 'devcontainers/action\|publish-features' '$ROOT/.github/workflows'"
 check "the Action names the pinned files it installs from" grep -q 'release/pinned/SHA256SUMS' "$ROOT/action.yml"
 # shellcheck disable=SC2016 # the expression is the Action's
 check "the Action passes its arguments through the environment" grep -q 'NUC_ARGS: \${{ inputs.args }}' "$ROOT/action.yml"
