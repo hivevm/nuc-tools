@@ -1,6 +1,6 @@
 # ADR-0026: Tests build their repositories through the real git CLI in fresh temporary directories, under a cleared environment with a `HOME` of the test run's own
 
-- **Status:** 🟡 proposed
+- **Status:** 🟢 accepted
 - **Date:** 2026-11-07
 - **Deciders:** Markus Brigl
 - **Applies to:** every test that needs a git repository, the test helpers that build one, the environment the tests run under, and the `HOME` they pass to git and to `nuc`

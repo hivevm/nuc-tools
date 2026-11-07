@@ -1,7 +1,7 @@
 # ADR-0012: Tests build their repositories through the real git CLI in fresh temporary directories, under a cleared environment
 
-- **Status:** 🟢 accepted
-- **Date:** 2026-10-31
+- **Status:** ⚪ superseded by ADR-0026
+- **Date:** 2026-11-07
 - **Deciders:** Markus Brigl
 - **Applies to:** every test that needs a git repository, the test helpers that build one, and the environment the tests run under
 
