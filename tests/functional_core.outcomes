@@ -2,8 +2,8 @@
 # on a rule module, since the rule's outcome carries what it returns
 # (ADR-0024). One name per line. A rule's own functions behind its
 # outcome, as `undecided_lines` of docs/prose-width and `pending` of traceability/coverage, are
-# private, so the compiler holds them; `rules::find` gives the shell a rule by its ID for
-# `nuc explain`, and a call of its check through it passes this test, which is review.
+# private, so the compiler holds them; for `nuc explain` the shell asks `config::explanation`,
+# which returns a rule's ID and reason only, so no check reaches the shell through it.
 
 # A rule as a whole, whose check the shell would call by name.
 RULE

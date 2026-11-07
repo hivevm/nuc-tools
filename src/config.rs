@@ -7,7 +7,7 @@
 
 use std::fmt;
 
-use crate::hook;
+use crate::hook::{self, HookRule};
 use crate::rules::{self, Rule};
 
 /// How to install or update `nuc`, named in every refusal that a newer `nuc` would resolve.
@@ -38,9 +38,9 @@ impl fmt::Display for Version {
 
 /// What `nuc.toml` says.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Config {
-    pub minimum: Version,
-    pub rules: Vec<String>,
+struct Config {
+    minimum: Version,
+    rules: Vec<String>,
 }
 
 /// Why `nuc` refuses to check with a `nuc.toml`; each is a run that could not decide.
@@ -80,10 +80,43 @@ impl fmt::Display for Refusal {
     }
 }
 
+/// The rules of `all` that the configuration in `text` turns on, in the order of `all`, for a
+/// `nuc` of version `running`; a rule not listed stays off. It refuses as [`load`] and then
+/// [`known`] refuse, so no caller turns on less than the file names (ADR-0023).
+pub fn turned_on<'a, R: Named>(
+    text: &str,
+    running: Version,
+    all: &'a [R],
+) -> Result<Vec<&'a R>, Refusal> {
+    let config = load(text, running)?;
+    known(&config)?;
+    Ok(all
+        .iter()
+        .filter(|rule| config.rules.iter().any(|id| id == rule.id()))
+        .collect())
+}
+
+/// A rule `nuc.toml` can turn on by its ID: a rule of `nuc check` or a hook rule.
+pub trait Named {
+    fn id(&self) -> &'static str;
+}
+
+impl Named for Rule {
+    fn id(&self) -> &'static str {
+        self.id
+    }
+}
+
+impl Named for HookRule {
+    fn id(&self) -> &'static str {
+        self.id
+    }
+}
+
 /// The configuration in `text` for a `nuc` of version `running`. The minimum is read before
 /// anything else, so that a newer file, with a key this `nuc` does not know, refuses it as too
 /// old rather than as unreadable (ADR-0020).
-pub fn load(text: &str, running: Version) -> Result<Config, Refusal> {
+fn load(text: &str, running: Version) -> Result<Config, Refusal> {
     if let Some(minimum) = minimum_first(text).filter(|&minimum| minimum > running) {
         return Err(Refusal::TooOld { minimum, running });
     }
@@ -101,7 +134,7 @@ fn minimum_first(text: &str) -> Option<Version> {
 }
 
 /// The configuration in `text`, or why it cannot be read.
-pub fn parse(text: &str) -> Result<Config, Refusal> {
+fn parse(text: &str) -> Result<Config, Refusal> {
     let mut minimum = None;
     let mut rules = None;
     let mut lines = text.split('\n').enumerate().map(|(i, line)| (i + 1, line));
@@ -214,19 +247,11 @@ pub fn explanation(id: &str) -> Option<(&'static str, &'static str)> {
 
 /// The first rule ID the configuration names that this `nuc` does not know, which `nuc check`
 /// and `nuc hook` refuse alike (ADR-0023).
-pub fn known(config: &Config) -> Result<(), Refusal> {
+fn known(config: &Config) -> Result<(), Refusal> {
     match config.rules.iter().find(|id| explanation(id).is_none()) {
         Some(unknown) => Err(Refusal::UnknownRule(unknown.clone())),
         None => Ok(()),
     }
-}
-
-/// The rules of `all` that `config` turns on, in the order of `all`; a rule not listed stays off.
-/// Whether every ID it names is known is [`known`]'s to hold, the minimum [`load`]'s.
-pub fn select<'a>(config: &Config, all: &'a [Rule]) -> Vec<&'a Rule> {
-    all.iter()
-        .filter(|k| config.rules.iter().any(|r| r == k.id))
-        .collect()
 }
 
 #[cfg(test)]
@@ -310,20 +335,35 @@ mod tests {
     }
 
     #[test]
-    fn selection_turns_on_the_listed_rules() {
+    fn one_call_turns_on_the_listed_rules_and_hook_rules_and_refuses_as_before() {
         let rule = |id| Rule {
             id,
             explain: "",
             reads: &[],
             check: |_| Vec::new().into(),
         };
-        let all = [rule("docs/a"), rule("docs/b")];
-        let config = |rules: &[&str]| Config {
-            minimum: V,
-            rules: rules.iter().map(|r| (*r).to_owned()).collect(),
-        };
-        let picked = select(&config(&["docs/b"]), &all);
-        assert_eq!(picked.iter().map(|r| r.id).collect::<Vec<_>>(), ["docs/b"]);
+        let all = [rule("docs/template-release"), rule("docs/adr-index")];
+        let text = "minimum = \"0.1.0\"\nrules = [\"hook/commit-on-main\", \"docs/adr-index\"]\n";
+        let rules = turned_on(text, V, &all).ok().unwrap();
+        assert_eq!(
+            rules.iter().map(|r| r.id).collect::<Vec<_>>(),
+            ["docs/adr-index"]
+        );
+        let hooks = turned_on(text, V, hook::ALL).ok().unwrap();
+        assert_eq!(
+            hooks.iter().map(|r| r.id).collect::<Vec<_>>(),
+            ["hook/commit-on-main"]
+        );
+        let unknown = "minimum = \"0.1.0\"\nrules = [\"hook/commit-on-main\", \"docs/c\"]\n";
+        assert_eq!(
+            turned_on(unknown, V, hook::ALL).err(),
+            Some(Refusal::UnknownRule("docs/c".to_owned()))
+        );
+        let newer = "minimum = \"0.2.0\"\nrules = [\"docs/c\"]\n";
+        assert!(matches!(
+            turned_on(newer, V, &all).err(),
+            Some(Refusal::TooOld { .. })
+        ));
     }
 
     #[test]

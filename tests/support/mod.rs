@@ -1,11 +1,12 @@
-//! The fixture repositories of the tests (ADR-0012): each a fresh directory
-//! of its own under the system's temporary directory, outside this repository, so that no git
-//! command of a test can reach it, built through the real git CLI.
-//! git and `nuc` run under a cleared environment with the allowlist the shell passes, a fixed
-//! author, committer, and date, the hooks path on the null device, and `core.autocrlf`,
-//! background maintenance, and the file-system monitor off in each repository, so that neither the parent's `GIT_*` variables
-//! nor the user's identity, hooks, or line endings change a fixture, and nothing changes it after
-//! a command returns.
+//! The fixture repositories of the tests (ADR-0026): each a fresh directory of its own under the
+//! system's temporary directory, outside this repository, so that no git command of a test can
+//! reach it, built through the real git CLI.
+//! git and `nuc` run under a cleared environment with the allowlist the shell passes, `HOME`
+//! an empty directory of the test process's own, a fixed author, committer, and date, the hooks
+//! path on the null device, and `core.autocrlf`, background maintenance, and the file-system
+//! monitor off in each repository, so that neither the parent's `GIT_*` variables nor the user's
+//! global configuration, identity, hooks, or line endings change a fixture, and nothing changes
+//! it after a command returns.
 
 // Each test crate includes this module and uses part of it.
 #![allow(dead_code)]
@@ -15,10 +16,20 @@ pub mod sources;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{self, Command, Output, Stdio};
+use std::sync::OnceLock;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-/// The variables passed from the parent, as the shell passes them.
-const PASSED: &[&str] = &["PATH", "HOME", "SystemRoot"];
+/// The variables passed from the parent, as the shell passes them, `HOME` excepted, which is
+/// [`home`].
+const PASSED: &[&str] = &["PATH", "SystemRoot"];
+
+/// The keys that keep git from working in a fixture's background, whose files would come and go
+/// while a test takes a snapshot: maintenance and the file-system monitor.
+const QUIET: &[(&str, &str)] = &[
+    ("maintenance.auto", "false"),
+    ("gc.auto", "0"),
+    ("core.fsmonitor", "false"),
+];
 
 /// The variables set for every process a fixture runs.
 const SET: &[(&str, &str)] = &[
@@ -47,7 +58,81 @@ pub const CONFIG: &str = "minimum = \"0.0.0\"\nrules = [\"docs/template-release\
 /// A README whose Template release line names a release.
 pub const README: &str = "# Fixture\n\n- **Template release:** v0.5.0\n";
 
-/// The command with the environment cleared and the allowlist and the fixed values set.
+/// The `HOME` of every git and `nuc` a test runs: an empty directory of this test process's own,
+/// outside any repository, so that no global configuration reaches a fixture. No hook runs when a
+/// test process ends, so each one first removes the `HOME`s that earlier processes left.
+pub fn home() -> &'static Path {
+    static HOME: OnceLock<PathBuf> = OnceLock::new();
+    HOME.get_or_init(|| {
+        let tests = std::env::temp_dir().join("nuc-tests");
+        sweep_homes(&tests, LEFT_BEHIND);
+        let home = tests.join(format!("home-{}", process::id()));
+        let _ = fs::remove_dir_all(&home);
+        fs::create_dir_all(&home).expect("the tests' HOME is created");
+        home
+    })
+}
+
+/// How old a `HOME` of another test process is before it counts as left behind: longer than any
+/// run lasts, so that a run beside this one keeps its own.
+const LEFT_BEHIND: std::time::Duration = std::time::Duration::from_secs(24 * 60 * 60);
+
+/// Removes each `home-*` directory in `dir` that is empty and at least `age` old. One that is
+/// not empty is no `HOME` of the tests, which write nothing there, and stays.
+pub fn sweep_homes(dir: &Path, age: std::time::Duration) {
+    let Ok(entries) = fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let old = entry
+            .metadata()
+            .and_then(|meta| meta.modified())
+            .is_ok_and(|modified| modified.elapsed().is_ok_and(|elapsed| elapsed >= age));
+        if entry.file_name().to_string_lossy().starts_with("home-") && old {
+            let _ = fs::remove_dir(entry.path());
+        }
+    }
+}
+
+/// The variable set in a child that [`rerun_under_a_home`] starts, which then runs the test's body.
+pub const HOME_CHILD: &str = "NUC_TESTS_HOME_CHILD";
+
+/// The test `name` of this test binary run again as a child, its parent `HOME` a directory whose
+/// `.gitconfig` is `gitconfig` and which also holds the files of `files`; the child's output.
+/// The child's helpers pass their own [`home`], so nothing of that configuration may reach them.
+pub fn rerun_under_a_home(name: &str, gitconfig: &str, files: &[(&str, &str)]) -> Output {
+    let parent = std::env::temp_dir()
+        .join("nuc-tests")
+        .join(format!("parent-home-{name}-{}", process::id()));
+    let _ = fs::remove_dir_all(&parent);
+    fs::create_dir_all(&parent).expect("the parent HOME is created");
+    fs::write(parent.join(".gitconfig"), gitconfig).expect("the global configuration is written");
+    for (file, text) in files {
+        fs::write(parent.join(file), text).expect("a file of the parent HOME is written");
+    }
+    let output = Command::new(std::env::current_exe().expect("the test binary is known"))
+        .args(["--exact", name, "--nocapture", "--test-threads=1"])
+        .env("HOME", &parent)
+        .env(HOME_CHILD, "1")
+        .output()
+        .expect("the child runs");
+    let _ = fs::remove_dir_all(&parent);
+    assert!(
+        output.status.success(),
+        "the child failed:\n{}{}",
+        stdout(&output),
+        stderr(&output)
+    );
+    assert!(
+        stdout(&output).contains("1 passed"),
+        "the child ran no test:\n{}",
+        stdout(&output)
+    );
+    output
+}
+
+/// The command with the environment cleared and the allowlist, the tests' `HOME`, and the fixed
+/// values set.
 pub fn cleared(command: &mut Command) -> &mut Command {
     command.env_clear();
     for key in PASSED {
@@ -55,7 +140,10 @@ pub fn cleared(command: &mut Command) -> &mut Command {
             command.env(key, value);
         }
     }
-    command.envs(SET.iter().copied()).stdin(Stdio::null())
+    command
+        .env("HOME", home())
+        .envs(SET.iter().copied())
+        .stdin(Stdio::null())
 }
 
 /// git for `args` on the repository at `dir`, which must succeed.
@@ -63,17 +151,7 @@ pub fn git_in(dir: &Path, args: &[&str]) -> Output {
     let output = cleared(&mut Command::new("git"))
         .arg("-C")
         .arg(dir)
-        .args([
-            "-c",
-            &format!("core.hooksPath={NULL_DEVICE}"),
-            "-c",
-            "core.fsmonitor=false",
-            // No maintenance in the background, which would change a fixture after its snapshot.
-            "-c",
-            "maintenance.auto=false",
-            "-c",
-            "gc.auto=0",
-        ])
+        .args(["-c", &format!("core.hooksPath={NULL_DEVICE}")])
         .args(args)
         .output()
         .expect("git runs");
@@ -111,15 +189,10 @@ impl Fixture {
         let fixture = Self { root };
         fixture.git(&["init", "-q", "-b", "main"]);
         // The bytes a fixture commits are the bytes it checks out, whatever `core.autocrlf` the
-        // system's or the user's configuration sets, as git for Windows' does.
+        // system's configuration sets, as git for Windows' does.
         fixture.git(&["config", "core.autocrlf", "false"]);
-        // No maintenance or file-system monitor in the background of a git command a test runs
-        // through its hooks, whose files would come and go while the test takes a snapshot.
-        for (key, value) in [
-            ("maintenance.auto", "false"),
-            ("gc.auto", "0"),
-            ("core.fsmonitor", "false"),
-        ] {
+        // In its own configuration, so that the git a test runs through its hooks is quiet too.
+        for (key, value) in QUIET {
             fixture.git(&["config", key, value]);
         }
         fixture
