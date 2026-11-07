@@ -110,7 +110,7 @@ fn a_command_a_newer_nuc_may_know_refuses_with_the_install_hint() {
     let fixture = Fixture::project("contract-command", CONFIG, README);
     for (args, why) in [
         (&["hook", "post-checkout"][..], "no hook 'post-checkout'"),
-        (&["check", "--format", "json"], "usage: nuc check"),
+        (&["check", "--format", "yaml"], "usage: nuc check"),
     ] {
         let output = fixture.nuc(args);
         assert_eq!(code(&output), Some(2), "{args:?}");
