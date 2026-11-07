@@ -58,25 +58,70 @@ live in [`docs/SPECIFICATION.md`](docs/SPECIFICATION.md), the vocabulary in
 
 ## Usage
 
-No release of `nuc` exists yet; built from source, it checks a repository:
+The first release of `nuc` is pending; until it is out, build it from source and put the binary
+on the `PATH`. Every release carries one binary per platform, named `nuc-<target>`, a
+`SHA256SUMS` file, and a build-provenance attestation per binary
+([ADR-0017](docs/adr/0017-distribution.md)).
 
-- `nuc check [--repo <path>]` runs the rules the `nuc.toml` of the repository turns on, over the
-  repository that contains the current directory or `<path>`. Each finding is a line
-  `<file>[:<line>]: <rule ID>: <message>`. The exit code is 0 without a finding, 1 with one, and 2
-  when `nuc` could not decide, as without a readable `nuc.toml` or below its minimum version.
-- `nuc explain <rule ID>` gives the reason of a rule.
+### Install
 
-`nuc.toml`, at the root of the repository, names the minimum version of `nuc` and the rules
-turned on
-([ADR-0023](docs/adr/0023-version-coupling-with-hook-defaults.md)):
+**In a Dev Container**, add the Feature to `.devcontainer/devcontainer.json`. It installs the
+`nuc` of its own version into `/usr/local/bin` and checks it against the checksums it carries;
+Dependabot's `devcontainers` ecosystem moves the version.
 
-```toml
-minimum = "0.0.0"
-rules = ["docs/template-release"]
+```json
+"features": {
+  "ghcr.io/hivevm/nuc-tools/nuc:0": {}
+}
 ```
 
-A `nuc` built from source is version 0.0.0 until the first release, so a higher minimum refuses
-it.
+**In a GitHub workflow**, run `nuc` through the Action. It installs the `nuc` of its release,
+checks it against the checksums its release commit carries, and runs `nuc` with `args`. Reference
+it by the major tag alone: `v0` names the release commit of the newest 0.x release, while a tag
+`vX.Y.Z` names the source commit, which carries no checksums and installs nothing.
+
+```yaml
+- uses: hivevm/nuc-tools@v0
+  with:
+    args: check
+```
+
+**By hand**, download the binary for the platform and `SHA256SUMS` from the
+[release](https://github.com/hivevm/nuc-tools/releases), check both, and put the binary on the
+`PATH` as `nuc`:
+
+```sh
+sha256sum --check --ignore-missing SHA256SUMS
+gh attestation verify nuc-x86_64-unknown-linux-musl --repo hivevm/nuc-tools
+```
+
+The targets are `x86_64-unknown-linux-musl`, `aarch64-unknown-linux-musl`,
+`aarch64-apple-darwin`, and `x86_64-pc-windows-msvc` (`nuc-x86_64-pc-windows-msvc.exe`).
+
+### Configure
+
+`nuc.toml`, at the root of the repository, names the minimum version of `nuc` and the rules
+`nuc check` runs ([ADR-0023](docs/adr/0023-version-coupling-with-hook-defaults.md)):
+
+```toml
+minimum = "0.1.0"
+rules = ["docs/template-release", "docs/prose-width", "hook/commit-on-main"]
+```
+
+A `nuc` older than the minimum refuses to decide, and so does an unknown rule ID, so that a file
+`nuc` does not understand never passes. The `hook/` rules turn the decisions of the hooks on or
+off; without a `nuc.toml` every one of them is on. A `nuc` built from source is version 0.0.0, so
+any higher minimum refuses it.
+
+### Commands
+
+- `nuc check [--repo <path>]` runs the rules `nuc.toml` turns on over the repository that
+  contains the current directory or `<path>`. Each finding is a line
+  `<file>[:<line>]: <rule ID>: <message>`. The exit code is 0 without a finding, 1 with one, and 2
+  where `nuc` could not decide, as without a readable `nuc.toml`.
+- `nuc explain <rule ID>` gives the reason of a rule.
+- `nuc hook <name>` decides a git hook; the shims below call it.
+- `nuc --version` prints the version.
 
 The rules port every check of the template's `check-docs.sh`, 1 to 16, each as the release a tree
 carries checks it, v0.5.0 or later: `docs/adr-index`, `docs/adr-numbering`, `docs/links`,
@@ -84,11 +129,25 @@ carries checks it, v0.5.0 or later: `docs/adr-index`, `docs/adr-numbering`, `doc
 `docs/adr-supersessions`, `docs/check-lists`, `docs/project-layout`, `docs/skill-pointers`,
 `docs/inherited-adrs`, `docs/template-identity`, `docs/prose-width`, `docs/no-draft-on-main`, and
 `docs/template-release`. They port every part of the template's `check-traceability.sh` too:
-the criteria of the specification, `traceability/criteria`; the citations of the `Verifies`
-markers, `traceability/citations`; and the accepted ADRs each cited or exempt,
-`traceability/coverage`, which names the criteria no test cites yet in the summary on standard
-error. `nuc explain <rule ID>` gives each rule's reason.
-`nuc hook <name>` follows with the port of the hooks.
+`traceability/criteria`, `traceability/citations`, and `traceability/coverage`, which names the
+criteria no test cites yet in the summary on standard error.
+
+### Git hooks
+
+The shims under [`shims/`](shims/), in POSIX sh, hand each hook to `nuc hook <name>`: `nuc`
+decides, and where a hook's check is due the shim runs the project's `scripts/check-all.sh` or
+`scripts/check-docs.sh` itself ([ADR-0021](docs/adr/0021-hook-contract.md)). Without `nuc` on the
+`PATH`, or with one older than `nuc.toml` requires, every shim refuses and names where to install
+it. To use them, copy `shims/` into the project, as `.githooks/` in place of the bash hooks, and
+point git at it once per clone:
+
+```sh
+git config core.hooksPath .githooks
+git config merge.adr-index.driver '.githooks/merge-adr-index %O %A %B %S %X %Y'
+```
+
+`.gitattributes` names the driver for the ADR index with the line
+`docs/adr/README.md merge=adr-index`.
 
 ## Template
 
