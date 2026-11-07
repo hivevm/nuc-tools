@@ -67,7 +67,7 @@ on the `PATH`. Every release carries one binary per platform, named `nuc-<target
 
 **In a Dev Container**, add the Feature to `.devcontainer/devcontainer.json`. It installs the
 `nuc` of its own version into `/usr/local/bin` and checks it against the checksums it carries.
-The major tag `0` moves with each 0.x release, so a rebuilt container gets the newest one.
+The major tag `0` moves with each 0.x release, so a container built anew can get the newest one.
 
 ```json
 "features": {
@@ -91,11 +91,11 @@ not on macOS on x64.
 
 **By hand**, download the binary for the platform and `SHA256SUMS` from the
 [release](https://github.com/hivevm/nuc-tools/releases), check its checksum (on macOS
-`shasum -a 256 -c` in place of `sha256sum --check`) and that the release workflow built it, then
-make it executable and put it on the `PATH` as `nuc`:
+`shasum -a 256 -c` in place of `sha256sum -c`) and that the release workflow built it, then make
+it executable and move it, as `nuc`, into a directory on the `PATH`, such as `~/.local/bin`:
 
 ```sh
-sha256sum --check --ignore-missing SHA256SUMS
+grep ' nuc-x86_64-unknown-linux-musl$' SHA256SUMS | sha256sum -c
 gh attestation verify nuc-x86_64-unknown-linux-musl --repo hivevm/nuc-tools \
   --signer-workflow hivevm/nuc-tools/.github/workflows/release.yml
 chmod +x nuc-x86_64-unknown-linux-musl && mv nuc-x86_64-unknown-linux-musl ~/.local/bin/nuc
@@ -117,9 +117,10 @@ rules = ["docs/template-release", "docs/prose-width"]
 
 A `nuc` older than the minimum refuses to decide, and so does an unknown rule ID, so that a file
 `nuc` does not understand never passes. Without a `nuc.toml` every `hook/` rule is on; with one,
-each `hook/` rule its list leaves out is off, as in the example above, which `nuc explain` names
-one by one: `hook/commit-on-main`, `hook/merge-checks`, `hook/merge-on-main`, `hook/merge-docs`,
-`hook/push-to-main`, `hook/push-checks`, and `hook/main-moves`. A `nuc` built from source is
+each `hook/` rule its list leaves out is off, as the example above turns off all seven:
+`hook/commit-on-main`, `hook/merge-checks`, `hook/merge-on-main`, `hook/merge-docs`,
+`hook/push-to-main`, `hook/push-checks`, and `hook/main-moves`; `nuc explain <rule ID>` gives each
+one's reason. A `nuc` built from source is
 version 0.0.0, so a higher minimum refuses it.
 
 ### Commands
