@@ -19,6 +19,10 @@ skimmed. The design revision drops what prevented nothing
 - **A self-test asserts what it builds** — it takes its fixtures from the tree it copies or writes
   them itself, never from the template's own ADRs, scripts, or numbers, so it holds in a derived
   project and after a normalization.
+- **A test of an absence first shows the run it watches** — a test that asserts that nothing was
+  run, printed, or written asserts first what the run did: its exit status, the exact answer it
+  expects, the path past an early exit. Otherwise a run that never reached `nuc`, a binary
+  missing from the `PATH` or a hook that left before the part under test, passes it.
 - **The shell reads, the rules decide** — the shell reads every file a rule needs once, into the
   inputs, before any rule runs, and a rule gets text, never a path. A rule's tests are then cases
   of text without a repository, and a file `nuc` cannot read ends the run before a rule could
