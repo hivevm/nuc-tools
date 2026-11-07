@@ -304,8 +304,8 @@ fn record_pending(pending: &Path, green: &Path) -> Result<u8, String> {
     let Some(text) = read_in_git_dir(pending)? else {
         return Ok(PASSED);
     };
-    let line = text.trim_end_matches(['\n', '\r']);
-    let (tree, run_of) = line.split_once(' ').unwrap_or((line, ""));
+    let entry = text.trim_end_matches(['\n', '\r']);
+    let (tree, run_of) = entry.split_once(' ').unwrap_or((entry, ""));
     if run_of != shim_run() {
         return Err(format!(
             "{}: another push from this worktree decided its tree meanwhile, so this one is not \
