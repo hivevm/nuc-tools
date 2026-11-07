@@ -1,14 +1,15 @@
 name: Release
 
 # Builds, attests, and publishes a release when a human pushes a tag vX.Y.Z
-# (ADR-0017). release/version.sh first refuses a tag that is not the version of
+# (ADR-0025). release/version.sh first refuses a tag that is not the version of
 # Cargo.toml. The build job builds one binary per target with release/build.sh. The publish job
 # writes SHA256SUMS, attests every binary and verifies that this workflow signed each attestation,
 # creates the GitHub Release as a draft, and writes the release commit: release/pin.sh puts the
-# checksums and the version into the Action and the Feature, the commit is tagged pinned/vX.Y.Z so
-# that it stays reachable, and release/move-major.sh moves the major tag vN to it unless vN names a
-# later release. Only then is the release made public. The feature job publishes the Feature from
-# the release commit. The tag vX.Y.Z keeps naming the source commit the attestations name.
+# checksums and the version into the Action, the commit is tagged pinned/vX.Y.Z so that it stays
+# reachable, and release/move-major.sh moves the major tag vN to it unless vN names a later
+# release. Only then is the release made public. The tag vX.Y.Z keeps naming the source commit the
+# attestations name. No Dev Container Feature is published here: hivevm/features takes each
+# release, verifying its checksums and attestations.
 #
 # The workflow uses no stored secret, only the workflow token and its OIDC token, each job with
 # the permissions it names (ADR-0019); no checkout keeps its credentials, and
@@ -70,8 +71,6 @@ jobs:
       contents: write # the release, the release commit, and its tags
       id-token: write # the OIDC token of the attestations
       attestations: write
-    outputs:
-      pinned: ${{ steps.pin.outputs.pinned }}
     steps:
       # The full history and the tags: release/move-major.sh reads what the major tag names.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -104,22 +103,21 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
       # A draft until the release commit and its tags are pushed: a failure on the way leaves no
-      # public release without the Action and the Feature that install it.
+      # public release without the Action that installs it.
       - name: Create the release as a draft
         run: gh release create "$TAG" dist/nuc-* dist/SHA256SUMS --draft --verify-tag --title "$TAG"
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
       - name: Write the release commit and push its tags
-        id: pin
         run: |
           version="${TAG#v}"
           major="v${version%%.*}"
           bash release/pin.sh "$version" dist/SHA256SUMS
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add release/pinned feature/src/nuc
-          git commit -q -m "chore(release): pin $TAG into the Action and the Feature"
+          git add release/pinned
+          git commit -q -m "chore(release): pin $TAG into the Action"
           git tag "pinned/$TAG"
           result="$(bash release/move-major.sh "$version")"
           # The token reaches git as a header of these two pushes only, never .git/config.
@@ -131,7 +129,6 @@ jobs:
             # The lease refuses the push when another release moved the major tag meanwhile.
             push --force-with-lease="refs/tags/$major:${result#moved }" origin "refs/tags/$major"
           fi
-          echo "pinned=pinned/$TAG" >> "$GITHUB_OUTPUT"
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
@@ -140,28 +137,3 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
-
-  feature:
-    needs: publish
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    permissions:
-      contents: read
-      packages: write # ghcr.io/hivevm/nuc-tools/nuc
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ needs.publish.outputs.pinned }}
-          persist-credentials: false
-      - name: Self-test the release tooling
-        run: bash scripts/test-release.sh
-      # The CLI the action installs from npm is pinned too; its default is the latest version.
-      - uses: devcontainers/action@bef2cf2d1a019b00b45e184f83035e01bd1972f3 # v1.4.4
-        with:
-          publish-features: "true"
-          base-path-to-features: ./feature/src
-          generate-docs: "false"
-          disable-repo-tagging: "true"
-          devcontainer-cli-version: "0.89.0"
-        env:
-          GITHUB_TOKEN: ${{ github.token }}

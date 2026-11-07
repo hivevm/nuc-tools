@@ -217,7 +217,7 @@ jobs:
       - name: Format, lint, build, and test
         run: bash scripts/check-build.sh
       # The release tooling under release/, with stub binaries; release-test.yml builds the real
-      # ones (ADR-0017).
+      # ones (ADR-0025).
       - name: Self-test the release tooling
         run: bash scripts/test-release.sh
 

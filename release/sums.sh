@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Writes SHA256SUMS for the release binaries in a directory: one line '<sha256>  <name>' per
-# nuc-* file, sorted by name (ADR-0017).
+# nuc-* file, sorted by name (ADR-0025).
 #
 # Usage:
 #     release/sums.sh <directory>
