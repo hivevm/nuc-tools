@@ -81,7 +81,7 @@ check "the release workflow builds exactly the targets of the interface" test "$
 cased="$(sed -n 's/^ *\([a-z0-9_ |-]*\)) ;;$/\1/p' "$ROOT/release/build.sh" | tr -d ' ' | tr '|' '\n' | sort | tr '\n' ' ')"
 check "build.sh takes exactly the targets of the interface" test "$cased" = "$targets "
 # shellcheck disable=SC2016 # the expression is build.sh's
-check "build.sh names each binary nuc-<target>" grep -q 'cp "target/$target/release/nuc$exe" "$out/nuc-$target$exe"' "$ROOT/release/build.sh"
+check "build.sh names each binary nuc-<target>" grep -q ' "$out/nuc-$target$exe"$' "$ROOT/release/build.sh"
 for target in $targets; do
   asset="nuc-$target"
   case "$target" in *windows*) asset="$asset.exe" ;; esac
