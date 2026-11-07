@@ -23,30 +23,41 @@ Have `cleared` in `tests/support/` set `HOME` to an empty directory the test run
 any repository, instead of passing the parent's, so that no global configuration reaches a
 fixture through git or through `nuc`. The system's configuration stays, as git for Windows sets
 `core.autocrlf` there; the settings `Fixture::new` writes into the repository's own
-configuration stay for it. `git_in` passes `core.fsmonitor`, `maintenance.auto`, and `gc.auto`
-on its command line, and `Fixture::new` writes the same three into the repository: keep them in
-one place. A test like those of `tests/fixtures.rs`, run as a child with a parent `HOME` whose
-configuration sets a key that changes a fixture, shows that none reaches it.
+configuration stay for it. `git_in` passes `core.fsmonitor=false`, `maintenance.auto=false`,
+and `gc.auto=0` on its command line, and `Fixture::new` writes the same three keys into the
+repository's own configuration: keep them in one place. A test like those of
+`tests/fixtures.rs`, run as a child with a parent `HOME` whose configuration sets keys no fixture
+sets locally, shows that none reaches it.
 
-The change touches only tests: no ADR is needed
-([`AGENTS.md` §3](../../../AGENTS.md#3-adr-rules), rule 2). Where the session finds that a fixed
-`HOME` departs from ADR-0012's "the same allowlist the shell passes" rather than implementing it,
-it stops and hands off with a draft ADR instead.
+This amends a decision. ADR-0012's *Cleared environment* passes "the same allowlist the shell
+passes, plus a fixed author, committer, and date"; a `HOME` fixed by the tests is not on it. And
+ADR-0011's *Configuration* keeps the system and global configuration in effect for the git `nuc`
+runs, `safe.directory` in a container among it, which a fixed `HOME` takes from that git in the
+tests. So the first step is a draft ADR through `propose-adr`, a restatement of ADR-0012's clause
+that names the fixed `HOME` and what it costs, handed to the human in a commit of ADRs only
+([`AGENTS.md` §3](../../../AGENTS.md#3-adr-rules), rules 3 and 4). No code is written before the
+human has reviewed it; one the human sends back ends the ticket there.
 
 ## Acceptance criteria
 
-- [ ] Given a parent `HOME` whose global configuration sets `merge.conflictStyle diff3` and
-  `core.autocrlf true`, when a child builds a fixture and runs a git command and `nuc` in it,
-  then neither setting reaches the fixture.
-- [ ] Given the helpers, when the source of `tests/support/` is read, then the settings that keep
-  background work and line endings out of a fixture stand in one place.
+- [ ] Given the draft ADR, when the human has reviewed it, then the implementation follows it on
+  the same branch, or the ticket is recorded as declined with the reason.
+- [ ] Given a parent `HOME` whose global configuration sets `merge.conflictStyle diff3`, when a
+  child merges two sides that both changed a rule of the ADR index through the merge driver's
+  shim and the built `nuc`, then the conflict markers carry no base section (`|||||||`), so the
+  setting reached neither git nor `nuc`.
+- [ ] Given a parent `HOME` whose global configuration names a `core.attributesFile` that sets
+  `* eol=crlf`, when a child commits a file of LF lines in a fixture and checks it out again, then
+  its bytes are those committed, with no CR.
+- [ ] Given the helpers, when the source of `tests/support/` is read, then `core.fsmonitor`,
+  `maintenance.auto`, and `gc.auto` are set for a fixture in one place.
 - [ ] Given the suite, when it runs on the four platforms of Q-4 in CI, then it passes unchanged.
 
 ## Read first
 
-- Touches: `tests/support/mod.rs`, `tests/fixtures.rs`
-- ADR-0012, *Decision* and *Enforcement*; ADR-0011, *Consequences*, on the user's global
-  configuration as trusted.
+- Touches: `docs/adr/`, `tests/support/mod.rs`, `tests/fixtures.rs`, `tests/hooks.rs`
+- ADR-0012, *Decision* and *Enforcement*; ADR-0011, *Configuration* and *Consequences*, on the
+  user's global configuration as trusted and `safe.directory`.
 - The test pattern in `docs/ARCHITECTURE.md`.
 - The *Doubts* and *Review* of #57, #58, and #64.
 
@@ -56,5 +67,5 @@ it stops and hands off with a draft ADR instead.
 
 ## Mode
 
-with the human — ADR-0007 allows no unattended ticket; the proof on Windows and macOS is the
-portability check run, which only a push shows.
+with the human — it starts with an ADR the human decides, ADR-0007 allows no unattended ticket,
+and the proof on Windows and macOS is the portability check run, which only a push shows.
