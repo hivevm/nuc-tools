@@ -1,4 +1,4 @@
-# ADR-draft-feature-in-hivevm-features: `nuc` ships as attested GitHub Release binaries and a GitHub Action, pinned by major tag and updated by Dependabot, and its Dev Container Feature is published from `hivevm/features`
+# ADR-0025: `nuc` ships as attested GitHub Release binaries and a GitHub Action, pinned by major tag and updated by Dependabot, and its Dev Container Feature is published from `hivevm/features`
 
 - **Status:** 🟡 proposed
 - **Date:** 2026-11-07
