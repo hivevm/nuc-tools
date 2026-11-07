@@ -1,0 +1,5 @@
+# The places that cite an ADR number this record has superseded, read by tests/adr_citations.rs.
+# One entry per line, a path and an identifier separated by a tab: the file may cite that ADR. The
+# entries are grouped by why the number stands. An entry that names no citation fails the test,
+# and so does one whose ADR is in force again: a normalization keeps the template's numbers
+# (docs/adr/0005-template-releases.md), so the template's citations need no entry.
