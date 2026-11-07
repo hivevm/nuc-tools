@@ -6,7 +6,7 @@
 > is updated in the same change as the structure it describes
 > ([ADR-0001](adr/0001-agent-governance-model.md)).
 >
-> **Last design revision:** 2026-11-06, due after 20 changes. The revision that took the count
+> **Last design revision:** 2026-11-07, due after 20 changes. The revision that took the count
 > moves the date; the number is this project's to set; a sensor counts the changes outside
 > `docs/` since the commit that set the date and says when the next is due
 > ([ADR-0006](adr/0006-feature-layer.md)).
@@ -62,13 +62,15 @@ golden path and the test pattern an agent copies from are named here.
   to; `docs/template-release` gives its reason there for reading none.
 - **Configuration** — `config` reads `nuc.toml` and selects the rules it turns on, or says why
   `nuc` refuses: missing, unreadable, a minimum above the running version, an unknown rule ID
-  ([ADR-0023](adr/0023-version-coupling-with-hook-defaults.md)).
+  ([ADR-0023](adr/0023-version-coupling-with-hook-defaults.md)). It holds the one answer to which
+  IDs `nuc.toml` may name, those of `rules::ALL` and of `hook::ALL`, and the reason `nuc explain`
+  gives for each, so `nuc check`, `nuc hook`, and `nuc explain` ask it alike.
 - **Hooks** — `src/hook.rs` decides what each git hook of the template decides, from the git
-  state the shell reads in `shell::hook`, and holds the `hook/` rules, `hook::ALL`, which
-  `nuc check` knows and runs never. The reference shims under `shims/`, in POSIX sh, hand each
-  hook to `nuc hook <name>` and run the project's check where it answers 3
-  ([ADR-0021](adr/0021-hook-contract.md)). A hook's function returns an answer,
-  not a rule's outcome
+  state the shell reads in `shell::hook`, which finds each hook in its one table `HOOKS`, and
+  holds the `hook/` rules, `hook::ALL`, which `nuc check` knows and runs never. The reference
+  shims under `shims/`, in POSIX sh, hand each hook to `nuc hook <name>` and run the project's
+  check where it answers 3 ([ADR-0021](adr/0021-hook-contract.md)). A hook's function returns
+  an answer, not a rule's outcome
   ([ADR-0024](adr/0024-rules-return-an-outcome-and-hooks-an-answer.md)).
   `pre-commit`, `pre-merge-commit`, `pre-push`, `reference-transaction`, and the merge driver of
   the ADR index are ported;
@@ -118,18 +120,21 @@ golden path and the test pattern an agent copies from are named here.
   4. a variant in `tests/parity/variants.tsv` that makes it fire;
   5. its row in `tests/parity/releases.tsv`, the function it ports and the releases it changed at.
 - **The test pattern** — `tests/check.rs`: a fixture repository built through git by
-  `tests/support/`, `nuc` run on it as a process under a cleared environment, and its exit code and
-  output asserted; an ADR identifier, a marker, or a section reference a test writes but does not
-  mean comes from `src/testing.rs` or `tests/support/`, since the gate reads the tests as text. The
-  structural test `tests/functional_core.rs` holds the shape, and inside the shell lets only the
-  functions `tests/functional_core.guarded` names read, list, or resolve a path and only those
+  `tests/support/`, whose `Fixture::new` turns `core.autocrlf`, background maintenance, and the
+  file-system monitor off in the repository's own configuration, `nuc` run on it as a process
+  under a cleared environment, and its exit code and output asserted; an ADR identifier, a marker,
+  or a section reference a test writes but does not mean comes from `src/testing.rs` or
+  `tests/support/`, since the gate reads the tests as text. The structural test
+  `tests/functional_core.rs` holds the shape, and inside the shell lets only the functions
+  `tests/functional_core.guarded` names read, list, or resolve a path and only those
   `tests/functional_core.writers` names write
   ([ADR-0012](adr/0012-fixture-repositories.md)). `tests/isolation.rs` runs `nuc check` on a
   tree of bait and without the network (Q-7, Q-11), and `tests/contract.rs` holds the command
   line's contract and the rule IDs that stay (G-6). `tests/hooks.rs` runs the shims through git
-  with the built `nuc` or a stand-in, on every platform of Q-4 (G-2, G-3, G-5, Q-1, Q-7 to
-  Q-11). `tests/adr_citations.rs` fails on a citation of a superseded or rejected ADR outside
-  `docs/adr/` and `docs/plan/`, but where its list `tests/adr_citations.template` names it.
+  with the built `nuc` or a stand-in, and calls `nuc hook` directly for every shim, on every
+  platform of Q-4 (G-2, G-3, G-5, Q-1, Q-7 to Q-11). `tests/adr_citations.rs` fails on a citation
+  of a superseded or rejected ADR outside `docs/adr/` and `docs/plan/`, but where its list
+  `tests/adr_citations.template` names it.
 
 ## How it runs
 
@@ -146,10 +151,10 @@ marker. It runs each selected rule on what it read and carries out every outcome
 prints the findings on the standard output, and exits 0 without a finding and 1 with one; the
 summary on the standard error carries the rules' notes, as the criteria no marker cites, which
 change no exit code. Every cause it can name that keeps it from deciding ends the run with exit 2
-and a message on the standard error: before any rule runs for what it reads, an input that
-resolves outside the repository, one the bash would read otherwise, a release a rule that checks
-by it cannot place; after the rules run, before any finding is printed, for a rule's own refusal
-and for a finding that names a path of no UTF-8.
+and a message on the standard error: before any rule runs for what it reads, a missing README,
+which names no release, an input that resolves outside the repository, one the bash would read
+otherwise, a release a rule that checks by it cannot place; after the rules run, before any
+finding is printed, for a rule's own refusal and for a finding that names a path of no UTF-8.
 A panic ends it with exit 101, non-zero as well (Q-1). Nothing is written and no state is kept
 between runs.
 
