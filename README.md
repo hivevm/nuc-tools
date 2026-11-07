@@ -58,9 +58,8 @@ live in [`docs/SPECIFICATION.md`](docs/SPECIFICATION.md), the vocabulary in
 
 ## Usage
 
-The first release of `nuc` is pending; until it is out, build it from source and put the binary
-on the `PATH`. Every release carries one binary per platform, named `nuc-<target>`, a
-`SHA256SUMS` file, and a build-provenance attestation per binary
+Every release of `nuc` carries one binary per platform, named `nuc-<target>`, a `SHA256SUMS`
+file, and a build-provenance attestation per binary
 ([ADR-0017](docs/adr/0017-distribution.md)).
 
 ### Install
@@ -120,8 +119,7 @@ A `nuc` older than the minimum refuses to decide, and so does an unknown rule ID
 each `hook/` rule its list leaves out is off, as the example above turns off all seven:
 `hook/commit-on-main`, `hook/merge-checks`, `hook/merge-on-main`, `hook/merge-docs`,
 `hook/push-to-main`, `hook/push-checks`, and `hook/main-moves`; `nuc explain <rule ID>` gives each
-one's reason. A `nuc` built from source is
-version 0.0.0, so a higher minimum refuses it.
+one's reason. A `nuc` built from source carries the version of its `Cargo.toml`.
 
 ### Commands
 
