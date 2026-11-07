@@ -15,12 +15,13 @@ use std::process::{Command, Output};
 use support::{CONFIG, Fixture, NUC, README, snapshot, stderr, stdout};
 
 /// `nuc check` in the fixture, with the parent's environment and the decoy variables set, as an
-/// inherited environment would carry them.
+/// inherited environment would carry them, and the tests' `HOME` over the parent's (ADR-0026).
 fn check_with_decoy(fixture: &Fixture, decoy: &Fixture) -> Output {
     let git_dir = decoy.root().join(".git");
     Command::new(NUC)
         .current_dir(fixture.root())
         .arg("check")
+        .env("HOME", support::home())
         .env("GIT_DIR", &git_dir)
         .env("GIT_WORK_TREE", decoy.root())
         .env("GIT_INDEX_FILE", git_dir.join("index"))
@@ -63,12 +64,14 @@ fn the_repository_run_in_is_the_one_reported() {
     );
 }
 
-/// `nuc hook pre-commit` in the fixture, with the decoy variables set as given.
+/// `nuc hook pre-commit` in the fixture, with the decoy variables set as given and the tests'
+/// `HOME` over the parent's.
 fn hook_with(fixture: &Fixture, vars: &[(&str, std::ffi::OsString)]) -> Output {
     let mut command = Command::new(NUC);
     command
         .current_dir(fixture.root())
-        .args(["hook", "pre-commit"]);
+        .args(["hook", "pre-commit"])
+        .env("HOME", support::home());
     for (key, value) in vars {
         command.env(key, value);
     }
@@ -187,6 +190,7 @@ mod stand_in {
         let output = Command::new(NUC)
             .current_dir(fixture.root())
             .arg("check")
+            .env("HOME", super::support::home())
             .env("PATH", path)
             .env("GIT_DIR", "/decoy")
             .env("CANARY_TOKEN", "do-not-pass")

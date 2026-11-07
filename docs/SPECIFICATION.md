@@ -102,8 +102,11 @@ from the threats below.
 - **Q-8** — Writes stay inside: across the test suite, no file outside the repository and its
   git directory is created or changed.
 - **Q-9** — One repository: with `GIT_DIR`, `GIT_WORK_TREE`, `GIT_INDEX_FILE`, and
-  `GIT_CONFIG_PARAMETERS` set to a decoy repository, every command reports on the repository it
-  was pointed at and leaves the decoy untouched.
+  `GIT_CONFIG_PARAMETERS` set to a decoy repository, every command leaves the decoy untouched and
+  reports on the repository it was pointed at; a hook that would decide on the git state does not
+  decide where it is handed a git directory other than the one it finds, a reference transaction
+  that touches no `main` passes as it would without the decoy, and the merge driver merges the
+  files git names it in the repository git runs it in.
 - **Q-10** — No token disclosure: a canary token in the environment and in the git configuration
   appears in no output and in no written file.
 - **Q-11** — No network in checks and hooks: with network access blocked, every check and hook

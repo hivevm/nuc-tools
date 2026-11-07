@@ -1,11 +1,13 @@
-//! The fixture helpers under an inherited decoy. Verifies: ADR-0012
+//! The fixture helpers under an inherited decoy and an inherited `HOME`.
+//! Verifies: ADR-0026
 //!
 //! The test runs itself again as a child process with `GIT_DIR`, `GIT_WORK_TREE`, and
 //! `GIT_CONFIG_PARAMETERS` set to a decoy repository, and the child builds a fixture through the
 //! helpers: the fixture holds its commit where the helper said, with the fixed identity, and the
 //! decoy is untouched. The variables are set on the child, never on this process, whose tests
 //! run side by side. A fixture checks out the bytes it commits, whatever `core.autocrlf` the
-//! system's or the user's configuration sets.
+//! system's configuration sets, and whatever line endings the parent's global configuration asks
+//! for, which reaches no fixture.
 
 mod support;
 
@@ -84,6 +86,48 @@ fn a_fixture_checks_out_the_bytes_it_commits() {
     fixture.git(&["checkout", "--", "file.txt"]);
     let bytes = std::fs::read(fixture.root().join("file.txt")).expect("the file is read");
     assert_eq!(bytes, b"one\ntwo\n");
+}
+
+#[test]
+fn a_global_attributes_file_of_the_parent_reaches_no_fixture() {
+    if std::env::var_os(support::HOME_CHILD).is_none() {
+        // git expands `~` to the `HOME` it read the configuration from: the parent's.
+        support::rerun_under_a_home(
+            "a_global_attributes_file_of_the_parent_reaches_no_fixture",
+            "[core]\n\tattributesFile = ~/attributes\n",
+            &[("attributes", "* eol=crlf\n")],
+        );
+        return;
+    }
+    // The fixture sets no attributes of its own, so a CR would come from the parent's.
+    let fixture = Fixture::new("helpers-home-attributes");
+    fixture.write("file.txt", "one\ntwo\n").commit("Bytes");
+    std::fs::remove_file(fixture.root().join("file.txt")).expect("the file is removed");
+    fixture.git(&["checkout", "--", "file.txt"]);
+    let bytes = std::fs::read(fixture.root().join("file.txt")).expect("the file is read");
+    assert_eq!(bytes, b"one\ntwo\n");
+}
+
+#[test]
+fn a_home_left_behind_is_removed_and_nothing_else() {
+    let dir = Fixture::new("helpers-sweep");
+    for name in ["home-1", "home-2/kept", "other"] {
+        std::fs::create_dir_all(dir.root().join(name)).expect("a directory is created");
+    }
+    support::sweep_homes(dir.root(), std::time::Duration::ZERO);
+    assert!(!dir.root().join("home-1").exists(), "an empty HOME stayed");
+    assert!(
+        dir.root().join("home-2/kept").is_dir(),
+        "a HOME with content went"
+    );
+    assert!(dir.root().join("other").is_dir(), "another directory went");
+    // A HOME younger than the age stays.
+    std::fs::create_dir(dir.root().join("home-3")).expect("a directory is created");
+    support::sweep_homes(dir.root(), std::time::Duration::from_secs(3600));
+    assert!(
+        dir.root().join("home-3").is_dir(),
+        "a HOME of a run beside this one went"
+    );
 }
 
 #[test]
