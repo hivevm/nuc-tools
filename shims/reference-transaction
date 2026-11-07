@@ -1,0 +1,31 @@
+#!/bin/sh
+#
+# Git reference-transaction hook, the reference shim of nuc (ADR-0021): 'nuc hook
+# reference-transaction' decides from the updates git hands it on the standard input and the git
+# state; this hook runs no check.
+#
+# In the 'prepared' state, where a non-zero exit aborts the transaction, nuc refuses an update of
+# the local main to a commit origin/main lacks, as the same transaction leaves origin/main; a
+# write of main where it already is, a deletion, and a repository without origin/main pass. Every
+# other state passes. Every answer but 0 refuses, a panic's 101 and a code a later nuc adds
+# included; 3 is no answer of this hook. Without nuc on the PATH it refuses and names where to
+# install it.
+#
+# POSIX sh, so that git for Windows runs it with the sh it bundles. Bypassable by running git
+# without the hooks ('git -c core.hooksPath=/dev/null'); AGENTS.md, section 6 says who may.
+
+if ! command -v nuc >/dev/null 2>&1; then
+  echo "reference-transaction: refused — nuc is not on the PATH, so no hook decides. Install it from https://github.com/hivevm/nuc-tools/releases" >&2
+  exit 1
+fi
+
+nuc hook reference-transaction "$@"
+answer=$?
+case "$answer" in
+  0) exit 0 ;;
+  1 | 2) exit 1 ;;
+  *)
+    echo "reference-transaction: refused — nuc hook reference-transaction exited $answer, which this shim does not know" >&2
+    exit 1
+    ;;
+esac

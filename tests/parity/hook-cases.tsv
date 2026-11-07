@@ -1,0 +1,8 @@
+# The cases of the template's scripts/test-git-hooks.sh that no scenario of
+# tests/parity/hook-scenarios.sh covers, each with its reason, read by scripts/lib/hook-parity.sh
+# (ADR-0022). One row per case: its 'expect' name and the reason, separated by a tab. A case
+# 'awaits' the ticket that ports its hook, which moves it into a scenario.
+
+without the driver configured the index merges as text	no case of a hook: without 'merge.adr-index.driver' git merges the index as text and runs no driver
+a refused fast-forward leaves main where it was	no case of a hook: 'git diff --quiet' asserts that a refusal left main in place, which the scenario of the refusal compares
+the documented restore takes the index and the working tree back	no case of a hook: 'git diff --quiet' asserts the restore CONTRIBUTING.md documents, and runs no hook
