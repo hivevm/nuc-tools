@@ -17,53 +17,80 @@ use super::{FOUND, PASSED, RUN_CHECK, git, running};
 /// How a hook decides on the state of a commit, with the hook rules turned on.
 type Decide = fn(&hook::Commit, &dyn Fn(&HookRule) -> bool) -> Answer;
 
-/// The hooks this `nuc` decides, by the name git gives them, each with the check script its shim
-/// runs on 3 and its decision.
-const HOOKS: &[(&str, &str, Decide)] = &[
-    ("pre-commit", "scripts/check-all.sh", hook::pre_commit),
-    (
-        "pre-merge-commit",
-        "scripts/check-docs.sh",
-        hook::pre_merge_commit,
-    ),
+/// What `nuc hook <name>` runs for a hook, with the arguments git hands it.
+type Run = fn(&[&str]) -> Result<u8, String>;
+
+/// Every hook this `nuc` knows, by the name git gives it, each with what it runs: the one list
+/// the dispatch and the error for an unknown hook read.
+const HOOKS: &[(&str, Run)] = &[
+    ("pre-commit", pre_commit),
+    ("pre-merge-commit", pre_merge_commit),
+    ("pre-push", pre_push),
+    ("reference-transaction", reference_transaction),
+    ("merge-adr-index", merge_adr_index),
 ];
 
 /// `nuc hook <name>`, run in the directory git runs the hook in.
 pub(super) fn run(name: &str, args: &[&str]) -> Result<u8, String> {
-    if name == "pre-push" {
-        return pre_push(args);
-    }
-    if name == "reference-transaction" {
-        return reference_transaction(args);
-    }
-    if name == "merge-adr-index" {
-        return merge_adr_index(args);
-    }
-    let Some(&(_, script, decide)) = HOOKS.iter().find(|(known, _, _)| *known == name) else {
+    let Some(&(_, run)) = HOOKS.iter().find(|(known, _)| *known == name) else {
         return Err(format!(
             "no hook '{name}' is known to this nuc — a newer nuc may know it: {}",
             config::INSTALL
         ));
     };
+    run(args)
+}
+
+/// `nuc hook pre-commit`, whose shim runs `scripts/check-all.sh` on 3.
+fn pre_commit(args: &[&str]) -> Result<u8, String> {
+    commit_hook("pre-commit", args, "scripts/check-all.sh", hook::pre_commit)
+}
+
+/// `nuc hook pre-merge-commit`, whose shim runs `scripts/check-docs.sh` on 3.
+fn pre_merge_commit(args: &[&str]) -> Result<u8, String> {
+    commit_hook(
+        "pre-merge-commit",
+        args,
+        "scripts/check-docs.sh",
+        hook::pre_merge_commit,
+    )
+}
+
+/// A hook that takes no arguments and decides on the state of a commit, with the check script its
+/// shim runs on 3.
+fn commit_hook(name: &str, args: &[&str], script: &str, decide: Decide) -> Result<u8, String> {
     if !args.is_empty() {
         return Err(format!("nuc hook {name} takes no arguments"));
     }
-    let dir =
-        env::current_dir().map_err(|e| format!("the current directory is unreadable: {e}"))?;
+    let dir = here()?;
     same_git_dir(&dir)?;
     let root = work_tree(&dir)?;
     let on = turned_on(root.as_deref())?;
     let state = hook::Commit {
         branch: git::probe(&dir, &["symbolic-ref", "--short", "-q", "HEAD"])?
-            .map(|branch| branch.trim_end_matches(['\n', '\r']).to_owned()),
+            .map(|branch| line(&branch).to_owned()),
         merging: git::probe(&dir, &["rev-parse", "-q", "--verify", "MERGE_HEAD"])?.is_some(),
         // A test of existence, which reads nothing (Q-12).
         check_script: root
             .as_ref()
             .is_some_and(|root| root.join(script).is_file()),
     };
-    let on = |rule: &HookRule| on.iter().any(|on| on.id == rule.id);
-    Ok(carry_out(decide(&state, &on)))
+    Ok(carry_out(decide(&state, &is_on(&on))))
+}
+
+/// The directory git runs the hook in.
+fn here() -> Result<PathBuf, String> {
+    env::current_dir().map_err(|e| format!("the current directory is unreadable: {e}"))
+}
+
+/// A one-line answer of git without its line ending.
+fn line(out: &str) -> &str {
+    out.trim_end_matches(['\n', '\r'])
+}
+
+/// Whether a hook rule is among those turned on.
+fn is_on<'a>(on: &'a [&HookRule]) -> impl Fn(&HookRule) -> bool + 'a {
+    move |rule| on.iter().any(|on| on.id == rule.id)
 }
 
 /// The exit code of an answer, its finding printed on the standard output.
@@ -96,12 +123,11 @@ fn pre_push(args: &[&str]) -> Result<u8, String> {
             );
         }
     };
-    let dir =
-        env::current_dir().map_err(|e| format!("the current directory is unreadable: {e}"))?;
+    let dir = here()?;
     same_git_dir(&dir)?;
     let git_path = |which: &str| {
         git::run(&dir, &["rev-parse", "--path-format=absolute", which])
-            .map(|out| PathBuf::from(out.trim_end_matches(['\n', '\r'])))
+            .map(|out| PathBuf::from(line(&out)))
     };
     let pending = git_path("--git-dir")?.join(PENDING);
     let green = git_path("--git-common-dir")?.join(RECORD);
@@ -122,7 +148,7 @@ fn pre_push(args: &[&str]) -> Result<u8, String> {
     let tree = match &root {
         Some(_) if git::run(&dir, &["status", "--porcelain"])?.is_empty() => {
             git::probe(&dir, &["rev-parse", "-q", "--verify", "HEAD^{tree}"])?
-                .map(|tree| tree.trim_end_matches(['\n', '\r']).to_owned())
+                .map(|tree| line(&tree).to_owned())
         }
         _ => None,
     };
@@ -143,8 +169,7 @@ fn pre_push(args: &[&str]) -> Result<u8, String> {
             .as_ref()
             .is_some_and(|root| root.join("scripts/check-all.sh").is_file()),
     };
-    let on = |rule: &HookRule| on.iter().any(|on| on.id == rule.id);
-    let out = hook::pre_push(&state, &on);
+    let out = hook::pre_push(&state, &is_on(&on));
     for notice in &out.notices {
         eprintln!("{notice}");
     }
@@ -182,8 +207,7 @@ fn reference_transaction(args: &[&str]) -> Result<u8, String> {
         return Ok(PASSED);
     }
     let updates = hook::ref_updates(&read_stdin()?)?;
-    let dir =
-        env::current_dir().map_err(|e| format!("the current directory is unreadable: {e}"))?;
+    let dir = here()?;
     // Git runs a hook from the root of the work tree, or in the git directory of a bare
     // repository (githooks(5)), so `nuc.toml` is read there without asking git: this hook runs on
     // every update of a ref, and each git call costs a process (Q-5). Where git was pointed at a
@@ -224,12 +248,11 @@ fn reference_transaction(args: &[&str]) -> Result<u8, String> {
         git::probe(&dir, &["merge-base", "--is-ancestor", commit, &remote])
             .is_ok_and(|answer| answer.is_some())
     };
-    let on = |rule: &HookRule| on.iter().any(|on| on.id == rule.id);
     Ok(carry_out(hook::reference_transaction(
         &moves,
         current.as_deref(),
         &has,
-        &on,
+        &is_on(&on),
     )))
 }
 
@@ -281,8 +304,8 @@ fn record_pending(pending: &Path, green: &Path) -> Result<u8, String> {
     let Some(text) = read_in_git_dir(pending)? else {
         return Ok(PASSED);
     };
-    let line = text.trim_end_matches(['\n', '\r']);
-    let (tree, run_of) = line.split_once(' ').unwrap_or((line, ""));
+    let entry = text.trim_end_matches(['\n', '\r']);
+    let (tree, run_of) = entry.split_once(' ').unwrap_or((entry, ""));
     if run_of != shim_run() {
         return Err(format!(
             "{}: another push from this worktree decided its tree meanwhile, so this one is not \
@@ -348,9 +371,7 @@ fn same_git_dir(dir: &Path) -> Result<(), String> {
     let handed = handed.into_string().map_err(|_| {
         "git hands the hook a git directory that is no UTF-8 — not decided".to_owned()
     })?;
-    let spelled = |args: &[&str]| {
-        git::run(dir, args).map(|out| out.trim_end_matches(['\n', '\r']).to_owned())
-    };
+    let spelled = |args: &[&str]| git::run(dir, args).map(|out| line(&out).to_owned());
     let found = spelled(&["rev-parse", "--absolute-git-dir"]);
     let named = spelled(&["--git-dir", &handed, "rev-parse", "--absolute-git-dir"]);
     match (found, named) {
@@ -408,8 +429,7 @@ fn merge_adr_index(args: &[&str]) -> Result<u8, String> {
     };
     // Labels past the third are ignored, as the bash driver ignores them.
     let labels = labels.unwrap_or_default();
-    let dir =
-        env::current_dir().map_err(|e| format!("the current directory is unreadable: {e}"))?;
+    let dir = here()?;
     // Git runs a merge driver at the root of the work tree; a nuc.toml it cannot hold refuses
     // here as in every hook (ADR-0023).
     turned_on(Some(&dir))?;
@@ -447,7 +467,7 @@ fn merge_adr_index(args: &[&str]) -> Result<u8, String> {
 /// that already exists is never taken, so that no file in it is one someone else placed.
 fn scratch_dir(dir: &Path) -> Result<PathBuf, String> {
     let git_dir = git::run(dir, &["rev-parse", "--absolute-git-dir"])?;
-    let git_dir = Path::new(git_dir.trim_end_matches(['\n', '\r']));
+    let git_dir = Path::new(line(&git_dir));
     let pid = std::process::id();
     let mut last = String::new();
     for attempt in 0..16 {
