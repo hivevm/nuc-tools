@@ -88,9 +88,11 @@ from the threats below.
   yields the published checksum for each target; `cargo deny check` and `cargo audit` pass on
   every pull request, and every ignored advisory names its reason.
 - **Q-4** — Portability: the full test suite passes in CI on Linux x64, Linux arm64, macOS, and
-  Windows x64, with no bash on the `PATH` of the process under test.
+  Windows x64, with no bash on the `PATH` of the process under test; a hook git for Windows runs
+  gets the bash git bundles, and only the checks a shim runs on 3 may use it.
 - **Q-5** — Hook latency: `nuc hook reference-transaction` adds at most 2 ms median per call over
-  a no-op hook on Linux x64, measured over 1,000 calls.
+  a no-op hook on Linux x64, measured over 1,000 updates of a branch other than `main`; an update
+  of `main` is measured and reported beside it.
 - **Q-6** — Compatibility: a tool update never turns a green project red. Every repository of the
   corpus that passes with the last release of `nuc` passes with the new one under an unchanged
   `nuc.toml` and template release; a new check ships off, and only a template release turns it
