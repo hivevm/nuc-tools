@@ -38,7 +38,8 @@ url = "https://github.com/hivevm/nectar.git"
 commit = "4892160534f5b8f22dd51b980b7275429c9ef9d0"
 
 # This repository on template release v0.7.0, at a fixed commit of its main after the port of
-# the hooks and its design revision of 2026-11-06: the one derived tree on that release.
+# the hooks, the merge of #58 during its design revision of 2026-11-06, whose open tickets stand
+# in docs/plan/: the one derived tree on that release.
 [[repository]]
 name = "nuc-tools"
 url = "https://github.com/hivevm/nuc-tools.git"
