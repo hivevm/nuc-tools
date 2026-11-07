@@ -1,0 +1,34 @@
+name: Benchmark
+
+# The benchmark of Q-5 (ADR-0008): what 'nuc hook reference-transaction' adds per call over a
+# no-op hook on Linux x64, the median of 1,000 calls, failing above 2 ms. It runs on a schedule and
+# by hand, never on a push or a pull request: the timing of a shared runner moves without a change,
+# and would gate every push on noise. Its job is no required check; a red run is read like any
+# other failure of the weekly run. scripts/test-bench-hook-latency.sh, which no timing decides,
+# runs in checks.yml.
+#
+# The job is bounded by a timeout, and the checkout runs with 'persist-credentials: false', as in
+# checks.yml.
+
+on:
+  # Started by hand: gh workflow run benchmark.yml --ref <branch>.
+  workflow_dispatch:
+  # Once a week against main, after the weekly run of checks.yml.
+  schedule:
+    - cron: "47 5 * * 1"
+
+# Each job names the permissions it needs; the workflow grants none (ADR-0019).
+permissions: {}
+
+jobs:
+  hook-latency:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Measure what nuc hook reference-transaction adds over a no-op hook
+        run: bash tests/bench/hook-latency.sh
