@@ -2,8 +2,8 @@
 //! of its own under the system's temporary directory, outside this repository, so that no git
 //! command of a test can reach it, built through the real git CLI.
 //! git and `nuc` run under a cleared environment with the allowlist the shell passes, a fixed
-//! author, committer, and date, the hooks path on the null device, and `core.autocrlf` and
-//! background maintenance off in each repository, so that neither the parent's `GIT_*` variables
+//! author, committer, and date, the hooks path on the null device, and `core.autocrlf`,
+//! background maintenance, and the file-system monitor off in each repository, so that neither the parent's `GIT_*` variables
 //! nor the user's identity, hooks, or line endings change a fixture, and nothing changes it after
 //! a command returns.
 
@@ -113,10 +113,15 @@ impl Fixture {
         // The bytes a fixture commits are the bytes it checks out, whatever `core.autocrlf` the
         // system's or the user's configuration sets, as git for Windows' does.
         fixture.git(&["config", "core.autocrlf", "false"]);
-        // No maintenance in the background of a git command a test runs through its hooks, whose
-        // lock files would come and go while the test takes a snapshot.
-        fixture.git(&["config", "maintenance.auto", "false"]);
-        fixture.git(&["config", "gc.auto", "0"]);
+        // No maintenance or file-system monitor in the background of a git command a test runs
+        // through its hooks, whose files would come and go while the test takes a snapshot.
+        for (key, value) in [
+            ("maintenance.auto", "false"),
+            ("gc.auto", "0"),
+            ("core.fsmonitor", "false"),
+        ] {
+            fixture.git(&["config", key, value]);
+        }
         fixture
     }
 
@@ -193,7 +198,8 @@ pub fn snapshot(dir: &Path) -> Vec<(PathBuf, Vec<u8>)> {
             if path.is_dir() {
                 pending.push(path);
             } else {
-                let contents = fs::read(&path).expect("the file is readable");
+                let contents = fs::read(&path)
+                    .unwrap_or_else(|e| panic!("{} is unreadable: {e}", path.display()));
                 files.push((path, contents));
             }
         }
