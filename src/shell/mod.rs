@@ -31,7 +31,7 @@ const UNDECIDED: u8 = 2;
 /// (ADR-0020).
 const RUN_CHECK: u8 = 3;
 
-const USAGE: &str = "usage: nuc check [--repo <path>] [--format text|json] | nuc hook <name> | nuc \
+const USAGE: &str = "usage: nuc check [--repo <path>] [--format text|json|sarif] | nuc hook <name> | nuc \
                      explain <rule ID> | nuc --version";
 
 /// The entry point of the binary: runs the command named on the command line and returns the
@@ -211,7 +211,17 @@ fn check(repo: Option<&Path>, format: Format) -> Result<u8, String> {
             finding.file
         ));
     }
-    print!("{}", format::document(format, &findings, &notes));
+    let rules: Vec<_> = selected
+        .iter()
+        .map(|rule| (rule.id, rule.explain))
+        .collect();
+    let report = format::Report {
+        findings: &findings,
+        notes: &notes,
+        rules: &rules,
+        version: env!("CARGO_PKG_VERSION"),
+    };
+    print!("{}", format::document(format, &report));
     eprintln!("{}", summary(selected.len(), findings.len(), &notes));
     Ok(if findings.is_empty() { PASSED } else { FOUND })
 }
