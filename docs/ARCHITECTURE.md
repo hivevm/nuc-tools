@@ -32,9 +32,9 @@ runs as a hook, or CI. What crosses its boundary:
 - **Beside it:** the template's bash scripts and hooks, the oracle the parity harness compares
   `nuc` with, on a corpus of repositories fetched from GitHub; the reference shims, which run the
   project's checks where `nuc hook` answers that they run; the release workflow, which
-  publishes the binaries the Action installs; and `hivevm/features`, which takes each release into
-  the Dev Container Feature `ghcr.io/hivevm/features/nuc` after verifying its checksums and
-  attestations, and to which nothing here writes.
+  publishes the binaries the Action installs; and `hivevm/features`, which is to take each release
+  into a Dev Container Feature under `ghcr.io/hivevm/features`, by its own record, and to which
+  nothing here writes.
 
 ## Building blocks
 
@@ -199,4 +199,4 @@ attestations, and creates the release as a draft. It writes the release commit o
 which carries the checksums and the version for the Action, tags it `pinned/vX.Y.Z`, moves the
 major tag `vN` to it unless `vN` names a later release, and only then makes the release public. A
 project on `@vN` gets the new release through the moved tag; its Dependabot raises the next major.
-`hivevm/features` then takes the release into its Feature by a pull request of its own.
+`hivevm/features` takes the release from there, by its own record.

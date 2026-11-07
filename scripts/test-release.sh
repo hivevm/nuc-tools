@@ -9,13 +9,13 @@
 # without SHA256SUMS, and a VERSION that is no X.Y.Z, leaving nothing behind; release/pin.sh
 # writes the release into a copy of the Action's files and refuses a version that is no X.Y.Z;
 # release/version.sh refuses a tag other than the crate's version; release/move-major.sh moves the
-# major tag to a later release and keeps it from an earlier one. The interface holds: the asset
-# names of the four targets, one line '<sha256>  <asset>' each in SHA256SUMS, and an installer
-# that maps each target to its asset; and no Dev Container Feature is published from this
-# repository. That the installer rejects a real binary of each target that differs is the
+# major tag to a later release and keeps it from an earlier one. The interface holds: the release
+# workflow and build.sh build exactly its four targets, named nuc-<target>, SHA256SUMS holds one
+# line '<sha256>  <asset>' each, and the installer, with uname stubbed, takes the asset of each
+# platform; and no Dev Container Feature lies in or is published from this repository. That the installer rejects a real binary of each target that differs is the
 # release-test workflow's.
 #
-# Inputs: release/ action.yml .github/workflows/ scripts/lib/
+# Inputs: release/ feature/ action.yml .github/workflows/ scripts/lib/
 #
 # Usage:
 #     scripts/test-release.sh
@@ -72,16 +72,43 @@ d="$(release sums 1.2.3)"
 lines="$(wc -l < "$d/SHA256SUMS")"
 check "sums.sh writes one line per binary" test "$lines" -eq 4
 check "sums.sh names the Windows binary with its .exe" grep -q '  nuc-x86_64-pc-windows-msvc.exe$' "$d/SHA256SUMS"
-# The interface hivevm/features relies on (ADR-0025): these names and this form, until a major
-# release.
-for asset in nuc-x86_64-unknown-linux-musl nuc-aarch64-unknown-linux-musl nuc-aarch64-apple-darwin \
-  nuc-x86_64-pc-windows-msvc.exe; do
-  check "the release names $asset" grep -Eq "^[0-9a-f]{64}  $asset\$" "$d/SHA256SUMS"
-  target="${asset#nuc-}"
-  check "the installer maps a target to $asset" grep -q "target=${target%.exe}" "$INSTALL"
-done
+# The interface hivevm/features relies on (ADR-0025): these targets, their asset names, and this
+# form of SHA256SUMS, until a major release.
+targets="aarch64-apple-darwin aarch64-unknown-linux-musl x86_64-pc-windows-msvc x86_64-unknown-linux-musl"
+built="$(sed -n 's/^ *- { target: \([^,]*\),.*/\1/p' "$ROOT/.github/workflows/release.yml" | sort | tr '\n' ' ')"
+check "the release workflow builds exactly the targets of the interface" test "$built" = "$targets "
+cased="$(sed -n 's/^ *\([a-z0-9_ |-]*\)) ;;$/\1/p' "$ROOT/release/build.sh" | tr -d ' ' | tr '|' '\n' | sort | tr '\n' ' ')"
+check "build.sh takes exactly the targets of the interface" test "$cased" = "$targets "
 # shellcheck disable=SC2016 # the expression is build.sh's
-check "build.sh names each binary nuc-<target>" grep -q 'nuc-$target$exe' "$ROOT/release/build.sh"
+check "build.sh names each binary nuc-<target>" grep -q 'cp "target/$target/release/nuc$exe" "$out/nuc-$target$exe"' "$ROOT/release/build.sh"
+for target in $targets; do
+  asset="nuc-$target"
+  case "$target" in *windows*) asset="$asset.exe" ;; esac
+  check "SHA256SUMS names $asset in the form '<sha256>  <asset>'" grep -Eq "^[0-9a-f]{64}  $asset\$" "$d/SHA256SUMS"
+done
+
+# The installer maps the platform uname names to its target, with uname stubbed on the PATH.
+stub="$work/uname-stub"
+mkdir -p "$stub"
+# shellcheck disable=SC2016 # the stub expands them when it runs
+printf '#!/bin/sh\ncase "$1" in -s) echo "$STUB_OS" ;; -m) echo "$STUB_ARCH" ;; esac\n' > "$stub/uname"
+chmod +x "$stub/uname"
+d="$(release mapping 1.2.3)"
+base="$d"
+command -v cygpath > /dev/null && base="/$(cygpath -m "$d")"
+for platform in Linux/x86_64:x86_64-unknown-linux-musl Linux/aarch64:aarch64-unknown-linux-musl \
+  Darwin/arm64:aarch64-apple-darwin; do
+  os="${platform%%/*}" rest="${platform#*/}" arch="${rest%%:*}" target="${rest#*:}"
+  dest="$work/bin-map-$target"
+  expect pass "the installer takes $target on $os $arch" "nuc 1.2.3 installed" \
+    env PATH="$stub:$PATH" STUB_OS="$os" STUB_ARCH="$arch" NUC_RELEASE_BASE="file://$base" \
+    sh "$INSTALL" "$d/SHA256SUMS" "$d/VERSION" "$dest"
+  expect pass "the binary installed on $os $arch is the one for $target" "stub nuc 1.2.3 $target" "$dest/nuc"
+done
+expect pass "the installer takes the Windows binary on MINGW64_NT x86_64" "nuc 1.2.3 installed" \
+  env PATH="$stub:$PATH" STUB_OS=MINGW64_NT-10.0 STUB_ARCH=x86_64 NUC_RELEASE_BASE="file://$base" \
+  sh "$INSTALL" "$d/SHA256SUMS" "$d/VERSION" "$work/bin-map-windows"
+check "the Windows binary is installed as nuc.exe" test -f "$work/bin-map-windows/nuc.exe"
 expect fail "sums.sh refuses a directory without a binary" "no nuc-* binary" bash "$ROOT/release/sums.sh" "$work"
 
 # --- cases: the installer -----------------------------------------------------------------
@@ -141,8 +168,10 @@ expect fail "pin.sh refuses a version that is no X.Y.Z" "no version X.Y.Z" \
 check "pin.sh writes nothing but release/pinned/" test "$(cd "$copy" && find . -type f | sort | tr '\n' ' ')" = \
   "./release/pinned/SHA256SUMS ./release/pinned/VERSION "
 check "no Dev Container Feature lies in this repository" test ! -e "$ROOT/feature"
+check "the workflows are there to search" test -d "$ROOT/.github/workflows"
+# shellcheck disable=SC2016 # the expression is the inner shell's
 check "no workflow publishes a Dev Container Feature" \
-  sh -c "! grep -rq 'devcontainers/action\|publish-features' '$ROOT/.github/workflows'"
+  sh -c '! grep -rqE "devcontainers/action|publish-features|features publish" "$1"' _ "$ROOT/.github/workflows"
 check "the Action names the pinned files it installs from" grep -q 'release/pinned/SHA256SUMS' "$ROOT/action.yml"
 # shellcheck disable=SC2016 # the expression is the Action's
 check "the Action passes its arguments through the environment" grep -q 'NUC_ARGS: \${{ inputs.args }}' "$ROOT/action.yml"
