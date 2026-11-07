@@ -258,15 +258,16 @@ fn contributing(root: Option<&Path>) -> Result<bool, String> {
     };
     let tree = Tree::new(root.to_path_buf())?;
     let readme = tree.read_checked(&root.join("README.md"))?;
-    Ok(
-        match readme
-            .as_deref()
-            .and_then(rules::docs_template_release::carried)
-        {
-            Some(rules::Carried::Release(release)) => release >= rules::CONTRIBUTING_GUIDE,
-            _ => true,
-        },
-    )
+    // The hook places every tree: a release before v0.5.0 as v0.5.0, which the guide reads alike,
+    // and `unreleased` or none as the newest.
+    let release = match readme
+        .as_deref()
+        .and_then(rules::docs_template_release::carried)
+    {
+        Some(rules::Carried::Release(release)) => Some(release),
+        _ => None,
+    };
+    Ok(rules::guide_is_contributing(release))
 }
 
 /// The run of the shim that calls `nuc hook pre-push` and then its `--record`, as the shim names
