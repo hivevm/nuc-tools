@@ -1,6 +1,6 @@
 # ADR-0025: `nuc` ships as attested GitHub Release binaries and a GitHub Action, pinned by major tag and updated by Dependabot, and its Dev Container Feature is published from `hivevm/features`
 
-- **Status:** 🟡 proposed
+- **Status:** 🟢 accepted
 - **Date:** 2026-11-07
 - **Deciders:** Markus Brigl
 - **Applies to:** the release workflow, the release tags of this repository, the release artifacts and their names, checksums, and attestations, the GitHub Action, and the absence of `feature/` and of any Feature publication from this repository

@@ -1,6 +1,6 @@
 # ADR-0017: `nuc` ships as attested GitHub Release binaries, a Dev Container Feature, and a GitHub Action, pinned by major tag and updated by Dependabot
 
-- **Status:** 🟢 accepted
+- **Status:** ⚪ superseded by ADR-0025
 - **Date:** 2026-10-31
 - **Deciders:** Markus Brigl
 - **Applies to:** the release workflow, the release tags of this repository, the release artifacts and their checksums and attestations, the Dev Container Feature and its publication, and the GitHub Action
