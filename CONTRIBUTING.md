@@ -243,7 +243,10 @@ configured once by a maintainer and worth re-checking after a repository move or
   team for the requirement to mean anything;
 - enable **secret scanning with push protection**, the only mechanical backstop behind the secrets
   rule ([`AGENTS.md` §7](AGENTS.md#7-secrets)), which is otherwise carried by review alone;
-- enable **private vulnerability reporting** (see [`SECURITY.md`](SECURITY.md)).
+- enable **private vulnerability reporting** (see [`SECURITY.md`](SECURITY.md));
+- set the package **`nuc-tools/nuc`** on ghcr.io to **public** once the first release has
+  published it, since ghcr.io makes a new package private and the Dev Container Feature resolves
+  for no one until then ([ADR-0017](docs/adr/0017-distribution.md)).
 
 [`scripts/sensor-repo-settings.sh`](scripts/sensor-repo-settings.sh) reads these settings
 through `gh` and reports each one that differs from this list. It runs on a human's

@@ -110,7 +110,7 @@ turns on: the rules `nuc check` runs, and the `hook/` rules `nuc hook` decides
 ([ADR-0023](docs/adr/0023-version-coupling-with-hook-defaults.md)):
 
 ```toml
-minimum = "0.0.0"
+minimum = "0.1.0"
 rules = ["docs/template-release", "docs/prose-width"]
 ```
 
@@ -119,7 +119,8 @@ A `nuc` older than the minimum refuses to decide, and so does an unknown rule ID
 each `hook/` rule its list leaves out is off, as the example above turns off all seven:
 `hook/commit-on-main`, `hook/merge-checks`, `hook/merge-on-main`, `hook/merge-docs`,
 `hook/push-to-main`, `hook/push-checks`, and `hook/main-moves`; `nuc explain <rule ID>` gives each
-one's reason. A `nuc` built from source carries the version of its `Cargo.toml`.
+one's reason. A `nuc` built from source carries the version of its `Cargo.toml`, which the
+minimum holds like a release's.
 
 ### Commands
 
