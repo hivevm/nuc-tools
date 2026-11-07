@@ -16,6 +16,7 @@ use std::process::ExitCode;
 
 use crate::config::{self, Version};
 use crate::finding::Finding;
+use crate::format::{self, Format};
 use crate::rules::{self, Carried, Input, Inputs, Outcome};
 
 use tree::Tree;
@@ -30,8 +31,8 @@ const UNDECIDED: u8 = 2;
 /// (ADR-0020).
 const RUN_CHECK: u8 = 3;
 
-const USAGE: &str =
-    "usage: nuc check [--repo <path>] | nuc hook <name> | nuc explain <rule ID> | nuc --version";
+const USAGE: &str = "usage: nuc check [--repo <path>] [--format text|json] | nuc hook <name> | nuc \
+                     explain <rule ID> | nuc --version";
 
 /// The entry point of the binary: runs the command named on the command line and returns the
 /// exit code the process ends with. A panic is an internal error: it names its cause and where it
@@ -64,18 +65,17 @@ fn run() -> ExitCode {
     let args: Vec<String> = env::args().skip(1).collect();
     let args: Vec<&str> = args.iter().map(String::as_str).collect();
     let result = match args.as_slice() {
-        ["check"] => check(None),
-        ["check", "--repo", repo] => check(Some(Path::new(repo))),
+        ["check", options @ ..] => match check_options(options) {
+            Some((repo, format)) => check(repo.map(Path::new), format),
+            None => Err(usage()),
+        },
         ["hook", name, rest @ ..] => hook::run(name, rest),
         ["explain", id] => explain(id),
         ["--version"] => {
             println!("nuc {}", env!("CARGO_PKG_VERSION"));
             Ok(PASSED)
         }
-        _ => Err(format!(
-            "{USAGE} — a newer nuc may know the command: {}",
-            config::INSTALL
-        )),
+        _ => Err(usage()),
     };
     match result {
         Ok(code) => ExitCode::from(code),
@@ -86,14 +86,38 @@ fn run() -> ExitCode {
     }
 }
 
+/// The usage error: the commands this `nuc` knows, and how to get one that knows more.
+fn usage() -> String {
+    format!(
+        "{USAGE} — a newer nuc may know the command: {}",
+        config::INSTALL
+    )
+}
+
+/// The options of `nuc check`, each at most once and in any order: the repository and the format,
+/// text where none is named; none where an option is unknown, repeated, or has no value.
+fn check_options<'a>(options: &[&'a str]) -> Option<(Option<&'a str>, Format)> {
+    let (mut repo, mut format) = (None, None);
+    let mut options = options.iter();
+    while let Some(&option) = options.next() {
+        let value = *options.next()?;
+        match option {
+            "--repo" if repo.is_none() => repo = Some(value),
+            "--format" if format.is_none() => format = Some(Format::parse(value)?),
+            _ => return None,
+        }
+    }
+    Some((repo, format.unwrap_or(Format::Text)))
+}
+
 /// The version of this `nuc`, which `nuc.toml` sets the floor for.
 fn running() -> Version {
     Version::parse(env!("CARGO_PKG_VERSION")).expect("the package version is X.Y.Z")
 }
 
 /// `nuc check`: the rules `nuc.toml` turns on, run over the repository that contains `repo`, or
-/// the directory `nuc` runs in.
-fn check(repo: Option<&Path>) -> Result<u8, String> {
+/// the directory `nuc` runs in, the findings written in `format`.
+fn check(repo: Option<&Path>, format: Format) -> Result<u8, String> {
     let start = match repo {
         Some(repo) => repo.to_path_buf(),
         None => {
@@ -187,9 +211,7 @@ fn check(repo: Option<&Path>) -> Result<u8, String> {
             finding.file
         ));
     }
-    for finding in &findings {
-        println!("{finding}");
-    }
+    print!("{}", format::document(format, &findings, &notes));
     eprintln!("{}", summary(selected.len(), findings.len(), &notes));
     Ok(if findings.is_empty() { PASSED } else { FOUND })
 }

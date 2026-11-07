@@ -152,7 +152,8 @@ text files git lists, the targets of relative links, `AGENTS.md`, the workflows 
 Project Layout's paths, the skills and their pointers, the identity files, the attributes that mark
 a file generated, the variables CI sets, the specification, and the files that carry a `Verifies:`
 marker. It runs each selected rule on what it read and carries out every outcome alike: it
-prints the findings on the standard output, and exits 0 without a finding and 1 with one; the
+prints the findings on the standard output, as lines or as the JSON document `src/format.rs`
+builds from them for `--format json`, and exits 0 without a finding and 1 with one; the
 summary on the standard error carries the rules' notes, as the criteria no marker cites, which
 change no exit code. Every cause it can name that keeps it from deciding ends the run with exit 2
 and a message on the standard error: before any rule runs for what it reads, a missing README,

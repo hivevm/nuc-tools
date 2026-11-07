@@ -5,6 +5,7 @@ pub mod adr;
 pub mod bash;
 pub mod config;
 pub mod finding;
+pub mod format;
 pub mod glob;
 pub mod hook;
 pub mod markdown;
