@@ -7,7 +7,7 @@ use std::fs;
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 
-use crate::config::{self, Refusal};
+use crate::config;
 use crate::hook::{self, Answer, HookRule};
 use crate::rules;
 
@@ -385,13 +385,7 @@ fn turned_on(root: Option<&Path>) -> Result<Vec<&'static HookRule>, String> {
         return Ok(hook::ALL.iter().collect());
     };
     let config = config::load(&text, running()).map_err(|refusal| refusal.to_string())?;
-    if let Some(unknown) = config
-        .rules
-        .iter()
-        .find(|id| rules::find(id).is_none() && hook::find(id).is_none())
-    {
-        return Err(Refusal::UnknownRule(unknown.clone()).to_string());
-    }
+    let config = config::known(&config).map_err(|refusal| refusal.to_string())?;
     Ok(hook::ALL
         .iter()
         .filter(|rule| config.rules.iter().any(|id| id == rule.id))

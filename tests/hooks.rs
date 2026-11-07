@@ -407,6 +407,27 @@ fn a_nuc_toml_that_cannot_be_held_is_not_decided() {
 }
 
 #[test]
+fn nuc_check_and_nuc_hook_refuse_an_unknown_id_alike() {
+    let config = "minimum = \"0.0.0\"\nrules = [\"docs/template-release\", \"hook/commit-on-main\", \"docs/no-such-rule\"]\n";
+    let fixture = shimmed("hooks-unknown-alike");
+    fixture
+        .write("nuc.toml", config)
+        .write("README.md", support::README)
+        .commit("config");
+    fixture.git(&["switch", "-q", "-c", "feature"]);
+    let check = fixture.nuc(&["check"]);
+    let hook = decide(&fixture);
+    assert_eq!(check.status.code(), Some(2), "{}", stderr(&check));
+    assert_eq!(hook.status.code(), Some(2), "{}", stderr(&hook));
+    assert!(
+        stderr(&check).contains("docs/no-such-rule"),
+        "{}",
+        stderr(&check)
+    );
+    assert_eq!(stderr(&hook), stderr(&check));
+}
+
+#[test]
 fn nuc_check_knows_the_hook_rules_and_runs_none() {
     let fixture = Fixture::project(
         "hooks-check",
