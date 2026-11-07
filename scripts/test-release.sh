@@ -131,8 +131,13 @@ expect pass "the pinned Action installs its release" "nuc 2.0.1 installed" \
 expect fail "pin.sh refuses a version that is no X.Y.Z" "no version X.Y.Z" \
   bash "$ROOT/release/pin.sh" v2.0.1 "$d/SHA256SUMS" "$copy"
 
+# The Feature's installer alone, as main carries it: the release workflow runs this test at the
+# release commit too, where pin.sh has put the pinned files beside the installer.
+unpinned="$work/feature-unpinned"
+mkdir -p "$unpinned"
+cp "$ROOT/feature/src/nuc/install.sh" "$unpinned/"
 expect fail "the Feature refuses to install without a pinned release" "carries no release" \
-  sh "$ROOT/feature/src/nuc/install.sh"
+  sh "$unpinned/install.sh"
 check "the Action names the pinned files it installs from" grep -q 'release/pinned/SHA256SUMS' "$ROOT/action.yml"
 # shellcheck disable=SC2016 # the expression is the Action's
 check "the Action passes its arguments through the environment" grep -q 'NUC_ARGS: \${{ inputs.args }}' "$ROOT/action.yml"
