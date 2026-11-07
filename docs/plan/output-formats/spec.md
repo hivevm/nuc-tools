@@ -72,8 +72,8 @@ The human's answers in the interrogation, taken into the ADR of ticket 01:
   notes. The findings stand in the order of the text output.
 - The SARIF is a 2.1.0 log with one run: the tool with every rule the run turned on, each with its
   ID and the reason of `nuc explain`; one result per finding, at level error, its file as a URI
-  relative to the root of the working tree under the base `%SRCROOT%`, its line as the start line
-  of a region, and no region where the finding names no line.
+  reference relative to the root of the working tree with no base, its line as the start line of
+  a region, and start line 1 where the finding names no line, as GitHub asks for one.
 - A run that cannot decide writes nothing on the standard output in any format, exits 2, and
   says why on the standard error, as ADR-0020 says for the text.
 - The summary and the notes as text stay on the standard error in every format.

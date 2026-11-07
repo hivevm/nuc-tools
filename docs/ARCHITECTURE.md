@@ -151,17 +151,17 @@ others: `README.md` and the release it carries, `CONTRIBUTING.md`, the record un
 text files git lists, the targets of relative links, `AGENTS.md`, the workflows and scripts, the
 Project Layout's paths, the skills and their pointers, the identity files, the attributes that mark
 a file generated, the variables CI sets, the specification, and the files that carry a `Verifies:`
-marker. It runs each selected rule on what it read and carries out every outcome alike: it
-prints the findings on the standard output, as lines or as the JSON document `src/format.rs`
-builds from them for `--format json`, and exits 0 without a finding and 1 with one; the
-summary on the standard error carries the rules' notes, as the criteria no marker cites, which
-change no exit code. Every cause it can name that keeps it from deciding ends the run with exit 2
-and a message on the standard error: before any rule runs for what it reads, a missing README,
-which names no release, an input that resolves outside the repository, one the bash would read
-otherwise, a release a rule that checks by it cannot place; after the rules run, before any
-finding is printed, for a rule's own refusal and for a finding that names a path of no UTF-8.
-A panic ends it with exit 101, non-zero as well (Q-1). Nothing is written and no state is kept
-between runs.
+marker. It runs each selected rule on what it read and carries out every outcome alike: it prints
+the findings on the standard output, as lines, or as the JSON document or the SARIF log
+`src/format.rs` builds from them for `--format json` or `sarif`, and exits 0 without a finding and 1
+with one; the summary on the standard error carries the rules' notes, as the criteria no marker
+cites, which change no exit code. Every cause it can name that keeps it from deciding ends the run
+with exit 2 and a message on the standard error: before any rule runs for what it reads, a missing
+README, which names no release, an input that resolves outside the repository, one the bash would
+read otherwise, a release a rule that checks by it cannot place; after the rules run, before any
+finding is printed, for a rule's own refusal and for a finding that names a path of no UTF-8. A
+panic ends it with exit 101, non-zero as well (Q-1). Nothing is written and no state is kept between
+runs.
 
 `nuc hook pre-commit` runs in the directory git runs the hook in. Without `nuc.toml` every `hook/`
 rule is on; with one, it is read as `nuc check` reads it and its list governs. Where git hands it
