@@ -82,6 +82,8 @@ golden path and the test pattern an agent copies from are named here.
   read differently from its bytes alone. `shell::hook` reads `nuc.toml` and the README through
   the `Tree` as well; the two files of the green-tree record and the sides of a merge, at the
   paths git gives, it reads in the two functions `tests/functional_core.guarded` names for them.
+  It writes, renames, creates, and removes only in the functions `tests/functional_core.writers`
+  names, each inside the repository or its git directory (Q-8).
 - **Binary** — `src/main.rs` calls the shell and nothing else.
 - **Parity harness** — `scripts/check-parity.sh` runs the bash checks of each repository of the
   corpus, `check-docs.sh` and `check-traceability.sh`, all on template release v0.5.0 or later,
@@ -119,7 +121,8 @@ golden path and the test pattern an agent copies from are named here.
   output asserted; an ADR identifier, a marker, or a section reference a test writes but does not
   mean comes from `src/testing.rs` or `tests/support/`, since the gate reads the tests as text. The
   structural test `tests/functional_core.rs` holds the shape, and inside the shell lets only the
-  functions `tests/functional_core.guarded` names read, list, or resolve a path
+  functions `tests/functional_core.guarded` names read, list, or resolve a path and only those
+  `tests/functional_core.writers` names write
   ([ADR-0012](adr/0012-fixture-repositories.md)). `tests/isolation.rs` runs `nuc check` on a
   tree of bait and without the network (Q-7, Q-11), and `tests/contract.rs` holds the command
   line's contract and the rule IDs that stay (G-6). `tests/hooks.rs` runs the shims through git
