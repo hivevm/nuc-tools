@@ -385,7 +385,7 @@ fn turned_on(root: Option<&Path>) -> Result<Vec<&'static HookRule>, String> {
         return Ok(hook::ALL.iter().collect());
     };
     let config = config::load(&text, running()).map_err(|refusal| refusal.to_string())?;
-    let config = config::known(&config).map_err(|refusal| refusal.to_string())?;
+    config::known(&config).map_err(|refusal| refusal.to_string())?;
     Ok(hook::ALL
         .iter()
         .filter(|rule| config.rules.iter().any(|id| id == rule.id))

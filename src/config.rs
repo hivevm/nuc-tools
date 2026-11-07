@@ -212,20 +212,19 @@ pub fn explanation(id: &str) -> Option<(&'static str, &'static str)> {
         .or_else(|| hook::find(id).map(|rule| (rule.id, rule.explain)))
 }
 
-/// The configuration, or the first rule ID it names that this `nuc` does not know, which `nuc
-/// check` and `nuc hook` refuse alike (ADR-0023).
-pub fn known(config: &Config) -> Result<&Config, Refusal> {
+/// The first rule ID the configuration names that this `nuc` does not know, which `nuc check`
+/// and `nuc hook` refuse alike (ADR-0023).
+pub fn known(config: &Config) -> Result<(), Refusal> {
     match config.rules.iter().find(|id| explanation(id).is_none()) {
         Some(unknown) => Err(Refusal::UnknownRule(unknown.clone())),
-        None => Ok(config),
+        None => Ok(()),
     }
 }
 
-/// The rules of `known` that `config` turns on, in the order of `known`; a rule not listed stays
-/// off. Whether every ID it names is known is [`known`]'s to hold, the minimum [`load`]'s.
-pub fn select<'a>(config: &Config, known: &'a [Rule]) -> Vec<&'a Rule> {
-    known
-        .iter()
+/// The rules of `all` that `config` turns on, in the order of `all`; a rule not listed stays off.
+/// Whether every ID it names is known is [`known`]'s to hold, the minimum [`load`]'s.
+pub fn select<'a>(config: &Config, all: &'a [Rule]) -> Vec<&'a Rule> {
+    all.iter()
         .filter(|k| config.rules.iter().any(|r| r == k.id))
         .collect()
 }
@@ -311,25 +310,35 @@ mod tests {
     }
 
     #[test]
-    fn selection_turns_on_the_listed_rules_and_an_unknown_id_is_refused() {
+    fn selection_turns_on_the_listed_rules() {
         let rule = |id| Rule {
             id,
             explain: "",
             reads: &[],
             check: |_| Vec::new().into(),
         };
-        let known = [rule("docs/a"), rule("docs/b")];
+        let all = [rule("docs/a"), rule("docs/b")];
         let config = |rules: &[&str]| Config {
             minimum: V,
             rules: rules.iter().map(|r| (*r).to_owned()).collect(),
         };
-        let picked = select(&config(&["docs/b"]), &known);
+        let picked = select(&config(&["docs/b"]), &all);
         assert_eq!(picked.iter().map(|r| r.id).collect::<Vec<_>>(), ["docs/b"]);
-        let both = config(&["docs/template-release", "hook/commit-on-main"]);
-        assert_eq!(super::known(&both), Ok(&both));
+    }
+
+    #[test]
+    fn a_rule_and_a_hook_rule_are_known_and_any_other_id_is_refused() {
+        let config = |rules: &[&str]| Config {
+            minimum: V,
+            rules: rules.iter().map(|r| (*r).to_owned()).collect(),
+        };
         assert_eq!(
-            super::known(&config(&["hook/commit-on-main", "docs/c"])).err(),
-            Some(Refusal::UnknownRule("docs/c".to_owned()))
+            known(&config(&["docs/template-release", "hook/commit-on-main"])),
+            Ok(())
+        );
+        assert_eq!(
+            known(&config(&["hook/commit-on-main", "docs/c"])),
+            Err(Refusal::UnknownRule("docs/c".to_owned()))
         );
     }
 }

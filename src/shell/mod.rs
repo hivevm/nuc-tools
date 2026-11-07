@@ -106,9 +106,10 @@ fn check(repo: Option<&Path>) -> Result<u8, String> {
         .read(&tree.root.join("nuc.toml"))?
         .ok_or_else(|| config::Refusal::Missing.to_string())?;
     let config = config::load(&text, running()).map_err(|refusal| refusal.to_string())?;
-    // A hook rule decides in `nuc hook` alone: its ID is known here, and it runs never.
-    let config = config::known(&config).map_err(|refusal| refusal.to_string())?;
-    let selected = config::select(config, rules::ALL);
+    config::known(&config).map_err(|refusal| refusal.to_string())?;
+    // A hook rule decides in `nuc hook` alone: its ID is known, and it is in no `rules::ALL`, so
+    // it runs never here.
+    let selected = config::select(&config, rules::ALL);
     // Only what a rule turned on reads: an input no rule needs can neither refuse nor cost.
     let needs = |input: Input| selected.iter().any(|rule| rule.reads.contains(&input));
     let mut inputs = Inputs::default();
