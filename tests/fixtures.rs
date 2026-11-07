@@ -4,7 +4,8 @@
 //! `GIT_CONFIG_PARAMETERS` set to a decoy repository, and the child builds a fixture through the
 //! helpers: the fixture holds its commit where the helper said, with the fixed identity, and the
 //! decoy is untouched. The variables are set on the child, never on this process, whose tests
-//! run side by side.
+//! run side by side. A fixture checks out the bytes it commits, whatever `core.autocrlf` the
+//! system's or the user's configuration sets.
 
 mod support;
 
@@ -71,4 +72,16 @@ fn build_in_child() {
     );
     let files = stdout(&fixture.git(&["ls-files"]));
     assert_eq!(files.trim(), "file.txt");
+}
+
+#[test]
+fn a_fixture_checks_out_the_bytes_it_commits() {
+    let fixture = Fixture::new("helpers-bytes");
+    let local = stdout(&fixture.git(&["config", "--local", "core.autocrlf"]));
+    assert_eq!(local.trim(), "false");
+    fixture.write("file.txt", "one\ntwo\n").commit("Bytes");
+    std::fs::remove_file(fixture.root().join("file.txt")).expect("the file is removed");
+    fixture.git(&["checkout", "--", "file.txt"]);
+    let bytes = std::fs::read(fixture.root().join("file.txt")).expect("the file is read");
+    assert_eq!(bytes, b"one\ntwo\n");
 }

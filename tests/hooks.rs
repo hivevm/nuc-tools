@@ -16,7 +16,7 @@ mod support;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
-use support::{Fixture, NUC, cleared, snapshot, stderr, stdout};
+use support::{CONFIG, Fixture, NUC, README, cleared, snapshot, stderr, stdout};
 
 /// The reference shims of this repository.
 fn shims() -> PathBuf {
@@ -301,23 +301,6 @@ fn the_shim_runs_the_check_only_on_3_and_refuses_one_that_cannot_run() {
     let output = commit(&fixture, Some(&bin));
     assert!(!output.status.success(), "a check that cannot run passed");
     let _ = std::fs::remove_dir_all(bin);
-}
-
-#[test]
-fn nuc_hook_pre_commit_runs_no_script_of_the_repository() {
-    let fixture = shimmed("hooks-canary");
-    let canary = fixture.root().join("canary-ran");
-    fixture.write(
-        "scripts/check-all.sh",
-        &format!(
-            "#!/bin/sh\necho ran >> \"{}\"\n",
-            canary.display().to_string().replace('\\', "/")
-        ),
-    );
-    conflicted(&fixture);
-    let output = fixture.nuc(&["hook", "pre-commit"]);
-    assert_eq!(output.status.code(), Some(3), "{}", stderr(&output));
-    assert!(!canary.exists(), "nuc hook pre-commit ran the check itself");
 }
 
 /// `nuc hook pre-commit` in the fixture, called directly.
@@ -1261,8 +1244,6 @@ fn indexed(fixture: &Fixture, rule_feature: &str, rule_feat_x: &str) {
         "merge.adr-index.driver",
         &format!("{shim} %O %A %B %S %X %Y"),
     ]);
-    // The bytes the driver writes, not the line endings a platform's checkout gives them.
-    fixture.git(&["config", "core.autocrlf", "false"]);
     fixture
         .write(".gitattributes", "docs/adr/README.md merge=adr-index\n")
         .write(
@@ -1379,4 +1360,229 @@ fn the_driver_writes_nothing_outside_the_repository_and_ignores_a_fourth_label()
         .collect();
     assert!(left.is_empty(), "the driver left its scratch directory");
     let _ = std::fs::remove_dir_all(tmp);
+}
+
+/// `nuc hook <hook>` called directly in the fixture, with the variables given, after setting up
+/// the state git would hand it and with the arguments and standard input git would. A shim this
+/// does not know fails the test, as `trigger` does.
+fn direct(fixture: &Fixture, hook: &str, vars: &[(&str, std::ffi::OsString)]) -> Output {
+    use std::io::Write;
+    let (args, input): (Vec<String>, String) = match hook {
+        "pre-commit" => {
+            conflicted(fixture);
+            (vec![], String::new())
+        }
+        "pre-merge-commit" => {
+            merging(fixture);
+            fixture.git(&["merge", "-q", "--no-commit", "--no-ff", "feature"]);
+            (vec![], String::new())
+        }
+        "pre-push" => {
+            remote(fixture);
+            fixture.git(&["switch", "-q", "-c", "feature"]);
+            (
+                vec!["origin".to_owned(), "url".to_owned()],
+                push_line(fixture),
+            )
+        }
+        "reference-transaction" => {
+            let head = stdout(&fixture.git(&["rev-parse", "HEAD"]))
+                .trim()
+                .to_owned();
+            // An update of `main`, which the hook reads past its early exit.
+            (
+                vec!["prepared".to_owned()],
+                format!("{head} {head} refs/heads/main\n"),
+            )
+        }
+        "merge-adr-index" => {
+            fixture
+                .write("base.md", "Rule: one.\n| [0001](0001-a.md) |\n")
+                .write(
+                    "ours.md",
+                    "Rule: one.\n| [0001](0001-a.md) |\n| [0002](0002-b.md) |\n",
+                )
+                .write(
+                    "theirs.md",
+                    "Rule: one.\n| [0001](0001-a.md) |\n| [0003](0003-c.md) |\n",
+                );
+            (
+                ["base.md", "ours.md", "theirs.md"]
+                    .map(str::to_owned)
+                    .to_vec(),
+                String::new(),
+            )
+        }
+        other => panic!("no direct call of the shim '{other}': add it here"),
+    };
+    let mut command = Command::new(NUC);
+    cleared(&mut command)
+        .current_dir(fixture.root())
+        .args(["hook", hook])
+        .args(&args)
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
+    for (key, value) in vars {
+        command.env(key, value);
+    }
+    let mut child = command.spawn().expect("nuc runs");
+    child
+        .stdin
+        .take()
+        .expect("a standard input")
+        .write_all(input.as_bytes())
+        .expect("the input is written");
+    child.wait_with_output().expect("nuc ends")
+}
+
+/// A check script that records that it ran into `canary-ran` at the fixture's root.
+fn canary(fixture: &Fixture) -> PathBuf {
+    let canary = fixture.root().join("canary-ran");
+    let script = format!(
+        "#!/bin/sh\necho ran >> \"{}\"\n",
+        canary.display().to_string().replace('\\', "/")
+    );
+    fixture
+        .write("scripts/check-all.sh", &script)
+        .write("scripts/check-docs.sh", &script);
+    canary
+}
+
+/// Verifies: Q-7
+#[test]
+fn nuc_hook_runs_no_script_of_the_repository_for_any_shim() {
+    for hook in every_shim() {
+        let fixture = shimmed_only(&format!("hooks-canary-{hook}"), &hook);
+        let canary = canary(&fixture);
+        let output = direct(&fixture, &hook, &[]);
+        // The hooks that have a check answer that it be run, and still run nothing themselves.
+        let answer = match hook.as_str() {
+            "pre-commit" | "pre-merge-commit" | "pre-push" => 3,
+            _ => 0,
+        };
+        assert_eq!(
+            output.status.code(),
+            Some(answer),
+            "{hook}: {}",
+            both(&output)
+        );
+        assert!(!canary.exists(), "nuc hook {hook} ran a script itself");
+    }
+}
+
+/// Verifies: Q-9
+#[test]
+fn nuc_hook_leaves_a_decoy_in_the_environment_untouched_for_any_shim() {
+    for hook in every_shim() {
+        let decoy = Fixture::project(&format!("hooks-decoy-{hook}"), CONFIG, README);
+        let git_dir = decoy.root().join(".git");
+        let before = snapshot(decoy.root());
+        let vars = [
+            ("GIT_DIR", git_dir.clone().into_os_string()),
+            ("GIT_WORK_TREE", decoy.root().as_os_str().to_owned()),
+            ("GIT_INDEX_FILE", git_dir.join("index").into_os_string()),
+            (
+                "GIT_CONFIG_PARAMETERS",
+                "'core.hooksPath'='/nonexistent-decoy-hooks'".into(),
+            ),
+        ];
+        let fixture = shimmed_only(&format!("hooks-decoy-target-{hook}"), &hook);
+        let output = direct(&fixture, &hook, &vars);
+        if hook == "merge-adr-index" {
+            // The driver merges the files git names it, in the repository git runs it in, and
+            // holds the union of their rows.
+            assert_eq!(output.status.code(), Some(0), "{hook}: {}", both(&output));
+            let ours = std::fs::read_to_string(fixture.root().join("ours.md")).expect("ours");
+            assert!(
+                ours.contains("0002-b.md") && ours.contains("0003-c.md"),
+                "{ours}"
+            );
+        } else {
+            // Handed another git directory than the one it finds, a hook does not decide.
+            assert_eq!(output.status.code(), Some(2), "{hook}: {}", both(&output));
+        }
+        let after = snapshot(decoy.root());
+        assert!(
+            after == before,
+            "{hook} changed the decoy: {:?}",
+            support::changed(&before, &after)
+        );
+    }
+}
+
+/// The fixture of `hook`, its checks green and the token in its configuration, run by `run`
+/// through git: the output and the files the run wrote.
+fn through_git(name: &str, hook: &str, run: &dyn Fn(&Fixture, &[&str]) -> Output) -> Run {
+    let fixture = shimmed_only(name, hook);
+    checks(&fixture, 0);
+    docs(&fixture, 0);
+    // A commit on `main` moves it, which `reference-transaction` decides past its early exit;
+    // with this shim alone no other refuses the commit.
+    let args: &[&str] = if hook == "reference-transaction" {
+        &["commit", "-q", "--allow-empty", "-m", "x"]
+    } else {
+        trigger(&fixture, hook)
+    };
+    fixture.git(&[
+        "config",
+        "http.extraHeader",
+        &format!("Authorization: Bearer {TOKEN}"),
+    ]);
+    let before = snapshot(fixture.root());
+    let output = run(&fixture, args);
+    // Each run passes, so that `nuc` was reached and decided: a shim without it refuses.
+    assert!(output.status.success(), "{hook}: {}", both(&output));
+    let written = snapshot(fixture.root())
+        .into_iter()
+        .filter(|entry| !before.contains(entry))
+        .collect();
+    (output, written)
+}
+
+/// Verifies: Q-10
+#[test]
+fn a_canary_token_shows_in_no_output_and_no_file_for_any_shim() {
+    for hook in every_shim() {
+        let (output, written) = through_git(&format!("hooks-token-{hook}"), &hook, &|f, args| {
+            git_hooked(f, Some(&built()), &TOKEN_VARS, args)
+        });
+        assert!(!both(&output).contains(TOKEN), "{hook}: {}", both(&output));
+        for (path, contents) in written {
+            assert!(
+                !String::from_utf8_lossy(&contents).contains(TOKEN),
+                "{hook}: {} holds the token",
+                path.display()
+            );
+        }
+    }
+}
+
+/// Verifies: Q-11
+#[cfg(target_os = "linux")]
+#[test]
+fn the_network_blocked_changes_no_shim() {
+    let offline = |fixture: &Fixture, args: &[&str]| {
+        cleared(&mut Command::new("unshare"))
+            .args(["--net", "--map-current-user", "--", "git"])
+            .args(args)
+            .env("PATH", path_with(Some(&built())))
+            .envs(TOKEN_VARS)
+            .current_dir(fixture.root())
+            .output()
+            .expect("unshare runs")
+    };
+    for hook in every_shim() {
+        let (on, _) = through_git(&format!("hooks-online-{hook}"), &hook, &|f, args| {
+            git_hooked(f, Some(&built()), &TOKEN_VARS, args)
+        });
+        let (off, _) = through_git(&format!("hooks-offline-{hook}"), &hook, &offline);
+        assert_eq!(
+            off.status.code(),
+            on.status.code(),
+            "{hook}: {}",
+            both(&off)
+        );
+        assert_eq!(both(&off), both(&on), "{hook}");
+    }
 }

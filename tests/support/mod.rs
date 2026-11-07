@@ -2,8 +2,9 @@
 //! of its own under the system's temporary directory, outside this repository, so that no git
 //! command of a test can reach it, built through the real git CLI.
 //! git and `nuc` run under a cleared environment with the allowlist the shell passes, a fixed
-//! author, committer, and date, and the hooks path on the null device, so that neither the
-//! parent's `GIT_*` variables nor the user's identity or hooks change a fixture.
+//! author, committer, and date, the hooks path on the null device, and `core.autocrlf` off in
+//! each repository, so that neither the parent's `GIT_*` variables nor the user's identity,
+//! hooks, or line endings change a fixture.
 
 // Each test crate includes this module and uses part of it.
 #![allow(dead_code)]
@@ -108,6 +109,9 @@ impl Fixture {
         fs::create_dir_all(&root).expect("the fixture directory is created");
         let fixture = Self { root };
         fixture.git(&["init", "-q", "-b", "main"]);
+        // The bytes a fixture commits are the bytes it checks out, whatever `core.autocrlf` the
+        // system's or the user's configuration sets, as git for Windows' does.
+        fixture.git(&["config", "core.autocrlf", "false"]);
         fixture
     }
 
