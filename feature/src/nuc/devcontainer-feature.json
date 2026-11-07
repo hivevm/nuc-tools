@@ -1,0 +1,9 @@
+{
+  "id": "nuc",
+  "version": "0.0.0",
+  "name": "nuc",
+  "description": "Installs nuc, the mechanics of the NUC template, from the release this Feature version carries, verified against its checksums.",
+  "documentationURL": "https://github.com/hivevm/nuc-tools",
+  "licenseURL": "https://github.com/hivevm/nuc-tools/blob/main/LICENSE",
+  "options": {}
+}
