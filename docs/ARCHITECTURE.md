@@ -83,7 +83,8 @@ golden path and the test pattern an agent copies from are named here.
   the `Tree` as well; the two files of the green-tree record and the sides of a merge, at the
   paths git gives, it reads in the two functions `tests/functional_core.guarded` names for them.
   It writes, renames, creates, and removes only in the functions `tests/functional_core.writers`
-  names, each inside the repository or its git directory (Q-8).
+  names, each inside the repository or its git directory (Q-8); `git merge-file` writes ours for
+  the merge driver.
 - **Binary** — `src/main.rs` calls the shell and nothing else.
 - **Parity harness** — `scripts/check-parity.sh` runs the bash checks of each repository of the
   corpus, `check-docs.sh` and `check-traceability.sh`, all on template release v0.5.0 or later,
