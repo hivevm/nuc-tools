@@ -10,7 +10,11 @@
 //! Inside `src/shell/`, a call that reads a file, lists a directory, or resolves a path, as
 //! `functional_core.reads` lists them, stands only in a function `functional_core.guarded` names
 //! for that call: those that resolve the path through `Tree::resolve` first, so that nothing
-//! outside the repository is read (Q-12). A test of existence reads nothing and is free.
+//! outside the repository is read (Q-12). A test of existence reads nothing and is free. A call
+//! that writes, renames, creates, or removes a file or directory, as `functional_core.writes`
+//! lists them, stands only in a function `functional_core.writers` names for that call, with the
+//! paths it writes in a comment, and no source under `src/` names the system's temporary
+//! directory: every write stays inside the repository and its git directory (Q-8).
 //!
 //! The readings of the bash's tools that `functional_core.bash` names, as `awk_lines` and
 //! `is_space`, are defined in `src/bash.rs` and nowhere else, so that no port writes a copy of its
@@ -33,6 +37,8 @@ use support::sources::{root, rule_id, rule_modules, rust_files};
 const FORBIDDEN: &str = include_str!("functional_core.forbidden");
 const READS: &str = include_str!("functional_core.reads");
 const GUARDED: &str = include_str!("functional_core.guarded");
+const WRITES: &str = include_str!("functional_core.writes");
+const WRITERS: &str = include_str!("functional_core.writers");
 const BASH_READERS: &str = include_str!("functional_core.bash");
 const OUTCOMES: &str = include_str!("functional_core.outcomes");
 
@@ -446,7 +452,13 @@ fn guarded_entries(guarded: &str) -> Vec<(&str, &str, Vec<&str>)> {
 /// The calls of a source under `src/shell/`, named `file` there, that read, list, or resolve
 /// in a function the guarded list does not allow them, each with its function.
 fn unguarded(file: &str, source: &str, guarded: &str) -> Vec<String> {
-    let allowed = guarded_entries(guarded);
+    outside(file, source, guarded, READS)
+}
+
+/// The calls of `list` in a source under `src/shell/`, named `file` there, in a function the
+/// `allowed` list does not allow them, each with its function.
+fn outside(file: &str, source: &str, allowed: &str, list: &str) -> Vec<String> {
+    let allowed = guarded_entries(allowed);
     functions(source)
         .into_iter()
         .flat_map(|(name, code)| {
@@ -455,7 +467,7 @@ fn unguarded(file: &str, source: &str, guarded: &str) -> Vec<String> {
                 .filter(|(f, n, _)| *f == file && *n == name)
                 .flat_map(|(_, _, calls)| calls.iter().copied())
                 .collect();
-            violations(&code, READS)
+            violations(&code, list)
                 .into_iter()
                 .filter(move |entry| !may.contains(&entry.as_str()))
                 .map(move |entry| format!("{file}: {name} calls '{entry}'"))
@@ -655,8 +667,14 @@ fn a_rule_is_listed_only_by_its_own_entry() {
     assert!(!listed("pubconstALL:&[Rule]=&[];", "other"));
 }
 
-#[test]
-fn the_shell_reads_only_through_the_guard() {
+/// The calls of `list` in `src/shell/` outside the functions `allowed` names for them, and each
+/// entry of `allowed` checked: a function defined once, calling only what `list` lists.
+fn shell_calls_outside(
+    allowed: &str,
+    allowed_name: &str,
+    list: &str,
+    list_name: &str,
+) -> Vec<String> {
     let shell = root().join("src/shell");
     let files = rust_files(&shell, None);
     assert!(!files.is_empty(), "no source under src/shell/");
@@ -671,31 +689,123 @@ fn the_shell_reads_only_through_the_guard() {
             .collect::<Vec<_>>()
             .join("/");
         let source = fs::read_to_string(path).expect("a source is readable");
-        found.extend(unguarded(&file, &source, GUARDED));
+        found.extend(outside(&file, &source, allowed, list));
         defined.extend(
             functions(&source)
                 .into_iter()
                 .map(|(name, _)| format!("{file} {name}")),
         );
     }
+    for (file, name, calls) in guarded_entries(allowed) {
+        let entry = format!("{file} {name}");
+        let times = defined.iter().filter(|d| **d == entry).count();
+        assert_eq!(
+            times, 1,
+            "{allowed_name} names '{entry}', which src/shell/ defines {times} times, not once"
+        );
+        for call in calls {
+            assert!(
+                entries(list).contains(&call),
+                "{allowed_name} lets '{entry}' call '{call}', which {list_name} does not list"
+            );
+        }
+    }
+    found
+}
+
+#[test]
+fn the_shell_reads_only_through_the_guard() {
+    let found = shell_calls_outside(
+        GUARDED,
+        "functional_core.guarded",
+        READS,
+        "functional_core.reads",
+    );
     assert!(
         found.is_empty(),
         "the shell reads past Tree::resolve:\n{}",
         found.join("\n")
     );
-    for (file, name, calls) in guarded_entries(GUARDED) {
-        let entry = format!("{file} {name}");
-        let times = defined.iter().filter(|d| **d == entry).count();
+}
+
+/// Verifies: Q-8
+#[test]
+fn the_shell_writes_only_where_its_list_says() {
+    let found = shell_calls_outside(
+        WRITERS,
+        "functional_core.writers",
+        WRITES,
+        "functional_core.writes",
+    );
+    assert!(
+        found.is_empty(),
+        "the shell writes in a function functional_core.writers does not name:\n{}",
+        found.join("\n")
+    );
+}
+
+#[test]
+fn a_write_outside_the_listed_functions_is_found_by_its_function() {
+    let writers = "hook.rs record_pending fs::write fs::rename\n";
+    for (source, function, call) in [
+        ("fn note() { std::fs::write(p, b); }", "note", "fs::write"),
+        (
+            "fn record_pending() { fs::remove_file(p); }",
+            "record_pending",
+            "fs::remove_file",
+        ),
+        (
+            "fn scratch() { fs::create_dir_all(p); }",
+            "scratch",
+            "fs::create_dir_all",
+        ),
+        (
+            "fn tidy() { std::fs::remove_dir_all(p); }",
+            "tidy",
+            "fs::remove_dir_all",
+        ),
+        ("use std::fs::rename;", "<module>", "fs::rename"),
+    ] {
         assert_eq!(
-            times, 1,
-            "functional_core.guarded names '{entry}', which src/shell/ defines {times} times, not once"
+            outside("hook.rs", source, writers, WRITES),
+            [format!("hook.rs: {function} calls '{call}'")],
+            "{source}"
         );
-        for call in calls {
-            assert!(
-                entries(READS).contains(&call),
-                "functional_core.guarded lets '{entry}' call '{call}', which functional_core.reads does not list"
-            );
-        }
+    }
+    assert_eq!(
+        outside(
+            "hook.rs",
+            "fn record_pending() { fs::write(p, b).and_then(|()| fs::rename(p, q)); }",
+            writers,
+            WRITES
+        ),
+        Vec::<String>::new()
+    );
+}
+
+/// Verifies: Q-8
+#[test]
+fn no_source_names_the_system_temporary_directory() {
+    let src = root().join("src");
+    let found: Vec<String> = rust_files(&src, None)
+        .iter()
+        .filter(|path| {
+            let source = fs::read_to_string(path).expect("a source is readable");
+            !violations(&source, "temp_dir").is_empty()
+        })
+        .map(|path| path.display().to_string())
+        .collect();
+    assert!(
+        found.is_empty(),
+        "every write stays inside the repository and its git directory, yet these name temp_dir:\n{}",
+        found.join("\n")
+    );
+    for source in [
+        "fn f() { std::env::temp_dir(); }",
+        "use std::env::temp_dir;",
+        "fn f() { env::temp_dir().join(\"x\"); }",
+    ] {
+        assert!(!violations(source, "temp_dir").is_empty(), "{source}");
     }
 }
 
