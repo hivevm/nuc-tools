@@ -83,7 +83,7 @@ impl Inputs {
     /// The file that holds the required checks and the Project Layout on the release the tree is
     /// checked as, by its name, and its text if it exists.
     pub fn guide(&self) -> (&'static str, Option<&str>) {
-        if self.carries_at_least(CONTRIBUTING_GUIDE) {
+        if guide_is_contributing(self.release) {
             ("CONTRIBUTING.md", self.contributing.as_deref())
         } else {
             ("README.md", self.readme.as_deref())
@@ -102,6 +102,12 @@ pub const RELEASES: &[Version] = &[
 
 /// The release from which the required checks and the Project Layout stand in `CONTRIBUTING.md`.
 pub const CONTRIBUTING_GUIDE: Version = Version(0, 7, 0);
+
+/// Whether the guide of a tree checked as `release` is `CONTRIBUTING.md` rather than the README:
+/// from [`CONTRIBUTING_GUIDE`] on, and for none, the newest release.
+pub fn guide_is_contributing(release: Option<Version>) -> bool {
+    release.is_none_or(|release| release >= CONTRIBUTING_GUIDE)
+}
 
 /// The template release a README names on its `Template release` line.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -202,4 +208,17 @@ pub const ALL: &[Rule] = &[
 /// The rule with the ID, if this `nuc` knows it.
 pub fn find(id: &str) -> Option<&'static Rule> {
     ALL.iter().find(|rule| rule.id == id)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_guide_is_contributing_from_its_release_on_and_where_none_is_placed() {
+        assert!(!guide_is_contributing(Some(Version(0, 6, 1))));
+        assert!(guide_is_contributing(Some(CONTRIBUTING_GUIDE)));
+        assert!(guide_is_contributing(Some(Version(0, 8, 0))));
+        assert!(guide_is_contributing(None));
+    }
 }

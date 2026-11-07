@@ -7,7 +7,8 @@
 
 use std::fmt;
 
-use crate::rules::Rule;
+use crate::hook;
+use crate::rules::{self, Rule};
 
 /// How to install or update `nuc`, named in every refusal that a newer `nuc` would resolve.
 pub const INSTALL: &str = "install or update nuc from https://github.com/hivevm/nuc-tools/releases";
@@ -202,20 +203,30 @@ fn parse_rules<'a>(
         .collect()
 }
 
-/// The rules of `known` that `config` turns on, in the order of `known`, or the rule ID `known`
-/// lacks. A rule not listed stays off. The minimum is [`load`]'s to hold.
-pub fn select<'a>(config: &Config, known: &'a [Rule]) -> Result<Vec<&'a Rule>, Refusal> {
-    if let Some(unknown) = config
-        .rules
-        .iter()
-        .find(|r| !known.iter().any(|k| k.id == r.as_str()))
-    {
-        return Err(Refusal::UnknownRule(unknown.clone()));
+/// The rule ID and the reason `nuc explain` gives for `id`, where this `nuc` knows it: a rule
+/// `nuc check` runs, or a hook rule `nuc hook` decides. The one answer to which IDs `nuc.toml` may
+/// name.
+pub fn explanation(id: &str) -> Option<(&'static str, &'static str)> {
+    rules::find(id)
+        .map(|rule| (rule.id, rule.explain))
+        .or_else(|| hook::find(id).map(|rule| (rule.id, rule.explain)))
+}
+
+/// The first rule ID the configuration names that this `nuc` does not know, which `nuc check`
+/// and `nuc hook` refuse alike (ADR-0023).
+pub fn known(config: &Config) -> Result<(), Refusal> {
+    match config.rules.iter().find(|id| explanation(id).is_none()) {
+        Some(unknown) => Err(Refusal::UnknownRule(unknown.clone())),
+        None => Ok(()),
     }
-    Ok(known
-        .iter()
+}
+
+/// The rules of `all` that `config` turns on, in the order of `all`; a rule not listed stays off.
+/// Whether every ID it names is known is [`known`]'s to hold, the minimum [`load`]'s.
+pub fn select<'a>(config: &Config, all: &'a [Rule]) -> Vec<&'a Rule> {
+    all.iter()
         .filter(|k| config.rules.iter().any(|r| r == k.id))
-        .collect())
+        .collect()
 }
 
 #[cfg(test)]
@@ -299,23 +310,35 @@ mod tests {
     }
 
     #[test]
-    fn selection_turns_on_the_listed_rules_and_refuses_an_unknown_one() {
+    fn selection_turns_on_the_listed_rules() {
         let rule = |id| Rule {
             id,
             explain: "",
             reads: &[],
             check: |_| Vec::new().into(),
         };
-        let known = [rule("docs/a"), rule("docs/b")];
+        let all = [rule("docs/a"), rule("docs/b")];
         let config = |rules: &[&str]| Config {
             minimum: V,
             rules: rules.iter().map(|r| (*r).to_owned()).collect(),
         };
-        let picked = select(&config(&["docs/b"]), &known).unwrap();
+        let picked = select(&config(&["docs/b"]), &all);
         assert_eq!(picked.iter().map(|r| r.id).collect::<Vec<_>>(), ["docs/b"]);
+    }
+
+    #[test]
+    fn a_rule_and_a_hook_rule_are_known_and_any_other_id_is_refused() {
+        let config = |rules: &[&str]| Config {
+            minimum: V,
+            rules: rules.iter().map(|r| (*r).to_owned()).collect(),
+        };
         assert_eq!(
-            select(&config(&["docs/c"]), &known).err(),
-            Some(Refusal::UnknownRule("docs/c".to_owned()))
+            known(&config(&["docs/template-release", "hook/commit-on-main"])),
+            Ok(())
+        );
+        assert_eq!(
+            known(&config(&["hook/commit-on-main", "docs/c"])),
+            Err(Refusal::UnknownRule("docs/c".to_owned()))
         );
     }
 }

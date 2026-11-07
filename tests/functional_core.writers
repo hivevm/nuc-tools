@@ -1,0 +1,18 @@
+# The functions of src/shell/ that may call what functional_core.writes lists, read by
+# tests/functional_core.rs, in the form of functional_core.guarded. Each writes inside the
+# repository or its git directory, at the paths the comment names, and nowhere else (Q-8).
+
+# Writes the pending tree, checks-pending-tree, in the worktree's git directory.
+hook.rs pre_push fs::write
+# Writes the record of green trees, checks-green-trees, in the common git directory, through a
+# temporary file beside it that it renames over the record or removes.
+hook.rs record_pending fs::write fs::rename fs::remove_file
+# Removes the pending tree in the worktree's git directory.
+hook.rs remove fs::remove_file
+# Writes the merged index into ours, the file git hands the merge driver, and removes its scratch
+# directory.
+hook.rs merge_adr_index fs::write fs::remove_dir_all
+# Makes the scratch directory, fresh, in the git directory.
+hook.rs scratch_dir fs::create_dir
+# Writes the prose of each side into the scratch directory.
+hook.rs merge_sides fs::write

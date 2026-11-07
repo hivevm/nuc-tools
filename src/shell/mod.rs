@@ -105,10 +105,11 @@ fn check(repo: Option<&Path>) -> Result<u8, String> {
     let text = tree
         .read(&tree.root.join("nuc.toml"))?
         .ok_or_else(|| config::Refusal::Missing.to_string())?;
-    let mut config = config::load(&text, running()).map_err(|refusal| refusal.to_string())?;
-    // A hook rule decides in `nuc hook` alone: its ID is known here, and it runs never.
-    config.rules.retain(|id| crate::hook::find(id).is_none());
-    let selected = config::select(&config, rules::ALL).map_err(|r| r.to_string())?;
+    let config = config::load(&text, running()).map_err(|refusal| refusal.to_string())?;
+    config::known(&config).map_err(|refusal| refusal.to_string())?;
+    // A hook rule decides in `nuc hook` alone: its ID is known, and it is in no `rules::ALL`, so
+    // it runs never here.
+    let selected = config::select(&config, rules::ALL);
     // Only what a rule turned on reads: an input no rule needs can neither refuse nor cost.
     let needs = |input: Input| selected.iter().any(|rule| rule.reads.contains(&input));
     let mut inputs = Inputs::default();
@@ -120,6 +121,8 @@ fn check(repo: Option<&Path>) -> Result<u8, String> {
     let readme = tree
         .read_checked(&tree.root.join("README.md"))?
         .ok_or("README.md: not found — the tree names no template release — not decided")?;
+    // The release its Template release line names, read once, for every use of it.
+    let carried = rules::docs_template_release::carried(&readme);
     if needs(Input::Readme) {
         inputs.readme = Some(readme);
     }
@@ -127,7 +130,7 @@ fn check(repo: Option<&Path>) -> Result<u8, String> {
         let reported = selected
             .iter()
             .any(|rule| rule.id == rules::docs_template_release::RULE_ID);
-        match carried_release(&tree, reported)? {
+        match carried_release(carried, reported)? {
             Some(release) => inputs.release = release,
             None => unplaced = true,
         }
@@ -276,7 +279,7 @@ fn read_guides(
     unplaced: bool,
     needs: &dyn Fn(Input) -> bool,
 ) -> Result<(), String> {
-    let guide_is_contributing = inputs.carries_at_least(rules::CONTRIBUTING_GUIDE);
+    let guide_is_contributing = rules::guide_is_contributing(inputs.release);
     if needs(Input::Contributing) && (unplaced || guide_is_contributing) {
         inputs.contributing = tree.read_checked(&tree.root.join("CONTRIBUTING.md"))?;
     }
@@ -327,18 +330,18 @@ fn on_every_release(rule: &rules::Rule, inputs: &Inputs) -> Outcome {
     }
 }
 
-/// The template release the tree carries, for the rules whose bash check changed between
-/// releases: none for `unreleased`, checked as the newest release. A release before the earliest
-/// is not decided; so is a README that names none, unless the rule `reported` on, the Template
-/// release rule, fails the run on it: then a rule reports only what it reports on every release
-/// (ADR-0023). The outer none is that case, a release the
-/// README does not name.
-fn carried_release(tree: &Tree, reported: bool) -> Result<Option<Option<Version>>, String> {
-    let readme = tree.read_checked(&tree.root.join("README.md"))?;
-    match readme.as_deref().and_then(rules::docs_template_release::carried) {
+/// The template release the tree carries, as its README's line names it, for the rules whose bash
+/// check changed between releases: none for `unreleased`, checked as the newest release. A release
+/// before the earliest is not decided; so is a README that names none, unless the rule `reported`
+/// on, the Template release rule, fails the run on it: then a rule reports only what it reports on
+/// every release (ADR-0023). The outer none is that case, a release the README does not name.
+fn carried_release(
+    carried: Option<Carried>,
+    reported: bool,
+) -> Result<Option<Option<Version>>, String> {
+    match carried {
         Some(Carried::Unreleased) => Ok(Some(None)),
-        // The Template release rule reports a README that names no release, never a missing one.
-        None if reported && readme.is_some() => Ok(None),
+        None if reported => Ok(None),
         Some(Carried::Release(release)) if release >= EARLIEST_RELEASE => Ok(Some(Some(release))),
         Some(Carried::Release(release)) => Err(format!(
             "README.md: template release v{release} is before v{EARLIEST_RELEASE}, the earliest whose checks this nuc ports — not decided"
@@ -352,10 +355,8 @@ fn carried_release(tree: &Tree, reported: bool) -> Result<Option<Option<Version>
 
 /// `nuc explain <id>`: the reason of the rule (G-6).
 fn explain(id: &str) -> Result<u8, String> {
-    let (id, reason) = rules::find(id)
-        .map(|rule| (rule.id, rule.explain))
-        .or_else(|| crate::hook::find(id).map(|rule| (rule.id, rule.explain)))
-        .ok_or_else(|| format!("no rule '{id}' is known to this nuc"))?;
+    let (id, reason) =
+        config::explanation(id).ok_or_else(|| format!("no rule '{id}' is known to this nuc"))?;
     println!("{id}: {reason}");
     Ok(PASSED)
 }
