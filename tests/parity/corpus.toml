@@ -31,6 +31,13 @@ name = "nuc-v0-7-0"
 url = "https://github.com/hivevm/nuc.git"
 commit = "8ff4cf46bb887cd9471ff05a457a16bb83cc0f42"
 
+# The template at the commit of its release v0.8.1, whose check-docs.sh reads the ADR patterns
+# from scripts/lib/adr.sh: every rule checks it as v0.7.0.
+[[repository]]
+name = "nuc-v0-8-1"
+url = "https://github.com/hivevm/nuc.git"
+commit = "2129a9dc34f33b463584c45ea699cee6ba22f0f6"
+
 # A derived repository on template release v0.6.1, at a fixed commit of its main.
 [[repository]]
 name = "nectar"
