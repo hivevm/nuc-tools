@@ -1,4 +1,4 @@
-# ADR-draft-output-formats-with-a-concise-short-description: `nuc check --format json` writes one versioned JSON document and `--format sarif` a SARIF 2.1.0 log whose rules carry the first sentence of their reason as a short description, both without a crate, and nothing when the run cannot decide
+# ADR-0028: `nuc check --format json` writes one versioned JSON document and `--format sarif` a SARIF 2.1.0 log whose rules carry the first sentence of their reason as a short description, both without a crate, and nothing when the run cannot decide
 
 - **Status:** 🟡 proposed
 - **Date:** 2026-11-08
@@ -122,7 +122,7 @@ write does.
 
 ## Enforcement
 
-A test cited with `Verifies: ADR-draft-output-formats-with-a-concise-short-description` runs `nuc
+A test cited with `Verifies: ADR-0028` runs `nuc
 check` with each format on fixtures with findings, without a line, with messages of quotes,
 backslashes, control characters, and non-ASCII text, on a path with a space, a colon where the
 platform allows one, `#`, and `%`, and on one with a letter beyond ASCII, and without findings, and
