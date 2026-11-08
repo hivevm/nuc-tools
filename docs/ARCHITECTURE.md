@@ -6,7 +6,7 @@
 > is updated in the same change as the structure it describes
 > ([ADR-0001](adr/0001-agent-governance-model.md)).
 >
-> **Last design revision:** 2026-11-07, due after 20 changes. The revision that took the count
+> **Last design revision:** 2026-11-08, due after 20 changes. The revision that took the count
 > moves the date; the number is this project's to set; a sensor counts the changes outside
 > `docs/` since the commit that set the date and says when the next is due
 > ([ADR-0006](adr/0006-feature-layer.md)).
@@ -83,7 +83,8 @@ golden path and the test pattern an agent copies from are named here.
   `tests/bench/hook-latency.sh` measures `reference-transaction` against Q-5 in `benchmark.yml`,
   on a schedule, never as a gate.
 - **Shell** — `src/shell/` reads the command line and the repository, runs git under a cleared
-  environment in `shell::git`, calls the rules, prints the findings, and sets the exit code
+  environment in `shell::git`, calls the rules, writes the findings in the format
+  `src/format.rs` builds, and sets the exit code
   ([ADR-0011](adr/0011-git-cli-cleared-environment.md)). Its `Tree`, in `shell::tree`, reads
   every file and lists every directory the rules need, each resolved through one function that
   refuses a path outside the repository, and refuses as well, as not decided, one the bash would
@@ -133,7 +134,9 @@ golden path and the test pattern an agent copies from are named here.
   a cleared environment whose `HOME` is an empty directory of the test process's own
   ([ADR-0026](adr/0026-fixture-repositories-with-a-home-of-their-own.md)), and its exit code and
   output asserted; an ADR identifier, a marker, or a section reference a test writes but does not
-  mean comes from `src/testing.rs` or `tests/support/`, since the gate reads the tests as text. The
+  mean comes from `src/testing.rs` or `tests/support/`, since the gate reads the tests as text. A
+  test that reads this repository's own tree takes its root from `tests/support/sources.rs`, which
+  fails where the test binary was built from another checkout than the one it runs in. The
   structural test `tests/functional_core.rs` holds the shape, and inside the shell lets only the
   functions `tests/functional_core.guarded` names read, list, or resolve a path and only those
   `tests/functional_core.writers` names write. `tests/isolation.rs` runs `nuc check` on a tree of
