@@ -9,10 +9,10 @@ name: Checks
 # it holds.
 #
 # The sensors report for the reviewer and fail on nothing they count, except the action
-# references, which this project checks with --require sha (ADR-0018);
-# their self-tests fail like any check's. The sensors job checks out the full history because
-# three sensors read it. The review binding sensor runs in review-binding.yml, the repository
-# settings sensor on a human's instruction (ADR-0002); this workflow runs the self-test of each.
+# references, which this project checks with --require sha (ADR-0018); their self-tests fail
+# like any check's. The sensors job checks out the full history because five sensors read it. The
+# review binding sensor runs in review-binding.yml, the repository settings sensor on a human's
+# instruction (ADR-0002); this workflow runs the self-test of each.
 #
 # The build job runs the toolchain's build, test, and lint, and the deps job the dependency audit
 # (ADR-0008); the parity job builds nuc for the parity harness
@@ -139,6 +139,12 @@ jobs:
         run: bash scripts/sensor-binding-adrs.sh "$BASE"
         env:
           BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+      - name: Self-test the plain rules sensor
+        run: bash scripts/test-sensor-plain-rules.sh
+      - name: Report long sentences and soft modal verbs the change adds to the rules
+        run: bash scripts/sensor-plain-rules.sh "$BASE"
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
       - name: Self-test the revision-due sensor
         run: bash scripts/test-sensor-revision-due.sh
       - name: Report the changes since the last design revision
@@ -147,6 +153,10 @@ jobs:
         run: bash scripts/test-sensor-plan-frontier.sh
       - name: Report the tickets that may be claimed, the claimed, and the blocked
         run: bash scripts/sensor-plan-frontier.sh
+      - name: Self-test the backlog sensor
+        run: bash scripts/test-sensor-backlog.sh
+      - name: Report the backlog entries on main and on unmerged local branches
+        run: bash scripts/sensor-backlog.sh
       - name: Self-test the action references sensor
         run: bash scripts/test-sensor-action-refs.sh
       # The decided form of the action references, a commit SHA with its version comment.

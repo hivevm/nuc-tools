@@ -23,8 +23,10 @@ if [ ! -f "$sums" ] || [ ! -f "$version_file" ]; then
   fail "no SHA256SUMS or VERSION beside the installer — this commit is no release commit; reference the major tag vN of a release"
 fi
 version="$(tr -d '[:space:]' < "$version_file")"
-printf '%s\n' "$version" | grep -Eqx '(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)' \
-  || fail "VERSION holds '$version', not X.Y.Z"
+grep -Eqx '(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)' << EOF ||
+$version
+EOF
+  fail "VERSION holds '$version', not X.Y.Z"
 
 target="${NUC_TARGET:-}"
 if [ -z "$target" ]; then

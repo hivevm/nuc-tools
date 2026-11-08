@@ -271,7 +271,7 @@ c="$(corpus "$work/agree.toml" agree)"
 expect pass "a corpus on which bash and nuc agree, on the tree and on its variant" "" run "$c" "$(reactive_nuc)"
 expect pass "the filled cache is used again, the tree reset" "" run "$c" "$(reactive_nuc)"
 check "the run names the variant it compared" \
-  bash -c "PARITY_TABLE=\"$work/one-rule.tsv\" bash \"$HARNESS\" --no-hooks --corpus \"$c\" --cache \"$work/cache\" --nuc \"$(reactive_nuc)\" --variants \"$DEFAULT\" | grep -q 'variant deleted — 1 finding'"
+  bash -c "PARITY_TABLE=\"$work/one-rule.tsv\" bash \"$HARNESS\" --no-hooks --corpus \"$c\" --cache \"$work/cache\" --nuc \"$(reactive_nuc)\" --variants \"$DEFAULT\" | grep -c 'variant deleted — 1 finding' > /dev/null"
 check "the variant leaves the cached tree as pinned" \
   bash -c "test -z \"\$(git -C \"$work/cache/agree\" status --porcelain --untracked-files=no)\""
 

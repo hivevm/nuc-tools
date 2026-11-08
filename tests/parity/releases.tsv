@@ -3,28 +3,29 @@
 # ID; the script of the template that holds its bash check; the function of that script, or "-"
 # for the whole script; the template releases of the corpus at which that check changed, the
 # earliest pinned release of the template left out, separated by commas, or "-" for none; and,
-# for a rule that checks every release alike although its bash changed, the reason. The parity
-# harness compares each function across the trees of the template in the corpus, comment lines
-# left out, and fails where this table says otherwise. tests/releases.rs fails on a rule whose
-# check changed and that neither reads the release the tree carries nor gives a reason (ADR-0023).
+# for a rule that checks every release alike although its bash changed, the reason; a reason
+# that opens with 'vX.Y.Z[,vX.Y.Z...]:' covers only those releases. The parity harness compares
+# each function across the trees of the template in the corpus, comment lines left out, and fails
+# where this table says otherwise. tests/releases.rs fails on a rule whose check changed at a
+# release no reason covers and that does not read the release the tree carries (ADR-0023).
 # Only the named function is compared: a change to a helper it calls or a global it reads, as
 # placeholder or add_error, shows in no row, and is found by reading the release's diff.
 
-docs/adr-index	scripts/check-docs.sh	check_adr_index	-
-docs/adr-numbering	scripts/check-docs.sh	check_adr_numbering	-
-docs/no-draft-on-main	scripts/check-docs.sh	check_no_draft_on_main	-
+docs/adr-index	scripts/check-docs.sh	check_adr_index	v0.8.1	v0.8.0 moved its patterns and the ADR key into scripts/lib/adr.sh with the same expressions, so every release checks alike, which the parity corpus shows on the tree of v0.8.1
+docs/adr-numbering	scripts/check-docs.sh	check_adr_numbering	v0.8.1	v0.8.0 moved its patterns and the ADR key into scripts/lib/adr.sh with the same expressions, so every release checks alike, which the parity corpus shows on the tree of v0.8.1
+docs/no-draft-on-main	scripts/check-docs.sh	check_no_draft_on_main	v0.8.1	v0.8.0 moved its patterns and the ADR key into scripts/lib/adr.sh with the same expressions, so every release checks alike, which the parity corpus shows on the tree of v0.8.1
 docs/adr-header	scripts/check-docs.sh	check_adr_headers	-
-docs/adr-supersessions	scripts/check-docs.sh	check_adr_supersessions	v0.6.0
+docs/adr-supersessions	scripts/check-docs.sh	check_adr_supersessions	v0.6.0,v0.8.1	v0.8.1: v0.8.0 moved its patterns and the ADR key into scripts/lib/adr.sh with the same expressions, so v0.8.1 checks as v0.7.0, which the parity corpus shows on the tree of v0.8.1
 docs/links	scripts/check-docs.sh	check_relative_links	-
 docs/section-refs	scripts/check-docs.sh	check_section_refs	-
 docs/adr-refs	scripts/check-docs.sh	check_adr_refs	-
-docs/adr-link-targets	scripts/check-docs.sh	check_adr_link_targets	-
+docs/adr-link-targets	scripts/check-docs.sh	check_adr_link_targets	v0.8.1	v0.8.0 moved its patterns and the ADR key into scripts/lib/adr.sh with the same expressions, so every release checks alike, which the parity corpus shows on the tree of v0.8.1
 docs/check-lists	scripts/check-docs.sh	check_check_lists	v0.6.0,v0.7.0
 docs/project-layout	scripts/check-docs.sh	check_project_layout	v0.7.0
 docs/skill-pointers	scripts/check-docs.sh	check_skill_pointers	-
-docs/inherited-adrs	scripts/check-docs.sh	check_inherited_adrs	-
+docs/inherited-adrs	scripts/check-docs.sh	check_inherited_adrs	v0.8.1	v0.8.0 moved its patterns and the ADR key into scripts/lib/adr.sh with the same expressions, so every release checks alike, which the parity corpus shows on the tree of v0.8.1
 docs/template-identity	scripts/check-docs.sh	check_template_identity	v0.6.1
-docs/prose-width	scripts/check-docs.sh	check_prose_width	-
+docs/prose-width	scripts/check-docs.sh	check_prose_width	v0.8.1	v0.8.0 moved its patterns and the ADR key into scripts/lib/adr.sh with the same expressions, so every release checks alike, which the parity corpus shows on the tree of v0.8.1
 docs/template-release	scripts/check-docs.sh	check_template_release	v0.7.0	v0.7.0 reports a missing README itself, where earlier releases leave it to check 10; nuc refuses a tree without a README before any rule runs, so no tree tells the two apart
 traceability/criteria	scripts/check-traceability.sh	-	-
 traceability/citations	scripts/check-traceability.sh	-	-

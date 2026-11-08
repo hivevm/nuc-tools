@@ -61,7 +61,8 @@ golden path and the test pattern an agent copies from are named here.
   `docs/template-identity`, reads the release the tree carries and checks as that release does
   (ADR-0023). `tests/parity/releases.tsv` names the releases at which each rule's check changed,
   which the parity harness holds to the template's trees and `tests/releases.rs` holds the rules
-  to; `docs/template-release` gives its reason there for reading none.
+  to; a rule that checks every release alike although its bash changed, as `docs/template-release`
+  does, gives its reason there, for the releases the reason names or for all.
 - **Configuration** — `config` reads `nuc.toml` and selects the rules it turns on, or says why
   `nuc` refuses: missing, unreadable, a minimum above the running version, an unknown rule ID
   ([ADR-0023](adr/0023-version-coupling-with-hook-defaults.md)). It holds the one answer to which
