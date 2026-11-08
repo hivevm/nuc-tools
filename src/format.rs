@@ -61,9 +61,13 @@ fn sarif(report: &Report) -> String {
     array(&mut out, report.rules, |out, (id, reason)| {
         out.push_str(r#"{"id":"#);
         string(out, id);
-        for key in ["shortDescription", "fullDescription", "help"] {
+        for (key, text) in [
+            ("shortDescription", first_sentence(reason)),
+            ("fullDescription", reason),
+            ("help", reason),
+        ] {
             out.push_str(&format!(r#","{key}":{{"text":"#));
-            string(out, reason);
+            string(out, text);
             out.push('}');
         }
         out.push('}');
@@ -90,6 +94,16 @@ fn sarif(report: &Report) -> String {
     });
     out.push_str("}]}\n");
     out
+}
+
+/// The first sentence of `reason`, up to and including the period of the first `. ` that a capital
+/// letter follows, or the whole reason where no such period stands
+/// (ADR-draft-output-formats-with-a-concise-short-description).
+fn first_sentence(reason: &str) -> &str {
+    reason
+        .match_indices(". ")
+        .find(|(at, _)| reason[at + 2..].starts_with(|c: char| c.is_uppercase()))
+        .map_or(reason, |(at, _)| &reason[..=at])
 }
 
 /// `path` as a URI reference, as RFC 3986 asks: `/` and the unreserved characters stay, and
@@ -279,7 +293,8 @@ mod tests {
     }
 
     /// GitHub's code scanning takes no empty string for a rule's descriptions and at most 1024
-    /// characters for its short and its full description, both of which hold the reason:
+    /// characters for its short and its full description; the full one holds the whole reason, the
+    /// short one its first sentence, so the whole reason bounds both:
     /// <https://docs.github.com/en/code-security/code-scanning/integrating-with-code-scanning/sarif-support-for-code-scanning>.
     const DESCRIPTION_LIMIT: usize = 1024;
 
@@ -294,5 +309,19 @@ mod tests {
                 rule.id
             );
         }
+    }
+
+    /// Verifies: ADR-draft-output-formats-with-a-concise-short-description
+    #[test]
+    fn the_short_description_is_the_first_sentence_of_the_reason() {
+        assert_eq!(first_sentence("One rule. Two notes."), "One rule.");
+        assert_eq!(first_sentence("No period at all"), "No period at all");
+        assert_eq!(first_sentence("One sentence."), "One sentence.");
+        // A period that a lower-case letter or a digit follows ends no sentence.
+        assert_eq!(
+            first_sentence("Paths as 'a. b' and v0. 7 stay. The rest goes."),
+            "Paths as 'a. b' and v0. 7 stay."
+        );
+        assert_eq!(first_sentence("Ends with é. Élan follows."), "Ends with é.");
     }
 }
