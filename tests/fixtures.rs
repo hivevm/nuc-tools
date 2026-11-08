@@ -150,6 +150,73 @@ fn a_test_binary_built_from_another_checkout_names_both_and_how_to_build_it_agai
     }
 }
 
+/// The build-time root as the macro names it, assembled from pieces so that this source does not
+/// name it itself.
+fn build_time_root() -> String {
+    format!("{}!(\"{}_{}\")", "env", "CARGO_MANIFEST", "DIR")
+}
+
+/// Each line of the sources, as `(path, text)`, that takes the build-time root from the macro,
+/// named `<path>:<line>`, but in the one helper that checks the checkout (ADR-0026).
+fn stray_build_time_roots(sources: &[(String, String)]) -> Vec<String> {
+    let needle = build_time_root();
+    sources
+        .iter()
+        .filter(|(path, _)| path != "tests/support/sources.rs")
+        .flat_map(|(path, text)| {
+            text.lines()
+                .enumerate()
+                .filter(|(_, line)| line.contains(&needle))
+                .map(move |(n, _)| format!("{path}:{}", n + 1))
+        })
+        .collect()
+}
+
+#[test]
+fn only_the_helper_that_checks_the_checkout_names_the_build_time_root() {
+    let root = support::sources::root();
+    let sources: Vec<(String, String)> = ["tests", "src"]
+        .iter()
+        .flat_map(|dir| support::sources::rust_files(&root.join(dir), None))
+        .map(|path| {
+            let name = path
+                .strip_prefix(root)
+                .expect("a source under the root")
+                .components()
+                .map(|c| c.as_os_str().to_string_lossy().into_owned())
+                .collect::<Vec<_>>()
+                .join("/");
+            let text = std::fs::read_to_string(&path).expect("a source is readable");
+            (name, text)
+        })
+        .collect();
+    assert!(
+        sources
+            .iter()
+            .any(|(path, text)| path == "tests/support/sources.rs"
+                && text.contains(&build_time_root())),
+        "the helper no longer names the build-time root, so this test watches nothing"
+    );
+    let stray = stray_build_time_roots(&sources);
+    assert!(
+        stray.is_empty(),
+        "take the root from support::sources::root: {stray:?}"
+    );
+
+    // A test that takes its root from the macro is named by its file and line.
+    let fixture = vec![
+        ("tests/support/sources.rs".to_owned(), build_time_root()),
+        (
+            "tests/new.rs".to_owned(),
+            format!(
+                "use std::path::Path;\nlet root = Path::new({});\n",
+                build_time_root()
+            ),
+        ),
+    ];
+    assert_eq!(stray_build_time_roots(&fixture), ["tests/new.rs:2"]);
+}
+
 #[test]
 fn a_fixture_runs_nothing_in_the_background() {
     let fixture = Fixture::new("helpers-background");
