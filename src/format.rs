@@ -98,7 +98,7 @@ fn sarif(report: &Report) -> String {
 
 /// The first sentence of `reason`, up to and including the period of the first `. ` that a capital
 /// letter follows, or the whole reason where no such period stands
-/// (ADR-draft-output-formats-with-a-concise-short-description).
+/// (ADR-0028).
 fn first_sentence(reason: &str) -> &str {
     reason
         .match_indices(". ")
@@ -311,7 +311,7 @@ mod tests {
         }
     }
 
-    /// Verifies: ADR-draft-output-formats-with-a-concise-short-description
+    /// Verifies: ADR-0028
     #[test]
     fn the_short_description_is_the_first_sentence_of_the_reason() {
         assert_eq!(first_sentence("One rule. Two notes."), "One rule.");
