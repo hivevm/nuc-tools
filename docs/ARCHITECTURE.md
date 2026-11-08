@@ -70,7 +70,7 @@ golden path and the test pattern an agent copies from are named here.
 - **Formats** — `src/format.rs` turns what a run of `nuc check` decided into its standard
   output: the lines of ADR-0020, one JSON document, or one SARIF 2.1.0 log, without a crate and
   byte for byte the same for the same findings
-  ([ADR-0027](adr/0027-output-formats.md)).
+  ([ADR-0028](adr/0028-output-formats-with-a-concise-short-description.md)).
 - **Hooks** — `src/hook.rs` decides what each git hook of the template decides, from the git
   state the shell reads in `shell::hook`, which finds each hook in its one table `HOOKS`, and
   holds the `hook/` rules, `hook::ALL`, which `nuc check` knows and runs never. The reference
