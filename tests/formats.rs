@@ -286,3 +286,47 @@ fn each_format_carries_the_findings_of_the_text_output_field_for_field_and_in_or
         }
     }
 }
+
+#[test]
+fn the_notes_reach_the_json_in_the_order_of_the_summary_and_stay_out_of_the_sarif() {
+    let config = "minimum = \"0.0.0\"\nrules = [\"traceability/coverage\"]\n";
+    let fixture = Fixture::project("formats-notes", config, README);
+    fixture
+        .write(
+            "docs/SPECIFICATION.md",
+            "## Goals / Success Criteria\n\n- **G-1** — a.\n- **G-2** — b.\n\n## Quality Goals\n\n\
+             - **Q-1** — c.\n",
+        )
+        .write("tests/t.txt", &mark("G-2"))
+        .write(
+            "docs/adr/0001-decision.md",
+            &format!("# {}: decision\n\n- **Status:** 🟢 accepted\n", id("0001")),
+        )
+        .commit("A criterion and an accepted decision without a test");
+    let text = fixture.nuc(&["check"]);
+    assert_eq!(code(&text), Some(1), "{}", stderr(&text));
+    let note = "2 criteria without a test: G-1 Q-1";
+    assert_eq!(stderr(&text), format!("nuc check: 1 finding(s); {note}.\n"));
+
+    let json = fixture.nuc(&["check", "--format", "json"]);
+    assert!(
+        stdout(&json).ends_with(&format!("],\"notes\":[\"{note}\"]}}\n")),
+        "{}",
+        stdout(&json)
+    );
+    let sarif = fixture.nuc(&["check", "--format", "sarif"]);
+    assert!(
+        stdout(&sarif).contains("\"results\":[{"),
+        "{}",
+        stdout(&sarif)
+    );
+    assert!(
+        !stdout(&sarif).contains("criteria without a test"),
+        "{}",
+        stdout(&sarif)
+    );
+    for output in [&json, &sarif] {
+        assert_eq!(code(output), code(&text));
+        assert_eq!(stderr(output), stderr(&text));
+    }
+}
