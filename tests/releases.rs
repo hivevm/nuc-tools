@@ -27,40 +27,51 @@ enum Covered<'a> {
     Malformed(&'a str),
 }
 
-/// Whether the text opens with what reads as a release, `v` and a digit.
+/// Whether the text opens with what reads as a release, a `v` of either case and a digit.
 fn opens_with_release(text: &str) -> bool {
     let mut chars = text.chars();
-    chars.next() == Some('v') && chars.next().is_some_and(|c| c.is_ascii_digit())
+    matches!(chars.next(), Some('v' | 'V')) && chars.next().is_some_and(|c| c.is_ascii_digit())
 }
 
-/// What a reason covers. A list of releases separated by commas and followed by a colon, space
-/// allowed around each, covers those; a release followed by a word that is no release opens prose,
-/// which covers every release; anything else, an empty reason among it, is malformed.
+/// What a reason covers. A reason that opens with no release is prose and covers every release.
+/// One that opens with a release goes on with a list of releases separated by commas and
+/// followed by a colon, space allowed around each, which covers those, or with a word after its
+/// first release, which makes it prose. Anything else is malformed: a release that does not
+/// parse, a list cut off before its colon, a release after a release, a bare release, and an
+/// empty reason.
 fn covered(reason: &str) -> Covered<'_> {
+    if reason.trim().is_empty() {
+        return Covered::Malformed(reason);
+    }
     let mut releases = Vec::new();
     let mut rest = reason;
     loop {
         let item = rest.trim_start();
+        if !opens_with_release(item) {
+            return if releases.is_empty() {
+                Covered::All
+            } else {
+                Covered::Malformed(reason)
+            };
+        }
         let end = item
             .find(|c: char| !(c == 'v' || c == '.' || c.is_ascii_digit()))
             .unwrap_or(item.len());
         let release = &item[..end];
+        if release.strip_prefix('v').and_then(Version::parse).is_none() {
+            return Covered::Malformed(reason);
+        }
         let after = item[end..].trim_start();
-        let is_release = release.strip_prefix('v').and_then(Version::parse).is_some();
         match after.chars().next() {
-            Some(':') if is_release => {
+            Some(':') => {
                 releases.push(release);
                 return Covered::Releases(releases);
             }
-            Some(',') if is_release => {
+            Some(',') => {
                 releases.push(release);
                 rest = &after[1..];
             }
-            _ if releases.is_empty()
-                && !reason.trim().is_empty()
-                && !item.starts_with(',')
-                && !opens_with_release(after) =>
-            {
+            Some(c) if releases.is_empty() && c.is_alphabetic() && !opens_with_release(after) => {
                 return Covered::All;
             }
             _ => return Covered::Malformed(reason),
@@ -204,13 +215,24 @@ fn a_rule_whose_check_changed_and_that_reads_no_release_fails_and_is_named() {
         ),
         ["docs/x: its reason covers v0.6.1, which the row does not list"]
     );
-    let spaced = "docs/x\ts.sh\tf\tv0.6.0,v0.6.1\tv0.6.1 , v0.6.0 :because\n\
-                  docs/y\ts.sh\tg\tv0.6.0\tv0.6.0 moved a pattern: so every release is alike\n";
-    assert_eq!(disagreements(spaced, &all, &known), Vec::<String>::new());
+    let spaced = "docs/x\ts.sh\tf\tv0.6.0,v0.6.1\t v0.6.1 :because\ndocs/y\ts.sh\tg\t-\n";
+    assert_eq!(
+        disagreements(spaced, &all, &known),
+        ["docs/x: its check changed at v0.6.0, and it reads no release"]
+    );
+    let listed = "docs/x\ts.sh\tf\tv0.6.0,v0.6.1\tv0.6.1 , v0.6.0: because\ndocs/y\ts.sh\tg\t-\n";
+    assert_eq!(disagreements(listed, &all, &known), Vec::<String>::new());
+    let prose = "docs/x\ts.sh\tf\tv0.6.1\tv0.6.1 moved a pattern: so every release is alike\n\
+                 docs/y\ts.sh\tg\t-\n";
+    assert_eq!(disagreements(prose, &all, &known), Vec::<String>::new());
     for reason in [
         "v0.6.1 v0.6.0: because",
         "v0.6.1,: because",
         "v0.6.1, v0.6.0 because",
+        "v0.6: because",
+        "v0.6,v0.6.1: because",
+        "V0.6.1: because",
+        "v0.6.1",
         "",
     ] {
         let table = format!("docs/x\ts.sh\tf\tv0.6.0,v0.6.1\t{reason}\ndocs/y\ts.sh\tg\t-\n");
