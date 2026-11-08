@@ -157,7 +157,8 @@ fn build_time_root() -> String {
 }
 
 /// Each line of the sources, as `(path, text)`, that takes the build-time root from the macro,
-/// named `<path>:<line>`, but in the one helper that checks the checkout (ADR-0026).
+/// named `<path>:<line>`, but in the one helper that checks the checkout, as the test pattern of
+/// `docs/ARCHITECTURE.md` asks.
 fn stray_build_time_roots(sources: &[(String, String)]) -> Vec<String> {
     let needle = build_time_root();
     sources
