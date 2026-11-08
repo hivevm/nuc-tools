@@ -4,29 +4,67 @@
 //! check changed, which the parity harness holds to the template's trees. A rule whose check
 //! changed reads the release the tree carries, and `rules::RELEASES` knows each release it changed
 //! at, unless its row gives the reason it checks every release alike. A reason that opens with
-//! releases and a colon covers those releases alone.
+//! releases and a colon, as `v0.8.1: …`, covers those releases alone.
 
 use nuc::config::Version;
 use nuc::rules::{self, Input};
 
 const TABLE: &str = include_str!("parity/releases.tsv");
 
-/// A row of the table: the rule ID, the releases its check changed at, and those of them its
-/// reason covers, every one for a reason that names none.
+/// A row of the table: the rule ID, the releases its check changed at, and what its reason
+/// covers.
 struct Row<'a> {
     rule: &'a str,
     changed: Vec<&'a str>,
-    covered: Vec<&'a str>,
+    covered: Covered<'a>,
 }
 
-/// The releases a reason covers: those it opens with, before a colon, or `changed` whole.
-fn covered<'a>(reason: Option<&'a str>, changed: &[&'a str]) -> Vec<&'a str> {
-    let Some(reason) = reason else {
-        return Vec::new();
-    };
-    match reason.split_once(": ") {
-        Some((list, _)) if list.split(',').all(|r| r.starts_with('v')) => list.split(',').collect(),
-        _ => changed.to_vec(),
+/// What a reason covers: the releases it opens with before a colon, every release of the row for
+/// a reason without them, or nothing, with the opening that is neither.
+enum Covered<'a> {
+    Releases(Vec<&'a str>),
+    All,
+    Malformed(&'a str),
+}
+
+/// Whether the text opens with what reads as a release, `v` and a digit.
+fn opens_with_release(text: &str) -> bool {
+    let mut chars = text.chars();
+    chars.next() == Some('v') && chars.next().is_some_and(|c| c.is_ascii_digit())
+}
+
+/// What a reason covers. A list of releases separated by commas and followed by a colon, space
+/// allowed around each, covers those; a release followed by a word that is no release opens prose,
+/// which covers every release; anything else, an empty reason among it, is malformed.
+fn covered(reason: &str) -> Covered<'_> {
+    let mut releases = Vec::new();
+    let mut rest = reason;
+    loop {
+        let item = rest.trim_start();
+        let end = item
+            .find(|c: char| !(c == 'v' || c == '.' || c.is_ascii_digit()))
+            .unwrap_or(item.len());
+        let release = &item[..end];
+        let after = item[end..].trim_start();
+        let is_release = release.strip_prefix('v').and_then(Version::parse).is_some();
+        match after.chars().next() {
+            Some(':') if is_release => {
+                releases.push(release);
+                return Covered::Releases(releases);
+            }
+            Some(',') if is_release => {
+                releases.push(release);
+                rest = &after[1..];
+            }
+            _ if releases.is_empty()
+                && !reason.trim().is_empty()
+                && !item.starts_with(',')
+                && !opens_with_release(after) =>
+            {
+                return Covered::All;
+            }
+            _ => return Covered::Malformed(reason),
+        }
     }
 }
 
@@ -47,7 +85,10 @@ fn rows(table: &str) -> Vec<Row<'_>> {
             };
             Row {
                 rule: fields[0],
-                covered: covered(fields.get(4).copied(), &changed),
+                covered: match fields.get(4) {
+                    Some(reason) => covered(reason),
+                    None => Covered::Releases(Vec::new()),
+                },
                 changed,
             }
         })
@@ -55,8 +96,8 @@ fn rows(table: &str) -> Vec<Row<'_>> {
 }
 
 /// What the table says against the rules: a rule without a row or with two, a row of no rule, a
-/// release that is none, a reason for a release the row does not list, and a rule whose check
-/// changed at a release no reason covers that does not read the release.
+/// release that is none, a malformed reason, a reason for a release the row does not list, and a
+/// rule whose check changed at a release no reason covers that does not read the release.
 fn disagreements(table: &str, all: &[rules::Rule], known: &[Version]) -> Vec<String> {
     let rows = rows(table);
     let mut found = Vec::new();
@@ -71,7 +112,19 @@ fn disagreements(table: &str, all: &[rules::Rule], known: &[Version]) -> Vec<Str
             found.push(format!("{}: a row of no rule of nuc", row.rule));
             continue;
         };
-        for release in row.covered.iter().filter(|r| !row.changed.contains(r)) {
+        let covered: &[&str] = match &row.covered {
+            Covered::Releases(releases) => releases,
+            Covered::All => &row.changed,
+            Covered::Malformed(reason) => {
+                found.push(format!(
+                    "{}: its reason '{reason}' opens with no list of releases and a colon, and is \
+                     no prose",
+                    row.rule
+                ));
+                &[]
+            }
+        };
+        for release in covered.iter().filter(|r| !row.changed.contains(r)) {
             found.push(format!(
                 "{}: its reason covers {release}, which the row does not list",
                 row.rule
@@ -81,7 +134,7 @@ fn disagreements(table: &str, all: &[rules::Rule], known: &[Version]) -> Vec<Str
             .changed
             .iter()
             .copied()
-            .filter(|r| !row.covered.contains(r))
+            .filter(|r| !covered.contains(r))
             .collect();
         for release in &row.changed {
             match release.strip_prefix('v').and_then(Version::parse) {
@@ -151,6 +204,29 @@ fn a_rule_whose_check_changed_and_that_reads_no_release_fails_and_is_named() {
         ),
         ["docs/x: its reason covers v0.6.1, which the row does not list"]
     );
+    let spaced = "docs/x\ts.sh\tf\tv0.6.0,v0.6.1\tv0.6.1 , v0.6.0 :because\n\
+                  docs/y\ts.sh\tg\tv0.6.0\tv0.6.0 moved a pattern: so every release is alike\n";
+    assert_eq!(disagreements(spaced, &all, &known), Vec::<String>::new());
+    for reason in [
+        "v0.6.1 v0.6.0: because",
+        "v0.6.1,: because",
+        "v0.6.1, v0.6.0 because",
+        "",
+    ] {
+        let table = format!("docs/x\ts.sh\tf\tv0.6.0,v0.6.1\t{reason}\ndocs/y\ts.sh\tg\t-\n");
+        assert_eq!(
+            disagreements(&table, &all, &known),
+            [
+                format!(
+                    "docs/x: its reason '{reason}' opens with no list of releases and a colon, \
+                     and is no prose"
+                ),
+                "docs/x: its check changed at v0.6.1, which rules::RELEASES does not know".into(),
+                "docs/x: its check changed at v0.6.0, v0.6.1, and it reads no release".into(),
+            ],
+            "{reason}"
+        );
+    }
     assert_eq!(
         disagreements("docs/y\ts.sh\tg\t-\ndocs/z\ts.sh\th\t-\n", &all, &known),
         ["docs/x: 0 rows, not one", "docs/z: a row of no rule of nuc"]

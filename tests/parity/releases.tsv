@@ -3,11 +3,11 @@
 # ID; the script of the template that holds its bash check; the function of that script, or "-"
 # for the whole script; the template releases of the corpus at which that check changed, the
 # earliest pinned release of the template left out, separated by commas, or "-" for none; and,
-# for a rule that checks every release alike although its bash changed, the reason, which covers
-# only the releases it opens with when it opens with them and a colon. The parity
-# harness compares each function across the trees of the template in the corpus, comment lines
-# left out, and fails where this table says otherwise. tests/releases.rs fails on a rule whose
-# check changed and that neither reads the release the tree carries nor gives a reason (ADR-0023).
+# for a rule that checks every release alike although its bash changed, the reason; a reason
+# that opens with 'vX.Y.Z[,vX.Y.Z...]:' covers only those releases. The parity harness compares
+# each function across the trees of the template in the corpus, comment lines left out, and fails
+# where this table says otherwise. tests/releases.rs fails on a rule whose check changed at a
+# release no reason covers and that does not read the release the tree carries (ADR-0023).
 # Only the named function is compared: a change to a helper it calls or a global it reads, as
 # placeholder or add_error, shows in no row, and is found by reading the release's diff.
 
