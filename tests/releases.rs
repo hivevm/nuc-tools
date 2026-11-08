@@ -35,8 +35,8 @@ fn opens_with_release(text: &str) -> bool {
 
 /// What a reason covers. A reason that opens with no release is prose and covers every release.
 /// One that opens with a release goes on with a list of releases separated by commas and
-/// followed by a colon, space allowed around each, which covers those, or with a word after its
-/// first release, which makes it prose. Anything else is malformed: a release that does not
+/// followed by a colon, space allowed around each, which covers those, or with space and a word
+/// after its first release, which makes it prose. Anything else is malformed: a release that does not
 /// parse, a list cut off before its colon, a release after a release, a bare release, and an
 /// empty reason.
 fn covered(reason: &str) -> Covered<'_> {
@@ -71,7 +71,12 @@ fn covered(reason: &str) -> Covered<'_> {
                 releases.push(release);
                 rest = &after[1..];
             }
-            Some(c) if releases.is_empty() && c.is_alphabetic() && !opens_with_release(after) => {
+            Some(c)
+                if releases.is_empty()
+                    && item[end..].starts_with(char::is_whitespace)
+                    && c.is_alphabetic()
+                    && !opens_with_release(after) =>
+            {
                 return Covered::All;
             }
             _ => return Covered::Malformed(reason),
@@ -222,7 +227,7 @@ fn a_rule_whose_check_changed_and_that_reads_no_release_fails_and_is_named() {
     );
     let listed = "docs/x\ts.sh\tf\tv0.6.0,v0.6.1\tv0.6.1 , v0.6.0: because\ndocs/y\ts.sh\tg\t-\n";
     assert_eq!(disagreements(listed, &all, &known), Vec::<String>::new());
-    let prose = "docs/x\ts.sh\tf\tv0.6.1\tv0.6.1 moved a pattern: so every release is alike\n\
+    let prose = "docs/x\ts.sh\tf\tv0.6.0,v0.6.1\tv0.6.1 moved a pattern: so every release is alike\n\
                  docs/y\ts.sh\tg\t-\n";
     assert_eq!(disagreements(prose, &all, &known), Vec::<String>::new());
     for reason in [
@@ -233,6 +238,7 @@ fn a_rule_whose_check_changed_and_that_reads_no_release_fails_and_is_named() {
         "v0.6,v0.6.1: because",
         "V0.6.1: because",
         "v0.6.1",
+        "v0.6.1x: because",
         "",
     ] {
         let table = format!("docs/x\ts.sh\tf\tv0.6.0,v0.6.1\t{reason}\ndocs/y\ts.sh\tg\t-\n");
