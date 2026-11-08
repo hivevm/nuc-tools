@@ -279,4 +279,22 @@ mod tests {
             )
         );
     }
+
+    /// GitHub's code scanning takes no empty string for a rule's descriptions and at most 1024
+    /// characters for its short and its full description, both of which hold the reason:
+    /// <https://docs.github.com/en/code-security/code-scanning/integrating-with-code-scanning/sarif-support-for-code-scanning>.
+    const DESCRIPTION_LIMIT: usize = 1024;
+
+    /// Verifies: ADR-0027
+    #[test]
+    fn every_reason_fits_the_descriptions_github_takes() {
+        for rule in crate::rules::ALL {
+            let length = rule.explain.chars().count();
+            assert!(
+                (1..=DESCRIPTION_LIMIT).contains(&length),
+                "{}: its reason has {length} characters, and GitHub takes 1 to {DESCRIPTION_LIMIT}",
+                rule.id
+            );
+        }
+    }
 }
