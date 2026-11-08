@@ -3,7 +3,8 @@
 # ID; the script of the template that holds its bash check; the function of that script, or "-"
 # for the whole script; the template releases of the corpus at which that check changed, the
 # earliest pinned release of the template left out, separated by commas, or "-" for none; and,
-# for a rule that checks every release alike although its bash changed, the reason. The parity
+# for a rule that checks every release alike although its bash changed, the reason, which covers
+# only the releases it opens with when it opens with them and a colon. The parity
 # harness compares each function across the trees of the template in the corpus, comment lines
 # left out, and fails where this table says otherwise. tests/releases.rs fails on a rule whose
 # check changed and that neither reads the release the tree carries nor gives a reason (ADR-0023).
@@ -14,7 +15,7 @@ docs/adr-index	scripts/check-docs.sh	check_adr_index	v0.8.1	v0.8.0 moved its pat
 docs/adr-numbering	scripts/check-docs.sh	check_adr_numbering	v0.8.1	v0.8.0 moved its patterns and the ADR key into scripts/lib/adr.sh with the same expressions, so every release checks alike, which the parity corpus shows on the tree of v0.8.1
 docs/no-draft-on-main	scripts/check-docs.sh	check_no_draft_on_main	v0.8.1	v0.8.0 moved its patterns and the ADR key into scripts/lib/adr.sh with the same expressions, so every release checks alike, which the parity corpus shows on the tree of v0.8.1
 docs/adr-header	scripts/check-docs.sh	check_adr_headers	-
-docs/adr-supersessions	scripts/check-docs.sh	check_adr_supersessions	v0.6.0,v0.8.1	v0.6.0 flips an old ADR on the acceptance of its successor, which the rule reads from the release; v0.8.0 moved its patterns and the ADR key into scripts/lib/adr.sh with the same expressions, so v0.8.1 checks as v0.7.0, which the parity corpus shows on the tree of v0.8.1
+docs/adr-supersessions	scripts/check-docs.sh	check_adr_supersessions	v0.6.0,v0.8.1	v0.8.1: v0.8.0 moved its patterns and the ADR key into scripts/lib/adr.sh with the same expressions, so v0.8.1 checks as v0.7.0, which the parity corpus shows on the tree of v0.8.1
 docs/links	scripts/check-docs.sh	check_relative_links	-
 docs/section-refs	scripts/check-docs.sh	check_section_refs	-
 docs/adr-refs	scripts/check-docs.sh	check_adr_refs	-
