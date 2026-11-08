@@ -147,14 +147,14 @@ fn tracked(root: &Path) -> Vec<(String, String)> {
 
 #[test]
 fn no_file_outside_the_record_cites_a_dead_adr_but_where_the_list_names_it() {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let root = support::sources::root();
     let found = left_behind(&tracked(root), &dead(root), &exempt(TEMPLATE));
     assert!(found.is_empty(), "{}", found.join("\n"));
 }
 
 #[test]
 fn a_supersession_that_leaves_a_citation_behind_fails() {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let root = support::sources::root();
     let files = tracked(root);
     let mut dead = dead(root);
     // An ADR in force that the workflow cites: were it superseded today, every citation of it

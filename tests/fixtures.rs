@@ -131,6 +131,26 @@ fn a_home_left_behind_is_removed_and_nothing_else() {
 }
 
 #[test]
+fn a_test_binary_built_from_another_checkout_names_both_and_how_to_build_it_again() {
+    let built = Fixture::new("helpers-built-here");
+    let running = Fixture::new("helpers-runs-there");
+    let panic = std::panic::catch_unwind(|| {
+        support::sources::same_checkout(built.root(), running.root());
+    })
+    .expect_err("two checkouts are not one");
+    let message = panic
+        .downcast_ref::<String>()
+        .expect("the panic carries its message");
+    for part in [
+        &built.root().display().to_string(),
+        &running.root().display().to_string(),
+        "cargo clean -p nuc-tools",
+    ] {
+        assert!(message.contains(part), "{part} not in: {message}");
+    }
+}
+
+#[test]
 fn a_fixture_runs_nothing_in_the_background() {
     let fixture = Fixture::new("helpers-background");
     for (key, value) in [
