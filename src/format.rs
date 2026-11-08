@@ -84,7 +84,7 @@ fn sarif(report: &Report) -> String {
             .rules
             .iter()
             .position(|(id, _)| *id == finding.rule)
-            .expect("every finding comes from a rule the run turned on");
+            .expect("the shell refuses a finding a rule reports under another ID");
         write!(out, r#","ruleIndex":{index}"#).expect("a String takes every write");
         out.push_str(r#","level":"error","message":{"text":"#);
         string(&mut out, &finding.message);

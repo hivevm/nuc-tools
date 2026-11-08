@@ -163,9 +163,9 @@ cites, which change no exit code. Every cause it can name that keeps it from dec
 with exit 2 and a message on the standard error: before any rule runs for what it reads, a missing
 README, which names no release, an input that resolves outside the repository, one the bash would
 read otherwise, a release a rule that checks by it cannot place; after the rules run, before any
-finding is printed, for a rule's own refusal and for a finding that names a path of no UTF-8. A
-panic ends it with exit 101, non-zero as well (Q-1). Nothing is written and no state is kept between
-runs.
+finding is printed, for a rule's own refusal, for a finding a rule reports under another rule's
+ID, and for a finding that names a path of no UTF-8. A panic ends it with exit 101, non-zero as well
+(Q-1). Nothing is written and no state is kept between runs.
 
 `nuc hook pre-commit` runs in the directory git runs the hook in. Without `nuc.toml` every `hook/`
 rule is on; with one, it is read as `nuc check` reads it and its list governs. Where git hands it
