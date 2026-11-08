@@ -5,9 +5,31 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-/// The root of the crate.
+/// The root of the crate: the directory cargo fixed when it built this test binary, which must be
+/// the checkout cargo runs the test in, as it names it in `CARGO_MANIFEST_DIR` at run time; a
+/// binary built from another checkout into the same target would read that checkout's tree, or
+/// one that is gone. A binary started without cargo names no checkout and is not compared.
 pub fn root() -> &'static Path {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
+    let built = Path::new(env!("CARGO_MANIFEST_DIR"));
+    if let Some(running) = std::env::var_os("CARGO_MANIFEST_DIR") {
+        same_checkout(built, Path::new(&running));
+    }
+    built
+}
+
+/// Fails where the checkout a test binary was built from is not the one it runs in.
+pub fn same_checkout(built: &Path, running: &Path) {
+    let same = matches!(
+        (built.canonicalize(), running.canonicalize()),
+        (Ok(built), Ok(running)) if built == running
+    );
+    assert!(
+        same,
+        "this test binary was built from {} but runs in {}; build it again from here: \
+         cargo clean -p nuc-tools",
+        built.display(),
+        running.display()
+    );
 }
 
 /// The `.rs` files under `dir`, recursively and sorted, except those under `skip`.

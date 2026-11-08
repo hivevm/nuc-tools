@@ -173,6 +173,23 @@ pub struct Outcome {
     pub notes: Vec<String>,
 }
 
+impl Outcome {
+    /// Why the outcome of the rule `id` cannot be carried out: its own refusal, or a finding it
+    /// reports under another rule's ID, which every format would name wrongly and the SARIF could
+    /// not place in its list of rules (ADR-0027). Either ends the run not decided (Q-1).
+    pub fn refusal_of(&self, id: &str) -> Option<String> {
+        if let Some(refusal) = &self.refusal {
+            return Some(refusal.clone());
+        }
+        self.findings.iter().find(|f| f.rule != id).map(|f| {
+            format!(
+                "{id}: reports a finding under the rule ID '{}', which is not its own — not decided",
+                f.rule
+            )
+        })
+    }
+}
+
 impl From<Vec<Finding>> for Outcome {
     fn from(findings: Vec<Finding>) -> Self {
         Self {
@@ -220,5 +237,30 @@ mod tests {
         assert!(guide_is_contributing(Some(CONTRIBUTING_GUIDE)));
         assert!(guide_is_contributing(Some(Version(0, 8, 0))));
         assert!(guide_is_contributing(None));
+    }
+
+    #[test]
+    fn an_outcome_refuses_a_finding_of_another_rule_and_its_own_refusal_comes_first() {
+        let finding = |rule| Finding {
+            rule,
+            file: "a.md".to_owned(),
+            line: None,
+            message: "m".to_owned(),
+        };
+        let own: Outcome = vec![finding("docs/links")].into();
+        assert_eq!(own.refusal_of("docs/links"), None);
+        let foreign: Outcome = vec![finding("docs/links"), finding("docs/adr-index")].into();
+        assert_eq!(
+            foreign.refusal_of("docs/links").as_deref(),
+            Some(
+                "docs/links: reports a finding under the rule ID 'docs/adr-index', which is not its \
+                 own — not decided"
+            )
+        );
+        let refused = Outcome {
+            refusal: Some("why".to_owned()),
+            ..foreign
+        };
+        assert_eq!(refused.refusal_of("docs/links").as_deref(), Some("why"));
     }
 }

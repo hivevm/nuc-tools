@@ -6,8 +6,9 @@
 //! `scripts/check-devcontainer.sh` reads it; the pin and the lock of every Feature, and the host
 //! socket, are that check's (ADR-0004).
 
+mod support;
+
 use std::fs;
-use std::path::Path;
 
 const IMAGE: &str = "mcr.microsoft.com/devcontainers/base:debian";
 const RUST_FEATURE: &str = "ghcr.io/devcontainers/features/rust:1";
@@ -64,7 +65,7 @@ fn fixture(extra: &str) -> String {
 
 #[test]
 fn the_definition_keeps_the_decision() {
-    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(".devcontainer/devcontainer.json");
+    let path = support::sources::root().join(".devcontainer/devcontainer.json");
     let definition = fs::read_to_string(path).expect(".devcontainer/devcontainer.json is readable");
     let found = violations(&definition);
     assert!(

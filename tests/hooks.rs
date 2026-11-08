@@ -20,7 +20,7 @@ use support::{CONFIG, Fixture, NUC, README, cleared, snapshot, stderr, stdout};
 
 /// The reference shims of this repository.
 fn shims() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("shims")
+    support::sources::root().join("shims")
 }
 
 /// The `PATH` of the parent without any directory that holds a `nuc`, so that only the one a case

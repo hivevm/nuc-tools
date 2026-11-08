@@ -3,8 +3,6 @@
 //! Built here, without a crate, so that the same findings give the same bytes; the shell only
 //! writes the result.
 
-use std::fmt::Write as _;
-
 use crate::finding::Finding;
 
 /// A format `nuc check --format` takes.
@@ -59,45 +57,38 @@ fn sarif(report: &Report) -> String {
         r#"{"$schema":"https://json.schemastore.org/sarif-2.1.0.json","version":"2.1.0","runs":[{"tool":{"driver":{"name":"nuc","semanticVersion":"#,
     );
     string(&mut out, report.version);
-    out.push_str(r#","rules":["#);
-    for (i, (id, reason)) in report.rules.iter().enumerate() {
-        if i > 0 {
-            out.push(',');
-        }
+    out.push_str(r#","rules":"#);
+    array(&mut out, report.rules, |out, (id, reason)| {
         out.push_str(r#"{"id":"#);
-        string(&mut out, id);
+        string(out, id);
         for key in ["shortDescription", "fullDescription", "help"] {
-            write!(out, r#","{key}":{{"text":"#).expect("a String takes every write");
-            string(&mut out, reason);
+            out.push_str(&format!(r#","{key}":{{"text":"#));
+            string(out, reason);
             out.push('}');
         }
         out.push('}');
-    }
-    out.push_str(r#"]}},"results":["#);
-    for (i, finding) in report.findings.iter().enumerate() {
-        if i > 0 {
-            out.push(',');
-        }
-        out.push_str(r#"{"ruleId":"#);
-        string(&mut out, finding.rule);
+    });
+    out.push_str(r#"}},"results":"#);
+    array(&mut out, report.findings, |out, finding| {
         let index = report
             .rules
             .iter()
             .position(|(id, _)| *id == finding.rule)
-            .expect("every finding comes from a rule the run turned on");
-        write!(out, r#","ruleIndex":{index}"#).expect("a String takes every write");
-        out.push_str(r#","level":"error","message":{"text":"#);
-        string(&mut out, &finding.message);
+            .expect("the shell refuses a finding a rule reports under another ID");
+        out.push_str(r#"{"ruleId":"#);
+        string(out, finding.rule);
+        out.push_str(&format!(
+            r#","ruleIndex":{index},"level":"error","message":{{"text":"#
+        ));
+        string(out, &finding.message);
         out.push_str(r#"},"locations":[{"physicalLocation":{"artifactLocation":{"uri":"#);
-        string(&mut out, &uri(&finding.file));
-        write!(
-            out,
+        string(out, &uri(&finding.file));
+        out.push_str(&format!(
             r#"}},"region":{{"startLine":{}}}}}}}]}}"#,
             finding.line.unwrap_or(1)
-        )
-        .expect("a String takes every write");
-    }
-    out.push_str("]}]}\n");
+        ));
+    });
+    out.push_str("}]}\n");
     out
 }
 
@@ -110,7 +101,7 @@ fn uri(path: &str) -> String {
         if byte.is_ascii_alphanumeric() || b"-._~/".contains(&byte) {
             out.push(char::from(byte));
         } else {
-            write!(out, "%{byte:02X}").expect("a String takes every write");
+            out.push_str(&format!("%{byte:02X}"));
         }
     }
     out
@@ -118,33 +109,42 @@ fn uri(path: &str) -> String {
 
 /// The JSON document: its format name and version, the findings, and the notes, on one line.
 fn json(findings: &[Finding], notes: &[String]) -> String {
-    let mut out = String::from(r#"{"format":"nuc-findings","version":1,"findings":["#);
-    for (i, finding) in findings.iter().enumerate() {
-        if i > 0 {
-            out.push(',');
-        }
+    let mut out = String::from(r#"{"format":"nuc-findings","version":1,"findings":"#);
+    array(&mut out, findings, |out, finding| {
         out.push_str(r#"{"rule":"#);
-        string(&mut out, finding.rule);
+        string(out, finding.rule);
         out.push_str(r#","file":"#);
-        string(&mut out, &finding.file);
+        string(out, &finding.file);
         out.push_str(r#","line":"#);
-        match finding.line {
-            Some(line) => write!(out, "{line}").expect("a String takes every write"),
-            None => out.push_str("null"),
-        }
+        out.push_str(
+            &finding
+                .line
+                .map_or("null".to_owned(), |line| line.to_string()),
+        );
         out.push_str(r#","message":"#);
-        string(&mut out, &finding.message);
+        string(out, &finding.message);
         out.push('}');
-    }
-    out.push_str(r#"],"notes":["#);
-    for (i, note) in notes.iter().enumerate() {
+    });
+    out.push_str(r#","notes":"#);
+    array(&mut out, notes, |out, note| string(out, note));
+    out.push_str("}\n");
+    out
+}
+
+/// The items as one JSON array, each element written by `element`, a comma between two.
+fn array<T>(
+    out: &mut String,
+    items: impl IntoIterator<Item = T>,
+    mut element: impl FnMut(&mut String, T),
+) {
+    out.push('[');
+    for (i, item) in items.into_iter().enumerate() {
         if i > 0 {
             out.push(',');
         }
-        string(&mut out, note);
+        element(out, item);
     }
-    out.push_str("]}\n");
-    out
+    out.push(']');
 }
 
 /// `text` as a JSON string, escaped as RFC 8259 asks: `"` and `\` with a backslash, the five
@@ -161,9 +161,7 @@ fn string(out: &mut String, text: &str) {
             '\n' => out.push_str("\\n"),
             '\r' => out.push_str("\\r"),
             '\t' => out.push_str("\\t"),
-            c if c < ' ' => {
-                write!(out, "\\u{:04x}", u32::from(c)).expect("a String takes every write")
-            }
+            c if c < ' ' => out.push_str(&format!("\\u{:04x}", u32::from(c))),
             c => out.push(c),
         }
     }
@@ -278,5 +276,23 @@ mod tests {
                 result("c.md", 1, "y"),
             )
         );
+    }
+
+    /// GitHub's code scanning takes no empty string for a rule's descriptions and at most 1024
+    /// characters for its short and its full description, both of which hold the reason:
+    /// <https://docs.github.com/en/code-security/code-scanning/integrating-with-code-scanning/sarif-support-for-code-scanning>.
+    const DESCRIPTION_LIMIT: usize = 1024;
+
+    /// Verifies: ADR-0027
+    #[test]
+    fn every_reason_fits_the_descriptions_github_takes() {
+        for rule in crate::rules::ALL {
+            let length = rule.explain.chars().count();
+            assert!(
+                (1..=DESCRIPTION_LIMIT).contains(&length),
+                "{}: its reason has {length} characters, and GitHub takes 1 to {DESCRIPTION_LIMIT}",
+                rule.id
+            );
+        }
     }
 }
