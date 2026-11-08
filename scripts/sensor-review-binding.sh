@@ -60,6 +60,8 @@ set -uo pipefail
 
 # shellcheck source-path=SCRIPTDIR source=lib/git.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib/git.sh"
+# shellcheck source-path=SCRIPTDIR source=lib/adr.sh
+source "$(dirname "${BASH_SOURCE[0]}")/lib/adr.sh"
 
 caller="$PWD"
 enter_root "Review binding sensor" "${BASH_SOURCE[0]}" "$@"
@@ -75,19 +77,8 @@ if [[ "${1:-}" == "--hand-off" ]]; then
     || { echo "Review binding sensor: hand-off '$hand_off' is no file." >&2; exit 2; }
 fi
 
-base="${1:-}"
-head="${2:-HEAD}"
-
-[[ "$base" =~ ^0+$ ]] && base=""
-[[ -n "$base" ]] || base="$(main_merge_base "$head")"
-if [[ -z "$base" ]]; then
-  echo "Review binding sensor: nothing to compare — no base given and no main to compare with."
-  exit 0
-fi
-for ref in "$base" "$head"; do
-  git rev-parse --verify -q "$ref^{commit}" >/dev/null \
-    || { echo "Review binding sensor: '$ref' does not resolve to a commit." >&2; exit 2; }
-done
+resolve_change "Review binding sensor" "${1:-}" "${2:-HEAD}" || exit 0
+base="$CHANGE_BASE" head="$CHANGE_HEAD"
 
 at_tip=0
 findings=()
@@ -128,11 +119,11 @@ bind() {
 # adr_text <commit> — the ADR files whose text the commit changes, Status, Date, and Deciders
 # lines aside.
 adr_text() {
-  git diff-tree -r --root --no-commit-id -p -U0 --no-color "$1" \
-    -- ':(glob)docs/adr/[0-9][0-9][0-9][0-9]-*.md' ':(glob)docs/adr/draft-*.md' | awk '
+  git diff-tree -r --root --no-commit-id -p -U0 --no-color "$1" -- "${ADR_GLOBS[@]/#/:(glob)docs/adr/}" \
+    | awk -v flip="^[-+]${ADR_ITEM_RE#^}(Status|Date|Deciders):[*][*]" '
     /^diff --git / { file = $NF; sub(/^b\//, "", file); next }
     /^(\+\+\+|---) / { next }
-    /^[-+]/ && !/^[-+]- \*\*(Status|Date|Deciders):\*\*/ && !(file in seen) { seen[file]; print file }
+    /^[-+]/ && $0 !~ flip && !(file in seen) { seen[file]; print file }
   '
 }
 

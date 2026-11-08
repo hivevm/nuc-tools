@@ -20,9 +20,9 @@
 #     scripts/sensor-binding-adrs.sh [--root <dir>] [--sections] [--path <path>]... [base [head]]
 # It reads the repository it lives in, as the checks do; --root names another, as its self-test
 # does with each fixture. With --sections it prints after the list what a session reads of the
-# record (AGENTS.md section 2): of each ADR listed its header, its Decision, and its Enforcement,
-# so that no session opens a whole ADR for them, and from the Binding table of
-# docs/adr/README.md the Applies to of every other ADR in force that paths alone do not decide,
+# record (AGENTS.md section 2): of each ADR listed its header and the sections ADR_RULE_SECTIONS
+# of scripts/lib/adr.sh names, its Decision and its Enforcement, so that no session opens a whole
+# ADR for them, and from the Binding table of docs/adr/README.md the Applies to of every other ADR in force that paths alone do not decide,
 # for the session to match by its prose. An Applies to is decided by paths alone when each of
 # its items, split at commas and 'and', is one path in backticks.
 # Each --path names a path the work is about to touch, for a session that has changed nothing
@@ -88,33 +88,30 @@ if ((sections)); then
   prose_hint_list="the ADRs whose Applies to is prose, below:"
 fi
 
-base="${1:-}"
-head="${2:-}"
-verb=changed
-worktree=0
-if [[ -z "$head" ]]; then
-  head=HEAD
-  worktree=1
-fi
+# The change as resolve_change of scripts/lib/git.sh sets it; named paths are read in the working
+# tree.
+base="" head=HEAD worktree=1 verb=changed
 
 # show <path> — a file as the change has it.
-show() { if ((worktree)); then cat -- "$1"; else git show "$head:$1"; fi; }
-
-# section <name> — the section '## <name>' of the ADR on stdin, its heading included.
-section() { awk -v h="## $1" '$0 == h { p = 1; print; next } p && /^## / { exit } p'; }
+show() { change_file "$( ((worktree)) || echo "$head")" "$1"; }
 
 # finish — print what --sections asks for, and end. Reads 'files', the ADRs listed.
 files=()
 finish() {
   if ((sections)); then
-    local file text listed=" " key applies rows=0 prose=()
+    local file text listed=" " key applies rows=0 prose=() parts part banner="the header"
+    # The banner of an ADR names what is printed of it: its header and ADR_RULE_SECTIONS.
+    IFS='|' read -r -a parts <<< "$ADR_RULE_SECTIONS"
+    for part in "${parts[@]}"; do
+      [[ "$part" == "${parts[-1]}" ]] && banner+=", and the $part" || banner+=", the $part"
+    done
     for file in "${files[@]}"; do listed+="$(adr_key "$file") "; done
     # shellcheck disable=SC2016  # the backticks are Markdown to match, not a command substitution
     while IFS=$'\t' read -r key applies; do
       rows=$((rows + 1))
       [[ "$listed" == *" $key "* ]] && continue
-      sed -E 's/, and /\n/g; s/ and /\n/g; s/, /\n/g' <<< "$applies" \
-        | grep -qvE '^[[:space:]]*`[^`[:space:]]+`[[:space:]]*$' \
+      grep -qvE '^[[:space:]]*`[^`[:space:]]+`[[:space:]]*$' \
+        <<< "$(sed -E 's/, and /\n/g; s/ and /\n/g; s/, /\n/g' <<< "$applies")" \
         && prose+=("ADR-$key: $applies")
     done < <(show docs/adr/README.md 2>/dev/null | awk -F'|' '
       /^### Binding/ { p = 1; next } p && /^#/ { exit }
@@ -135,11 +132,12 @@ finish() {
     for file in "${files[@]}"; do
       text="$(show "$file")"
       echo
-      echo "=== ADR-$(adr_key "$file") ($file): the header, the Decision, and the Enforcement ==="
+      echo "=== ADR-$(adr_key "$file") ($file): $banner ==="
       awk '/^## / { exit } { print }' <<< "$text"
-      section Decision <<< "$text"
-      echo
-      section Enforcement <<< "$text"
+      for part in "${parts[@]}"; do
+        [[ "$part" == "${parts[0]}" ]] || echo
+        adr_section "$part" <<< "$text"
+      done
     done
   fi
   exit 0
@@ -151,16 +149,9 @@ if ((${#named[@]})); then
   range="named paths"
   verb=named
 else
-  [[ "$base" =~ ^0+$ ]] && base=""
-  [[ -n "$base" ]] || base="$(main_merge_base "$head")"
-  if [[ -z "$base" ]]; then
-    echo "Binding ADRs sensor: nothing to compare — no base given and no main to compare with."
-    finish
-  fi
-  for ref in "$base" "$head"; do
-    git rev-parse --verify -q "$ref^{commit}" >/dev/null \
-      || { echo "Binding ADRs sensor: '$ref' does not resolve to a commit." >&2; exit 2; }
-  done
+  resolve_change "Binding ADRs sensor" "${1:-}" "${2:-}"; resolved=$?
+  base="$CHANGE_BASE" head="$CHANGE_HEAD" worktree="$CHANGE_WORKTREE"
+  ((resolved == 0)) || finish
 
   # git quotes a path with bytes outside ASCII unless told not to, and a quoted path matches
   # nothing an ADR writes.
@@ -186,7 +177,7 @@ fi
 if ((worktree)); then
   adrs="$(adr_files docs/adr 2>/dev/null)"
 else
-  adrs="$(git ls-tree -r --name-only "$head" -- docs/adr/ | grep -E "^docs/adr/([0-9]{4}-[^/]*|draft-[^/]*)\\.md\$")"
+  adrs="$(git ls-tree -r --name-only "$head" -- docs/adr/ | grep -E "^docs/adr/$ADR_FILE_RE\$")"
 fi
 
 found=()

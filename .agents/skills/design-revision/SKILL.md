@@ -102,7 +102,11 @@ found, a ticket per rule to drop, a ticket per check to write, a `proposed` ADR 
 `propose-adr` where a finding is a decision, a consolidating one included, and a drafted
 specification change as a ticket whose *Mode* is "with the human". The tickets go into
 `docs/plan/revision-<YYYY-MM-DD>/`, in the shape of the `plan-feature` skill's ticket template,
-without a spec; a second revision on one day numbers on in the same directory. Where the
+without a spec; a second revision on one day numbers on in the same directory. List the backlog
+entries that touch the modules in scope, from
+[`scripts/sensor-backlog.sh`](../../../scripts/sensor-backlog.sh) or the host's issues, as
+candidates for the human ([ADR-0006](../../../docs/adr/0006-feature-layer.md)); a ticket made
+from one deletes the entry in the same commit. Where the
 revision took the count, move the `Last design revision` line of
 [`docs/ARCHITECTURE.md`](../../../docs/ARCHITECTURE.md) to today's date; where it reads today's
 date already, add this revision's ordinal of the day after it, `(2)` for the second. Then delete

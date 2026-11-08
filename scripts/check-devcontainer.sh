@@ -113,7 +113,7 @@ if [[ ! -f "$ROOT/$CONFIG" ]]; then
   add_error "$CONFIG: not found — the Dev Container ADR-0004 governs has nothing to check"
 else
   # 1. Socket.
-  if uncommented "$ROOT/$CONFIG" | grep -qE 'docker\.sock|/var/run/docker'; then
+  if grep -qE 'docker\.sock|/var/run/docker' <<< "$(uncommented "$ROOT/$CONFIG")"; then
     add_error "$CONFIG: mounts the host Docker socket — the Dev Container never reaches the host engine (ADR-0004); manage host containers from the host-side extension instead"
   fi
 
@@ -173,8 +173,8 @@ fi
 # flattened and matched from that key up to the first closing brace.
 if [[ ! -f "$ROOT/$SETTINGS" ]]; then
   add_error "$SETTINGS: not found — it pins the container-management extension to the host side (ADR-0004)"
-elif ! uncommented "$ROOT/$SETTINGS" | tr -d ' \t\n' \
-       | grep -qE '"remote\.extensionKind":\{[^}]*"ms-azuretools\.vscode-containers":\["ui"\]'; then
+elif ! grep -qE '"remote\.extensionKind":\{[^}]*"ms-azuretools\.vscode-containers":\["ui"\]' \
+       <<< "$(uncommented "$ROOT/$SETTINGS" | tr -d ' \t\n')"; then
   add_error "$SETTINGS: does not pin 'ms-azuretools.vscode-containers' to [\"ui\"] under 'remote.extensionKind' — without it the extension runs in the container and asks for the socket (ADR-0004)"
 fi
 

@@ -172,17 +172,6 @@ trim() {
   TRIMMED="${TRIMMED%"${TRIMMED##*[![:space:]]}"}"
 }
 
-# key_of <file> — sets KEY to what follows 'ADR-' in the identifier of the ADR file, as adr_key
-# prints it.
-KEY=""
-key_of() {
-  local base="${1##*/}"
-  case "$base" in
-    draft-*) KEY="${base%.md}" ;;
-    *) KEY="${base%%-*}" ;;
-  esac
-}
-
 # The header of every ADR, read by one awk pass over the record instead of a grep per field, per
 # ADR, and per check. Keyed by the ADR's path: the first line of each header field anywhere in the
 # file, as adr_field_line reads it (ADR_STATUS, ADR_APPLIES); the Supersedes and Deciders fields
@@ -201,8 +190,8 @@ read_adr_headers() {
   ((${#ADR_LIST[@]})) || return 0
   for file in "${ADR_LIST[@]}"; do
     ADR_KNOWN["$file"]=1
-    key_of "$file"
-    [[ -v ADR_BY_KEY["$KEY"] ]] || ADR_BY_KEY["$KEY"]="$file"
+    adr_key_of "$file"
+    [[ -v ADR_BY_KEY["$ADR_KEY"] ]] || ADR_BY_KEY["$ADR_KEY"]="$file"
   done
   while IFS=$'\x1f' read -r file field value; do
     case "$field" in
@@ -214,17 +203,17 @@ read_adr_headers() {
       stray) ADR_STRAY["$file"]+="$value"$'\n' ;;
       needle) ADR_NEEDLE["$file"]=1 ;;
     esac
-  done < <(awk -v fields="$ADR_FIELDS" -v needle="$(instruction_needle)" '
+  done < <(awk -v mark="$ADR_FIELD_MARK_RE" -v item="$ADR_ITEM_RE" -v field="$ADR_FIELD_ITEM_RE" -v needle="$(instruction_needle)" '
     function out(k, v) { printf "%s\037%s\037%s\n", FILENAME, k, v }
     FNR == 1 { head = 1; cont = ""; split("", seen) }
     {
       if (head && /^## /) head = 0
-      if (head && $0 ~ ("\\*\\*(" fields "):\\*\\*") && $0 !~ /^- \*\*/) out("stray", FNR ":" $0)
+      if (head && $0 ~ mark && $0 !~ item) out("stray", FNR ":" $0)
       if (needle != "" && !("needle" in seen) && index($0, needle)) { seen["needle"]; out("needle", 1) }
       if (!("heading" in seen) && /^# ADR-/) { seen["heading"]; out("heading", $0) }
       if (cont != "" && /^[[:space:]]+[^[:space:]]/) { out(cont, $0); next }
       cont = ""
-      if (match($0, /^- \*\*[A-Za-z ]+:\*\*/)) {
+      if (match($0, field)) {
         name = substr($0, 5, RLENGTH - 7)
         if (!(name in seen)) {
           seen[name]; out(name, $0)
@@ -250,7 +239,7 @@ adr_header() {
 
 # applies_to_of — sets TRIMMED to the content of the '**Applies to:**' line adr_header read,
 # trimmed; empty when the line is missing or blank.
-applies_to_of() { trim "${HEADER_APPLIES##*\*\*Applies to:\*\*}"; }
+applies_to_of() { adr_field_value "$HEADER_APPLIES" 'Applies to'; trim "$ADR_VALUE"; }
 
 # TEXT_FILES — every text file the repository consists of, absolute paths, sorted. Collected once
 # by collect_text_files below and then iterated by each check: building the list reads every
@@ -325,7 +314,7 @@ check_adr_index() {
   local indexed_files=() indexed_applies=() indexed_status=()
   local line number target filename applies status archive=0
   local -a cells
-  local row_re='^\|[[:space:]]*\[([0-9]{4}|draft-[^]]+)\]\(([^)]+)\)'
+  local row_re="^\\|[[:space:]]*\\[($ADR_NUMBER_RE|draft-[^]]+)\\]\\(([^)]+)\\)"
   while IFS= read -r line; do
     [[ "$line" =~ ^#+[[:space:]]+Superseded\ and\ rejected[[:space:]]*$ ]] && { archive=1; continue; }
     [[ "$line" =~ $row_re ]] || continue
@@ -341,7 +330,7 @@ check_adr_index() {
     indexed_files+=("$filename")
     indexed_applies+=("$applies")
     indexed_status+=("$status")
-    if [[ "$number" == draft-* ]]; then
+    if adr_is_draft "$number"; then
       [[ "$filename" == "$number.md" ]] \
         || add_error "ADR index: row for $number links to '$filename', not to '$number.md'"
     elif [[ "$filename" != "$number"-* ]]; then
@@ -406,28 +395,28 @@ check_adr_index() {
 # ADR numbers run 0001..N without gaps, and each file's heading carries its own number.
 # Superseded ADRs stay on disk, so a gap can only ever mean a deleted ADR or a botched rename.
 check_adr_numbering() {
-  local f base number expected heading key n=0
+  local f base expected heading key n=0
   for f in "${ADR_LIST[@]}"; do
     base="${f##*/}"
-    [[ "$base" == draft-* ]] && continue
-    number="${base%%-*}"
+    adr_is_draft "$base" && continue
+    adr_key_of "$base"
     n=$((n + 1))
     printf -v expected '%04d' "$n"
-    if [[ "$number" != "$expected" ]]; then
+    if [[ "$ADR_KEY" != "$expected" ]]; then
       add_error "ADR numbering: expected '$expected-*.md' at position $n, found '$base' — numbers must run 0001..N without gaps"
       break
     fi
     heading=""
-    [[ "${ADR_HEADING["$f"]-}" =~ ^#\ ADR-[0-9]{4} ]] && heading="${BASH_REMATCH[0]}"
-    if [[ "$heading" != "# ADR-$number" ]]; then
-      add_error "$base: heading says '${heading:-<none>}', but the filename says ADR-$number"
+    [[ "${ADR_HEADING["$f"]-}" =~ ^#\ ADR-$ADR_NUMBER_RE ]] && heading="${BASH_REMATCH[0]}"
+    if [[ "$heading" != "# ADR-$ADR_KEY" ]]; then
+      add_error "$base: heading says '${heading:-<none>}', but the filename says ADR-$ADR_KEY"
     fi
   done
 
   # A draft stands outside the count; its slug and heading follow its file name (ADR-0002).
   for f in "${ADR_LIST[@]}"; do
     base="${f##*/}"
-    [[ "$base" == draft-* ]] || continue
+    adr_is_draft "$base" || continue
     key="${base%.md}"
     if [[ ! "$key" =~ ^draft-$ADR_SLUG_RE$ ]]; then
       add_error "$base: a draft's slug is lower case letters and digits joined by single hyphens"
@@ -458,7 +447,7 @@ check_no_draft_on_main() {
   local f
   while IFS= read -r f; do
     add_error "$(basename "$f"): a draft lands on main — give it its number first with scripts/number-adrs.sh (ADR-0002)"
-  done < <(find "$ADR_DIR" -maxdepth 1 -type f -name 'draft-*.md' | LC_ALL=C sort)
+  done < <(adr_files "$ADR_DIR" draft)
 }
 
 # instruction_needle — the opening of the instruction paragraph in docs/adr/template.md: the first
@@ -542,8 +531,8 @@ check_adr_supersessions() {
   local f base nr line target target_file succ_file named accepted
   for f in "${ADR_LIST[@]}"; do
     base="${f##*/}"
-    key_of "$f"
-    nr="$KEY"
+    adr_key_of "$f"
+    nr="$ADR_KEY"
     line="${ADR_STATUS["$f"]-}"
 
     # Forward: once this one is accepted, every ADR it claims to supersede — one, or several
@@ -917,8 +906,8 @@ check_adr_link_targets() {
       target="${LINK_TARGET%%#*}"
       base="${target##*/}"
       # Compare only against ADR filenames; anything else is not a claim about which ADR it is.
-      case "$base" in [0-9][0-9][0-9][0-9]-*.md | draft-*.md) ;; *) continue ;; esac
-      if [[ "$number" == draft-* ]]; then
+      adr_is_file "$base" || continue
+      if adr_is_draft "$number"; then
         [[ "$base" == "$number.md" ]]
       else
         [[ "$base" == "$number"-* ]]
@@ -1187,7 +1176,7 @@ check_inherited_adrs() {
     status="$EMOJI"
     [[ "$status" == "⚪" || "$status" == "🔴" ]] && continue
     base="${f##*/}"
-    others="$(sed -E 's/^- \*\*Deciders:\*\*//; s/NUC maintainer//g; s/(^|[[:space:],])and([[:space:],]|$)/ /g; s/[[:space:],]//g' <<< "$deciders" | tr -d '\n')"
+    others="$(sed -E "s/${ADR_ITEM_RE}Deciders:[*][*]//"'; s/NUC maintainer//g; s/(^|[[:space:],])and([[:space:],]|$)/ /g; s/[[:space:],]//g' <<< "$deciders" | tr -d '\n')"
     if [[ -z "$others" ]]; then
       add_error "$base: inherited from the template and not decided by this project — add your name to Deciders and accept it, or supersede it (docs/adr/README.md)"
     elif [[ "$status" == "🟡" ]]; then
@@ -1264,7 +1253,7 @@ check_prose_width() {
       ((${#line} > 100)) || continue
       # A table row, a heading, and an ADR header field are one line by their syntax.
       [[ "$line" =~ ^[[:space:]]*\| || "$line" =~ ^# ]] && continue
-      [[ in_adr -eq 1 && "$line" =~ ^-\ \*\*[A-Za-z\ ]+:\*\* ]] && continue
+      [[ in_adr -eq 1 && "$line" =~ $ADR_FIELD_ITEM_RE ]] && continue
       # A link is one word, whatever its text holds. A line without a space outside its links
       # cannot break; any other line can.
       indent="${line%%[! ]*}"

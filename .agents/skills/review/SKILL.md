@@ -13,9 +13,7 @@ what the reviewer is given and the order in which it reports; it states no rule 
 
 The reviewer runs in a context that did not write the change and is handed only:
 
-- the diff, its commits in the shape they are to merge in, since a rework after the review, the
-  fold of fixups included, replaces what it saw and calls for a review of the whole branch at
-  its head;
+- the diff, its commits in the shape they are to merge in;
 - the task: the ticket or the request, with its acceptance criteria;
 - [`AGENTS.md` §1](../../../AGENTS.md#1-principles) and
   [§5](../../../AGENTS.md#5-quality-bar--definition-of-done);
@@ -57,8 +55,8 @@ diff questions its *Decision*, and it runs no check whose output it was handed. 
 that sees the fixes is handed the commits after the one the first review saw and the findings
 they answer, and judges those; where the agent can continue a session, it continues the first
 review's, which has read the change already and wrote none of the fixes. A later change gets a
-review session of its own. That holds unless a rework replaced the commits the first review saw;
-then it reviews the whole branch at its head, as the hand-back below says.
+review session of its own. After a rework, the review is of the whole branch at its head
+([`AGENTS.md` §5](../../../AGENTS.md#5-quality-bar--definition-of-done)).
 
 ## 2. Report on two axes, kept apart
 
@@ -72,9 +70,10 @@ the code; what could be deleted. Then each bullet of
 [`AGENTS.md` §5](../../../AGENTS.md#5-quality-bar--definition-of-done) that applies, in its order;
 of the tests, also whether they take their expected values from the criterion rather than from
 the code under test. Then the conventions, the ADRs, and the sensor output; a sensor finding the
-implementer suppressed is a finding here. Last, the *Doubts*: each disagreement checked against
-its evidence, each unconfirmed point confirmed or left open by name. A "none" is checked like any
-other claim.
+implementer suppressed is a finding here. Of each statement the change adds to the rules, whether
+it is one sentence ([`AGENTS.md` §4](../../../AGENTS.md#4-working-style)). Last, the
+*Doubts*: each disagreement checked against its evidence, each unconfirmed point confirmed or left
+open by name. A "none" is checked like any other claim.
 
 ## 3. Tests that changed
 
@@ -97,6 +96,4 @@ findings on both axes, what was fixed, and the commit the reviewer was handed, o
 line. The fixes come after that commit;
 [`scripts/sensor-review-binding.sh`](../../../scripts/sensor-review-binding.sh) lists them for the
 human who decides the merge, unless a second review sees them first and the line moves. After a
-rework, the review is of the whole branch at its head
-([`AGENTS.md` §5](../../../AGENTS.md#5-quality-bar--definition-of-done)), and the pull request's
-description carries that line.
+rework, the pull request's description carries that line.

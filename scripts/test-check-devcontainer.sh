@@ -7,8 +7,9 @@
 # it, and the editor settings that pin the container-management extension to the host — runs the
 # check against it, and asserts the exit code and, for a failing case, the message that names the
 # violation. The baseline passes; every other case breaks one thing ADR-0004 decides, or drops a
-# git setting from the postStartCommand. The mount path passes when left to the default or set to
-# it, and fails when set to a path every project shares.
+# git setting from the postStartCommand. A socket mount fails also in a config longer than a pipe
+# holds. The mount path passes when left to the default or set to it, and fails when set to a path
+# every project shares.
 #
 # Inputs: scripts/check-devcontainer.sh scripts/lib/
 #
@@ -114,6 +115,14 @@ d="$(repo socket-mount)"
 config "$d" "ghcr.io/devcontainers/features/github-cli:1" \
   '"mounts": ["source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind"],'
 expect fail "a host socket mount" "$d" "mounts the host Docker socket"
+
+# A config longer than a pipe holds, the socket before the rest: a grep that exits at the socket
+# before the config is written cuts the writer off, and the mount goes unreported.
+d="$(repo socket-mount-long)"
+config "$d" "ghcr.io/devcontainers/features/github-cli:1" \
+  '"mounts": ["source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind"],' \
+  "\"remoteEnv\": { \"PAD\": \"$(printf '%*s' 200000 '' | tr ' ' z)\" },"
+expect fail "a host socket mount in a config longer than a pipe holds" "$d" "mounts the host Docker socket"
 
 d="$(repo socket-run-arg)"
 config "$d" "ghcr.io/devcontainers/features/github-cli:1" \
