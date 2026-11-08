@@ -176,7 +176,7 @@ pub struct Outcome {
 impl Outcome {
     /// Why the outcome of the rule `id` cannot be carried out: its own refusal, or a finding it
     /// reports under another rule's ID, which every format would name wrongly and the SARIF could
-    /// not place in its list of rules (ADR-0027). Either ends the run not decided (Q-1).
+    /// not place in its list of rules (ADR-0028). Either ends the run not decided (Q-1).
     pub fn refusal_of(&self, id: &str) -> Option<String> {
         if let Some(refusal) = &self.refusal {
             return Some(refusal.clone());

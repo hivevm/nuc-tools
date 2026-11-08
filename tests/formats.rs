@@ -1,5 +1,5 @@
 //! `nuc check --format`, end to end on fixture repositories.
-//! Verifies: ADR-0027 ADR-0028 G-7
+//! Verifies: ADR-0028 G-7
 //!
 //! The JSON document and the SARIF log carry the findings of the text output, field for field and
 //! in order; the exit code and the standard error do not depend on the format; a run that cannot

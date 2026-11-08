@@ -1,5 +1,5 @@
 //! What `nuc check` writes on the standard output, in the format `--format` names
-//! (ADR-0027): the lines of ADR-0020, one JSON document, or one SARIF 2.1.0 log.
+//! (ADR-0028): the lines of ADR-0020, one JSON document, or one SARIF 2.1.0 log.
 //! Built here, without a crate, so that the same findings give the same bytes; the shell only
 //! writes the result.
 
@@ -298,7 +298,7 @@ mod tests {
     /// <https://docs.github.com/en/code-security/code-scanning/integrating-with-code-scanning/sarif-support-for-code-scanning>.
     const DESCRIPTION_LIMIT: usize = 1024;
 
-    /// Verifies: ADR-0027
+    /// Verifies: ADR-0028
     #[test]
     fn every_reason_fits_the_descriptions_github_takes() {
         for rule in crate::rules::ALL {
