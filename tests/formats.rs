@@ -1,5 +1,5 @@
 //! `nuc check --format`, end to end on fixture repositories.
-//! Verifies: ADR-0027 G-7
+//! Verifies: ADR-0027 ADR-draft-output-formats-with-a-concise-short-description G-7
 //!
 //! The JSON document and the SARIF log carry the findings of the text output, field for field and
 //! in order; the exit code and the standard error do not depend on the format; a run that cannot
@@ -184,16 +184,32 @@ fn with_awkward_paths(name: &str) -> (Fixture, [(&'static str, &'static str); 2]
     )
 }
 
-/// The SARIF rule object of `rule` with its reason, as `nuc explain` gives it.
+/// The SARIF rule object of `rule` with its reason, as `nuc explain` gives it: the first sentence
+/// as its short description, up to the period of the first `. ` a capital letter follows, and the
+/// whole reason as its full description and help.
 fn sarif_rule(fixture: &Fixture, rule: &str) -> String {
     let out = stdout(&fixture.nuc(&["explain", rule]));
-    let reason = escaped(
-        out.trim_end()
-            .strip_prefix(&format!("{rule}: "))
-            .expect("explain names the rule"),
+    let whole = out
+        .trim_end()
+        .strip_prefix(&format!("{rule}: "))
+        .expect("explain names the rule");
+    let end = whole
+        .char_indices()
+        .find(|&(at, _)| {
+            whole[at..].starts_with(". ")
+                && whole[at + 2..]
+                    .chars()
+                    .next()
+                    .is_some_and(char::is_uppercase)
+        })
+        .map_or(whole.len(), |(at, _)| at + 1);
+    let (short, reason) = (escaped(&whole[..end]), escaped(whole));
+    assert!(
+        short.len() < reason.len(),
+        "{rule}: its reason has one sentence"
     );
     format!(
-        "{{\"id\":\"{rule}\",\"shortDescription\":{{\"text\":\"{reason}\"}},\
+        "{{\"id\":\"{rule}\",\"shortDescription\":{{\"text\":\"{short}\"}},\
          \"fullDescription\":{{\"text\":\"{reason}\"}},\"help\":{{\"text\":\"{reason}\"}}}}"
     )
 }
