@@ -243,7 +243,11 @@ fn run_rules(
             }
         })
         .collect();
-    if let Some(refusal) = outcomes.iter().find_map(|outcome| outcome.refusal.clone()) {
+    if let Some(refusal) = selected
+        .iter()
+        .zip(&outcomes)
+        .find_map(|(rule, outcome)| outcome.refusal_of(rule.id))
+    {
         return Err(refusal);
     }
     let mut findings = Vec::new();
@@ -390,4 +394,32 @@ fn explain(id: &str) -> Result<u8, String> {
         config::explanation(id).ok_or_else(|| format!("no rule '{id}' is known to this nuc"))?;
     println!("{id}: {reason}");
     Ok(PASSED)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_rule_that_reports_under_another_id_ends_the_run_not_decided() {
+        let foreign = rules::Rule {
+            id: "x/a",
+            explain: "",
+            reads: &[],
+            check: |_| {
+                vec![Finding {
+                    rule: "x/b",
+                    file: "a.md".to_owned(),
+                    line: None,
+                    message: "m".to_owned(),
+                }]
+                .into()
+            },
+        };
+        let refusal = run_rules(&[&foreign], &Inputs::default(), false).expect_err("not decided");
+        assert!(
+            refusal.starts_with("x/a: reports a finding under the rule ID 'x/b'"),
+            "{refusal}"
+        );
+    }
 }
