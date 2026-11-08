@@ -1,4 +1,4 @@
-# Ticket: Carry three wording defects of accepted ADRs into the next normalization
+# Ticket: Carry four wording defects of accepted ADRs into the next normalization
 
 <!-- Copy to docs/plan/<spec>/<NN>-<slug>.md, next to the spec it slices, if it has one. A
      vertical slice: a narrow but complete path through every layer the change touches, demoable
@@ -11,7 +11,8 @@
 
 The work since the revision of 2026-11-07 left four places where an accepted ADR's text no
 longer says what the system does. Each was named in a pull request's Doubts as waiting for the
-next normalization, and nothing in the tree keeps them until then. Accepted ADRs are not edited
+next normalization or found in the review of the take-up of v0.8.1, and nothing in the tree
+keeps them until then. Accepted ADRs are not edited
 ([`AGENTS.md` §3](../../../AGENTS.md#3-adr-rules), rule 5), so this ticket only keeps the list;
 the normalization restates them. It runs after the migration to template release v0.9.0, which
 replaces ADR-0001 to ADR-0006 by the template's fixed base and gives every ADR an identifier of a
@@ -45,7 +46,7 @@ category and a slug; it restates the ADRs below under those identifiers.
 
 ## Blocked by
 
-- None (can start immediately)
+- None among the tickets; the migration to template release v0.9.0 gates it, see Mode.
 
 ## Mode
 
