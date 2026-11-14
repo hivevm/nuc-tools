@@ -52,7 +52,9 @@
 #                             [--variants <file>] [--no-hooks]
 #     scripts/check-parity.sh [--root <dir>] [--nuc <binary>] --hooks <template tree>...
 #     scripts/check-parity.sh --compare <bash output> <bash exit> <nuc output> <nuc exit>
-# --root names the repository whose corpus, tables, and build it reads, this one by default.
+# --root names the repository whose corpus, tables, and build it reads, this one by default; the
+# harness changes into it, so a relative path given to an option or in PARITY_TABLE or
+# PARITY_RELEASES is read from that root, not from the directory it was called in.
 # --nuc runs the given binary instead of building one; --no-hooks leaves the hook scenarios out;
 # --hooks runs them alone, on the trees given; --compare compares one pair of outputs, for
 # scripts/test-check-parity.sh. PARITY_TABLE names another normalization table, and
@@ -62,6 +64,9 @@
 # corpus, table, or variants file, a root that does not exist, or an argument it does not read.
 
 set -uo pipefail
+
+# shellcheck source-path=SCRIPTDIR source=lib/bash.sh
+source "$(dirname "${BASH_SOURCE[0]}")/lib/bash.sh"
 
 # The harness reads the bash output byte by byte, as the checks write it under LC_ALL=C: in a
 # UTF-8 locale a byte that is no UTF-8 would keep a table row from matching its message.
