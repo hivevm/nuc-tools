@@ -115,8 +115,8 @@ golden path and the test pattern an agent copies from are named here.
   a major release ([OPS-feature-in-hivevm-features](adr/OPS-feature-in-hivevm-features.md)).
 - **Action** — `action.yml` installs the `nuc` of the release its release commit carries; at any
   other commit it installs nothing.
-- **The golden path** — the rule `docs/template-release`, check 14 of the template's
-  `check-docs.sh`, and the pieces it takes through every layer. A new rule copies it:
+- **The golden path** — the rule `docs/template-release` of the template's `check-docs.sh`, and
+  the pieces it takes through every layer. A new rule copies it:
   1. a module under `src/rules/` with its `RULE_ID`, an `area/name`, and its `RULE`, listed in
      `rules::ALL` and its ID in `tests/contract.rule-ids`, which keeps it from then on, its unit
      tests the cases of the bash self-test of the check it ports, each named in a `// bash:`

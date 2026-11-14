@@ -1,5 +1,11 @@
 # Ticket: A macOS job runs no script behind the bash floor
 
+<!-- A ticket of the design revision of 2026-11-14, in the shape of the plan-feature skill's
+     ticket template, without a spec. Claim it by creating the branch
+     ticket/revision-2026-11-14/<NN>-<slug> BEFORE any work, by the steps of the work-tickets
+     skill. The branch that lands it deletes this file. Its sections are the parts a ticket
+     carries, as docs/adr/NUC-large-work-is-planned.md decides (clause 3). -->
+
 ## What to build
 
 A workflow job that runs on macOS runs no script that stops below bash 4.4. The take-up of
@@ -26,6 +32,8 @@ runner and that runs `bash scripts/<name>.sh` where that script sources `lib/bas
   `scripts/check-all.sh`, `.github/workflows/checks.yml`
 - c8dccce and a9ab6c7 for the two cases; the rule `shell/bash-floor` of `scripts/check-shell.sh`
   for how a script is known to source the floor.
+- The convention "A check's cases are a table" of `docs/CONVENTIONS.md`, which the golden path
+  predates: the new check writes its cases into a table under `scripts/fixtures/`.
 
 ## Blocked by
 

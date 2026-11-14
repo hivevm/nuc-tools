@@ -1,5 +1,11 @@
 # Ticket: The record of the Dev Container names the telemetry stack on the host
 
+<!-- A ticket of the design revision of 2026-11-14, in the shape of the plan-feature skill's
+     ticket template, without a spec. Claim it by creating the branch
+     ticket/revision-2026-11-14/<NN>-<slug> BEFORE any work, by the steps of the work-tickets
+     skill. The branch that lands it deletes this file. Its sections are the parts a ticket
+     carries, as docs/adr/NUC-large-work-is-planned.md decides (clause 3). -->
+
 ## What to build
 
 OPS-dev-container-adds-rust says that the Dev Container "reaches no containers" and has "no

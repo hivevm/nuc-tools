@@ -1,16 +1,22 @@
 # Ticket: The parity run costs less than the whole check run
 
+<!-- A ticket of the design revision of 2026-11-14, in the shape of the plan-feature skill's
+     ticket template, without a spec. Claim it by creating the branch
+     ticket/revision-2026-11-14/<NN>-<slug> BEFORE any work, by the steps of the work-tickets
+     skill. The branch that lands it deletes this file. Its sections are the parts a ticket
+     carries, as docs/adr/NUC-large-work-is-planned.md decides (clause 3). -->
+
 ## What to build
 
-`scripts/check-parity.sh` took 774 of the 775 seconds of `scripts/check-all.sh` on the head of pull
-request #84, and 751 of 754 and 723 of 727 in the two runs before it, and it passed in every run of
-the work since the revision of 2026-11-08 that the logs under `.scratch/` keep. The pre-push hook
-runs it whenever its inputs change, and `scripts/lib/` is among them, which every template take-up
-changes. Find where the time goes (the fetch of the corpus, the bash runs per tree and variant, the
-`nuc` runs, the hook scenarios), measure it, and cut the largest part without dropping a tree, a
-variant, or a scenario: for example, by keeping the bash outputs of a pinned tree and variant under
-`.scratch/parity/`, keyed by the commit and the variant, since a pinned tree's bash output does not
-change.
+`scripts/check-parity.sh` is the critical path of `scripts/check-all.sh`, which runs its checks in
+parallel: it took 774 s of a run of 775 s on the head of pull request #84, and 751 of 754 and 723 of
+727 in the two timed runs before it, and it passed in every run of the work since the revision of
+2026-11-08 that the logs under `.scratch/` keep. The pre-push hook runs it whenever its inputs
+change, and `scripts/lib/` is among them, which every template take-up changes. Find where the time
+goes (the fetch of the corpus, the bash runs per tree and variant, the `nuc` runs, the hook
+scenarios), measure it, and cut the largest part without dropping a tree, a variant, or a scenario:
+for example, by keeping the bash outputs of a pinned tree and variant under `.scratch/parity/`,
+keyed by the commit and the variant, since a pinned tree's bash output does not change.
 
 ## Acceptance criteria
 

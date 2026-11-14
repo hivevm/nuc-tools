@@ -1,5 +1,11 @@
 # Ticket: The telemetry stack publishes each port on a named address
 
+<!-- A ticket of the design revision of 2026-11-14, in the shape of the plan-feature skill's
+     ticket template, without a spec. Claim it by creating the branch
+     ticket/revision-2026-11-14/<NN>-<slug> BEFORE any work, by the steps of the work-tickets
+     skill. The branch that lands it deletes this file. Its sections are the parts a ticket
+     carries, as docs/adr/NUC-large-work-is-planned.md decides (clause 3). -->
+
 ## What to build
 
 Every port `.devcontainer/compose.yaml` publishes names the host address it binds to, so that the
@@ -27,6 +33,8 @@ a Compose file under `.devcontainer/` that has no host address, or whose address
 - `scripts/check-workflows.sh` and `scripts/test-check-workflows.sh` as the golden path of a
   project check over files under one directory, `--root` through `scripts/lib/root.sh`.
 - `.devcontainer/README.md`, "Start", for why the stack binds the loopback.
+- The convention "A check's cases are a table" of `docs/CONVENTIONS.md`, which the golden path
+  predates: the new check writes its cases into a table under `scripts/fixtures/`.
 
 ## Blocked by
 
