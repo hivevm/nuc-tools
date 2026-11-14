@@ -38,9 +38,10 @@ of a category and a slug; it restates the ADRs below under those identifiers.
   v0.10.0 its checks carry rule keys and no numbers. OPS-rust-stable-behind-scripts (lines 32,
   129, 135, 142) and TEST-parity-harness (line 117) name check 9, now `docs/check-lists`;
   TEST-fixtures-with-own-home (line 107) and TEST-fixtures-through-real-git (line 62) name
-  check 10, now `docs/project-layout`; TEST-parity-harness names checks 12 and 13 (line 26), now
-  `docs/base-blobs` and `docs/template-identity`, and check 16 (line 58), which v0.9.1 removed.
-  The maintainer kept the text at the take-up (pull request #84).
+  check 10, now `docs/project-layout`. These name this repository's own `check-docs.sh`; the
+  numbers in TEST-parity-harness lines 26 and 58 (checks 12, 13, and 16) name the bash checks of
+  the corpus's old releases, which still carry them, and stay. The maintainer kept the text at the
+  take-up (pull request #84).
 - **SEC-gates-never-run-build, *Decision*:** it says the switch to a released `nuc` "supersedes the
   bash clause of NUC-checks-are-bash §1". Since v0.9.0 a project ADR narrows a `NUC-` clause and
   never supersedes it (NUC-base-is-fixed §1, NUC-checks-are-bash §8). The maintainer kept the text

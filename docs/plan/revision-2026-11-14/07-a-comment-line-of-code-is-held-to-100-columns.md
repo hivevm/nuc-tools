@@ -8,8 +8,12 @@
 
 ## What to build
 
-A comment line in a Rust file, a shell script, or a workflow is at most 100 columns, as Markdown
-prose is under the rule `docs/prose-width`, and a check of the project fails on a longer one. The
+A comment line in a Rust file, a shell script, or a workflow of the project's own is at most 100
+columns, as Markdown prose is under the rule `docs/prose-width`, and a check of the project fails
+on a longer one. The files the template ships and the project carries unchanged are left out: a
+rewrap there is merge work at every take-up, and their long lines are a finding about the
+template, not a ticket here. The check reads which files are the template's from the release the
+`Template release` line names, or from a list the human chooses. The
 review of #80 found a doc comment of `tests/releases.rs` at 102 columns, "which nothing enforces",
 and left it; the review of the migration in #84 found comment lines over 100 columns in
 `checks.yml`, `check-all.sh`, `test-check-parity.sh`, and `tests/releases.rs`, fixed by hand in
@@ -18,7 +22,9 @@ da53883. Code lines are left to the formatters; only comment lines are held.
 ## Acceptance criteria
 
 - [ ] Given the tree as it stands, when the check runs, then it passes, or the hand-off lists each
-      line it rewrapped first.
+      line of the project's own files it rewrapped first.
+- [ ] Given a long comment line in a file the template ships, such as `scripts/check-docs.sh`,
+      when the check runs, then it passes.
 - [ ] Given a comment line of 101 columns in a `.rs`, `.sh`, or `.yml` file, when the check
       runs, then it fails and names the file and the line.
 - [ ] Given a code line of 101 columns, when the check runs, then it passes.

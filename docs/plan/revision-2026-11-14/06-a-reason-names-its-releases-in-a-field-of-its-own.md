@@ -26,14 +26,14 @@ own has nothing to fall back from: a release that does not parse is refused.
       `tests/releases.rs` runs, then it fails and names the row.
 - [ ] Given the rows of today, when they are converted, then each covers the same releases as
       before, which the hand-off lists row by row.
-- [ ] Given `scripts/check-parity.sh`, which reads the table too, when it runs, then it reads the
-      new field and the parity self-test passes.
+- [ ] Given `scripts/check-parity.sh`, which reads the first four fields of the table, when the
+      new field is added, then it still reads those four and the parity self-test passes.
 
 ## Read first
 
 - Touches: `tests/parity/releases.tsv`, `tests/releases.rs`, `scripts/check-parity.sh`,
   `scripts/test-check-parity.sh`
-- API-version-coupling-hook-defaults and TEST-parity-harness, which bind the table; the Review
+- API-version-coupling-hook-defaults, which binds the table; the Review
   section of the hand-off of #80 for the four cases.
 
 ## Blocked by
@@ -42,5 +42,5 @@ own has nothing to fall back from: a release that does not parse is refused.
 
 ## Mode
 
-with the human — DEV-one-agent-one-ticket allows no unattended ticket, and the table's format is
-bound by two ADRs.
+with the human — DEV-one-agent-one-ticket allows no unattended ticket, and the table is bound by
+API-version-coupling-hook-defaults.
