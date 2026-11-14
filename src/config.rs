@@ -1,5 +1,5 @@
 //! `nuc.toml`: the minimum version of `nuc` a project requires and the rule IDs it turns on
-//! (ADR-0023).
+//! (API-version-coupling-hook-defaults).
 //!
 //! The file is a subset of TOML, read without a TOML crate: comments, blank lines, and the two
 //! keys `minimum`, a string `"X.Y.Z"`, and `rules`, an array of strings that may span lines.
@@ -80,9 +80,9 @@ impl fmt::Display for Refusal {
     }
 }
 
-/// The rules of `all` that the configuration in `text` turns on, in the order of `all`, for a
-/// `nuc` of version `running`; a rule not listed stays off. It refuses as [`load`] and then
-/// [`known`] refuse, so no caller turns on less than the file names (ADR-0023).
+/// The rules of `all` that the configuration in `text` turns on, in the order of `all`, for a `nuc`
+/// of version `running`; a rule not listed stays off. It refuses as [`load`] and then [`known`]
+/// refuse, so no caller turns on less than the file names (API-version-coupling-hook-defaults).
 pub fn turned_on<'a, R: Named>(
     text: &str,
     running: Version,
@@ -115,7 +115,7 @@ impl Named for HookRule {
 
 /// The configuration in `text` for a `nuc` of version `running`. The minimum is read before
 /// anything else, so that a newer file, with a key this `nuc` does not know, refuses it as too
-/// old rather than as unreadable (ADR-0020).
+/// old rather than as unreadable (API-command-line-with-hook-signal).
 fn load(text: &str, running: Version) -> Result<Config, Refusal> {
     if let Some(minimum) = minimum_first(text).filter(|&minimum| minimum > running) {
         return Err(Refusal::TooOld { minimum, running });
@@ -246,7 +246,7 @@ pub fn explanation(id: &str) -> Option<(&'static str, &'static str)> {
 }
 
 /// The first rule ID the configuration names that this `nuc` does not know, which `nuc check`
-/// and `nuc hook` refuse alike (ADR-0023).
+/// and `nuc hook` refuse alike (API-version-coupling-hook-defaults).
 fn known(config: &Config) -> Result<(), Refusal> {
     match config.rules.iter().find(|id| explanation(id).is_none()) {
         Some(unknown) => Err(Refusal::UnknownRule(unknown.clone())),

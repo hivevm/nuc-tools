@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Self-test of the release tooling under release/ and of the release as the interface
-# hivevm/features takes it from. Verifies: ADR-0025
+# hivevm/features takes it from. Verifies: OPS-feature-in-hivevm-features
 #
 # The cases use stub binaries served through file://, no network and no build:
 # release/sums.sh writes one line per binary; release/install-nuc.sh installs the binary whose
@@ -73,8 +73,8 @@ d="$(release sums 1.2.3)"
 lines="$(wc -l < "$d/SHA256SUMS")"
 check "sums.sh writes one line per binary" test "$lines" -eq 4
 check "sums.sh names the Windows binary with its .exe" grep -q '  nuc-x86_64-pc-windows-msvc.exe$' "$d/SHA256SUMS"
-# The interface hivevm/features relies on (ADR-0025): these targets, their asset names, and this
-# form of SHA256SUMS, until a major release.
+# The interface hivevm/features relies on (OPS-feature-in-hivevm-features): these targets, their
+# asset names, and this form of SHA256SUMS, until a major release.
 targets="aarch64-apple-darwin aarch64-unknown-linux-musl x86_64-pc-windows-msvc x86_64-unknown-linux-musl"
 built="$(sed -n 's/^ *- { target: \([^,]*\),.*/\1/p' "$ROOT/.github/workflows/release.yml" | sort | tr '\n' ' ')"
 check "the release workflow builds exactly the targets of the interface" test "$built" = "$targets "

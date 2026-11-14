@@ -1,4 +1,4 @@
-//! The rules whose bash check changed between the template's releases. Verifies: ADR-0023
+//! The rules whose bash check changed between the template's releases. Verifies: API-version-coupling-hook-defaults
 //!
 //! `tests/parity/releases.tsv` names, for each rule, the releases of the corpus at which its bash
 //! check changed, which the parity harness holds to the template's trees. A rule whose check
@@ -33,12 +33,11 @@ fn opens_with_release(text: &str) -> bool {
     matches!(chars.next(), Some('v' | 'V')) && chars.next().is_some_and(|c| c.is_ascii_digit())
 }
 
-/// What a reason covers. A reason that opens with no release is prose and covers every release.
-/// One that opens with a release goes on with a list of releases separated by commas and
-/// followed by a colon, space allowed around each, which covers those, or with space and a word
-/// after its first release, which makes it prose. Anything else is malformed: a release that does not
-/// parse, a list cut off before its colon, a release after a release, a bare release, and an
-/// empty reason.
+/// What a reason covers. A reason that opens with no release is prose and covers every release. One
+/// that opens with a release goes on with a list of releases separated by commas and followed by a
+/// colon, space allowed around each, which covers those, or with space and a word after its first
+/// release, which makes it prose. Anything else is malformed: a release that does not parse, a list
+/// cut off before its colon, a release after a release, a bare release, and an empty reason.
 fn covered(reason: &str) -> Covered<'_> {
     if reason.trim().is_empty() {
         return Covered::Malformed(reason);

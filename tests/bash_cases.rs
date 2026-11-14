@@ -2,15 +2,16 @@
 //!
 //! A rule's unit tests copy the cases of the bash self-test of its check, so that a port reports
 //! what the bash reports on inputs the corpus lacks as well, as the convention "A port copies the
-//! bash, quirks included" of `docs/CONVENTIONS.md` asks. `tests/bash_cases.tsv`, the list
-//! kept beside this test, names each case of `scripts/test-check-docs.sh` and
-//! `scripts/test-check-traceability.sh` as its `expect` line writes it, with the rule whose part
-//! of the bash it tries, or `-` and the reason no rule of `nuc` decides it. A unit test under
-//! `src/` that copies a case says so in a comment `// bash: <name>`. The test fails on an `expect`
-//! line whose name it cannot read, on a case the list leaves out or a row whose case the scripts
-//! lack, on a case of a rule no such comment in that rule's module names, and on a comment that
-//! names no case of the list. A name the script assembles, as the one of a case inside a loop, is
-//! listed and named as the script writes it.
+//! bash, quirks included" of `docs/CONVENTIONS.md` asks. `tests/bash_cases.tsv`, the list kept
+//! beside this test, names each case of `scripts/test-check-docs.sh` and
+//! `scripts/test-check-traceability.sh` of template release v0.8.1, the last release `nuc` ports,
+//! as its `expect` line writes it, with the rule whose part of the bash it tries, or `-` and the
+//! reason no rule of `nuc` decides it. A unit test under `src/` that copies a case says so in a
+//! comment `// bash: <name>`. The test fails on an `expect` line whose name it cannot read, on a
+//! case the list leaves out or a row whose case the scripts lack, on a case of a rule no such
+//! comment in that rule's module names, and on a comment that names no case of the list. A name the
+//! script assembles, as the one of a case inside a loop, is listed and named as the script writes
+//! it.
 
 mod support;
 
@@ -21,8 +22,13 @@ use support::sources::{root, rule_id, rule_modules, rust_files};
 
 const LIST: &str = include_str!("bash_cases.tsv");
 
-/// The self-tests whose cases the list holds, under `scripts/`.
+/// The self-tests whose cases the list holds. Their case lines at v0.8.1 stand under
+/// `tests/bash_cases/` as `<name without .sh>.v0-8-1`: the scripts under `scripts/` follow the
+/// release this repository carries, which `nuc` need not port.
 const SCRIPTS: [&str; 2] = ["test-check-docs.sh", "test-check-traceability.sh"];
+
+/// The directory of the frozen case lines, and the suffix of each file.
+const FROZEN: (&str, &str) = ("tests/bash_cases", ".v0-8-1");
 
 /// The comment that names the case a unit test copies.
 const NAMES: &str = "// bash: ";
@@ -179,7 +185,8 @@ fn each_case_of_a_rule_is_named_by_a_unit_test_that_copies_it() {
     let scripts: Vec<(&str, Vec<String>)> = SCRIPTS
         .iter()
         .map(|name| {
-            let text = fs::read_to_string(root.join("scripts").join(name))
+            let frozen = format!("{}{}", name.trim_end_matches(".sh"), FROZEN.1);
+            let text = fs::read_to_string(root.join(FROZEN.0).join(frozen))
                 .expect("the self-test is readable");
             (
                 *name,

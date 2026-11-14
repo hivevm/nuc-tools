@@ -1,14 +1,15 @@
 //! What `nuc check` writes on the standard output, in the format `--format` names
-//! (ADR-0028): the lines of ADR-0020, one JSON document, or one SARIF 2.1.0 log.
-//! Built here, without a crate, so that the same findings give the same bytes; the shell only
-//! writes the result.
+//! (API-output-formats-short-description): the lines of API-command-line-with-hook-signal, one JSON
+//! document, or one SARIF 2.1.0 log. Built here, without a crate, so that the same findings give
+//! the same bytes; the shell only writes the result.
 
 use crate::finding::Finding;
 
 /// A format `nuc check --format` takes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Format {
-    /// One line per finding, `<file>[:<line>]: <rule ID>: <message>` (ADR-0020); the default.
+    /// One line per finding, `<file>[:<line>]: <rule ID>: <message>`
+    /// (API-command-line-with-hook-signal); the default.
     Text,
     /// One JSON document that names its format and version.
     Json,
@@ -98,7 +99,7 @@ fn sarif(report: &Report) -> String {
 
 /// The first sentence of `reason`, up to and including the period of the first `. ` that a capital
 /// letter follows, or the whole reason where no such period stands
-/// (ADR-0028).
+/// (API-output-formats-short-description).
 fn first_sentence(reason: &str) -> &str {
     reason
         .match_indices(". ")
@@ -298,7 +299,7 @@ mod tests {
     /// <https://docs.github.com/en/code-security/code-scanning/integrating-with-code-scanning/sarif-support-for-code-scanning>.
     const DESCRIPTION_LIMIT: usize = 1024;
 
-    /// Verifies: ADR-0028
+    /// Verifies: API-output-formats-short-description
     #[test]
     fn every_reason_fits_the_descriptions_github_takes() {
         for rule in crate::rules::ALL {
@@ -311,7 +312,7 @@ mod tests {
         }
     }
 
-    /// Verifies: ADR-0028
+    /// Verifies: API-output-formats-short-description
     #[test]
     fn the_short_description_is_the_first_sentence_of_the_reason() {
         assert_eq!(first_sentence("One rule. Two notes."), "One rule.");

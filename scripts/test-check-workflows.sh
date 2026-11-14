@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Self-test of scripts/check-workflows.sh. Verifies: ADR-0019
+# Self-test of scripts/check-workflows.sh. Verifies: SEC-no-stored-secrets
 #
 # Each case builds a fixture under a temporary directory — one workflow whose two jobs each set
 # their permissions and use only secrets.GITHUB_TOKEN — runs the check against it, and asserts the

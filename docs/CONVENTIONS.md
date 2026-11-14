@@ -4,7 +4,7 @@
 > a module may know, what a test asserts and never does, the shape of an error, how a thing is
 > named when the glossary has no word for it. Whoever settles a convention updates this file
 > inline, an agent included, in the same change as the review or code that settled it. The
-> reviewer always has it ([ADR-0001](adr/0001-agent-governance-model.md)).
+> reviewer always has it ([NUC-documents-are-fixed §6](adr/NUC-documents-are-fixed.md)).
 
 An entry says in a sentence or two what is done and why; the why tells a convention from a habit.
 A convention a check can decide is the check, not an entry. One that constrains future choices is
@@ -27,7 +27,7 @@ skimmed. The design revision drops what prevented nothing
   inputs, before any rule runs, and a rule gets text, never a path. A rule's tests are then cases
   of text without a repository, and a file `nuc` cannot read ends the run before a rule could
   pass on less than it should have seen (Q-1). Where a refusal stands is decided in
-  [ADR-0024](adr/0024-rules-return-an-outcome-and-hooks-an-answer.md),
+  [ARCH-rules-outcome-hooks-answer](adr/ARCH-rules-outcome-hooks-answer.md),
   where a read may lead in Q-12, and where in the shell a read may stand in
   `tests/functional_core.rs`.
 - **A port copies the bash, quirks included** — a rule reports what its bash check reports on
@@ -48,3 +48,8 @@ skimmed. The design revision drops what prevented nothing
   is pinned by a fixture of `tests/check.rs`, for a hook of `tests/hooks.rs`, that shows exit 2.
   Which readings of the bash's tools a port takes from `src/bash.rs` is stated in
   `tests/functional_core.rs`.
+- **A check's cases are a table** — a new or changed check writes its cases into a table under
+  `scripts/fixtures/` before its code, and its self-test reads the table, so a port of the
+  checks is held to the same cases. A case expects a key, a rule identifier and a reason word that
+  the message ends in, such as `[docs/adr-index:twice]`, and the data of the finding, never its
+  wording, so that rewording a message breaks no port.

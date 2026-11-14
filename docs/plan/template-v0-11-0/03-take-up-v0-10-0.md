@@ -17,9 +17,10 @@ line moves to v0.10.0.
   `shell/root`, `shell/bash-floor`, `shell/mode`, and `docs/check-lists` included.
 - [ ] Given a project script called with a positional root or an unknown argument, when it runs,
   then it exits 2.
-- [ ] Given ADR-0008, ADR-0014, ADR-0015, and ADR-0023 under their new identifiers, when each is
-  read for a check named by number, then the hand-off records the human's decision on each, and a
-  superseding ADR stands in commits of ADRs only before the code that depends on it.
+- [ ] Given OPS-rust-stable-behind-scripts, API-version-coupling, TEST-parity-harness, and
+      API-version-coupling-hook-defaults under their new identifiers, when each is read for a check
+      named by number, then the hand-off records the human's decision on each, and a superseding ADR
+      stands in commits of ADRs only before the code that depends on it.
 - [ ] Given the design revision's due line, when it is read, then it keeps the project's own
   number.
 - [ ] Given the pull request template, when it is read, then it carries the `Measures:` line and

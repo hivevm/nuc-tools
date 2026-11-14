@@ -1,8 +1,8 @@
 #!/bin/sh
 #
-# Git pre-merge-commit hook, the reference shim of nuc (ADR-0021): 'nuc hook pre-merge-commit'
-# decides from the git state, and this shim runs the project's documentation check where nuc
-# answers that it runs.
+# Git pre-merge-commit hook, the reference shim of nuc (API-hook-contract): 'nuc hook
+# pre-merge-commit' decides from the git state, and this shim runs the project's documentation check
+# where nuc answers that it runs.
 #
 # nuc refuses a merge on main, and answers 3 on a merge into any other branch whose repository
 # has scripts/check-docs.sh: the shim then runs it on the merged tree, with the variables git

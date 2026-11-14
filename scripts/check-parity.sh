@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Parity harness (ADR-0015). Verifies: Q-1 Q-2
+# Parity harness (TEST-parity-harness). Verifies: Q-1 Q-2
 #
 # Runs the bash checks a repository of the corpus carries and nuc on the same tree, and fails on
 # any difference in their findings or their exit status. The corpus is tests/parity/corpus.toml:
@@ -32,19 +32,20 @@
 # The bash check of a rule changes between the template's releases where tests/parity/releases.tsv
 # says, and nowhere else: each function it names is compared, comment lines left out, across the
 # trees of the corpus that are the template's, those that still carry TEMPLATE-SETUP.md, in the
-# order of their releases. A change the table does not list, or one it lists that the trees do
-# not show, fails the harness and names the rule; tests/releases.rs holds the rules to the table
-# (ADR-0023). With fewer than two trees of the template there is nothing to compare. A helper the
-# function calls is not compared.
+# order of their releases. A change the table does not list, or one it lists that the trees do not
+# show, fails the harness and names the rule; tests/releases.rs holds the rules to the table
+# (API-version-coupling-hook-defaults). With fewer than two trees of the template there is nothing
+# to compare. A helper the function calls is not compared.
 #
 # Then the hook scenarios run on the template's trees of the corpus, through
-# scripts/lib/hook-parity.sh (ADR-0022): each scenario of tests/parity/hook-scenarios.sh through
-# git, with the tree's bash hook and with the reference shim and nuc, compared as that file says.
+# scripts/lib/hook-parity.sh (TEST-hook-scenario-parity): each scenario of
+# tests/parity/hook-scenarios.sh through git, with the tree's bash hook and with the reference shim
+# and nuc, compared as that file says.
 #
 # The tree of the corpus runs its own bash scripts: the corpus is pinned by commit, and a pull
 # request that moves a pin is reviewed like code. nuc is built from the working tree by
 # 'cargo build --locked'; the harness is a test of the build, as scripts/check-build.sh is
-# (ADR-0016).
+# (SEC-gates-never-run-build).
 #
 # Pure bash + coreutils/git/awk, and cargo for the build. Usage:
 #     scripts/check-parity.sh [--corpus <file>] [--cache <dir>] [--nuc <binary>] [--variants <file>]
@@ -429,8 +430,8 @@ fires() {
 
 # The variants, one row each: name, rule, path in the tree, 'sed' with an extended expression,
 # 'delete' with '-', 'write' with a line, or 'chomp' with '-', and optionally the names of the
-# corpus trees it is for, separated by commas, all separated by tabs. Without names it is for every tree. The path
-# stays inside the tree and out of its .git; every ported rule brings one at least.
+# corpus trees it is for, separated by commas, all separated by tabs. Without names it is for every
+# tree. The path stays inside the tree and out of its .git; every ported rule brings one at least.
 variant_names=() variant_rules=() variant_paths=() variant_ops=() variant_args=() variant_trees=()
 [[ -r "$variants" ]] || die "$variants: unreadable"
 while IFS=$'\t' read -r vname vrule vpath vop varg vtrees extra || [[ -n "$vname" ]]; do
@@ -549,7 +550,7 @@ if ((${#template_trees[@]} >= 2)); then
   done
 fi
 
-# The hook scenarios, on the template's trees of the corpus (ADR-0022).
+# The hook scenarios, on the template's trees of the corpus (TEST-hook-scenario-parity).
 if ((hooks)); then
   tree_dirs=()
   for tree in "${template_trees[@]}"; do tree_dirs+=("${tree#* }"); done

@@ -97,10 +97,11 @@ rules of the template it ports.
 
 - Binding: ADR-0001 to ADR-0006 as inherited. ADR-0005 governs the release line and the take-up by
   normalization. Its clause keeping the numbers 0001 to 0006 is exactly what the migration ends.
-  ADR-0014 and ADR-0023 govern how `nuc` reads the release line, and are untouched because `nuc`
-  does not check this tree.
+  API-version-coupling and API-version-coupling-hook-defaults govern how `nuc` reads the release
+  line, and are untouched because `nuc` does not check this tree.
 - New `proposed` ADRs before implementation: one for each clause the project added to an inherited
   ADR, each extending or narrowing a `NUC-` clause. Ticket 01 finds and proposes them.
-- ADRs of the project that name a check of `check-docs.sh` by number (ADR-0008, ADR-0014,
-  ADR-0015, ADR-0023) bind the whole file after v0.10.0. Each is superseded by one naming the rule
-  key where the narrow binding matters. Ticket 03 decides which.
+- ADRs of the project that name a check of `check-docs.sh` by number
+  (OPS-rust-stable-behind-scripts, API-version-coupling, TEST-parity-harness,
+  API-version-coupling-hook-defaults) bind the whole file after v0.10.0. Each is superseded by one
+  naming the rule key where the narrow binding matters. Ticket 03 decides which.

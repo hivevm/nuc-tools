@@ -2,21 +2,25 @@
 
 > The **vocabulary** of this project: the terms everyone, humans and agents alike, uses in code,
 > comments, documentation, and ADRs. It defines words and decides nothing. Whoever resolves a term
-> adds it here in the same change ([ADR-0001](adr/0001-agent-governance-model.md)).
+> adds it here in the same change ([NUC-documents-are-fixed §5](adr/NUC-documents-are-fixed.md)).
 
 One term per concept, only terms specific to this domain. Say what a term *is* in one or two
 sentences, and list under _Avoid:_ the synonyms it displaces, where there are any. A term the
 specification, an ADR, or the code uses without an entry here is a gap to close, not a convention
 to invent.
 
+List each synonym under _Avoid:_ as one to three words, without prose around them. A synonym
+inside a longer term of this glossary, such as "shape" in **Node shape**, is no synonym there.
+
 - **derived project** — A repository created from the NUC template, or one that took the template
   up, that carries a template release.
   _Avoid:_ downstream project, consumer repo.
 - **template release** — A tagged version `vX.Y.Z` of the NUC template; a derived project names the
-  one it carries in its README ([ADR-0005](adr/0005-template-releases.md)).
+  one it carries in its README
+  ([NUC-releases-are-semver-tags §4](adr/NUC-releases-are-semver-tags.md)).
 - **carried release** — The template release a tree names in the Template release line of its
   README; a rule whose bash check changed between releases checks the tree as that release does
-  ([ADR-0023](adr/0023-version-coupling-with-hook-defaults.md)).
+  ([API-version-coupling-hook-defaults](adr/API-version-coupling-hook-defaults.md)).
 - **check** — A mechanical test of a repository's tree or history that fails a commit, a push, or
   CI on a finding.
 - **sensor** — A mechanical reading of a repository that reports what it counts and fails on
@@ -39,7 +43,7 @@ to invent.
 - **variant** — An edit to a copy of a corpus tree, listed in `tests/parity/variants.tsv` with the
   trees it is for, that makes a ported rule fire, so that the parity harness compares bash and
   `nuc` on a finding and not only on a clean tree
-  ([ADR-0015](adr/0015-parity-harness.md)).
+  ([TEST-parity-harness](adr/TEST-parity-harness.md)).
 - **migration** — One mechanical change `nuc upgrade` applies when a project takes up a later
   template release.
   _Avoid:_ upgrade step.
@@ -51,6 +55,6 @@ to invent.
   version N, and by which projects reference the Action.
 - **marker** — A `Verifies:` line in a file git does not ignore that cites ADRs or criteria by
   their identifiers, naming the test that decides them
-  ([ADR-0002](adr/0002-decisions-verified-by-tests.md)).
+  ([NUC-decisions-cite-tests §2](adr/NUC-decisions-cite-tests.md)).
 - **pending criterion** — A criterion of the specification no marker cites yet; the summary of
   `nuc check` names it, and it never fails the run.

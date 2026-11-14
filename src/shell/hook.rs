@@ -1,6 +1,6 @@
 //! `nuc hook <name>`: the git state a hook decides on, read through git, and the answer the
-//! reference shim acts on (ADR-0021). It runs no command but git and no script of the repository
-//! (Q-7): where a hook's check runs, it exits 3 and the shim runs it.
+//! reference shim acts on (API-hook-contract). It runs no command but git and no script of the
+//! repository (Q-7): where a hook's check runs, it exits 3 and the shim runs it.
 
 use std::env;
 use std::fs;
@@ -106,7 +106,8 @@ fn carry_out(answer: Answer) -> u8 {
 }
 
 /// The file in the git directory of the worktree that carries the tree `pre-push` decided to its
-/// `--record` call, and the record of green trees in the common git directory, as the bash keeps it.
+/// `--record` call, and the record of green trees in the common git directory, as the bash keeps
+/// it.
 const PENDING: &str = "checks-pending-tree";
 const RECORD: &str = "checks-green-trees";
 
@@ -157,7 +158,7 @@ fn pre_push(args: &[&str]) -> Result<u8, String> {
         None => false,
     };
     // The README is read only for a notice, and a README that cannot be read words it as the
-    // newest release: a hook refuses nothing for the release (ADR-0023).
+    // newest release: a hook refuses nothing for the release (API-version-coupling-hook-defaults).
     let notice = refs.iter().any(|(_, drafts)| matches!(drafts, Some(1..)));
     let state = hook::Push {
         contributing: !notice || contributing(root.as_deref()).unwrap_or(true),
@@ -274,7 +275,7 @@ fn drafts(dir: &Path, object: &str) -> usize {
 
 /// Whether the draft notice names `CONTRIBUTING.md`, as the README's release line places it: from
 /// v0.7.0 on, and where no release is named, as the newest; a release before v0.5.0 is decided as
-/// v0.5.0 (ADR-0023).
+/// v0.5.0 (API-version-coupling-hook-defaults).
 fn contributing(root: Option<&Path>) -> Result<bool, String> {
     let Some(root) = root else {
         return Ok(true);
@@ -362,9 +363,9 @@ fn remove(path: &Path) -> Result<(), String> {
 
 /// Not decided where git hands the hook a git directory, as `git --git-dir` and a linked worktree
 /// do, other than the one `nuc` finds from the directory it runs in: `nuc` takes the repository
-/// never from the environment (ADR-0011), so it would decide on another one, and a hook that
-/// cannot tell never passes (Q-1). The handed directory is only named to git, to be spelled as
-/// git spells the one it finds.
+/// never from the environment (SEC-git-cleared-environment), so it would decide on another one, and
+/// a hook that cannot tell never passes (Q-1). The handed directory is only named to git, to be
+/// spelled as git spells the one it finds.
 fn same_git_dir(dir: &Path) -> Result<(), String> {
     let Some(handed) = env::var_os("GIT_DIR") else {
         return Ok(());
@@ -397,7 +398,7 @@ fn work_tree(dir: &Path) -> Result<Option<PathBuf>, String> {
 }
 
 /// The hook rules turned on: every one without `nuc.toml`; with it, those its list names, after
-/// it is read as `nuc check` reads it, fail closed (ADR-0023).
+/// it is read as `nuc check` reads it, fail closed (API-version-coupling-hook-defaults).
 fn turned_on(root: Option<&Path>) -> Result<Vec<&'static HookRule>, String> {
     let Some(root) = root else {
         return Ok(hook::ALL.iter().collect());
@@ -421,7 +422,7 @@ fn merge_adr_index(args: &[&str]) -> Result<u8, String> {
     let labels = labels.unwrap_or_default();
     let dir = here()?;
     // Git runs a merge driver at the root of the work tree; a nuc.toml it cannot hold refuses
-    // here as in every hook (ADR-0023).
+    // here as in every hook (API-version-coupling-hook-defaults).
     turned_on(Some(&dir))?;
     let scratch = scratch_dir(&dir)?;
     let merged = merge_sides(&dir, &scratch, [base, ours, theirs]);

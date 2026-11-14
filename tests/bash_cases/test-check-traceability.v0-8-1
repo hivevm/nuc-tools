@@ -1,0 +1,22 @@
+# The case lines of scripts/test-check-traceability.sh of template release v0.8.1, the self-test whose cases
+# the ports of nuc copy, read by tests/bash_cases.rs. Taken whole from that release, in order;
+# the rest of the script stays in the release.
+expect pass "accepted ADR and criterion both cited" "$d"
+expect pass "several identifiers on one marker line" "$d"
+expect fail "accepted ADR without a citing test" "$d" "$(adr_id 1) is accepted but no test cites it"
+expect pass "proposed ADR needs no citation" "$d"
+expect pass "accepted ADR with a reasoned exemption" "$d"
+expect fail "exemption without a reason" "$d" "declared without a reason"
+expect pass "criterion without a citing test is listed, not failed" "$d" "criteria without a test: G-1 Q-1"
+expect pass "a wrapped criterion is read like any other" "$d"
+expect fail "list item without an identifier" "$d" "without a bold G-n identifier"
+expect fail "identifier used twice" "$d" "appears twice"
+expect fail "G-n under Quality Goals" "$d" "wrong section"
+expect fail "marker citing a criterion that does not exist" "$d" "'G-9', which is not a criterion"
+expect fail "marker citing an ADR that does not exist" "$d" "'$unknown', which does not exist"
+expect fail "marker citing a superseded ADR" "$d" "'$(adr_id 1)', which is superseded or rejected"
+expect pass "a marker citing a draft that exists" "$d"
+expect fail "a marker citing a draft that does not exist" "$d" "'$(draft_id gone)', which does not exist"
+expect fail "markers in Markdown do not count" "$d" "$(adr_id 1) is accepted but no test cites it"
+expect fail "markers in gitignored files do not count" "$d" "$(adr_id 1) is accepted but no test cites it"
+  expect pass "the inherited ADRs, once accepted, pass — TEMPLATE-SETUP step 2 keeps CI green" "$d"

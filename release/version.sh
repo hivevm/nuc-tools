@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 #
 # Checks that a release tag names the version the crate carries, and prints the version
-# (ADR-0025): a tag vX.Y.Z over a Cargo.toml of another version would publish a
-# nuc that reports, and is held to, a version other than its release's.
+# (OPS-feature-in-hivevm-features): a tag vX.Y.Z over a Cargo.toml of another version would publish
+# a nuc that reports, and is held to, a version other than its release's.
 #
 # Usage:
 #     release/version.sh <tag> [repository root]

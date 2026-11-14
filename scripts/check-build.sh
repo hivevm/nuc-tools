@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Build, test, and lint check for this repository (ADR-0008).
+# Build, test, and lint check for this repository (OPS-rust-stable-behind-scripts).
 #
 # Runs the commands the README names under Build, Test & Run, in this order: the format check,
 # clippy with every warning an error, the build, and the tests, each with the lock file as it

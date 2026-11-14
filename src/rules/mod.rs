@@ -1,6 +1,6 @@
 //! The rules: one module each, with one rule ID, unique across the crate (G-6,
-//! ADR-0024). A rule is a pure function from the [`Inputs`] the shell gathered
-//! to its outcome: its findings, a refusal of its own, and notes for the summary.
+//! ARCH-rules-outcome-hooks-answer). A rule is a pure function from the [`Inputs`] the shell
+//! gathered to its outcome: its findings, a refusal of its own, and notes for the summary.
 
 use crate::config::Version;
 use crate::finding::Finding;
@@ -165,7 +165,7 @@ pub struct Rule {
 
 /// What a rule returns: its findings; a refusal of its own, the reason it cannot decide the tree
 /// as its bash check would; and notes for the summary of the run, which are no findings
-/// (ADR-0024).
+/// (ARCH-rules-outcome-hooks-answer).
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Outcome {
     pub findings: Vec<Finding>,
@@ -176,7 +176,8 @@ pub struct Outcome {
 impl Outcome {
     /// Why the outcome of the rule `id` cannot be carried out: its own refusal, or a finding it
     /// reports under another rule's ID, which every format would name wrongly and the SARIF could
-    /// not place in its list of rules (ADR-0028). Either ends the run not decided (Q-1).
+    /// not place in its list of rules (API-output-formats-short-description). Either ends the run
+    /// not decided (Q-1).
     pub fn refusal_of(&self, id: &str) -> Option<String> {
         if let Some(refusal) = &self.refusal {
             return Some(refusal.clone());

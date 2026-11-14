@@ -1,5 +1,5 @@
 //! The command-line contract of `nuc`, clause by clause, on fixture repositories.
-//! Verifies: ADR-0020
+//! Verifies: API-command-line-with-hook-signal
 
 mod support;
 
@@ -162,7 +162,7 @@ fn every_rule_keeps_its_id_and_is_explained() {
     }
 }
 
-/// Verifies: ADR-0024, G-6
+/// Verifies: ARCH-rules-outcome-hooks-answer, G-6
 #[test]
 fn no_rule_id_is_held_twice_by_the_rules_and_the_hooks() {
     let mut seen = std::collections::BTreeSet::new();

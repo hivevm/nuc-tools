@@ -1,8 +1,8 @@
 #!/bin/sh
 #
-# Git pre-push hook, the reference shim of nuc (ADR-0021): 'nuc hook pre-push' decides from the
-# refs git hands it on the standard input and the git state, and this shim runs the project's full
-# check where nuc answers that it runs.
+# Git pre-push hook, the reference shim of nuc (API-hook-contract): 'nuc hook pre-push' decides from
+# the refs git hands it on the standard input and the git state, and this shim runs the project's
+# full check where nuc answers that it runs.
 #
 # nuc refuses a push to the remote's main, its deletion included; passes a push that only deletes;
 # tells each ref that carries draft ADRs where they take their numbers; and passes a clean tree

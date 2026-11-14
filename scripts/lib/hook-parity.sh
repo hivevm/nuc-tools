@@ -1,5 +1,5 @@
 # shellcheck shell=bash
-# The scenario harness of the hooks (ADR-0022), sourced by scripts/check-parity.sh.
+# The scenario harness of the hooks (TEST-hook-scenario-parity), sourced by scripts/check-parity.sh.
 #
 # Each scenario of tests/parity/hook-scenarios.sh builds a fixture repository through git and runs
 # one git command in it, once with the bash hook of each template tree given and once with the
@@ -9,14 +9,13 @@
 # without nuc.toml, against the newest tree alone.
 #
 # Compared per scenario and tree: the exit status of the git command; the hook's lines, those that
-# start with the hook's name and a colon, each mapped by tests/parity/hooks.tsv to a hook/ rule
-# ID and the ref it guards, or to a notice/ ID and the fields it carries, and the findings nuc
-# writes in the line form of ADR-0020, as sets; the lines of the stand-in checks, verbatim; and
-# the record of green trees the run leaves in the git directory, as a set of its lines; and the
-# ADR index the run leaves, byte for byte, for the merge driver, which runs through the
-# configuration 'merge.adr-index.driver' rather than the hooks path. Git's own
-# lines are not compared. A hook's line no row maps, and a rule of nuc the table maps no line to,
-# is a difference.
+# start with the hook's name and a colon, each mapped by tests/parity/hooks.tsv to a hook/ rule ID
+# and the ref it guards, or to a notice/ ID and the fields it carries, and the findings nuc writes
+# in the line form of API-command-line-with-hook-signal, as sets; the lines of the stand-in checks,
+# verbatim; and the record of green trees the run leaves in the git directory, as a set of its
+# lines; and the ADR index the run leaves, byte for byte, for the merge driver, which runs through
+# the configuration 'merge.adr-index.driver' rather than the hooks path. Git's own lines are not
+# compared. A hook's line no row maps, and a rule of nuc the table maps no line to, is a difference.
 #
 # Each scenario's bash side must end as every case it names expects, pass or refuse, so that a
 # setup that no longer reaches its state fails rather than agrees on nothing.

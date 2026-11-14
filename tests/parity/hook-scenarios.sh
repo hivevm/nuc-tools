@@ -1,7 +1,7 @@
 # shellcheck shell=bash
-# The scenarios of the hooks (ADR-0022), sourced by scripts/lib/hook-parity.sh. Each restates the
-# setup of the template's scripts/test-git-hooks.sh for the cases it names, '|' between them,
-# and runs one git command:
+# The scenarios of the hooks (TEST-hook-scenario-parity), sourced by scripts/lib/hook-parity.sh.
+# Each restates the setup of the template's scripts/test-git-hooks.sh for the cases it names, '|'
+# between them, and runs one git command:
 #     hook_scenario [--bare] <name> <hook> <cases> <setup function> <git args...>
 # The setup gets the fixture, one commit on main with a bare remote 'origin', and runs its git
 # commands without hooks through hp_git; hp_checks and hp_docs give it stand-in checks.

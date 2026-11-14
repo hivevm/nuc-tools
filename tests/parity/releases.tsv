@@ -1,15 +1,15 @@
 # The releases at which the bash check of each rule changed, read by tests/releases.rs and by
 # scripts/check-parity.sh. One row per rule of nuc, four or five fields separated by tabs: the rule
-# ID; the script of the template that holds its bash check; the function of that script, or "-"
-# for the whole script; the template releases of the corpus at which that check changed, the
-# earliest pinned release of the template left out, separated by commas, or "-" for none; and,
-# for a rule that checks every release alike although its bash changed, the reason; a reason
-# that opens with 'vX.Y.Z[,vX.Y.Z...]:' covers only those releases. The parity harness compares
-# each function across the trees of the template in the corpus, comment lines left out, and fails
-# where this table says otherwise. tests/releases.rs fails on a rule whose check changed at a
-# release no reason covers and that does not read the release the tree carries (ADR-0023).
-# Only the named function is compared: a change to a helper it calls or a global it reads, as
-# placeholder or add_error, shows in no row, and is found by reading the release's diff.
+# ID; the script of the template that holds its bash check; the function of that script, or "-" for
+# the whole script; the template releases of the corpus at which that check changed, the earliest
+# pinned release of the template left out, separated by commas, or "-" for none; and, for a rule
+# that checks every release alike although its bash changed, the reason; a reason that opens with
+# 'vX.Y.Z[,vX.Y.Z...]:' covers only those releases. The parity harness compares each function across
+# the trees of the template in the corpus, comment lines left out, and fails where this table says
+# otherwise. tests/releases.rs fails on a rule whose check changed at a release no reason covers and
+# that does not read the release the tree carries (API-version-coupling-hook-defaults). Only the
+# named function is compared: a change to a helper it calls or a global it reads, as placeholder or
+# add_error, shows in no row, and is found by reading the release's diff.
 
 docs/adr-index	scripts/check-docs.sh	check_adr_index	v0.8.1	v0.8.0 moved its patterns and the ADR key into scripts/lib/adr.sh with the same expressions, so every release checks alike, which the parity corpus shows on the tree of v0.8.1
 docs/adr-numbering	scripts/check-docs.sh	check_adr_numbering	v0.8.1	v0.8.0 moved its patterns and the ADR key into scripts/lib/adr.sh with the same expressions, so every release checks alike, which the parity corpus shows on the tree of v0.8.1

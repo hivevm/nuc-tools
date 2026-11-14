@@ -1,4 +1,4 @@
-//! git under a cleared environment. Verifies: ADR-0011 Q-9
+//! git under a cleared environment. Verifies: SEC-git-cleared-environment Q-9
 //!
 //! `nuc hook` decides on the repository it runs in as well, and does not decide where git hands it
 //! another git directory.
@@ -15,7 +15,8 @@ use std::process::{Command, Output};
 use support::{CONFIG, Fixture, NUC, README, snapshot, stderr, stdout};
 
 /// `nuc check` in the fixture, with the parent's environment and the decoy variables set, as an
-/// inherited environment would carry them, and the tests' `HOME` over the parent's (ADR-0026).
+/// inherited environment would carry them, and the tests' `HOME` over the parent's
+/// (TEST-fixtures-with-own-home).
 fn check_with_decoy(fixture: &Fixture, decoy: &Fixture) -> Output {
     let git_dir = decoy.root().join(".git");
     Command::new(NUC)

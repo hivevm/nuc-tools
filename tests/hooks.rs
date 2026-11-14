@@ -1,4 +1,4 @@
-//! `nuc hook` and the reference shims, through git. Verifies: ADR-0020 ADR-0021 ADR-0023 G-2 G-3 G-5 Q-1 Q-4 Q-7 Q-8 Q-9 Q-10 Q-11
+//! `nuc hook` and the reference shims, through git. Verifies: API-command-line-with-hook-signal API-hook-contract API-version-coupling-hook-defaults G-2 G-3 G-5 Q-1 Q-4 Q-7 Q-8 Q-9 Q-10 Q-11
 //!
 //! Each case builds a fixture repository whose hooks path is the repository's `shims/`, puts a
 //! `nuc` on the `PATH` of the git command, the one cargo built or a stand-in that answers as told,
@@ -1308,13 +1308,13 @@ fn the_driver_keeps_both_rows_and_stops_on_a_rule_both_sides_changed() {
     assert!(index.contains("\n>>>>>>> feature\n"), "{index}");
 }
 
-/// Verifies: ADR-0011, Q-9
+/// Verifies: SEC-git-cleared-environment, Q-9
 #[test]
 fn the_driver_takes_the_conflict_style_from_the_repository_never_from_the_environment() {
     let base_section = "\n||||||| ";
 
     // `git -c` hands the setting on in GIT_CONFIG_PARAMETERS, which the cleared environment of
-    // ADR-0011 does not pass to the git `nuc` runs: the markers stay plain.
+    // SEC-git-cleared-environment does not pass to the git `nuc` runs: the markers stay plain.
     let fixture = shimmed_only("hooks-driver-style-env", "merge-adr-index");
     indexed(&fixture, "two", "three");
     // Plain in the repository as well; `-c` outranks it.
@@ -1341,7 +1341,7 @@ fn the_driver_takes_the_conflict_style_from_the_repository_never_from_the_enviro
     assert!(index.contains(base_section), "{index}");
 }
 
-/// Verifies: ADR-0026
+/// Verifies: TEST-fixtures-with-own-home
 #[test]
 fn a_global_conflict_style_of_the_parent_reaches_neither_git_nor_nuc() {
     if std::env::var_os(support::HOME_CHILD).is_none() {
