@@ -1,4 +1,4 @@
-# Ticket: Carry four wording defects of accepted ADRs into the next normalization
+# Ticket: Carry five wording defects of accepted ADRs into the next normalization
 
 <!-- Copy to docs/plan/<spec>/<NN>-<slug>.md, next to the spec it slices, if it has one. A
      vertical slice: a narrow but complete path through every layer the change touches, demoable
@@ -9,14 +9,14 @@
 
 ## What to build
 
-The work since the revision of 2026-11-07 left four places where an accepted ADR's text no
-longer says what the system does. Each was named in a pull request's Doubts as waiting for the
-next normalization or found in the review of the take-up of v0.8.1, and nothing in the tree
-keeps them until then. Accepted ADRs are not edited
-([`AGENTS.md` §3](../../../AGENTS.md#3-adr-rules), rule 5), so this ticket only keeps the list;
-the normalization restates them. It runs after the migration to template release v0.9.0, which
-replaces ADR-0001 to ADR-0006 by the template's fixed base and gives every ADR an identifier of a
-category and a slug; it restates the ADRs below under those identifiers.
+The work since the revision of 2026-11-07 left four places, and the take-up of v0.10.0 a fifth,
+where an accepted ADR's text no longer says what the system does. Each was named in a pull request's
+Doubts as waiting for the next normalization or found in the review of the take-up of v0.8.1, and
+nothing in the tree keeps them until then. Accepted ADRs are not edited
+([`AGENTS.md` §3](../../../AGENTS.md#3-adr-rules), rule 5), so this ticket only keeps the list; the
+normalization restates them. It runs after the migration to template release v0.9.0, which replaces
+ADR-0001 to ADR-0006 by the template's fixed base and gives every ADR an identifier of a category
+and a slug; it restates the ADRs below under those identifiers.
 
 - **OPS-feature-in-hivevm-features, *Enforcement*:** it says the release workflow checks the
   attestation "after it publishes"; `release.yml` verifies it before the release is created as a
@@ -34,12 +34,18 @@ category and a slug; it restates the ADRs below under those identifiers.
   template's hooks and `scripts/test-git-hooks.sh` at v0.5.0 through v0.7.0; the corpus also pins
   v0.8.1, whose hooks are the same as v0.7.0's.
 
+- **OPS-rust-stable-behind-scripts (lines 32, 129, 135, 142) and TEST-parity-harness (line 117):**
+  they name "check 9 of `scripts/check-docs.sh`" in the present tense. Since template release
+  v0.10.0 the checks of `check-docs.sh` carry rule keys, and that check is the rule
+  `docs/check-lists`. The maintainer kept the text at the take-up (pull request #84).
+
 ## Acceptance criteria
 
 - [ ] Given a normalization the human has instructed, when it restates SEC-git-cleared-environment,
       API-command-line-with-hook-signal, API-hook-contract, TEST-hook-scenario-parity,
-      OPS-feature-in-hivevm-features, TEST-fixtures-with-own-home, and
-      API-output-formats-short-description, then each restatement says what the list above says the
+      OPS-feature-in-hivevm-features, TEST-fixtures-with-own-home,
+      API-output-formats-short-description, OPS-rust-stable-behind-scripts, and
+      TEST-parity-harness, then each restatement says what the list above says the
       system does, with its paragraphs filled, and changes no decision.
 
 ## Read first
