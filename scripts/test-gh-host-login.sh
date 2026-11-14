@@ -13,7 +13,7 @@
 #     scripts/test-gh-host-login.sh
 # Exit code 0 when every case passes, 1 otherwise.
 
-# shellcheck disable=SC2317 # the assertions run through check, which ShellCheck cannot follow
+# shellcheck disable=SC2317,SC2329 # the assertions run through check, which ShellCheck cannot follow
 set -uo pipefail
 
 # shellcheck source-path=SCRIPTDIR source=lib/selftest.sh
