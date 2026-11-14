@@ -3,8 +3,8 @@
 OTLP in, Grafana out: Claude Code's own metrics and events, stored in ClickHouse. It is a Compose
 project of its own ([`compose.yaml`](compose.yaml)) that runs on the host, apart from the Dev
 Container: start it when you want to look, leave it off when you do not. This is a **development
-tool**: nothing shipped depends on it, it holds no credentials worth having, and it retains 24 h of
-data on a local volume.
+tool**: nothing shipped depends on it, it holds no credentials worth having, and it keeps its data
+on a local volume: metrics for 90 days, logs and traces for 24 h ([Retention](#retention)).
 
 ```
 Claude Code ──OTLP/HTTP:4318──▶ OpenTelemetry Collector ──▶ ClickHouse ──▶ Grafana :3001
@@ -18,7 +18,8 @@ Tempo):
 
 - **One query language.** Every panel is SQL.
 - **Cross-signal questions become joins** — `otel_logs` and `otel_traces` share `TraceId`.
-- **One retention setting.** `ttl: 24h` in [otel-collector.yaml](otel-collector.yaml).
+- **One place for retention.** The `ttl` of each exporter in
+  [otel-collector.yaml](otel-collector.yaml).
 
 What it costs:
 
@@ -187,13 +188,34 @@ call and count towards that call's duration in **Tool calls**.
 
 **Tool result size** is in bytes, not tokens, and leaves out calls that report no size.
 
+**The panels per hour and per day** keep their own window of 48 h and 30 days, whatever the
+dashboard's time range. Their days and hours follow the browser's time zone, and the oldest bar of
+a panel per day covers only part of its day. Cost and tokens land in the hour they were exported.
+
+## Retention
+
+Metrics stay for 90 days, logs and traces for 24 h: the `ttl` of the two exporters in
+[otel-collector.yaml](otel-collector.yaml). Metrics also carry the identity named above, but no
+prompts or tool input. At the rate measured on 2026-11-08, about 48 KiB in two busy hours, 90 days
+of steady use take some 50 MB.
+
+The exporter sets a TTL only when it creates a table, so a store that already exists keeps its old
+one. After a change, restart the Collector and set the TTL once by hand; data already deleted does
+not come back:
+
+```sh
+docker compose restart otel-collector   # on the host, in this directory
+curl -s 'http://localhost:8123/?user=otel&password=otel' --data-binary \
+  "ALTER TABLE otel.otel_metrics_sum MODIFY TTL toDateTime(TimeUnix) + toIntervalDay(90)"
+```
+
 ## What is already there
 
 The dashboards in `grafana/dashboards/` are provisioned into the **ClaudeCode** folder:
 
 | Dashboard | Shows |
 | --------- | ----- |
-| **Claude Code — Overview** | Cost, tokens, sessions, active time, lines added and commits for the window; cost by model and tokens by type over time; the cache hit rate, the cost per session, the cost by project and agent, and the most expensive prompts; API request duration and errors; tool calls with failures and p95, who decided each permission, the size of tool results, and the duration of Claude Code's hooks; the slowest prompts, each opening its trace, and the time spent waiting for approval; a tail of the events. Filterable by project and session. |
+| **Claude Code — Overview** | Cost, tokens, sessions, active time, lines added and commits for the window; cost by model and tokens by type over time; cost and tokens by project per hour and per day; the cache hit rate, the cost per session, the cost by project and agent, as a table and as shares in two pie charts, and the most expensive prompts; API request duration and errors; tool calls with failures and p95, who decided each permission, the size of tool results, and the duration of Claude Code's hooks; the slowest prompts, each opening its trace, and the time spent waiting for approval; a tail of the events. Filterable by project and session. |
 
 Drop any further dashboard JSON into `grafana/dashboards/` — it is picked up within 30 s, no
 restart.

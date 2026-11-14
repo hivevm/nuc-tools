@@ -29,12 +29,31 @@ exporters:
     # nothing here ships a .sql file to keep in step with the exporter's own column list — a
     # hand-maintained copy would drift on the next Collector upgrade and fail at insert time.
     create_schema: true
-    # Retention, as a TTL on the tables it creates. This is the whole retention story now: one
-    # setting instead of Prometheus' `--storage.tsdb.retention`, Loki's `retention_period`, and
-    # Tempo's `block_retention` — which is one of the reasons for a single store.
+    # Retention, as a TTL on the tables it creates. Logs and traces can hold prompts and tool
+    # input, so they stay short; metrics have an exporter and a TTL of their own below. The TTL
+    # applies when a table is created: README.md -> "Retention" changes one that exists.
     ttl: 24h
     logs_table_name: otel_logs
     traces_table_name: otel_traces
+    timeout: 10s
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 300s
+    sending_queue:
+      enabled: true
+      queue_size: 1000
+
+  # The same store for the metrics, kept 90 days for the dashboard's panels per day. An exporter
+  # has one TTL, hence a second one. In hours, as the setting takes no days.
+  clickhouse/metrics:
+    endpoint: tcp://clickhouse:9000?dial_timeout=10s
+    username: otel
+    password: otel
+    database: otel
+    create_schema: true
+    ttl: 2160h
     # Named explicitly, though these are the defaults: the dashboard queries
     # `otel_metrics_sum` by name, so the coupling should be visible in both places.
     metrics_tables:
@@ -84,7 +103,7 @@ service:
     metrics:
       receivers: [otlp]
       processors: [memory_limiter, batch]
-      exporters: [clickhouse]
+      exporters: [clickhouse/metrics]
     logs:
       receivers: [otlp]
       processors: [memory_limiter, batch]
