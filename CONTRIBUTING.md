@@ -206,12 +206,17 @@ harness's example. A contributor turns it on in the `env` of the user settings
 "OTEL_EXPORTER_OTLP_ENDPOINT": "http://172.17.0.1:4318"
 ```
 
-The collector runs on the host, outside the container, which starts no container of its own
-([NUC-container-hides-host-daemon](docs/adr/NUC-container-hides-host-daemon.md)).
-`172.17.0.1` is the host on the default bridge of Docker on Linux; Docker Desktop names it
-`host.docker.internal`. The collector listens on that interface. The event
+The collector is this repository's telemetry stack, the Compose project under
+[`.devcontainer/`](.devcontainer/README.md): an OpenTelemetry Collector that stores into
+ClickHouse, read in Grafana. It runs on the host, outside the container, which starts no container
+of its own ([NUC-container-hides-host-daemon](docs/adr/NUC-container-hides-host-daemon.md)); start
+it there with `docker compose -f .devcontainer/compose.yaml up -d`. Its endpoint is OTLP/HTTP on
+port 4318 of the host: `172.17.0.1` on the default bridge of Docker Engine on Linux, as above, with
+the stack's ports bound there; `host.docker.internal` under Docker Desktop or Podman; `127.0.0.1`
+on the host itself. The stack's README gives the table of endpoints and the rest of the settings
+([Pointing Claude Code at it](.devcontainer/README.md#pointing-claude-code-at-it)). The event
 `claude_code.api_request` carries the tokens of each call. The tokens of a hand-off's `Measures:`
-line come from there, or from `nuc measure` of
+line come from there, or, once it lands, from `nuc measure` of
 [hivevm/nuc-tools#81](https://github.com/hivevm/nuc-tools/issues/81).
 
 ## Git hooks
