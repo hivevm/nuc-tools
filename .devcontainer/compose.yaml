@@ -80,6 +80,9 @@ services:
       GF_SECURITY_ADMIN_PASSWORD: admin
       GF_AUTH_ANONYMOUS_ENABLED: "true"
       GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      # Explore, where the slowest prompts open their traces, is closed to a Viewer otherwise.
+      # Edits a Viewer makes are not saved.
+      GF_USERS_VIEWERS_CAN_EDIT: "true"
       # The ClickHouse datasource is not built in. `_SYNC` because the plugin has to be on disk
       # before Grafana reads the provisioning below — the async variant races it. Unpinned on
       # purpose: Grafana resolves the newest version compatible with itself, and a pin here goes

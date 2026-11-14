@@ -94,6 +94,12 @@ expect fail "a panel query without the session filter" "$d" "a panel query witho
 d="$(dashboard panel-without-project "$SESSIONS" "${PANEL/"$PROJECT AND "/}")"
 expect fail "a panel query without the project filter" "$d" "a panel query without the 'project' filter"
 
+d="$(dashboard panels-first "$SESSIONS" "$PANEL")"
+f="$d/.devcontainer/grafana/dashboards/overview.json"
+{ echo '{'; sed -n '/^  "panels"/,/^  \]/p' "$f"; echo '  ,'; sed -n '/^  "templating"/,/^  },/p' "$f" \
+  | sed '$s/,$//'; echo '}'; } > "$f.new" && mv "$f.new" "$f"
+expect pass "the panels before the variables, as Grafana exports them" "$d" "1 dashboards, 3 queries"
+
 d="$work/none"; mkdir -p "$d"
 expect pass "a repository without dashboards" "$d" "0 dashboards"
 

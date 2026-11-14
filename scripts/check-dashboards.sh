@@ -9,12 +9,12 @@
 #
 #   1. Anchoring: a reference to '${project' or '${session' in a query that is not the whole-name
 #      match "'^(${project:regex})$'" or "'^(${session:regex})$'".
-#   2. Coverage: a panel query, a 'rawSql' after the dashboard's '"panels":' key, that does not
-#      carry both filters. The variables' own queries, before that key, are exempt: the project
-#      list is unfiltered, and the session list is filtered by project alone.
+#   2. Coverage: a query that does not carry both filters, unless it sits under the dashboard's
+#      top-level '"templating":' key. The variables' own queries are exempt: the project list is
+#      unfiltered, and the session list is filtered by project alone.
 #
-# A query is the value of one '"rawSql":' line, as Grafana writes a dashboard; the files are
-# generated and no JSON parser is guaranteed on PATH.
+# A query is the value of one '"rawSql":' line, and a top-level key one indented by two spaces, as
+# Grafana writes a dashboard, in either order of its keys; no JSON parser is guaranteed on PATH.
 #
 # Pure bash + coreutils/grep. Usage:
 #     scripts/check-dashboards.sh [repository root]
@@ -34,11 +34,14 @@ dashboards=("$ROOT/$DIR"/*.json)
 queries=0
 for file in "${dashboards[@]}"; do
   name="$DIR/${file##*/}"
-  in_panels=0
+  in_templating=0
   line_no=0
   while IFS= read -r line; do
     line_no=$((line_no + 1))
-    [[ "$line" =~ ^[[:space:]]*\"panels\":[[:space:]]*\[ ]] && in_panels=1
+    if [[ "$line" =~ ^\ \ \"([^\"]+)\": ]]; then
+      in_templating=0
+      [[ "${BASH_REMATCH[1]}" == templating ]] && in_templating=1
+    fi
     [[ "$line" == *'"rawSql":'* ]] || continue
     queries=$((queries + 1))
     for var in project session; do
@@ -47,7 +50,7 @@ for file in "${dashboards[@]}"; do
       whole="$(grep -oF "$anchored" <<< "$line" | wc -l)"
       ((all == whole)) \
         || add_error "$name:$line_no: a '\${$var' that is not the whole-name match $anchored — an unanchored match also selects every name that contains the chosen one"
-      ((in_panels && whole == 0)) \
+      ((!in_templating && whole == 0)) \
         && add_error "$name:$line_no: a panel query without the '$var' filter — the panel ignores the choice the others follow"
     done
   done < "$file"
