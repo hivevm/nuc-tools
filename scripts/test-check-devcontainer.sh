@@ -7,9 +7,9 @@
 # it, and the editor settings that pin the container-management extension to the host — runs the
 # check against it, and asserts the exit code and, for a failing case, the message that names the
 # violation. The baseline passes; every other case breaks one thing ADR-0004 decides, or drops a
-# git setting from the postStartCommand. A socket mount fails also in a config longer than a pipe
-# holds. The mount path passes when left to the default or set to it, and fails when set to a path
-# every project shares.
+# git setting from the postStartCommand or splits the settings across its entries. A socket mount
+# fails also in a config longer than a pipe holds. The mount path passes when left to the default or
+# set to it, and fails when set to a path every project shares.
 #
 # Inputs: scripts/check-devcontainer.sh scripts/lib/
 #
@@ -26,7 +26,7 @@ CHECK="$ROOT/scripts/check-devcontainer.sh"
 # The postStartCommand that enables the git hooks and the merge settings, as the repository's own
 # writes it; config writes the value of post_start, none when it is empty.
 DRIVER="merge.adr-index.driver '.githooks/merge-adr-index %O %A %B %S %X %Y'"
-POST_START='{ "hooks": "git config core.hooksPath .githooks", "merge": "git config merge.ff false && git config pull.ff only", "index": "git config '"$DRIVER"'" }'
+POST_START='{ "repository": "git config core.hooksPath .githooks && git config merge.ff false && git config pull.ff only && git config '"$DRIVER"'" }'
 post_start="$POST_START"
 
 # config <dir> <feature id> [extra json lines...] — write devcontainer.json with one Feature, the
@@ -198,10 +198,17 @@ expect pass "the git settings in a postStartCommand string pass" "$d" "git hooks
 
 d="$(repo post-start-braces)"
 # shellcheck disable=SC2016  # the variable is devcontainer.json's, not the shell's
-post_start='{ "cd": "cd ${containerWorkspaceFolder}", "list": ["a]b"], "hooks": "git config core.hooksPath .githooks", "merge": "git config merge.ff false && git config pull.ff only", "index": "git config '"$DRIVER"'" }'
+post_start='{ "cd": "cd ${containerWorkspaceFolder}", "list": ["a]b"], "repository": "git config core.hooksPath .githooks && git config merge.ff false && git config pull.ff only && git config '"$DRIVER"'" }'
 config "$d" "ghcr.io/devcontainers/features/github-cli:1"
 post_start="$POST_START"
 expect pass "a brace or bracket in an entry before the git settings" "$d" "git hooks enabled"
+
+d="$(repo post-start-split)"
+post_start='{ "hooks": "git config core.hooksPath .githooks", "merge": "git config merge.ff false && git config pull.ff only", "index": "git config '"$DRIVER"'" }'
+config "$d" "ghcr.io/devcontainers/features/github-cli:1"
+post_start="$POST_START"
+expect fail "the git settings split across entries, which run in parallel" "$d" \
+  "postStartCommand splits the git settings across entries"
 
 for setting in "core.hooksPath .githooks" "merge.ff false" "pull.ff only" "$DRIVER"; do
   d="$(repo "post-start-without-${setting%% *}")"

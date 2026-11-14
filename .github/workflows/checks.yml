@@ -114,6 +114,12 @@ jobs:
         run: bash scripts/test-check-devcontainer.sh
       - name: Check that the Dev Container keeps the host engine out of reach
         run: bash scripts/check-devcontainer.sh
+      - name: Self-test the gh wrapper of the Dev Container
+        run: bash scripts/test-gh-host-login.sh
+      - name: Self-test the dashboard check
+        run: bash scripts/test-check-dashboards.sh
+      - name: Check that every dashboard panel filters by project and session on the whole name
+        run: bash scripts/check-dashboards.sh
 
   sensors:
     runs-on: ubuntu-latest
