@@ -123,7 +123,7 @@ EXISTS` at startup, so no `.sql` file here has to be kept in step with the expor
 | Table | Holds | Time column |
 | ----- | ----- | ----------- |
 | `otel.otel_metrics_sum` | Claude Code's counters — `claude_code.cost.usage`, `.token.usage`, `.session.count`, `.active_time.total`, `.lines_of_code.count`, `.commit.count`, `.pull_request.count`, `.code_edit_tool.decision` | `TimeUnix` |
-| `otel.otel_logs` | Claude Code's events, named in `LogAttributes['event.name']` — `api_request`, `api_error`, `tool_result`, `tool_decision`, `user_prompt`, … | `Timestamp` |
+| `otel.otel_logs` | Claude Code's events, named in `LogAttributes['event.name']` — `api_request`, `api_error`, `tool_result`, `tool_decision`, `hook_execution_complete`, `user_prompt`, … | `Timestamp` |
 | `otel.otel_traces` | Spans, when the beta is on; `Duration` in nanoseconds | `Timestamp` |
 
 The exporter creates its other metric tables too (`otel_metrics_gauge`, `otel_metrics_histogram`,
@@ -131,9 +131,10 @@ The exporter creates its other metric tables too (`otel_metrics_gauge`, `otel_me
 
 Metric names are stored unmodified, with no Prometheus-style normalisation. A metric's own
 attributes — `model`, `type`, `session.id` — are in `Attributes`; an event's — `tool_name`,
-`duration_ms`, `cost_usd`, all as strings — in `LogAttributes`. The panels also accept an event
-name with the `claude_code.` prefix. The `vcs.*` attributes are in those two as well, not in
-`ResourceAttributes`. `ServiceName` is `claude-code`.
+`duration_ms`, `cost_usd`, `tool_result_size_bytes`, `hook_name`, `total_duration_ms`, all as
+strings — in `LogAttributes`. The panels also accept an event name with the `claude_code.` prefix.
+The `vcs.*` attributes are in those two as well, not in `ResourceAttributes`. `ServiceName` is
+`claude-code`.
 
 ## Reading the data
 
@@ -175,13 +176,20 @@ The dashboard's **Project** filter and its **Cost by project and agent** panel r
 as `custom`. `OTEL_LOG_TOOL_DETAILS=1` gives the real names, and stores Bash commands and tool input
 along with them.
 
+### What a panel does not cover
+
+**Hook duration** shows Claude Code's own hooks. The git hooks of a repository run inside a `Bash`
+call and count towards that call's duration in **Tool calls**.
+
+**Tool result size** is in bytes, not tokens, and leaves out calls that report no size.
+
 ## What is already there
 
 The dashboards in `grafana/dashboards/` are provisioned into the **ClaudeCode** folder:
 
 | Dashboard | Shows |
 | --------- | ----- |
-| **Claude Code — Overview** | Cost, tokens, sessions, active time, lines added and commits for the window; cost by model and tokens by type over time; the cache hit rate, the cost per session, the cost by project and agent, and the most expensive prompts; API request duration and errors; tool calls with failures and p95, and who decided each permission; a tail of the events. Filterable by project and session. |
+| **Claude Code — Overview** | Cost, tokens, sessions, active time, lines added and commits for the window; cost by model and tokens by type over time; the cache hit rate, the cost per session, the cost by project and agent, and the most expensive prompts; API request duration and errors; tool calls with failures and p95, who decided each permission, the size of tool results, and the duration of Claude Code's hooks; a tail of the events. Filterable by project and session. |
 
 Drop any further dashboard JSON into `grafana/dashboards/` — it is picked up within 30 s, no
 restart.

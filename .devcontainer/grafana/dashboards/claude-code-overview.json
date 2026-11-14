@@ -1131,11 +1131,199 @@
       "description": "Source says who decided: config (an allow/deny rule), hook, or you."
     },
     {
+      "type": "table",
+      "title": "Tool result size",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 56,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {},
+          "mappings": []
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Total"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "decbytes"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Average"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "decbytes"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "p95"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "decbytes"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Largest"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "decbytes"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "table",
+          "pluginVersion": "4.20.0",
+          "rawSql": "SELECT LogAttributes['tool_name'] AS \"Tool\", count() AS \"Calls\", sum(toFloat64OrZero(LogAttributes['tool_result_size_bytes'])) AS \"Total\",\n       avg(toFloat64OrZero(LogAttributes['tool_result_size_bytes'])) AS \"Average\", quantile(0.95)(toFloat64OrZero(LogAttributes['tool_result_size_bytes'])) AS \"p95\", max(toFloat64OrZero(LogAttributes['tool_result_size_bytes'])) AS \"Largest\"\nFROM otel.otel_logs\nWHERE LogAttributes['event.name'] IN ('tool_result', 'claude_code.tool_result')\n  AND mapContains(LogAttributes, 'tool_result_size_bytes')\n  AND $__timeFilter(Timestamp) AND match(LogAttributes['session.id'], '${session:regex}') AND match(if(LogAttributes['vcs.repository.name'] = '', '(none)', LogAttributes['vcs.repository.name']), '${project:regex}')\nGROUP BY \"Tool\"\nORDER BY \"Total\" DESC"
+        }
+      ],
+      "id": 22,
+      "description": "What each tool puts into the context, largest share first. Sizes in bytes, not tokens. A call that reports no size, such as a failed one, is not counted."
+    },
+    {
+      "type": "table",
+      "title": "Hook duration",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 56,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {},
+          "mappings": []
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Total"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "ms"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "p50"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "ms"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Slowest"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "ms"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "table",
+          "pluginVersion": "4.20.0",
+          "rawSql": "SELECT LogAttributes['hook_name'] AS \"Hook\", count() AS \"Runs\", sum(toFloat64OrZero(LogAttributes['total_duration_ms'])) AS \"Total\",\n       quantile(0.5)(toFloat64OrZero(LogAttributes['total_duration_ms'])) AS \"p50\", max(toFloat64OrZero(LogAttributes['total_duration_ms'])) AS \"Slowest\",\n       sum(toUInt64OrZero(LogAttributes['num_blocking'])) AS \"Blocked\",\n       sum(toUInt64OrZero(LogAttributes['num_non_blocking_error']) + toUInt64OrZero(LogAttributes['num_cancelled'])) AS \"Errors\"\nFROM otel.otel_logs\nWHERE LogAttributes['event.name'] IN ('hook_execution_complete', 'claude_code.hook_execution_complete')\n  AND $__timeFilter(Timestamp) AND match(LogAttributes['session.id'], '${session:regex}') AND match(if(LogAttributes['vcs.repository.name'] = '', '(none)', LogAttributes['vcs.repository.name']), '${project:regex}')\nGROUP BY \"Hook\"\nORDER BY \"Total\" DESC"
+        }
+      ],
+      "id": 23,
+      "description": "Claude Code's own hooks, the time a tool call waits on them. The git hooks of a repository are not here: they run inside a Bash call and count towards its duration."
+    },
+    {
       "type": "row",
       "title": "Events",
       "gridPos": {
         "x": 0,
-        "y": 56,
+        "y": 64,
         "w": 24,
         "h": 1
       },
@@ -1152,7 +1340,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 57,
+        "y": 65,
         "w": 24,
         "h": 10
       },
