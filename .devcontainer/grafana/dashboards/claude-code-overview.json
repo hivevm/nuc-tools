@@ -1320,10 +1320,229 @@
     },
     {
       "type": "row",
-      "title": "Events",
+      "title": "Traces",
       "gridPos": {
         "x": 0,
         "y": 64,
+        "w": 24,
+        "h": 1
+      },
+      "collapsed": false,
+      "panels": [],
+      "id": 25
+    },
+    {
+      "type": "table",
+      "title": "Slowest prompts",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 65,
+        "w": 14,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {},
+          "mappings": []
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Trace"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Open trace",
+                    "url": "/explore?schemaVersion=1&orgId=1&panes=%7B%22a%22%3A%7B%22datasource%22%3A%22clickhouse%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22datasource%22%3A%7B%22type%22%3A%22grafana-clickhouse-datasource%22%2C%22uid%22%3A%22clickhouse%22%7D%2C%22editorType%22%3A%22sql%22%2C%22format%22%3A3%2C%22queryType%22%3A%22traces%22%2C%22rawSql%22%3A%22SELECT%20TraceId%20AS%20traceID%2C%20SpanId%20AS%20spanID%2C%20ParentSpanId%20AS%20parentSpanID%2C%20ServiceName%20AS%20serviceName%2C%20SpanName%20AS%20operationName%2C%20toFloat64%28toUnixTimestamp64Milli%28Timestamp%29%29%20AS%20startTime%2C%20Duration%20%2F%201000000%20AS%20duration%2C%20arrayMap%28k%20-%3E%20map%28%27key%27%2C%20k%2C%20%27value%27%2C%20SpanAttributes%5Bk%5D%29%2C%20mapKeys%28SpanAttributes%29%29%20AS%20tags%2C%20arrayMap%28k%20-%3E%20map%28%27key%27%2C%20k%2C%20%27value%27%2C%20ResourceAttributes%5Bk%5D%29%2C%20mapKeys%28ResourceAttributes%29%29%20AS%20serviceTags%2C%20StatusCode%20AS%20statusCode%20FROM%20otel.otel_traces%20WHERE%20TraceId%20%3D%20%27${__value.raw}%27%22%7D%5D%2C%22range%22%3A%7B%22from%22%3A%22${__from}%22%2C%22to%22%3A%22${__to}%22%7D%7D%7D",
+                    "targetBlank": true
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Time"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "ms"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Model"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "ms"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Tools"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "ms"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Waiting"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "ms"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "table",
+          "pluginVersion": "4.20.0",
+          "rawSql": "SELECT TraceId AS \"Trace\", min(Timestamp) AS \"Started\",\n       maxIf(Duration, SpanName = 'claude_code.interaction') / 1000000 AS \"Time\",\n       sumIf(Duration, SpanName = 'claude_code.llm_request') / 1000000 AS \"Model\",\n       sumIf(Duration, SpanName = 'claude_code.tool.execution') / 1000000 AS \"Tools\",\n       sumIf(Duration, SpanName = 'claude_code.tool.blocked_on_user') / 1000000 AS \"Waiting\",\n       countIf(SpanName = 'claude_code.llm_request') AS \"Requests\",\n       countIf(SpanName = 'claude_code.tool') AS \"Tool calls\"\nFROM otel.otel_traces\nWHERE $__timeFilter(Timestamp) AND match(SpanAttributes['session.id'], '${session:regex}') AND match(if(SpanAttributes['vcs.repository.name'] = '', '(none)', SpanAttributes['vcs.repository.name']), '${project:regex}')\nGROUP BY \"Trace\"\nHAVING \"Time\" > 0\nORDER BY \"Time\" DESC\nLIMIT 20"
+        }
+      ],
+      "id": 26,
+      "description": "The 20 slowest prompts, with the time in the model, in tools, and waiting for a permission decision. The three are added up over the spans, so calls that ran in parallel and subagents can make them exceed the time. A trace ID opens the trace."
+    },
+    {
+      "type": "table",
+      "title": "Waiting for approval",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "gridPos": {
+        "x": 14,
+        "y": 65,
+        "w": 10,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {},
+          "mappings": []
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Total"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "ms"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "p50"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "ms"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Longest"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "ms"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "table",
+          "pluginVersion": "4.20.0",
+          "rawSql": "SELECT SpanAttributes['decision'] AS \"Decision\", SpanAttributes['source'] AS \"Source\", count() AS \"Calls\",\n       sum(Duration) / 1000000 AS \"Total\", quantile(0.5)(Duration) / 1000000 AS \"p50\", max(Duration) / 1000000 AS \"Longest\"\nFROM otel.otel_traces\nWHERE SpanName = 'claude_code.tool.blocked_on_user'\n  AND $__timeFilter(Timestamp) AND match(SpanAttributes['session.id'], '${session:regex}') AND match(if(SpanAttributes['vcs.repository.name'] = '', '(none)', SpanAttributes['vcs.repository.name']), '${project:regex}')\nGROUP BY \"Decision\", \"Source\"\nORDER BY \"Total\" DESC"
+        }
+      ],
+      "id": 27,
+      "description": "How long tool calls waited for a permission decision, and who made it. Source config is a rule, so its time is not a person's; the other sources show where someone was asked."
+    },
+    {
+      "type": "row",
+      "title": "Events",
+      "gridPos": {
+        "x": 0,
+        "y": 73,
         "w": 24,
         "h": 1
       },
@@ -1340,7 +1559,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 65,
+        "y": 74,
         "w": 24,
         "h": 10
       },

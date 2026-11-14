@@ -91,7 +91,9 @@ project that uses this configuration directory:
     "OTEL_EXPORTER_OTLP_ENDPOINT": "http://host.docker.internal:4318",
     "OTEL_METRIC_EXPORT_INTERVAL": "10000",
     "OTEL_LOGS_EXPORT_INTERVAL": "5000",
-    "OTEL_METRICS_INCLUDE_REPOSITORY": "1"
+    "OTEL_METRICS_INCLUDE_REPOSITORY": "1",
+    "CLAUDE_CODE_ENHANCED_TELEMETRY_BETA": "1",
+    "OTEL_TRACES_EXPORTER": "otlp"
   }
 }
 ```
@@ -112,8 +114,10 @@ Things this stack is shaped around:
 - **Identity is always there.** Metrics and events carry `user.email`, `user.account_uuid`, and
   `organization.id` whatever the settings above say, so the store is personal data to anyone who
   reaches its ports.
-- **Traces are beta.** `CLAUDE_CODE_ENHANCED_TELEMETRY_BETA=1` together with
-  `OTEL_TRACES_EXPORTER=otlp` sends them to `otel_traces`; no dashboard here reads that table yet.
+- **Traces are beta.** The last two variables above send them to `otel_traces`. Each prompt is a
+  tree of `claude_code.interaction`, `.llm_request`, `.tool`, `.tool.blocked_on_user`, and
+  `.tool.execution` spans. Spans carry no cost: `request_id` and `tool_use_id` join them to the
+  events. A `Bash` tool span names the program it ran in `bash_argv0`, without its arguments.
 
 ## The schema
 
@@ -189,7 +193,7 @@ The dashboards in `grafana/dashboards/` are provisioned into the **ClaudeCode** 
 
 | Dashboard | Shows |
 | --------- | ----- |
-| **Claude Code — Overview** | Cost, tokens, sessions, active time, lines added and commits for the window; cost by model and tokens by type over time; the cache hit rate, the cost per session, the cost by project and agent, and the most expensive prompts; API request duration and errors; tool calls with failures and p95, who decided each permission, the size of tool results, and the duration of Claude Code's hooks; a tail of the events. Filterable by project and session. |
+| **Claude Code — Overview** | Cost, tokens, sessions, active time, lines added and commits for the window; cost by model and tokens by type over time; the cache hit rate, the cost per session, the cost by project and agent, and the most expensive prompts; API request duration and errors; tool calls with failures and p95, who decided each permission, the size of tool results, and the duration of Claude Code's hooks; the slowest prompts, each opening its trace, and the time spent waiting for approval; a tail of the events. Filterable by project and session. |
 
 Drop any further dashboard JSON into `grafana/dashboards/` — it is picked up within 30 s, no
 restart.
