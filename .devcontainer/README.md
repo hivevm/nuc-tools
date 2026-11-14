@@ -220,7 +220,8 @@ The dashboards in `grafana/dashboards/` are provisioned into the **ClaudeCode** 
 | **Claude Code — Overview** | Cost, tokens, sessions, active time, lines added and commits for the window; cost by model and tokens by type over time; cost and tokens by project per hour and per day; the cache hit rate, the cost per session, the cost by project and agent, as a table and as shares in two pie charts, and the most expensive prompts; API request duration and errors; tool calls with failures and p95, who decided each permission, the size of tool results, and the duration of Claude Code's hooks; the slowest prompts, each opening its trace, and the time spent waiting for approval; a tail of the events. Filterable by project and session. |
 
 Drop any further dashboard JSON into `grafana/dashboards/` — it is picked up within 30 s, no
-restart.
+restart. [`scripts/check-dashboards.sh`](../scripts/check-dashboards.sh) holds it to the rule the
+overview follows: every panel query filters by `project` and `session`, on the whole name.
 
 ## Starting from an empty store
 
