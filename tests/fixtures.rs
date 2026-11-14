@@ -1,5 +1,5 @@
 //! The fixture helpers under an inherited decoy and an inherited `HOME`.
-//! Verifies: ADR-0026
+//! Verifies: TEST-fixtures-with-own-home
 //!
 //! The test runs itself again as a child process with `GIT_DIR`, `GIT_WORK_TREE`, and
 //! `GIT_CONFIG_PARAMETERS` set to a decoy repository, and the child builds a fixture through the

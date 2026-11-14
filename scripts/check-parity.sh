@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Parity harness (ADR-0015). Verifies: Q-1 Q-2
+# Parity harness (TEST-parity-harness). Verifies: Q-1 Q-2
 #
 # Runs the bash checks a repository of the corpus carries and nuc on the same tree, and fails on
 # any difference in their findings or their exit status. The corpus is tests/parity/corpus.toml:
@@ -32,47 +32,61 @@
 # The bash check of a rule changes between the template's releases where tests/parity/releases.tsv
 # says, and nowhere else: each function it names is compared, comment lines left out, across the
 # trees of the corpus that are the template's, those that still carry TEMPLATE-SETUP.md, in the
-# order of their releases. A change the table does not list, or one it lists that the trees do
-# not show, fails the harness and names the rule; tests/releases.rs holds the rules to the table
-# (ADR-0023). With fewer than two trees of the template there is nothing to compare. A helper the
-# function calls is not compared.
+# order of their releases. A change the table does not list, or one it lists that the trees do not
+# show, fails the harness and names the rule; tests/releases.rs holds the rules to the table
+# (API-version-coupling-hook-defaults). With fewer than two trees of the template there is nothing
+# to compare. A helper the function calls is not compared.
 #
 # Then the hook scenarios run on the template's trees of the corpus, through
-# scripts/lib/hook-parity.sh (ADR-0022): each scenario of tests/parity/hook-scenarios.sh through
-# git, with the tree's bash hook and with the reference shim and nuc, compared as that file says.
+# scripts/lib/hook-parity.sh (TEST-hook-scenario-parity): each scenario of
+# tests/parity/hook-scenarios.sh through git, with the tree's bash hook and with the reference shim
+# and nuc, compared as that file says.
 #
 # The tree of the corpus runs its own bash scripts: the corpus is pinned by commit, and a pull
 # request that moves a pin is reviewed like code. nuc is built from the working tree by
 # 'cargo build --locked'; the harness is a test of the build, as scripts/check-build.sh is
-# (ADR-0016).
+# (SEC-gates-never-run-build).
 #
 # Pure bash + coreutils/git/awk, and cargo for the build. Usage:
-#     scripts/check-parity.sh [--corpus <file>] [--cache <dir>] [--nuc <binary>] [--variants <file>]
-#                             [--no-hooks]
-#     scripts/check-parity.sh [--nuc <binary>] --hooks <template tree>...
+#     scripts/check-parity.sh [--root <dir>] [--corpus <file>] [--cache <dir>] [--nuc <binary>]
+#                             [--variants <file>] [--no-hooks]
+#     scripts/check-parity.sh [--root <dir>] [--nuc <binary>] --hooks <template tree>...
 #     scripts/check-parity.sh --compare <bash output> <bash exit> <nuc output> <nuc exit>
+# --root names the repository whose corpus, tables, and build it reads, this one by default; the
+# harness changes into it, so a relative path given to an option or in PARITY_TABLE or
+# PARITY_RELEASES is read from that root, not from the directory it was called in.
 # --nuc runs the given binary instead of building one; --no-hooks leaves the hook scenarios out;
 # --hooks runs them alone, on the trees given; --compare compares one pair of outputs, for
 # scripts/test-check-parity.sh. PARITY_TABLE names another normalization table, and
 # PARITY_RELEASES another table of releases.
 # Exit code 0 when every repository and variant agrees, 1 on a difference, a refused tree, a
 # variant that fits no tree or does not fire, or a cache that cannot be filled, 2 on a malformed
-# corpus, table, or variants file or an unknown argument.
+# corpus, table, or variants file, a root that does not exist, or an argument it does not read.
 
 set -uo pipefail
+
+# shellcheck source-path=SCRIPTDIR source=lib/bash.sh
+source "$(dirname "${BASH_SOURCE[0]}")/lib/bash.sh"
 
 # The harness reads the bash output byte by byte, as the checks write it under LC_ALL=C: in a
 # UTF-8 locale a byte that is no UTF-8 would keep a table row from matching its message.
 export LC_ALL=C
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# The libraries are this script's own, wherever --root points; enter_root changes the directory.
+LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")/lib" && pwd)"
+# shellcheck source-path=SCRIPTDIR source=lib/root.sh
+source "$LIB/root.sh"
+# The usage is one line, as enter_root reads which options take a value from it.
+usage="scripts/check-parity.sh [--root <dir>] [--corpus <file>] [--cache <dir>] [--nuc <binary>] [--variants <file>] [--no-hooks] [--hooks <template tree>...] | --compare <bash output> <bash exit> <nuc output> <nuc exit>"
+enter_root "${BASH_SOURCE[0]}" "$usage" "$@"
+set -- "${ARGS[@]}"
 TABLE="${PARITY_TABLE:-$ROOT/tests/parity/normalize.tsv}"
 RELEASES="${PARITY_RELEASES:-$ROOT/tests/parity/releases.tsv}"
 
 # shellcheck source-path=SCRIPTDIR source=lib/check.sh
-source "$ROOT/scripts/lib/check.sh"
+source "$LIB/check.sh"
 # shellcheck source-path=SCRIPTDIR source=lib/hook-parity.sh
-source "$ROOT/scripts/lib/hook-parity.sh"
+source "$LIB/hook-parity.sh"
 
 # Git hands a hook its repository through variables that would bind the cache's git commands to
 # this repository; they are not the harness's (scripts/lib/selftest.sh does the same).
@@ -81,15 +95,19 @@ unset $(git rev-parse --local-env-vars)
 
 die() { echo "Parity check: $1" >&2; exit 2; }
 
-patterns=() rules=() modes=() places=()
-while IFS=$'\t' read -r pattern rule mode place extra; do
-  [[ -z "$pattern" || "$pattern" == \#* ]] && continue
-  if ! [[ -n "$rule" && ( "$mode" == "line" || "$mode" == "-" ) && -z "${extra:-}" ]] \
-    || ! [[ -z "${place:-}" || "$place" == =?* || "$place" == +?* || "$place" == "@adr" ]]; then
-    die "$TABLE: the row '$pattern' is not 'pattern<TAB>rule ID<TAB>line|-[<TAB>=path|+prefix|@adr]'"
-  fi
-  patterns+=("$pattern") rules+=("$rule") modes+=("$mode") places+=("${place:-}")
-done < "$TABLE" || die "$TABLE: unreadable"
+# load_table — read the normalization table, once the arguments are read: an argument the harness
+# does not read is refused before it reads anything.
+load_table() {
+  patterns=() rules=() modes=() places=()
+  while IFS=$'\t' read -r pattern rule mode place extra; do
+    [[ -z "$pattern" || "$pattern" == \#* ]] && continue
+    if ! [[ -n "$rule" && ( "$mode" == "line" || "$mode" == "-" ) && -z "${extra:-}" ]] \
+      || ! [[ -z "${place:-}" || "$place" == =?* || "$place" == +?* || "$place" == "@adr" ]]; then
+      die "$TABLE: the row '$pattern' is not 'pattern<TAB>rule ID<TAB>line|-[<TAB>=path|+prefix|@adr]'"
+    fi
+    patterns+=("$pattern") rules+=("$rule") modes+=("$mode") places+=("${place:-}")
+  done < "$TABLE" || die "$TABLE: unreadable"
+}
 
 # mode_of <rule> — whether the comparison keeps the line of the rule's findings: line or '-'.
 mode_of() {
@@ -221,6 +239,7 @@ compare() {
 
 if [[ "${1:-}" == "--compare" ]]; then
   (($# == 5)) || die "--compare takes <bash output> <bash exit> <nuc output> <nuc exit>"
+  load_table
   compare "pair" "$2" "$3" "$4" "$5"
   exit
 fi
@@ -240,9 +259,10 @@ while (($#)); do
     --variants) [[ -n "${2:-}" ]] || die "--variants takes a file"; variants="$2"; shift 2 ;;
     --no-hooks) hooks=0; shift ;;
     --hooks) hooks_only=1; shift; while (($#)) && [[ "$1" != --* ]]; do hook_trees+=("$1"); shift; done ;;
-    *) die "unknown argument '$1'" ;;
+    *) rest_args "${BASH_SOURCE[0]}" "$usage" 0 "$@" ;;
   esac
 done
+load_table
 
 # The corpus, one 'name url commit' line per repository.
 mapfile -t repositories < <(awk '
@@ -429,8 +449,8 @@ fires() {
 
 # The variants, one row each: name, rule, path in the tree, 'sed' with an extended expression,
 # 'delete' with '-', 'write' with a line, or 'chomp' with '-', and optionally the names of the
-# corpus trees it is for, separated by commas, all separated by tabs. Without names it is for every tree. The path
-# stays inside the tree and out of its .git; every ported rule brings one at least.
+# corpus trees it is for, separated by commas, all separated by tabs. Without names it is for every
+# tree. The path stays inside the tree and out of its .git; every ported rule brings one at least.
 variant_names=() variant_rules=() variant_paths=() variant_ops=() variant_args=() variant_trees=()
 [[ -r "$variants" ]] || die "$variants: unreadable"
 while IFS=$'\t' read -r vname vrule vpath vop varg vtrees extra || [[ -n "$vname" ]]; do
@@ -549,7 +569,7 @@ if ((${#template_trees[@]} >= 2)); then
   done
 fi
 
-# The hook scenarios, on the template's trees of the corpus (ADR-0022).
+# The hook scenarios, on the template's trees of the corpus (TEST-hook-scenario-parity).
 if ((hooks)); then
   tree_dirs=()
   for tree in "${template_trees[@]}"; do tree_dirs+=("${tree#* }"); done

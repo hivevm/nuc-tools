@@ -1,18 +1,18 @@
 name: Release
 
 # Builds, attests, and publishes a release when a human pushes a tag vX.Y.Z
-# (ADR-0025). release/version.sh first refuses a tag that is not the version of
-# Cargo.toml. The build job builds one binary per target with release/build.sh. The publish job
+# (OPS-feature-in-hivevm-features). release/version.sh first refuses a tag that is not the version
+# of Cargo.toml. The build job builds one binary per target with release/build.sh. The publish job
 # writes SHA256SUMS, attests every binary and verifies that this workflow signed each attestation,
 # creates the GitHub Release as a draft, and writes the release commit: release/pin.sh puts the
 # checksums and the version into the Action, the commit is tagged pinned/vX.Y.Z so that it stays
-# reachable, and release/move-major.sh moves the major tag vN to it unless vN names a later
-# release. Only then is the release made public. The tag vX.Y.Z keeps naming the source commit the
-# attestations name. No Dev Container Feature is published here: hivevm/features takes each
-# release, verifying its checksums and attestations.
+# reachable, and release/move-major.sh moves the major tag vN to it unless vN names a later release.
+# Only then is the release made public. The tag vX.Y.Z keeps naming the source commit the
+# attestations name. No Dev Container Feature is published here: hivevm/features takes each release,
+# verifying its checksums and attestations.
 #
 # The workflow uses no stored secret, only the workflow token and its OIDC token, each job with
-# the permissions it names (ADR-0019); no checkout keeps its credentials, and
+# the permissions it names (SEC-no-stored-secrets); no checkout keeps its credentials, and
 # the two tag pushes pass the token as a header of their own. Two releases may run at once: the
 # push of the major tag leases on what it named, so a release that moved it meanwhile is not
 # overwritten; a concurrency group would drop every pending run but the latest.
@@ -43,8 +43,10 @@ jobs:
         with:
           persist-credentials: false
       # The release tooling's own tests run first: a tool that is wrong publishes nothing worth
-      # trusting.
+      # trusting. Not on macOS, whose bash 3.2 is below the floor of the self-tests
+      # (NUC-checks-are-bash §1); the Linux and Windows builds run them.
       - name: Self-test the release tooling
+        if: runner.os != 'macOS'
         shell: bash
         run: bash scripts/test-release.sh
       - name: Check that the tag names the version of the crate

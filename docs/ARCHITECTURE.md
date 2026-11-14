@@ -4,12 +4,12 @@
 > how they fit together. It holds no rule and no decision. It names the ADR behind each structural
 > choice; where it disagrees with an accepted ADR, the ADR is right and this document is stale. It
 > is updated in the same change as the structure it describes
-> ([ADR-0001](adr/0001-agent-governance-model.md)).
+> ([NUC-documents-are-fixed](adr/NUC-documents-are-fixed.md)).
 >
 > **Last design revision:** 2026-11-08, due after 20 changes. The revision that took the count
 > moves the date; the number is this project's to set; a sensor counts the changes outside
 > `docs/` since the commit that set the date and says when the next is due
-> ([ADR-0006](adr/0006-feature-layer.md)).
+> ([NUC-design-is-revised §4](adr/NUC-design-is-revised.md)).
 
 ## Context
 
@@ -42,59 +42,57 @@ The parts the system is made of, each with one responsibility, named in the voca
 [`GLOSSARY.md`](GLOSSARY.md). One level deep, deeper only where the size of a part earns it. The
 golden path and the test pattern an agent copies from are named here.
 
-- **Rules** — one module each under `src/rules/`, a pure function from the inputs the shell read
-  to an outcome: the findings of `src/finding.rs`, a refusal of its own where it cannot decide the
-  tree as its bash check would, and notes for the summary. Each has one rule ID, the reason
-  `nuc explain` gives, and the inputs it reads; the list of every rule is `rules::ALL`. A rule
-  reads no file and runs no process
-  ([ADR-0024](adr/0024-rules-return-an-outcome-and-hooks-an-answer.md)).
-  The rules of the decision record share one reading of it in `src/adr.rs`, and the rules of
-  Markdown one reading of its links in `src/markdown.rs`, both outside `src/rules/`, the way the
-  bash's `scripts/lib/adr.sh` and awk passes read them. The byte-level readings of the bash's tools,
-  lines as awk, `read`, and `sed` split them, POSIX space and the bytes without it, and the first
-  word `read` splits off, are in `src/bash.rs` and nowhere else, which the structural test holds.
-  The rules of the area `traceability` share one reading of the criteria of the specification and of
-  the identifiers the `Verifies:` markers cite in `src/traceability.rs`, beside `src/adr.rs`, so
-  that no rule module calls another. The shell matches path patterns as bash's pathname expansion
-  does through `src/glob.rs`. A rule whose bash check changed between template releases, today
-  `docs/adr-supersessions`, `docs/check-lists`, `docs/project-layout`, and
-  `docs/template-identity`, reads the release the tree carries and checks as that release does
-  (ADR-0023). `tests/parity/releases.tsv` names the releases at which each rule's check changed,
-  which the parity harness holds to the template's trees and `tests/releases.rs` holds the rules
-  to; a rule that checks every release alike although its bash changed, as `docs/template-release`
-  does, gives its reason there, for the releases the reason names or for all.
-- **Configuration** — `config` reads `nuc.toml` and selects the rules it turns on, or says why
-  `nuc` refuses: missing, unreadable, a minimum above the running version, an unknown rule ID
-  ([ADR-0023](adr/0023-version-coupling-with-hook-defaults.md)). It holds the one answer to which
-  IDs `nuc.toml` may name, those of `rules::ALL` and of `hook::ALL`, and the reason `nuc explain`
-  gives for each, so `nuc check`, `nuc hook`, and `nuc explain` ask it alike.
-- **Formats** — `src/format.rs` turns what a run of `nuc check` decided into its standard
-  output: the lines of ADR-0020, one JSON document, or one SARIF 2.1.0 log, without a crate and
-  byte for byte the same for the same findings
-  ([ADR-0028](adr/0028-output-formats-with-a-concise-short-description.md)).
-- **Hooks** — `src/hook.rs` decides what each git hook of the template decides, from the git
-  state the shell reads in `shell::hook`, which finds each hook in its one table `HOOKS`, and
-  holds the `hook/` rules, `hook::ALL`, which `nuc check` knows and runs never. The reference
-  shims under `shims/`, in POSIX sh, hand each hook to `nuc hook <name>` and run the project's
-  check where it answers 3 ([ADR-0021](adr/0021-hook-contract.md)). A hook's function returns
-  an answer, not a rule's outcome
-  ([ADR-0024](adr/0024-rules-return-an-outcome-and-hooks-an-answer.md)).
-  `pre-commit`, `pre-merge-commit`, `pre-push`, `reference-transaction`, and the merge driver of
-  the ADR index are ported;
-  `tests/bench/hook-latency.sh` measures `reference-transaction` against Q-5 in `benchmark.yml`,
-  on a schedule, never as a gate.
+- **Rules** — one module each under `src/rules/`, a pure function from the inputs the shell read to
+  an outcome: the findings of `src/finding.rs`, a refusal of its own where it cannot decide the tree
+  as its bash check would, and notes for the summary. Each has one rule ID, the reason `nuc explain`
+  gives, and the inputs it reads; the list of every rule is `rules::ALL`. A rule reads no file and
+  runs no process ([ARCH-rules-outcome-hooks-answer](adr/ARCH-rules-outcome-hooks-answer.md)). The
+  rules of the decision record share one reading of it in `src/adr.rs`, and the rules of Markdown
+  one reading of its links in `src/markdown.rs`, both outside `src/rules/`, the way the bash's
+  `scripts/lib/adr.sh` and awk passes read them. The byte-level readings of the bash's tools, lines
+  as awk, `read`, and `sed` split them, POSIX space and the bytes without it, and the first word
+  `read` splits off, are in `src/bash.rs` and nowhere else, which the structural test holds. The
+  rules of the area `traceability` share one reading of the criteria of the specification and of the
+  identifiers the `Verifies:` markers cite in `src/traceability.rs`, beside `src/adr.rs`, so that no
+  rule module calls another. The shell matches path patterns as bash's pathname expansion does
+  through `src/glob.rs`. A rule whose bash check changed between template releases, today
+  `docs/adr-supersessions`, `docs/check-lists`, `docs/project-layout`, and `docs/template-identity`,
+  reads the release the tree carries and checks as that release does
+  (API-version-coupling-hook-defaults). `tests/parity/releases.tsv` names the releases at which each
+  rule's check changed, which the parity harness holds to the template's trees and
+  `tests/releases.rs` holds the rules to; a rule that checks every release alike although its bash
+  changed, as `docs/template-release` does, gives its reason there, for the releases the reason
+  names or for all.
+- **Configuration** — `config` reads `nuc.toml` and selects the rules it turns on, or says why `nuc`
+  refuses: missing, unreadable, a minimum above the running version, an unknown rule ID
+  ([API-version-coupling-hook-defaults](adr/API-version-coupling-hook-defaults.md)). It holds the
+  one answer to which IDs `nuc.toml` may name, those of `rules::ALL` and of `hook::ALL`, and the
+  reason `nuc explain` gives for each, so `nuc check`, `nuc hook`, and `nuc explain` ask it alike.
+- **Formats** — `src/format.rs` turns what a run of `nuc check` decided into its standard output:
+  the lines of API-command-line-with-hook-signal, one JSON document, or one SARIF 2.1.0 log, without
+  a crate and byte for byte the same for the same findings
+  ([API-output-formats-short-description](adr/API-output-formats-short-description.md)).
+- **Hooks** — `src/hook.rs` decides what each git hook of the template decides, from the git state
+  the shell reads in `shell::hook`, which finds each hook in its one table `HOOKS`, and holds the
+  `hook/` rules, `hook::ALL`, which `nuc check` knows and runs never. The reference shims under
+  `shims/`, in POSIX sh, hand each hook to `nuc hook <name>` and run the project's check where it
+  answers 3 ([API-hook-contract](adr/API-hook-contract.md)). A hook's function returns an answer,
+  not a rule's outcome ([ARCH-rules-outcome-hooks-answer](adr/ARCH-rules-outcome-hooks-answer.md)).
+  `pre-commit`, `pre-merge-commit`, `pre-push`, `reference-transaction`, and the merge driver of the
+  ADR index are ported; `tests/bench/hook-latency.sh` measures `reference-transaction` against Q-5
+  in `benchmark.yml`, on a schedule, never as a gate.
 - **Shell** — `src/shell/` reads the command line and the repository, runs git under a cleared
-  environment in `shell::git`, calls the rules, writes the findings in the format
-  `src/format.rs` builds, and sets the exit code
-  ([ADR-0011](adr/0011-git-cli-cleared-environment.md)). Its `Tree`, in `shell::tree`, reads
-  every file and lists every directory the rules need, each resolved through one function that
+  environment in `shell::git`, calls the rules, writes the findings in the format `src/format.rs`
+  builds, and sets the exit code
+  ([SEC-git-cleared-environment](adr/SEC-git-cleared-environment.md)). Its `Tree`, in `shell::tree`,
+  reads every file and lists every directory the rules need, each resolved through one function that
   refuses a path outside the repository, and refuses as well, as not decided, one the bash would
-  read differently from its bytes alone. `shell::hook` reads `nuc.toml` and the README through
-  the `Tree` as well; the two files of the green-tree record and the sides of a merge, at the
-  paths git gives, it reads in the two functions `tests/functional_core.guarded` names for them.
-  It writes, renames, creates, and removes only in the functions `tests/functional_core.writers`
-  names, each inside the repository or its git directory (Q-8); `git merge-file` writes ours for
-  the merge driver.
+  read differently from its bytes alone. `shell::hook` reads `nuc.toml` and the README through the
+  `Tree` as well; the two files of the green-tree record and the sides of a merge, at the paths git
+  gives, it reads in the two functions `tests/functional_core.guarded` names for them. It writes,
+  renames, creates, and removes only in the functions `tests/functional_core.writers` names, each
+  inside the repository or its git directory (Q-8); `git merge-file` writes ours for the merge
+  driver.
 - **Binary** — `src/main.rs` calls the shell and nothing else.
 - **Parity harness** — `scripts/check-parity.sh` runs the bash checks of each repository of the
   corpus, `check-docs.sh` and `check-traceability.sh`, all on template release v0.5.0 or later,
@@ -102,19 +100,19 @@ golden path and the test pattern an agent copies from are named here.
   both as a pull request into `main` marked ready, and compares their findings, normalized by
   `tests/parity/normalize.tsv`, and their exit status. A variant edits, deletes, or
   writes one path inside a copy of the tree, never under its `.git`
-  ([ADR-0015](adr/0015-parity-harness.md)). Across the template's trees of the
+  ([TEST-parity-harness](adr/TEST-parity-harness.md)). Across the template's trees of the
   corpus it compares each rule's bash function with `tests/parity/releases.tsv`; a change to a
   helper the function calls shows in no row. Then `scripts/lib/hook-parity.sh` runs the
   scenarios of `tests/parity/hook-scenarios.sh` through git, with the bash hook of each of the
   template's trees and with the shim and `nuc`, maps the hooks' lines by `tests/parity/hooks.tsv`,
   and holds the template's hook self-test to the scenarios and `tests/parity/hook-cases.tsv`
-  ([ADR-0022](adr/0022-hook-scenario-parity.md)).
+  ([TEST-hook-scenario-parity](adr/TEST-hook-scenario-parity.md)).
 - **Release tooling** — `release/` builds a binary per target, writes `SHA256SUMS`, checks the
   tag against the crate's version, writes the release commit, and moves the major tag;
   `release/install-nuc.sh` is the installer the Action runs, of which `hivevm/features` carries a
   copy, and refuses a binary whose checksum differs. The tag, the asset names, `SHA256SUMS`, and
   the attestations are the interface `hivevm/features` takes a release by, which changes only with
-  a major release ([ADR-0025](adr/0025-feature-in-hivevm-features.md)).
+  a major release ([OPS-feature-in-hivevm-features](adr/OPS-feature-in-hivevm-features.md)).
 - **Action** — `action.yml` installs the `nuc` of the release its release commit carries; at any
   other commit it installs nothing.
 - **The golden path** — the rule `docs/template-release`, check 14 of the template's
@@ -133,7 +131,7 @@ golden path and the test pattern an agent copies from are named here.
   `tests/support/`, whose `Fixture::new` turns `core.autocrlf`, background maintenance, and the
   file-system monitor off in the repository's own configuration, `nuc` run on it as a process under
   a cleared environment whose `HOME` is an empty directory of the test process's own
-  ([ADR-0026](adr/0026-fixture-repositories-with-a-home-of-their-own.md)), and its exit code and
+  ([TEST-fixtures-with-own-home](adr/TEST-fixtures-with-own-home.md)), and its exit code and
   output asserted; an ADR identifier, a marker, or a section reference a test writes but does not
   mean comes from `src/testing.rs` or `tests/support/`, since the gate reads the tests as text. A
   test that reads this repository's own tree takes its root from `tests/support/sources.rs`, which

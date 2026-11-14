@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Workflow credentials check for this repository (ADR-0019).
+# Workflow credentials check for this repository (SEC-no-stored-secrets).
 #
 # The workflows authenticate only with GITHUB_TOKEN and OIDC, each job with the permissions it
 # names. This check reads every workflow under .github/workflows/ and fails on what would break
@@ -21,17 +21,23 @@
 # where the tree can.
 #
 # Pure bash + coreutils/grep/awk. Usage:
-#     scripts/check-workflows.sh [repository root]
+#     scripts/check-workflows.sh [--root <dir>]
 # The root defaults to this repository; scripts/test-check-workflows.sh passes fixtures.
-# Exit code 0 when the check passes, 1 otherwise, 2 when the root does not exist.
+# Exit code 0 when the check passes, 1 otherwise, 2 when the root does not exist or on an argument
+# it does not read.
 
 set -uo pipefail
 
+# shellcheck source-path=SCRIPTDIR source=lib/bash.sh
+source "$(dirname "${BASH_SOURCE[0]}")/lib/bash.sh"
+
 # shellcheck source-path=SCRIPTDIR source=lib/check.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib/check.sh"
-
-ROOT="$(cd "${1:-$(dirname "${BASH_SOURCE[0]}")/..}" 2>/dev/null && pwd)" \
-  || { echo "Workflow credentials check: '${1:-}' is not a directory." >&2; exit 2; }
+# shellcheck source-path=SCRIPTDIR source=lib/root.sh
+source "$(dirname "${BASH_SOURCE[0]}")/lib/root.sh"
+usage="scripts/check-workflows.sh [--root <dir>]"
+enter_root "${BASH_SOURCE[0]}" "$usage" "$@"
+rest_args "${BASH_SOURCE[0]}" "$usage" 0 "${ARGS[@]}"
 WORKFLOWS=".github/workflows"
 
 shopt -s nullglob

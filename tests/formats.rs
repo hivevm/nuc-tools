@@ -1,10 +1,10 @@
 //! `nuc check --format`, end to end on fixture repositories.
-//! Verifies: ADR-0028 G-7
+//! Verifies: API-output-formats-short-description G-7
 //!
 //! The JSON document and the SARIF log carry the findings of the text output, field for field and
 //! in order; the exit code and the standard error do not depend on the format; a run that cannot
 //! decide writes nothing on the standard output; `--format text` and no option write the lines of
-//! ADR-0020.
+//! API-command-line-with-hook-signal.
 
 mod support;
 

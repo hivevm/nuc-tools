@@ -3,9 +3,10 @@
 //! CODE_OF_CONDUCT.md, CODEOWNERS, and the four documents of `docs/`. A file that does not exist
 //! has nothing to check.
 //!
-//! The badge pattern follows the release the tree carries (ADR-0023): from v0.6.1 the template's
-//! name ends where a URL goes on, so a badge of a repository whose name only starts with it, such
-//! as `hivevm/nuc-tools`, is the project's own; before v0.6.1 the name matches as a prefix.
+//! The badge pattern follows the release the tree carries (API-version-coupling-hook-defaults):
+//! from v0.6.1 the template's name ends where a URL goes on, so a badge of a repository whose name
+//! only starts with it, such as `hivevm/nuc-tools`, is the project's own; before v0.6.1 the name
+//! matches as a prefix.
 
 use super::{Input, Inputs, Rule};
 use crate::bash::{awk_lines, contains, is_space};
@@ -381,7 +382,7 @@ mod tests {
         );
     }
 
-    /// Verifies: ADR-0023
+    /// Verifies: API-version-coupling-hook-defaults
     #[test]
     fn before_v0_6_1_a_derived_badge_counts_as_the_template_s() {
         let badge = "[![Checks](https://github.com/hivevm/nuc-tools/actions/workflows/checks.yml/badge.svg)](https://github.com/hivevm/nuc-tools/actions/workflows/checks.yml)";

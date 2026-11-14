@@ -105,6 +105,10 @@ The endpoint is the one from the table above for your engine — `http://172.17.
 Engine on Linux; on the host it is `http://127.0.0.1:4318`. Start a new session after changing the
 variables: only that is sure to read them all. A running session may still take up a change, as it
 does `OTEL_METRICS_INCLUDE_REPOSITORY`, and then its earlier rows stay without the new value.
+This stack is the one collector that the contributing guide names in
+[Measuring a session](../CONTRIBUTING.md#measuring-a-session). The five keys given there are the
+first five here, the endpoint set for Docker Engine on Linux; the rest add the export intervals,
+the repository, and the traces.
 
 Things this stack is shaped around:
 

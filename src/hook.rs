@@ -1,6 +1,6 @@
-//! The decisions of `nuc hook`: what each git hook of the template decides from the git state,
-//! as the bash hook of the release does (ADR-0021). The shell reads the state; these functions
-//! decide on it, and the reference shim runs the project's check where they say it runs.
+//! The decisions of `nuc hook`: what each git hook of the template decides from the git state, as
+//! the bash hook of the release does (API-hook-contract). The shell reads the state; these
+//! functions decide on it, and the reference shim runs the project's check where they say it runs.
 
 use crate::finding::Finding;
 
@@ -69,7 +69,7 @@ pub const MAIN_MOVES: HookRule = HookRule {
 };
 
 /// Every hook rule this `nuc` knows, all of them on where the repository has no `nuc.toml`
-/// (ADR-0023).
+/// (API-version-coupling-hook-defaults).
 pub const ALL: &[HookRule] = &[
     COMMIT_ON_MAIN,
     MERGE_CHECKS,
@@ -89,7 +89,7 @@ pub fn find(id: &str) -> Option<&'static HookRule> {
 }
 
 /// What a hook answers the shim: pass, refuse with a finding, or pass so far and the check of the
-/// hook runs now, exit 0, 1, and 3 (ADR-0021).
+/// hook runs now, exit 0, 1, and 3 (API-hook-contract).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Answer {
     Pass,

@@ -1,15 +1,15 @@
 #!/bin/sh
 #
-# Git merge driver for the ADR index, docs/adr/README.md, the reference shim of nuc (ADR-0021):
-# 'nuc hook merge-adr-index' merges the rows of its tables by keeping the lines of both sides,
-# and its prose as any other text.
+# Git merge driver for the ADR index, docs/adr/README.md, the reference shim of nuc
+# (API-hook-contract): 'nuc hook merge-adr-index' merges the rows of its tables by keeping the lines
+# of both sides, and its prose as any other text.
 #
 # Git calls the driver with the base, ours, and theirs, and the three labels of the markers, and
 # takes the merged file from ours. nuc writes the union of both sides into ours where its prose is
-# the prose merged on its own and exits 0; otherwise it writes the usual conflict markers and
-# exits 1, or 2 where it cannot decide. The shim passes the code on, and names a code it does not
-# know, a panic's 101 included; git takes every code but 0 as a conflict. Without nuc on the PATH it stops the merge with a conflict and names where to
-# install it.
+# the prose merged on its own and exits 0; otherwise it writes the usual conflict markers and exits
+# 1, or 2 where it cannot decide. The shim passes the code on, and names a code it does not know, a
+# panic's 101 included; git takes every code but 0 as a conflict. Without nuc on the PATH it stops
+# the merge with a conflict and names where to install it.
 #
 # .gitattributes names the driver 'adr-index' for the index, and the git configuration
 # 'merge.adr-index.driver' names this shim: shims/merge-adr-index %O %A %B %S %X %Y. POSIX sh, so

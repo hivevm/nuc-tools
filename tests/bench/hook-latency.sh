@@ -3,8 +3,9 @@
 # Benchmark of Q-5: what 'nuc hook reference-transaction' adds per call over a no-op hook, as the
 # median over a number of calls, and a failure where it adds more than the limit. Run by
 # .github/workflows/benchmark.yml on Linux x64, on a schedule, and never by scripts/check-all.sh or
-# a hook: the timing of a shared runner moves without a change (ADR-0008). It gates no push, so it
-# stands with the tests and not with the checks under scripts/, which the local gate runs.
+# a hook: the timing of a shared runner moves without a change (OPS-rust-stable-behind-scripts). It
+# gates no push, so it stands with the tests and not with the checks under scripts/, which the local
+# gate runs.
 #
 # Verifies: Q-5
 #

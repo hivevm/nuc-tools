@@ -33,7 +33,7 @@ live in [`docs/SPECIFICATION.md`](docs/SPECIFICATION.md), the vocabulary in
   extension, or any DevContainer-compatible IDE
 - Docker / Podman (rootless) available on the host
 - Outside the Dev Container: bash 4.4 or later for the checks, 3.2 for the git hooks
-  ([ADR-0002](docs/adr/0002-decisions-verified-by-tests.md)); macOS ships 3.2
+  ([NUC-checks-are-bash §1](docs/adr/NUC-checks-are-bash.md)); macOS ships 3.2
 
 ## Getting Started
 
@@ -51,7 +51,7 @@ live in [`docs/SPECIFICATION.md`](docs/SPECIFICATION.md), the vocabulary in
 - **Lint:** `cargo fmt --check` and `cargo clippy --all-targets --locked -- -D warnings`
 - **Run:** `cargo run --locked -- <command>`, such as `cargo run --locked -- check`; for
   development only, since the gates never run the build
-  ([ADR-0016](docs/adr/0016-gates-never-run-the-build.md))
+  ([SEC-gates-never-run-build](docs/adr/SEC-gates-never-run-build.md))
 
 [`scripts/check-build.sh`](scripts/check-build.sh) runs the lint, the build, and the tests;
 [`scripts/check-deps.sh`](scripts/check-deps.sh) audits the dependencies.
@@ -60,7 +60,7 @@ live in [`docs/SPECIFICATION.md`](docs/SPECIFICATION.md), the vocabulary in
 
 Every release of `nuc` carries one binary per platform, named `nuc-<target>`, a `SHA256SUMS`
 file, and a build-provenance attestation per binary
-([ADR-0025](docs/adr/0025-feature-in-hivevm-features.md)).
+([OPS-feature-in-hivevm-features](docs/adr/OPS-feature-in-hivevm-features.md)).
 
 ### Install
 
@@ -68,7 +68,7 @@ file, and a build-provenance attestation per binary
 [`hivevm/features`](https://github.com/hivevm/features), which takes each release from here and
 publishes it under `ghcr.io/hivevm/features`; how it versions and verifies the Feature, that
 repository says. This repository publishes no Feature
-([ADR-0025](docs/adr/0025-feature-in-hivevm-features.md)).
+([OPS-feature-in-hivevm-features](docs/adr/OPS-feature-in-hivevm-features.md)).
 
 **In a GitHub workflow**, run `nuc` through the Action. It installs the `nuc` of its release,
 checks it against the checksums its release commit carries, and runs `nuc` with `args`, in the
@@ -103,7 +103,7 @@ The targets are `x86_64-unknown-linux-musl`, `aarch64-unknown-linux-musl`,
 
 `nuc.toml`, at the root of the repository, names the minimum version of `nuc` and the rules it
 turns on: the rules `nuc check` runs, and the `hook/` rules `nuc hook` decides
-([ADR-0023](docs/adr/0023-version-coupling-with-hook-defaults.md)):
+([API-version-coupling-hook-defaults](docs/adr/API-version-coupling-hook-defaults.md)):
 
 ```toml
 minimum = "0.1.0"
@@ -146,7 +146,7 @@ criteria no test cites yet in the summary on standard error.
 
 The shims under [`shims/`](shims/), in POSIX sh, are the reference hooks the template copies
 when it switches over from its bash hooks; until it does, a project keeps the hooks its template
-release carries ([ADR-0021](docs/adr/0021-hook-contract.md)). Each shim hands its hook to
+release carries ([API-hook-contract](docs/adr/API-hook-contract.md)). Each shim hands its hook to
 `nuc hook <name>`: `nuc` decides, and where a hook's check is due the shim runs the project's
 `scripts/check-all.sh` or `scripts/check-docs.sh` itself. Without `nuc` on the `PATH`, or with one
 older than `nuc.toml` requires, every shim refuses and names where to install it. They rely on the
@@ -155,9 +155,9 @@ same git settings as the template's hooks, listed under
 
 ## Template
 
-- **Template release:** v0.8.1 — the release of [NUC](https://github.com/hivevm/nuc) this
+- **Template release:** v0.11.0 — the release of [NUC](https://github.com/hivevm/nuc) this
   repository carries; a project moves the line when it takes up a later one
-  ([ADR-0005](docs/adr/0005-template-releases.md)).
+  ([NUC-releases-are-semver-tags §5](docs/adr/NUC-releases-are-semver-tags.md)).
 
 ## Contributing
 

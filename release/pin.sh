@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 #
-# Writes the release into the files the Action installs from (ADR-0025): SHA256SUMS and VERSION
-# under release/pinned/. The release workflow commits the result as the release commit.
+# Writes the release into the files the Action installs from (OPS-feature-in-hivevm-features):
+# SHA256SUMS and VERSION under release/pinned/. The release workflow commits the result as the
+# release commit.
 #
 # Usage:
 #     release/pin.sh <version X.Y.Z> <SHA256SUMS> [repository root]

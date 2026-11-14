@@ -1,12 +1,11 @@
-//! The fixture repositories of the tests (ADR-0026): each a fresh directory of its own under the
-//! system's temporary directory, outside this repository, so that no git command of a test can
-//! reach it, built through the real git CLI.
-//! git and `nuc` run under a cleared environment with the allowlist the shell passes, `HOME`
-//! an empty directory of the test process's own, a fixed author, committer, and date, the hooks
-//! path on the null device, and `core.autocrlf`, background maintenance, and the file-system
-//! monitor off in each repository, so that neither the parent's `GIT_*` variables nor the user's
-//! global configuration, identity, hooks, or line endings change a fixture, and nothing changes
-//! it after a command returns.
+//! The fixture repositories of the tests (TEST-fixtures-with-own-home): each a fresh directory of
+//! its own under the system's temporary directory, outside this repository, so that no git command
+//! of a test can reach it, built through the real git CLI. git and `nuc` run under a cleared
+//! environment with the allowlist the shell passes, `HOME` an empty directory of the test process's
+//! own, a fixed author, committer, and date, the hooks path on the null device, and
+//! `core.autocrlf`, background maintenance, and the file-system monitor off in each repository, so
+//! that neither the parent's `GIT_*` variables nor the user's global configuration, identity,
+//! hooks, or line endings change a fixture, and nothing changes it after a command returns.
 
 // Each test crate includes this module and uses part of it.
 #![allow(dead_code)]

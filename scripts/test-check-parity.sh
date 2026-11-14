@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 #
-# Self-test of scripts/check-parity.sh. Verifies: ADR-0015 ADR-0022 Q-1 Q-2
+# Self-test of scripts/check-parity.sh.
+# Verifies: TEST-parity-harness TEST-hook-scenario-parity Q-1 Q-2
 #
 # The comparison cases feed the harness pairs of outputs through '--compare': pairs that differ in
 # one finding, in one exit status, by one bash message the table does not know, or by a line nuc
@@ -28,7 +29,7 @@
 # listed case the self-test lacks, a scenario that names a case no release has, a scenario whose
 # bash side does not end as its case expects, a notice whose field differs, a record of green
 # trees that differs, a merge driver that writes another index, no tree at all, and a malformed
-# table each fail (ADR-0022).
+# table each fail (TEST-hook-scenario-parity).
 #
 # Inputs: scripts/check-parity.sh tests/parity/ scripts/lib/ shims/
 #
@@ -83,6 +84,19 @@ expect() {
 
 # shellcheck disable=SC2317,SC2329 # run through expect
 compare() { bash "$HARNESS" --compare "$@"; }
+
+# --- cases: the arguments ----------------------------------------------------------------
+
+# A root given as a first argument is refused with exit 2, not read as a corpus or a tree
+# (NUC-checks-are-bash §9); expect reads only that the harness failed, so the exit is asked here.
+out="$(bash "$HARNESS" "$work" 2>&1)"; rc=$?
+if ((rc == 2)) && [[ "$out" == *"unknown argument '$work'"* ]]; then
+  passed=$((passed + 1))
+else
+  failed=$((failed + 1))
+  echo "FAIL: a root given as a first argument (expected exit 2 naming it, exit $rc)" >&2
+  while IFS= read -r l; do printf '    %s\n' "$l"; done <<< "$out" >&2
+fi
 
 # --- cases: one pair ----------------------------------------------------------------------
 

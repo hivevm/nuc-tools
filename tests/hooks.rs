@@ -1,4 +1,4 @@
-//! `nuc hook` and the reference shims, through git. Verifies: ADR-0020 ADR-0021 ADR-0023 G-2 G-3 G-5 Q-1 Q-4 Q-7 Q-8 Q-9 Q-10 Q-11
+//! `nuc hook` and the reference shims, through git. Verifies: API-command-line-with-hook-signal API-hook-contract API-version-coupling-hook-defaults G-2 G-3 G-5 Q-1 Q-4 Q-7 Q-8 Q-9 Q-10 Q-11
 //!
 //! Each case builds a fixture repository whose hooks path is the repository's `shims/`, puts a
 //! `nuc` on the `PATH` of the git command, the one cargo built or a stand-in that answers as told,
@@ -970,9 +970,22 @@ fn a_record_that_cannot_be_written_lets_the_push_pass() {
     assert!(output.status.success(), "{}", both(&output));
 }
 
+/// Writes the input to the standard input of `nuc`. A `nuc` that refuses before it reads its input
+/// has closed the pipe, so a broken pipe is no failure here: the exit of `nuc` decides.
+fn feed(child: &mut std::process::Child, input: &str) {
+    use std::io::Write;
+    let mut stdin = child.stdin.take().expect("a standard input");
+    if let Err(e) = stdin.write_all(input.as_bytes()) {
+        assert_eq!(
+            e.kind(),
+            std::io::ErrorKind::BrokenPipe,
+            "the input is written: {e}"
+        );
+    }
+}
+
 /// `nuc hook pre-push` in the fixture, called directly with the standard input given.
 fn decide_push(fixture: &Fixture, input: &str, vars: &[(&str, std::ffi::OsString)]) -> Output {
-    use std::io::Write;
     let mut command = Command::new(NUC);
     cleared(&mut command)
         .current_dir(fixture.root())
@@ -984,12 +997,7 @@ fn decide_push(fixture: &Fixture, input: &str, vars: &[(&str, std::ffi::OsString
         command.env(key, value);
     }
     let mut child = command.spawn().expect("nuc runs");
-    child
-        .stdin
-        .take()
-        .expect("a standard input")
-        .write_all(input.as_bytes())
-        .expect("the input is written");
+    feed(&mut child, input);
     child.wait_with_output().expect("nuc ends")
 }
 
@@ -1055,6 +1063,21 @@ fn nuc_hook_pre_push_decides_and_writes_in_its_own_repository_only() {
     );
     assert_eq!(output.status.code(), Some(2), "{}", stderr(&output));
     assert_eq!(snapshot(decoy.root()), before, "the decoy changed");
+}
+
+/// Verifies: Q-1
+#[test]
+fn a_refusal_before_the_input_is_read_is_decided_by_its_exit() {
+    let fixture = pushing("hooks-push-unread", "exit 0");
+    let decoy = pushing("hooks-push-unread-decoy", "exit 0");
+    // More than a pipe holds, so the write outlasts a nuc that refuses without reading it.
+    let input = push_line(&fixture).repeat(1 << 12);
+    let output = decide_push(
+        &fixture,
+        &input,
+        &[("GIT_DIR", decoy.root().join(".git").into_os_string())],
+    );
+    assert_eq!(output.status.code(), Some(2), "{}", stderr(&output));
 }
 
 #[test]
@@ -1160,7 +1183,6 @@ fn a_readme_that_cannot_be_read_refuses_no_push() {
 
 /// `nuc hook reference-transaction prepared` in the fixture, with the updates given.
 fn decide_updates(fixture: &Fixture, input: &str) -> Output {
-    use std::io::Write;
     let mut command = Command::new(NUC);
     cleared(&mut command)
         .current_dir(fixture.root())
@@ -1169,12 +1191,7 @@ fn decide_updates(fixture: &Fixture, input: &str) -> Output {
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped());
     let mut child = command.spawn().expect("nuc runs");
-    child
-        .stdin
-        .take()
-        .expect("a standard input")
-        .write_all(input.as_bytes())
-        .expect("the input is written");
+    feed(&mut child, input);
     child.wait_with_output().expect("nuc ends")
 }
 
@@ -1308,13 +1325,13 @@ fn the_driver_keeps_both_rows_and_stops_on_a_rule_both_sides_changed() {
     assert!(index.contains("\n>>>>>>> feature\n"), "{index}");
 }
 
-/// Verifies: ADR-0011, Q-9
+/// Verifies: SEC-git-cleared-environment, Q-9
 #[test]
 fn the_driver_takes_the_conflict_style_from_the_repository_never_from_the_environment() {
     let base_section = "\n||||||| ";
 
     // `git -c` hands the setting on in GIT_CONFIG_PARAMETERS, which the cleared environment of
-    // ADR-0011 does not pass to the git `nuc` runs: the markers stay plain.
+    // SEC-git-cleared-environment does not pass to the git `nuc` runs: the markers stay plain.
     let fixture = shimmed_only("hooks-driver-style-env", "merge-adr-index");
     indexed(&fixture, "two", "three");
     // Plain in the repository as well; `-c` outranks it.
@@ -1341,7 +1358,7 @@ fn the_driver_takes_the_conflict_style_from_the_repository_never_from_the_enviro
     assert!(index.contains(base_section), "{index}");
 }
 
-/// Verifies: ADR-0026
+/// Verifies: TEST-fixtures-with-own-home
 #[test]
 fn a_global_conflict_style_of_the_parent_reaches_neither_git_nor_nuc() {
     if std::env::var_os(support::HOME_CHILD).is_none() {
@@ -1469,7 +1486,6 @@ fn call(
     input: &str,
     vars: &[(&str, std::ffi::OsString)],
 ) -> Output {
-    use std::io::Write;
     let mut command = Command::new(NUC);
     cleared(&mut command)
         .current_dir(fixture.root())
@@ -1482,12 +1498,7 @@ fn call(
         command.env(key, value);
     }
     let mut child = command.spawn().expect("nuc runs");
-    child
-        .stdin
-        .take()
-        .expect("a standard input")
-        .write_all(input.as_bytes())
-        .expect("the input is written");
+    feed(&mut child, input);
     child.wait_with_output().expect("nuc ends")
 }
 

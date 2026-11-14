@@ -1,6 +1,6 @@
 //! Check 11 of the template's `scripts/check-docs.sh`: every skill under `.agents/skills/` has a
 //! symlink of its name under `.claude/skills/` that resolves to it, and every entry there is such
-//! a symlink (ADR-0003 of the template).
+//! a symlink (NUC-procedures-are-skills of the template).
 
 use super::{Input, Inputs, Rule};
 use crate::finding::Finding;

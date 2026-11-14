@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Self-test of scripts/check-workflows.sh. Verifies: ADR-0019
+# Self-test of scripts/check-workflows.sh. Verifies: SEC-no-stored-secrets
 #
 # Each case builds a fixture under a temporary directory — one workflow whose two jobs each set
 # their permissions and use only secrets.GITHUB_TOKEN — runs the check against it, and asserts the
@@ -58,7 +58,7 @@ workflow() {
 expect() {
   local want="$1" name="$2" dir="$3" needle="${4:-}"
   local out rc
-  out="$(bash "$CHECK" "$dir" 2>&1)"; rc=$?
+  out="$(bash "$CHECK" --root "$dir" 2>&1)"; rc=$?
   if [[ "$want" == "pass" && $rc -eq 0 && ( -z "$needle" || "$out" == *"$needle"* ) ]] \
      || [[ "$want" == "fail" && $rc -ne 0 && ( -z "$needle" || "$out" == *"$needle"* ) ]]; then
     passed=$((passed + 1))
@@ -66,6 +66,22 @@ expect() {
   fi
   failed=$((failed + 1))
   echo "FAIL: $name (expected $want${needle:+ with needle \"$needle\"}, exit $rc)" >&2
+  while IFS= read -r l; do printf '    %s\n' "$l"; done <<< "$out" >&2
+}
+
+# expect_refused <name> [args...] — run the check with the arguments; it must stop with exit 2 and
+# name the argument it does not read: a root given as a first argument is refused, not read as
+# the root (NUC-checks-are-bash §9).
+expect_refused() {
+  local name="$1" out rc
+  shift
+  out="$(bash "$CHECK" "$@" 2>&1)"; rc=$?
+  if ((rc == 2)) && [[ "$out" == *"unknown argument '$1'"* ]]; then
+    passed=$((passed + 1))
+    return
+  fi
+  failed=$((failed + 1))
+  echo "FAIL: $name (expected exit 2 naming '$1', exit $rc)" >&2
   while IFS= read -r l; do printf '    %s\n' "$l"; done <<< "$out" >&2
 }
 
@@ -154,5 +170,8 @@ mkdir -p "$d"
 expect pass "a repository without workflows has nothing to check" "$d" "0 workflows"
 
 expect fail "a root that does not exist" "$work/missing" "is not a directory"
+
+expect_refused "a root given as a first argument" "$work"
+expect_refused "an argument the check does not read" --verbose
 
 summary "Workflow credentials check self-test"

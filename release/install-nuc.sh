@@ -1,9 +1,9 @@
 #!/bin/sh
 #
 # Installs the nuc of one release, verified against the checksums the caller carries
-# (ADR-0025). The GitHub Action runs it with the SHA256SUMS and the VERSION its release commit
-# holds, and hivevm/features carries a copy for its Feature; a binary whose checksum differs is
-# deleted and the installation fails.
+# (OPS-feature-in-hivevm-features). The GitHub Action runs it with the SHA256SUMS and the VERSION
+# its release commit holds, and hivevm/features carries a copy for its Feature; a binary whose
+# checksum differs is deleted and the installation fails.
 #
 # POSIX sh, curl or wget, and sha256sum or shasum, so that it runs in a container without bash.
 # Usage:

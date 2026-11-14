@@ -6,54 +6,52 @@ root). ADRs derive from the specification in [`docs/SPECIFICATION.md`](../SPECIF
 
 ## Mechanics
 
-The rules live in [`AGENTS.md` §3](../../AGENTS.md#3-adr-rules): when an ADR is written, how it
-is developed, who flips its status, that an accepted one is immutable and changed only by
-supersession. This section carries only the mechanics of the record;
+The rules live in three `NUC-` ADRs.
+[NUC-decisions-are-proposed-then-accepted](NUC-decisions-are-proposed-then-accepted.md) decides
+when an ADR is written, how it is developed, who flips its status, and that an accepted one is
+immutable. [NUC-adrs-are-named-by-category](NUC-adrs-are-named-by-category.md) decides how it is
+named, cited, superseded, and indexed. [NUC-base-is-fixed](NUC-base-is-fixed.md) decides the fixed
+base. This section carries only the mechanics of the record;
 [`scripts/check-docs.sh`](../../scripts/check-docs.sh) names in its header which of them it
 verifies.
 
-- **File.** Copy [`template.md`](template.md) to `draft-<slug>.md`, the slug in lower case letters
-  and digits joined by hyphens. Until it reaches `main` the ADR is a draft: its heading and every
-  reference name it `ADR-draft-<slug>`, its index row links it as `draft-<slug>`, and no number
-  is taken ([ADR-0002](0002-decisions-verified-by-tests.md)). On the branch whose pull request
-  brings it to `main`, once that branch has taken up the current `main`,
-  [`scripts/number-adrs.sh`](../../scripts/number-adrs.sh) gives it the next free number. A
-  numbered ADR is `NNNN-short-title.md`, its `# ADR-NNNN` heading matches the filename, and the
-  numbers run `0001..N` without gaps.
+- **File.** Copy [`template.md`](template.md) to `<CAT>-<slug>.md` and head it
+  `# <CAT>-<slug>: <title>`, the category from the [list](#categories). The author picks the
+  identifier when creating the file, and it never changes or returns
+  ([NUC-adrs-are-named-by-category §1](NUC-adrs-are-named-by-category.md)).
 - **Wording.** The *Decision* and the *Enforcement* follow the writing rule of
   [`AGENTS.md` §4](../../AGENTS.md#4-working-style).
-- **Index.** The tables below change in the same commit as the ADR they describe, for
-  additions, supersessions, and status flips alike. The status is shown via the legend's bullet
-  and the ADR's `Applies to` header is mirrored verbatim in its own column. The index routes a
-  reader from a change to the decisions that bind it, so a row says what its ADR governs without
-  the file being opened. Two tables keep what a session reads apart from what it looks up: an
-  accepted or proposed ADR sits under **Binding**, a superseded or rejected one under
-  **Superseded and rejected**, and a status flip moves the row.
-- **Numbers are permanent once on `main`, until a normalization.** Between two normalizations,
-  never renumber, delete, or merge an ADR there: other ADRs, commits (`Implements ADR-NNNN`), and
-  code may reference a number. No draft reaches `main`. A branch that already carries a numbered
-  proposed ADR whose number another branch brought to `main` first gives it the next free number
-  before it merges, in every reference its own branch makes to it. Until a normalization, a
-  superseded ADR keeps its file and its body. The superseding ADR's `Supersedes` field names it
-  from the proposal on; its `Status` line stays as it is while the successor is proposed, and
-  flips to `⚪ superseded by ADR-NNNN` in the change where a human accepts the successor
-  ([`AGENTS.md` §3](../../AGENTS.md#3-adr-rules), rule 4), its index row moving with it.
+- **Index.** The tables below list the project's ADRs, grouped by category, and no `NUC-` ADR
+  ([NUC-adrs-are-named-by-category §5](NUC-adrs-are-named-by-category.md)). They change in the same
+  commit as the ADR they describe, for additions, supersessions, and status flips alike. The status
+  is shown via the legend's bullet and the ADR's `Applies to` header is mirrored verbatim in its own
+  column. The index routes a reader from a change to the decisions that bind it, so a row says what
+  its ADR governs without the file being opened. Two tables keep what a session reads apart from
+  what it looks up: an accepted or proposed ADR sits under **Binding**, a superseded or rejected one
+  under **Superseded and rejected**, and a status flip moves the row.
+- **Identifiers are permanent once on `main`.** A normalization keeps them, and only a merged or
+  split ADR takes a new one
+  ([NUC-decisions-are-proposed-then-accepted §8](NUC-decisions-are-proposed-then-accepted.md)).
+  Between two normalizations, never rename, delete, or merge an ADR there: other ADRs, commits
+  (`Implements <CAT>-<slug>`), and code cite it. A superseded ADR keeps its file and its body. The
+  superseding ADR's `Supersedes` field names it from the proposal on; its `Status` line flips to
+  `⚪ superseded by <CAT>-<slug>` in the change where a human accepts the successor
+  ([NUC-adrs-are-named-by-category §4](NUC-adrs-are-named-by-category.md)), its index row moving
+  with it.
 - **Between normalizations, sprawl is curbed by supersession, never by editing.** One ADR may
   supersede several whose decisions have grown into one. Its `Supersedes` field names each, and
   each flips its status when the superseding ADR is accepted, so the set an agent reads shrinks
-  while every number and every body stays.
-- **A normalization restates the record** ([`AGENTS.md` §3](../../AGENTS.md#3-adr-rules), rule
-  5).
+  while every identifier and every body stays.
+- **A normalization restates the record**
+  ([NUC-decisions-are-proposed-then-accepted §8](NUC-decisions-are-proposed-then-accepted.md)).
   - **Start.** The tree has no proposed ADR, no feature spec or ticket under `docs/plan/`, and
     green checks.
   - **Steps.** Three, in this order on one branch, each handed to the human and confirmed
     before the next begins: the restated specification, whose `G-n` and `Q-n` run from 1; the
     supersessions it calls for; and the restated record. The record begins once the human has
     decided each supersession. One pull request lands them, merged by a human.
-  - **Order.** The record numbers the ADRs in force `0001..N` by what they govern. The document
-    set and the ADR process come first, then the founding decisions in the order of the setup,
-    then the rest in groups. An inherited ADR takes its place like any other, and may be merged
-    with the project's own.
+  - **Identifiers.** An ADR restated alone keeps its identifier; a merged or split one takes a
+    new one. The `NUC-` files stay as the release brought them.
   - **Clauses.** Every clause of an old ADR lives on in one new ADR. The hand-off of the
     record lists each clause with the new ADR that carries it.
   - **Header.** A new ADR keeps the status of the ADRs it restates. Its `Deciders` name all of
@@ -65,20 +63,35 @@ verifies.
     its topic.
   - **References.** Each step moves its references with a map, old to new, applied by the map
     script of the `normalize` skill. The map stands in the hand-off and the
-    commit body, and in no document. A commit older than the normalization cites the numbers it
-    had then.
-- **Cite only what exists.** Every `ADR-NNNN` reference names a file already in this directory.
-  An anticipated follow-up is described by topic ("a follow-up ADR on session storage"), never by
-  a number. In Markdown, cite an ADR as a link to its own file.
+    commit body, and in no document. A commit older than the normalization cites the identifiers
+    it had then.
+- **Cite only what exists.** Every citation, `<CAT>-<slug>` or a clause `<CAT>-<slug> §n`, names a
+  file already in this directory. An anticipated follow-up is described by topic ("a follow-up ADR
+  on session storage"). What counts as a citation, and its form in Markdown, is
+  [NUC-adrs-are-named-by-category §6](NUC-adrs-are-named-by-category.md).
 
 ## Index
 
-An ADR whose `Deciders` line names the **NUC maintainer** is inherited from the template. It
-binds a derived project once its own maintainer adds their name to `Deciders` and its `Status`
-line reads `🟢 accepted` ([`AGENTS.md` §3](../../AGENTS.md#3-adr-rules)). Change an inherited
-decision by superseding it, never by editing. Once the template setup is done, check 12 of
-[`scripts/check-docs.sh`](../../scripts/check-docs.sh) fails on an inherited ADR in force that
-names no decider of the project, or that is still proposed.
+**The base:** the template's `NUC-` ADRs in this directory, each named with its blob in
+[`NUC.blobs`](NUC.blobs), as `AGENTS.md` is. They bind like any ADR in force, and a project
+extends or narrows a clause in an ADR of its own, never edits one
+([NUC-base-is-fixed §1](NUC-base-is-fixed.md)).
+
+### Categories
+
+The category of an identifier says what its decision is about
+([NUC-adrs-are-named-by-category §2](NUC-adrs-are-named-by-category.md)). The fixed ones:
+
+- **NUC** — the template's own ADRs, reserved to the template repository.
+- **SEC** — security.
+- **OPS** — build, release, deployment, and operation.
+- **API** — interfaces the system offers and consumes, adapters among them.
+
+The project's own follow here, each in the same form with one line on what it holds:
+
+- **DEV** — how the project is worked: agents, sessions, review.
+- **ARCH** — the structure of the code: crates, modules, and what each returns.
+- **TEST** — how the system is tested: fixture repositories and the parity harnesses.
 
 **Status legend:** 🟢 accepted · 🟡 proposed · 🔴 rejected · ⚪ superseded
 
@@ -89,28 +102,23 @@ is the table a session reads.
 
 | ADR | Title | Applies to | Status |
 |-----|-------|------------|--------|
-| [0001](0001-agent-governance-model.md) | The document set: one specification, one ADR record, one `AGENTS.md`, one overview, one glossary, one conventions file | every document that carries rules for humans or agents, `AGENTS.md` among them, the architecture overview, the glossary, the conventions, `scripts/check-docs.sh`, `scripts/sensor-binding-adrs.sh`, and the map script of the `normalize` skill, `.agents/skills/normalize/remap.sh` | 🟢 accepted |
-| [0002](0002-decisions-verified-by-tests.md) | Every accepted decision and every success criterion is verified by a test that cites it, and the checks that hold the decisions are bash scripts under `scripts/` | every accepted ADR, the identifiers by which ADRs are cited, the Goals and Quality Goals of `docs/SPECIFICATION.md`, the tests that verify them, the checks and sensors under `scripts/`, and the git hooks under `.githooks/` | 🟢 accepted |
-| [0003](0003-procedures-as-skills.md) | The procedures of the rule file are Agent Skills under `.agents/skills/`, each carrying a how and no rule of its own | `.agents/skills/`, the pointers under `.claude/skills/`, and every document that describes how a procedure of `AGENTS.md` is carried out | 🟢 accepted |
-| [0004](0004-dev-container-runtime.md) | The Dev Container keeps the host daemon out of reach, its Features locked, and each project under a path of its own | `.devcontainer/`, `.vscode/settings.json`, `scripts/check-devcontainer.sh`, and everything the container pulls in | 🟢 accepted |
-| [0005](0005-template-releases.md) | The template is released as SemVer tags on `main`, and every repository names the release it carries | the tags of the template repository, its own ADRs, the **Template** section of `README.md`, check 14 of `scripts/check-docs.sh`, and the pull request that lands a release | 🟢 accepted |
-| [0006](0006-feature-layer.md) | Work larger than one session is planned in the tree as a feature spec cut into tracer-bullet tickets, files deleted when their work lands, and the design is revised when a spec closes or after a number of changes | every change larger than one agent session, `docs/plan/`, the spec and ticket templates of the `plan-feature` skill, the pull request template, the `Last design revision` line of `docs/ARCHITECTURE.md`, `scripts/sensor-revision-due.sh`, `scripts/sensor-plan-frontier.sh`, and the claim script `.agents/skills/work-tickets/claim.sh` | 🟢 accepted |
-| [0007](0007-harness.md) | One agent implements and a fresh session reviews, one ticket at a time, and the maintainer reviews every change to the protected parts | every change made by a coding agent, the `review` skill, the agents and models that work here, and the parts of the system listed under Decision as never worked unattended | 🟢 accepted |
-| [0008](0008-toolchain.md) | Rust stable pinned in `rust-toolchain.toml`, cargo's build, test, fmt, and clippy behind `scripts/check-build.sh` on every platform of Q-4 as required checks, and the dependency audit behind `scripts/check-deps.sh` | `rust-toolchain.toml`, `Cargo.toml`, `Cargo.lock`, `deny.toml`, `scripts/check-build.sh`, `scripts/check-deps.sh`, their jobs in `.github/workflows/checks.yml`, the `portability` job among them, the required checks of `CONTRIBUTING.md`, the ruleset on `main`, the benchmark workflow, and the Build, Test & Run section of `README.md` | 🟢 accepted |
-| [0009](0009-dev-container-with-rust.md) | The Dev Container keeps the template's Debian base image, adds the Rust Feature, and reaches no containers | `.devcontainer/devcontainer.json`, `.devcontainer/devcontainer-lock.json`, and the tools the container installs | 🟢 accepted |
-| [0011](0011-git-cli-cleared-environment.md) | The shell spawns the git CLI with a cleared environment, an allowlist passed through, the repository named by `-C`, and command-running configuration neutralized | every spawn of git in `src/shell/`, the environment and arguments it passes, and the list of neutralized configuration keys kept beside its test | 🟢 accepted |
-| [0015](0015-parity-harness.md) | A parity harness compares `nuc` with the bash scripts on the pinned trees of a corpus of releases v0.5.0 and later and on variants derived from those trees, each on the trees it is for, as a required check that fails on any difference | `tests/parity/`, its manifest `tests/parity/corpus.toml`, the variants kept beside it, `scripts/check-parity.sh`, its job in `.github/workflows/checks.yml`, and the map from bash messages to rule IDs | 🟢 accepted |
-| [0016](0016-gates-never-run-the-build.md) | This repository's gates never run the `nuc` being built, only the template's bash or a released `nuc` pinned like any dependency | `scripts/check-all.sh`, the hooks under `.githooks/`, the jobs of `.github/workflows/checks.yml`, and every place they name the tool that runs a check | 🟢 accepted |
-| [0018](0018-action-references-by-sha.md) | The workflows reference every action by full commit SHA with a version comment, kept current by Dependabot | every `uses:` line under `.github/workflows/`, `.github/dependabot.yml`, and the run of `scripts/sensor-action-refs.sh` in `scripts/check-all.sh` and the `sensors` job | 🟢 accepted |
-| [0019](0019-no-stored-secrets.md) | The workflows use no stored secret, only `GITHUB_TOKEN` and OIDC with permissions set per job | every workflow under `.github/workflows/`, its `permissions`, and every reference to `secrets.` in them | 🟢 accepted |
-| [0020](0020-command-line-contract-with-hook-signal.md) | `nuc` reads `nuc.toml` as a TOML subset, writes one finding per line as `<file>[:<line>]: <rule ID>: <message>`, and exits 0, 1, or 2, and `nuc hook` also 3 | the keys and the syntax of `nuc.toml` and how `src/config.rs` reads them, the text output of every `nuc` command, and its exit codes | 🟢 accepted |
-| [0021](0021-hook-contract.md) | A POSIX sh shim hands each hook to `nuc hook <name>`, which decides from the git state and answers 0, 1, 2, or 3, and the shim runs the project's checks only on 3 | the `nuc hook` command and its source, the reference shims under `shims/`, the `hook/` rule IDs, the files `nuc hook` writes in the git directory, and the merge driver of the ADR index | 🟢 accepted |
-| [0022](0022-hook-scenario-parity.md) | A scenario harness runs each hook through git, once with the bash hooks of each pinned template release and once with the shims and `nuc`, and fails on any difference or on a self-test case no scenario covers | the scenarios of the hooks and the merge driver under `tests/parity/`, the map from bash hook messages to `hook/` rule IDs and notices, their run from `scripts/check-parity.sh`, and the coverage of the template's `scripts/test-git-hooks.sh` | 🟢 accepted |
-| [0023](0023-version-coupling-with-hook-defaults.md) | A project's `nuc.toml` names the minimum `nuc` and the rules turned on, the template release ships both, each rule checks the tree as the bash check of the release its README names, and the hooks run on defaults without it | the format of `nuc.toml`, how `nuc` loads it and the README's `Template release` line, every rule's default state, every rule whose bash check differs between template releases, and the trees `tests/parity/corpus.toml` pins for each such release, and how `nuc hook` reads both | 🟢 accepted |
-| [0024](0024-rules-return-an-outcome-and-hooks-an-answer.md) | One library crate whose rules return an outcome and whose hooks return an answer, its effects in one shell module, and a thin binary | the source tree of the crate, `src/main.rs`, `src/shell/`, every rule module, `src/hook.rs`, the type a rule returns and the type a hook returns, and the structural test that holds them | 🟢 accepted |
-| [0025](0025-feature-in-hivevm-features.md) | `nuc` ships as attested GitHub Release binaries and a GitHub Action, pinned by major tag and updated by Dependabot, and its Dev Container Feature is published from `hivevm/features` | the release workflow, the release tags of this repository, the release artifacts and their names, checksums, and attestations, the GitHub Action, and the absence of `feature/` and of any Feature publication from this repository | 🟢 accepted |
-| [0026](0026-fixture-repositories-with-a-home-of-their-own.md) | Tests build their repositories through the real git CLI in fresh temporary directories, under a cleared environment with a `HOME` of the test run's own | every test that needs a git repository, the test helpers that build one, the environment the tests run under, and the `HOME` they pass to git and to `nuc` | 🟢 accepted |
-| [0028](0028-output-formats-with-a-concise-short-description.md) | `nuc check --format json` writes one versioned JSON document and `--format sarif` a SARIF 2.1.0 log whose rules carry the first sentence of their reason as a short description, both without a crate, and nothing when the run cannot decide | the `--format` option of `nuc check`, the JSON and SARIF it writes and the code that writes them, and the tests that compare them with the text output | 🟢 accepted |
+| [SEC-git-cleared-environment](SEC-git-cleared-environment.md) | The shell spawns the git CLI with a cleared environment, an allowlist passed through, the repository named by `-C`, and command-running configuration neutralized | every spawn of git in `src/shell/`, the environment and arguments it passes, and the list of neutralized configuration keys kept beside its test | 🟢 accepted |
+| [SEC-gates-never-run-build](SEC-gates-never-run-build.md) | This repository's gates never run the `nuc` being built, only the template's bash or a released `nuc` pinned like any dependency | `scripts/check-all.sh`, the hooks under `.githooks/`, the jobs of `.github/workflows/checks.yml`, and every place they name the tool that runs a check | 🟢 accepted |
+| [SEC-actions-pinned-by-sha](SEC-actions-pinned-by-sha.md) | The workflows reference every action by full commit SHA with a version comment, kept current by Dependabot | every `uses:` line under `.github/workflows/`, `.github/dependabot.yml`, and the run of `scripts/sensor-action-refs.sh` in `scripts/check-all.sh` and the `sensors` job | 🟢 accepted |
+| [SEC-no-stored-secrets](SEC-no-stored-secrets.md) | The workflows use no stored secret, only `GITHUB_TOKEN` and OIDC with permissions set per job | every workflow under `.github/workflows/`, its `permissions`, and every reference to `secrets.` in them | 🟢 accepted |
+| [OPS-rust-stable-behind-scripts](OPS-rust-stable-behind-scripts.md) | Rust stable pinned in `rust-toolchain.toml`, cargo's build, test, fmt, and clippy behind `scripts/check-build.sh` on every platform of Q-4 as required checks, and the dependency audit behind `scripts/check-deps.sh` | `rust-toolchain.toml`, `Cargo.toml`, `Cargo.lock`, `deny.toml`, `scripts/check-build.sh`, `scripts/check-deps.sh`, their jobs in `.github/workflows/checks.yml`, the `portability` job among them, the required checks of `CONTRIBUTING.md`, the ruleset on `main`, the benchmark workflow, and the Build, Test & Run section of `README.md` | 🟢 accepted |
+| [OPS-dev-container-adds-rust](OPS-dev-container-adds-rust.md) | The Dev Container keeps the template's Debian base image, adds the Rust Feature, and reaches no containers | `.devcontainer/devcontainer.json`, `.devcontainer/devcontainer-lock.json`, and the tools the container installs | 🟢 accepted |
+| [OPS-feature-in-hivevm-features](OPS-feature-in-hivevm-features.md) | `nuc` ships as attested GitHub Release binaries and a GitHub Action, pinned by major tag and updated by Dependabot, and its Dev Container Feature is published from `hivevm/features` | the release workflow, the release tags of this repository, the release artifacts and their names, checksums, and attestations, the GitHub Action, and the absence of `feature/` and of any Feature publication from this repository | 🟢 accepted |
+| [API-command-line-with-hook-signal](API-command-line-with-hook-signal.md) | `nuc` reads `nuc.toml` as a TOML subset, writes one finding per line as `<file>[:<line>]: <rule ID>: <message>`, and exits 0, 1, or 2, and `nuc hook` also 3 | the keys and the syntax of `nuc.toml` and how `src/config.rs` reads them, the text output of every `nuc` command, and its exit codes | 🟢 accepted |
+| [API-hook-contract](API-hook-contract.md) | A POSIX sh shim hands each hook to `nuc hook <name>`, which decides from the git state and answers 0, 1, 2, or 3, and the shim runs the project's checks only on 3 | the `nuc hook` command and its source, the reference shims under `shims/`, the `hook/` rule IDs, the files `nuc hook` writes in the git directory, and the merge driver of the ADR index | 🟢 accepted |
+| [API-version-coupling-hook-defaults](API-version-coupling-hook-defaults.md) | A project's `nuc.toml` names the minimum `nuc` and the rules turned on, the template release ships both, each rule checks the tree as the bash check of the release its README names, and the hooks run on defaults without it | the format of `nuc.toml`, how `nuc` loads it and the README's `Template release` line, every rule's default state, every rule whose bash check differs between template releases, and the trees `tests/parity/corpus.toml` pins for each such release, and how `nuc hook` reads both | 🟢 accepted |
+| [API-output-formats-short-description](API-output-formats-short-description.md) | `nuc check --format json` writes one versioned JSON document and `--format sarif` a SARIF 2.1.0 log whose rules carry the first sentence of their reason as a short description, both without a crate, and nothing when the run cannot decide | the `--format` option of `nuc check`, the JSON and SARIF it writes and the code that writes them, and the tests that compare them with the text output | 🟢 accepted |
+| [DEV-one-agent-one-ticket](DEV-one-agent-one-ticket.md) | One agent implements and a fresh session reviews, one ticket at a time, and the maintainer reviews every change to the protected parts | every change made by a coding agent, the `review` skill, the agents and models that work here, and the parts of the system listed under Decision as never worked unattended | 🟢 accepted |
+| [ARCH-rules-outcome-hooks-answer](ARCH-rules-outcome-hooks-answer.md) | One library crate whose rules return an outcome and whose hooks return an answer, its effects in one shell module, and a thin binary | the source tree of the crate, `src/main.rs`, `src/shell/`, every rule module, `src/hook.rs`, the type a rule returns and the type a hook returns, and the structural test that holds them | 🟢 accepted |
+| [TEST-parity-harness](TEST-parity-harness.md) | A parity harness compares `nuc` with the bash scripts on the pinned trees of a corpus of releases v0.5.0 and later and on variants derived from those trees, each on the trees it is for, as a required check that fails on any difference | `tests/parity/`, its manifest `tests/parity/corpus.toml`, the variants kept beside it, `scripts/check-parity.sh`, its job in `.github/workflows/checks.yml`, and the map from bash messages to rule IDs | 🟢 accepted |
+| [TEST-hook-scenario-parity](TEST-hook-scenario-parity.md) | A scenario harness runs each hook through git, once with the bash hooks of each pinned template release and once with the shims and `nuc`, and fails on any difference or on a self-test case no scenario covers | the scenarios of the hooks and the merge driver under `tests/parity/`, the map from bash hook messages to `hook/` rule IDs and notices, their run from `scripts/check-parity.sh`, and the coverage of the template's `scripts/test-git-hooks.sh` | 🟢 accepted |
+| [TEST-fixtures-with-own-home](TEST-fixtures-with-own-home.md) | Tests build their repositories through the real git CLI in fresh temporary directories, under a cleared environment with a `HOME` of the test run's own | every test that needs a git repository, the test helpers that build one, the environment the tests run under, and the `HOME` they pass to git and to `nuc` | 🟢 accepted |
+| [TEST-copies-keep-old-identifiers](TEST-copies-keep-old-identifiers.md) | An ADR identifier inside a copy of an older template release is not a citation of this record, and no map moves it | the messages of `nuc` that copy a bash message of a template release, `tests/parity/`, `src/testing.rs`, `tests/support/`, and every map a normalization or a migration applies to this repository | 🟡 proposed |
 
 ### Superseded and rejected
 
@@ -120,9 +128,9 @@ flips its status.
 
 | ADR | Title | Applies to | Status |
 |-----|-------|------------|--------|
-| [0010](0010-rules-return-an-outcome.md) | One library crate whose rules return an outcome, its effects in one shell module, and a thin binary | the source tree of the crate, `src/main.rs`, `src/shell/`, every rule module, the type a rule returns, and the structural test that holds them | ⚪ superseded by ADR-0024 |
-| [0012](0012-fixture-repositories.md) | Tests build their repositories through the real git CLI in fresh temporary directories, under a cleared environment | every test that needs a git repository, the test helpers that build one, and the environment the tests run under | ⚪ superseded by ADR-0026 |
-| [0013](0013-command-line-contract.md) | `nuc` reads `nuc.toml` as a TOML subset, writes one finding per line as `<file>[:<line>]: <rule ID>: <message>`, and exits 0, 1, or 2 | the keys and the syntax of `nuc.toml` and how `src/config.rs` reads them, the text output of every `nuc` command, and its exit codes | ⚪ superseded by ADR-0020 |
-| [0014](0014-version-coupling.md) | A project's `nuc.toml` names the minimum `nuc` and the rules turned on, the template release ships both, and each rule checks the tree as the bash check of the release its README names | the format of `nuc.toml`, how `nuc` loads it and the README's `Template release` line, every rule's default state, every rule whose bash check differs between template releases, and the trees `tests/parity/corpus.toml` pins for each such release | ⚪ superseded by ADR-0023 |
-| [0017](0017-distribution.md) | `nuc` ships as attested GitHub Release binaries, a Dev Container Feature, and a GitHub Action, pinned by major tag and updated by Dependabot | the release workflow, the release tags of this repository, the release artifacts and their checksums and attestations, the Dev Container Feature and its publication, and the GitHub Action | ⚪ superseded by ADR-0025 |
-| [0027](0027-output-formats.md) | `nuc check --format json` writes one versioned JSON document and `--format sarif` a SARIF 2.1.0 log, both without a crate, and nothing when the run cannot decide | the `--format` option of `nuc check`, the JSON and SARIF it writes and the code that writes them, and the tests that compare them with the text output | ⚪ superseded by ADR-0028 |
+| [OPS-ships-binaries-feature-action](OPS-ships-binaries-feature-action.md) | `nuc` ships as attested GitHub Release binaries, a Dev Container Feature, and a GitHub Action, pinned by major tag and updated by Dependabot | the release workflow, the release tags of this repository, the release artifacts and their checksums and attestations, the Dev Container Feature and its publication, and the GitHub Action | ⚪ superseded by OPS-feature-in-hivevm-features |
+| [API-command-line-contract](API-command-line-contract.md) | `nuc` reads `nuc.toml` as a TOML subset, writes one finding per line as `<file>[:<line>]: <rule ID>: <message>`, and exits 0, 1, or 2 | the keys and the syntax of `nuc.toml` and how `src/config.rs` reads them, the text output of every `nuc` command, and its exit codes | ⚪ superseded by API-command-line-with-hook-signal |
+| [API-version-coupling](API-version-coupling.md) | A project's `nuc.toml` names the minimum `nuc` and the rules turned on, the template release ships both, and each rule checks the tree as the bash check of the release its README names | the format of `nuc.toml`, how `nuc` loads it and the README's `Template release` line, every rule's default state, every rule whose bash check differs between template releases, and the trees `tests/parity/corpus.toml` pins for each such release | ⚪ superseded by API-version-coupling-hook-defaults |
+| [API-output-formats](API-output-formats.md) | `nuc check --format json` writes one versioned JSON document and `--format sarif` a SARIF 2.1.0 log, both without a crate, and nothing when the run cannot decide | the `--format` option of `nuc check`, the JSON and SARIF it writes and the code that writes them, and the tests that compare them with the text output | ⚪ superseded by API-output-formats-short-description |
+| [ARCH-rules-return-an-outcome](ARCH-rules-return-an-outcome.md) | One library crate whose rules return an outcome, its effects in one shell module, and a thin binary | the source tree of the crate, `src/main.rs`, `src/shell/`, every rule module, the type a rule returns, and the structural test that holds them | ⚪ superseded by ARCH-rules-outcome-hooks-answer |
+| [TEST-fixtures-through-real-git](TEST-fixtures-through-real-git.md) | Tests build their repositories through the real git CLI in fresh temporary directories, under a cleared environment | every test that needs a git repository, the test helpers that build one, and the environment the tests run under | ⚪ superseded by TEST-fixtures-with-own-home |
