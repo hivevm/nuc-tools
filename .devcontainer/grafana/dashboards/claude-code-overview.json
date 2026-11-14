@@ -517,10 +517,264 @@
     },
     {
       "type": "row",
-      "title": "API",
+      "title": "Efficiency",
       "gridPos": {
         "x": 0,
         "y": 13,
+        "w": 24,
+        "h": 1
+      },
+      "collapsed": false,
+      "panels": [],
+      "id": 18
+    },
+    {
+      "type": "timeseries",
+      "title": "Cache hit rate",
+      "interval": "1m",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 14,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "always",
+            "spanNulls": true,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            }
+          },
+          "mappings": [],
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "timeseries",
+          "pluginVersion": "4.20.0",
+          "rawSql": "SELECT $__timeInterval(TimeUnix) AS time,\n       sumIf(Value, Attributes['type'] = 'cacheRead') / nullIf(sumIf(Value, Attributes['type'] IN ('input', 'cacheRead', 'cacheCreation')), 0) AS \"Cache hit rate\"\nFROM otel.otel_metrics_sum\nWHERE MetricName = 'claude_code.token.usage' AND $__timeFilter(TimeUnix) AND match(Attributes['session.id'], '${session:regex}')\nGROUP BY time\nORDER BY time"
+        }
+      ],
+      "id": 19,
+      "description": "Share of the input side served from the prompt cache: cacheRead over input, cacheRead and cacheCreation. A drop means context is being sent again at the full price."
+    },
+    {
+      "type": "table",
+      "title": "Cost per session",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 14,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {},
+          "mappings": []
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Span"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Tokens"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Cost"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "table",
+          "pluginVersion": "4.20.0",
+          "rawSql": "SELECT LogAttributes['session.id'] AS \"Session\", min(Timestamp) AS \"Started\",\n       dateDiff('second', min(Timestamp), max(Timestamp)) AS \"Span\", count() AS \"Requests\",\n       sum(toUInt64OrZero(LogAttributes['input_tokens']) + toUInt64OrZero(LogAttributes['output_tokens']) + toUInt64OrZero(LogAttributes['cache_read_tokens']) + toUInt64OrZero(LogAttributes['cache_creation_tokens'])) AS \"Tokens\",\n       sum(toFloat64OrZero(LogAttributes['cost_usd'])) AS \"Cost\"\nFROM otel.otel_logs\nWHERE LogAttributes['event.name'] IN ('api_request', 'claude_code.api_request')\n  AND $__timeFilter(Timestamp) AND match(LogAttributes['session.id'], '${session:regex}')\nGROUP BY \"Session\"\nORDER BY \"Cost\" DESC"
+        }
+      ],
+      "id": 20,
+      "description": "API requests per session, most expensive first. Span runs from the first request to the last in the window, idle time included."
+    },
+    {
+      "type": "table",
+      "title": "Most expensive prompts",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 22,
+        "w": 24,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {},
+          "mappings": []
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Span"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Tokens"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Cost"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "table",
+          "pluginVersion": "4.20.0",
+          "rawSql": "SELECT LogAttributes['prompt.id'] AS \"Prompt\", any(LogAttributes['session.id']) AS \"Session\", min(Timestamp) AS \"Started\",\n       dateDiff('second', min(Timestamp), max(Timestamp)) AS \"Span\",\n       countIf(LogAttributes['event.name'] IN ('api_request', 'claude_code.api_request')) AS \"Requests\",\n       countIf(LogAttributes['event.name'] IN ('tool_result', 'claude_code.tool_result')) AS \"Tool calls\",\n       sumIf(toUInt64OrZero(LogAttributes['input_tokens']) + toUInt64OrZero(LogAttributes['output_tokens']) + toUInt64OrZero(LogAttributes['cache_read_tokens']) + toUInt64OrZero(LogAttributes['cache_creation_tokens']), LogAttributes['event.name'] IN ('api_request', 'claude_code.api_request')) AS \"Tokens\",\n       sumIf(toFloat64OrZero(LogAttributes['cost_usd']), LogAttributes['event.name'] IN ('api_request', 'claude_code.api_request')) AS \"Cost\"\nFROM otel.otel_logs\nWHERE LogAttributes['prompt.id'] != ''\n  AND $__timeFilter(Timestamp) AND match(LogAttributes['session.id'], '${session:regex}')\nGROUP BY \"Prompt\"\nORDER BY \"Cost\" DESC\nLIMIT 20"
+        }
+      ],
+      "id": 21,
+      "description": "The 20 most expensive prompts of the window, with every API request and tool call each one set off. The text of a prompt is stored only with OTEL_LOG_USER_PROMPTS=1; otherwise the start time and the session say which one it was."
+    },
+    {
+      "type": "row",
+      "title": "API",
+      "gridPos": {
+        "x": 0,
+        "y": 30,
         "w": 24,
         "h": 1
       },
@@ -538,7 +792,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 14,
+        "y": 31,
         "w": 12,
         "h": 8
       },
@@ -599,7 +853,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 14,
+        "y": 31,
         "w": 12,
         "h": 8
       },
@@ -645,7 +899,7 @@
       "title": "Tools",
       "gridPos": {
         "x": 0,
-        "y": 22,
+        "y": 39,
         "w": 24,
         "h": 1
       },
@@ -662,7 +916,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 23,
+        "y": 40,
         "w": 12,
         "h": 8
       },
@@ -725,7 +979,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 23,
+        "y": 40,
         "w": 12,
         "h": 8
       },
@@ -772,7 +1026,7 @@
       "title": "Events",
       "gridPos": {
         "x": 0,
-        "y": 31,
+        "y": 48,
         "w": 24,
         "h": 1
       },
@@ -789,7 +1043,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 32,
+        "y": 49,
         "w": 24,
         "h": 10
       },

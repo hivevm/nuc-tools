@@ -153,7 +153,7 @@ The dashboards in `grafana/dashboards/` are provisioned into the **ClaudeCode** 
 
 | Dashboard | Shows |
 | --------- | ----- |
-| **Claude Code — Overview** | Cost, tokens, sessions, active time, lines added and commits for the window; cost by model and tokens by type over time; API request duration and errors; tool calls with failures and p95, and who decided each permission; a tail of the events. Filterable by session. |
+| **Claude Code — Overview** | Cost, tokens, sessions, active time, lines added and commits for the window; cost by model and tokens by type over time; the cache hit rate, the cost per session, and the most expensive prompts; API request duration and errors; tool calls with failures and p95, and who decided each permission; a tail of the events. Filterable by session. |
 
 Drop any further dashboard JSON into `grafana/dashboards/` — it is picked up within 30 s, no
 restart.
