@@ -46,7 +46,7 @@ category and a slug; it restates the ADRs below under those identifiers.
 
 ## Blocked by
 
-- None among the tickets; the migration to template release v0.9.0 gates it, see Mode.
+- docs/plan/template-v0-11-0/02-take-up-v0-9-1.md
 
 ## Mode
 
