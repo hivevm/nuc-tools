@@ -10,13 +10,18 @@
 # it beside the others.
 #
 # Usage:
-#     scripts/check-build.sh        (or: bash scripts/check-build.sh)
-# Exit code 0 when every command passes, 1 otherwise.
+#     scripts/check-build.sh [--root <dir>]        (or: bash scripts/check-build.sh)
+# Exit code 0 when every command passes, 1 otherwise, 2 when the root does not exist or on an
+# argument it does not read. It sources no bash floor: the portability job runs it on macOS, whose
+# bash is 3.2, so the empty arguments expand in the form bash 3.2 reads under 'set -u'.
 
 set -uo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cd "$ROOT" || exit 1
+# shellcheck source-path=SCRIPTDIR source=lib/root.sh
+source "$(dirname "${BASH_SOURCE[0]}")/lib/root.sh"
+usage="scripts/check-build.sh [--root <dir>]"
+enter_root "${BASH_SOURCE[0]}" "$usage" "$@"
+rest_args "${BASH_SOURCE[0]}" "$usage" 0 ${ARGS[@]+"${ARGS[@]}"}
 
 if ! command -v cargo >/dev/null 2>&1; then
   echo "Build check FAILED: cargo not found on PATH — install rustup (https://rustup.rs); it reads rust-toolchain.toml." >&2

@@ -9,13 +9,17 @@
 # ignores it.
 #
 # Usage:
-#     scripts/check-deps.sh        (or: bash scripts/check-deps.sh)
-# Exit code 0 when both pass, 1 otherwise.
+#     scripts/check-deps.sh [--root <dir>]        (or: bash scripts/check-deps.sh)
+# Exit code 0 when both pass, 1 otherwise, 2 when the root does not exist or on an argument it does
+# not read.
 
 set -uo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cd "$ROOT" || exit 1
+# shellcheck source-path=SCRIPTDIR source=lib/root.sh
+source "$(dirname "${BASH_SOURCE[0]}")/lib/root.sh"
+usage="scripts/check-deps.sh [--root <dir>]"
+enter_root "${BASH_SOURCE[0]}" "$usage" "$@"
+rest_args "${BASH_SOURCE[0]}" "$usage" 0 "${ARGS[@]}"
 
 for tool in cargo-deny cargo-audit; do
   if ! command -v "$tool" >/dev/null 2>&1; then

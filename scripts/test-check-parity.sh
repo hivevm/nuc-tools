@@ -85,6 +85,19 @@ expect() {
 # shellcheck disable=SC2317,SC2329 # run through expect
 compare() { bash "$HARNESS" --compare "$@"; }
 
+# --- cases: the arguments ----------------------------------------------------------------
+
+# A root given as a first argument is refused with exit 2, not read as a corpus or a tree
+# (NUC-checks-are-bash §9); expect reads only that the harness failed, so the exit is asked here.
+out="$(bash "$HARNESS" "$work" 2>&1)"; rc=$?
+if ((rc == 2)) && [[ "$out" == *"unknown argument '$work'"* ]]; then
+  passed=$((passed + 1))
+else
+  failed=$((failed + 1))
+  echo "FAIL: a root given as a first argument (expected exit 2 naming it, exit $rc)" >&2
+  while IFS= read -r l; do printf '    %s\n' "$l"; done <<< "$out" >&2
+fi
+
 # --- cases: one pair ----------------------------------------------------------------------
 
 expect pass "both pass" "" compare "$(bash_out pass)" 0 "$(nuc_out pass)" 0

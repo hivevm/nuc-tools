@@ -48,17 +48,18 @@
 # (SEC-gates-never-run-build).
 #
 # Pure bash + coreutils/git/awk, and cargo for the build. Usage:
-#     scripts/check-parity.sh [--corpus <file>] [--cache <dir>] [--nuc <binary>] [--variants <file>]
-#                             [--no-hooks]
-#     scripts/check-parity.sh [--nuc <binary>] --hooks <template tree>...
+#     scripts/check-parity.sh [--root <dir>] [--corpus <file>] [--cache <dir>] [--nuc <binary>]
+#                             [--variants <file>] [--no-hooks]
+#     scripts/check-parity.sh [--root <dir>] [--nuc <binary>] --hooks <template tree>...
 #     scripts/check-parity.sh --compare <bash output> <bash exit> <nuc output> <nuc exit>
+# --root names the repository whose corpus, tables, and build it reads, this one by default.
 # --nuc runs the given binary instead of building one; --no-hooks leaves the hook scenarios out;
 # --hooks runs them alone, on the trees given; --compare compares one pair of outputs, for
 # scripts/test-check-parity.sh. PARITY_TABLE names another normalization table, and
 # PARITY_RELEASES another table of releases.
 # Exit code 0 when every repository and variant agrees, 1 on a difference, a refused tree, a
 # variant that fits no tree or does not fire, or a cache that cannot be filled, 2 on a malformed
-# corpus, table, or variants file or an unknown argument.
+# corpus, table, or variants file, a root that does not exist, or an argument it does not read.
 
 set -uo pipefail
 
@@ -66,14 +67,21 @@ set -uo pipefail
 # UTF-8 locale a byte that is no UTF-8 would keep a table row from matching its message.
 export LC_ALL=C
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# The libraries are this script's own, wherever --root points; enter_root changes the directory.
+LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")/lib" && pwd)"
+# shellcheck source-path=SCRIPTDIR source=lib/root.sh
+source "$LIB/root.sh"
+# The usage is one line, as enter_root reads which options take a value from it.
+usage="scripts/check-parity.sh [--root <dir>] [--corpus <file>] [--cache <dir>] [--nuc <binary>] [--variants <file>] [--no-hooks] [--hooks <template tree>...] | --compare <bash output> <bash exit> <nuc output> <nuc exit>"
+enter_root "${BASH_SOURCE[0]}" "$usage" "$@"
+set -- "${ARGS[@]}"
 TABLE="${PARITY_TABLE:-$ROOT/tests/parity/normalize.tsv}"
 RELEASES="${PARITY_RELEASES:-$ROOT/tests/parity/releases.tsv}"
 
 # shellcheck source-path=SCRIPTDIR source=lib/check.sh
-source "$ROOT/scripts/lib/check.sh"
+source "$LIB/check.sh"
 # shellcheck source-path=SCRIPTDIR source=lib/hook-parity.sh
-source "$ROOT/scripts/lib/hook-parity.sh"
+source "$LIB/hook-parity.sh"
 
 # Git hands a hook its repository through variables that would bind the cache's git commands to
 # this repository; they are not the harness's (scripts/lib/selftest.sh does the same).
@@ -82,15 +90,19 @@ unset $(git rev-parse --local-env-vars)
 
 die() { echo "Parity check: $1" >&2; exit 2; }
 
-patterns=() rules=() modes=() places=()
-while IFS=$'\t' read -r pattern rule mode place extra; do
-  [[ -z "$pattern" || "$pattern" == \#* ]] && continue
-  if ! [[ -n "$rule" && ( "$mode" == "line" || "$mode" == "-" ) && -z "${extra:-}" ]] \
-    || ! [[ -z "${place:-}" || "$place" == =?* || "$place" == +?* || "$place" == "@adr" ]]; then
-    die "$TABLE: the row '$pattern' is not 'pattern<TAB>rule ID<TAB>line|-[<TAB>=path|+prefix|@adr]'"
-  fi
-  patterns+=("$pattern") rules+=("$rule") modes+=("$mode") places+=("${place:-}")
-done < "$TABLE" || die "$TABLE: unreadable"
+# load_table — read the normalization table, once the arguments are read: an argument the harness
+# does not read is refused before it reads anything.
+load_table() {
+  patterns=() rules=() modes=() places=()
+  while IFS=$'\t' read -r pattern rule mode place extra; do
+    [[ -z "$pattern" || "$pattern" == \#* ]] && continue
+    if ! [[ -n "$rule" && ( "$mode" == "line" || "$mode" == "-" ) && -z "${extra:-}" ]] \
+      || ! [[ -z "${place:-}" || "$place" == =?* || "$place" == +?* || "$place" == "@adr" ]]; then
+      die "$TABLE: the row '$pattern' is not 'pattern<TAB>rule ID<TAB>line|-[<TAB>=path|+prefix|@adr]'"
+    fi
+    patterns+=("$pattern") rules+=("$rule") modes+=("$mode") places+=("${place:-}")
+  done < "$TABLE" || die "$TABLE: unreadable"
+}
 
 # mode_of <rule> — whether the comparison keeps the line of the rule's findings: line or '-'.
 mode_of() {
@@ -222,6 +234,7 @@ compare() {
 
 if [[ "${1:-}" == "--compare" ]]; then
   (($# == 5)) || die "--compare takes <bash output> <bash exit> <nuc output> <nuc exit>"
+  load_table
   compare "pair" "$2" "$3" "$4" "$5"
   exit
 fi
@@ -241,9 +254,10 @@ while (($#)); do
     --variants) [[ -n "${2:-}" ]] || die "--variants takes a file"; variants="$2"; shift 2 ;;
     --no-hooks) hooks=0; shift ;;
     --hooks) hooks_only=1; shift; while (($#)) && [[ "$1" != --* ]]; do hook_trees+=("$1"); shift; done ;;
-    *) die "unknown argument '$1'" ;;
+    *) rest_args "${BASH_SOURCE[0]}" "$usage" 0 "$@" ;;
   esac
 done
+load_table
 
 # The corpus, one 'name url commit' line per repository.
 mapfile -t repositories < <(awk '
