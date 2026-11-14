@@ -39,7 +39,7 @@ docker compose -f .devcontainer/compose.yaml down       # stop; the data is kept
 docker compose -f .devcontainer/compose.yaml down -v    # stop, and throw the data away
 ```
 
-Or `cd observability` and leave out the `-f`. The stack needs roughly 2 GB of memory.
+Or `cd .devcontainer` and leave out the `-f`. The stack needs roughly 2 GB of memory.
 
 Grafana is on <http://localhost:3001> — anonymous access is enabled with the Admin role, so there
 is nothing to log in to, and a visitor can edit and save as it is. It opens on **Claude Code —
