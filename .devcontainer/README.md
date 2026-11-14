@@ -3,8 +3,9 @@
 OTLP in, Grafana out: Claude Code's own metrics and events, stored in ClickHouse. It is a Compose
 project of its own ([`compose.yaml`](compose.yaml)) that runs on the host, apart from the Dev
 Container: start it when you want to look, leave it off when you do not. This is a **development
-tool**: nothing shipped depends on it, it holds no credentials worth having, and it keeps its data
-on a local volume: metrics for 90 days, logs and traces for 24 h ([Retention](#retention)).
+tool**: nothing shipped depends on it. It holds personal data, though: every row carries the
+account's email address ([Pointing Claude Code at it](#pointing-claude-code-at-it)). It keeps its
+data on a local volume: metrics for 90 days, logs and traces for 24 h ([Retention](#retention)).
 
 ```
 Claude Code ──OTLP/HTTP:4318──▶ OpenTelemetry Collector ──▶ ClickHouse ──▶ Grafana :3001
@@ -41,21 +42,22 @@ docker compose -f .devcontainer/compose.yaml down -v    # stop, and throw the da
 
 Or `cd .devcontainer` and leave out the `-f`. The stack needs roughly 2 GB of memory.
 
-Grafana is on <http://localhost:3001> — anonymous access is enabled with the Admin role, so there
-is nothing to log in to, and a visitor can edit and save as it is. It opens on **Claude Code —
-Overview**.
+Grafana is on <http://localhost:3001> and opens on **Claude Code — Overview**. Anyone who reaches
+it may look without a login; editing a dashboard takes the login `admin`/`admin`, which Grafana
+asks to change on the first sign-in.
 
-**Every port is published on every interface of the host**, Grafana and ClickHouse without a
-credential worth the name. On a machine that sits on a network you do not trust, bind them to the
-loopback instead:
+**The ports are published on the host's loopback only**, since Grafana and ClickHouse hold
+personal data behind no credential worth the name. Docker Desktop forwards
+`host.docker.internal` to the host's loopback, so the Dev Container reaches them as they are;
+whether Podman does depends on its network mode. Docker Engine on Linux does not: there, bind them
+to the bridge gateway instead, which only the host and its containers reach:
 
 ```sh
-OBSERVABILITY_BIND=127.0.0.1 docker compose -f .devcontainer/compose.yaml up -d
+OBSERVABILITY_BIND=172.17.0.1 docker compose -f .devcontainer/compose.yaml up -d
 ```
 
-Whether the Dev Container still reaches a port bound to the host's loopback depends on the
-container engine and its network mode; check with the `curl` under
-[Checking that data arrives](#checking-that-data-arrives) from inside the container.
+Check with the `curl` under [Checking that data arrives](#checking-that-data-arrives) from inside
+the container.
 
 ### Reaching it from the Dev Container
 
@@ -64,9 +66,9 @@ needs no Docker socket for that.
 
 | From | Collector (OTLP/HTTP) | Grafana | ClickHouse |
 | ---- | --------------------- | ------- | ---------- |
-| the host | `http://127.0.0.1:4318` | <http://localhost:3001> | `localhost:9000` / `:8123` |
-| the Dev Container, Podman or Docker Desktop | `http://host.docker.internal:4318` | the host's browser | `host.docker.internal:9000` / `:8123` |
-| the Dev Container, Docker Engine on Linux | `http://172.17.0.1:4318` | the host's browser | `172.17.0.1:9000` / `:8123` |
+| the host | `http://127.0.0.1:4318` | <http://localhost:3001> | `localhost:8123` |
+| the Dev Container, Podman or Docker Desktop | `http://host.docker.internal:4318` | the host's browser | `host.docker.internal:8123` |
+| the Dev Container, Docker Engine on Linux | `http://172.17.0.1:4318` | the host's browser | `172.17.0.1:8123` |
 
 Podman also answers to `host.containers.internal`. Docker Engine on Linux gives the host no name;
 the container reaches it through the bridge gateway, which `ip route` inside the container shows as
@@ -261,8 +263,9 @@ one service, and it prints what it receives.
 | ---- | ------- | -------- |
 | 4318 | Collector | OTLP/HTTP — what Claude Code exports to |
 | 4317 | Collector | OTLP/gRPC — for anything else you want to point here |
-| 8888 | Collector | The Collector's own metrics |
-| 13133 | Collector | Health check |
 | 3001 | Grafana | The UI |
 | 8123 | ClickHouse | HTTP interface — `curl`-able, and what the checks above use |
-| 9000 | ClickHouse | Native protocol — what the Collector and Grafana speak |
+
+The Collector's own metrics (8888), its health check (13133), and ClickHouse's native protocol
+(9000) stay on the Compose network: the Collector and Grafana reach ClickHouse there, and nothing
+on the host needs the others.
