@@ -209,14 +209,16 @@ harness's example. A contributor turns it on in the `env` of the user settings
 The collector is this repository's telemetry stack, the Compose project under
 [`.devcontainer/`](.devcontainer/README.md): an OpenTelemetry Collector that stores into
 ClickHouse, read in Grafana. It runs on the host, outside the container, which starts no container
-of its own ([NUC-container-hides-host-daemon](docs/adr/NUC-container-hides-host-daemon.md)); start
-it there with `docker compose -f .devcontainer/compose.yaml up -d`. Its endpoint is OTLP/HTTP on
-port 4318 of the host: `172.17.0.1` on the default bridge of Docker Engine on Linux, as above, with
-the stack's ports bound there; `host.docker.internal` under Docker Desktop or Podman; `127.0.0.1`
-on the host itself. The stack's README gives the table of endpoints and the rest of the settings
-([Pointing Claude Code at it](.devcontainer/README.md#pointing-claude-code-at-it)). The event
-`claude_code.api_request` carries the tokens of each call. The tokens of a hand-off's `Measures:`
-line come from there, or, once it lands, from `nuc measure` of
+of its own ([NUC-container-hides-host-daemon](docs/adr/NUC-container-hides-host-daemon.md)). Its
+endpoint is OTLP/HTTP on port 4318 of the host. On Docker Engine on Linux that is `172.17.0.1`,
+the host on the default bridge, as above; the stack publishes its ports on the host's loopback
+unless told otherwise, so start it there with
+`OBSERVABILITY_BIND=172.17.0.1 docker compose -f .devcontainer/compose.yaml up -d`. Docker Desktop
+names the host `host.docker.internal` and reaches the loopback, where the stack starts without the
+variable; Podman and the host itself are in the stack's table of endpoints, with the rest of the
+settings ([Pointing Claude Code at it](.devcontainer/README.md#pointing-claude-code-at-it)).
+The event `claude_code.api_request` carries the tokens of each call. The tokens of a hand-off's
+`Measures:` line come from there, or, once it lands, from `nuc measure` of
 [hivevm/nuc-tools#81](https://github.com/hivevm/nuc-tools/issues/81).
 
 ## Git hooks
