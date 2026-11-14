@@ -90,8 +90,8 @@ rules of the template it ports.
   normalization.
 - A normalization of the project's own ADRs beyond the identifiers. The migration renames and
   changes no decision.
-- The observability stack of the Dev Container. v0.11.0's "Measuring a session" is taken up as the
-  template has it and is not merged with this repository's own stack.
+- Changes to this repository's telemetry stack. v0.11.0's "Measuring a session" is reconciled
+  with it in the guide only.
 
 ## ADR impact
 
