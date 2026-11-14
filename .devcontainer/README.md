@@ -90,14 +90,16 @@ project that uses this configuration directory:
     "OTEL_EXPORTER_OTLP_PROTOCOL": "http/protobuf",
     "OTEL_EXPORTER_OTLP_ENDPOINT": "http://host.docker.internal:4318",
     "OTEL_METRIC_EXPORT_INTERVAL": "10000",
-    "OTEL_LOGS_EXPORT_INTERVAL": "5000"
+    "OTEL_LOGS_EXPORT_INTERVAL": "5000",
+    "OTEL_METRICS_INCLUDE_REPOSITORY": "1"
   }
 }
 ```
 
 The endpoint is the one from the table above for your engine — `http://172.17.0.1:4318` on Docker
-Engine on Linux; on the host it is `http://127.0.0.1:4318`. The variables are read when a session
-starts, so start a new one after changing them.
+Engine on Linux; on the host it is `http://127.0.0.1:4318`. Start a new session after changing the
+variables: only that is sure to read them all. A running session may still take up a change, as it
+does `OTEL_METRICS_INCLUDE_REPOSITORY`, and then its earlier rows stay without the new value.
 
 Things this stack is shaped around:
 
@@ -130,7 +132,8 @@ The exporter creates its other metric tables too (`otel_metrics_gauge`, `otel_me
 Metric names are stored unmodified, with no Prometheus-style normalisation. A metric's own
 attributes — `model`, `type`, `session.id` — are in `Attributes`; an event's — `tool_name`,
 `duration_ms`, `cost_usd`, all as strings — in `LogAttributes`. The panels also accept an event
-name with the `claude_code.` prefix. `ServiceName` is `claude-code`.
+name with the `claude_code.` prefix. The `vcs.*` attributes are in those two as well, not in
+`ResourceAttributes`. `ServiceName` is `claude-code`.
 
 ## Reading the data
 
@@ -147,13 +150,38 @@ The two intervals say how often Claude Code sends, not how often something is me
 The Collector then batches for up to 5 s, so with the settings above a metric lands in ClickHouse
 within about 15 s and an event within about 10 s.
 
+### Which project and which agent
+
+| Attribute | On | Says |
+| --------- | -- | ---- |
+| `vcs.repository.name`, `vcs.owner.name`, `vcs.repository.url.full`, `vcs.provider.name` | metrics, events | The repository, with `OTEL_METRICS_INCLUDE_REPOSITORY=1`, derived from the `origin` remote |
+| `query_source` | cost and token counters | `main`, `subagent`, or `auxiliary`; events carry finer values of their own |
+| `agent.name` | cost and token counters, API events | The subagent type, absent when no named subagent made the request |
+| `agent_id`, `parent_agent_id` | events only | Which subagent instance, and which agent started it; absent in the main session |
+| `ServiceName` | every row | Which tool sent it, should anything but Claude Code export here |
+
+The dashboard's **Project** filter and its **Cost by project and agent** panel read
+`vcs.repository.name`:
+
+- **`(none)`** stands for rows without it: a session with no `origin` remote, or rows from before
+  the setting took effect. A session that took it up while running shows under both, so the
+  **Sessions** column need not add up.
+- **The name alone** is what is filtered on, so repositories of two owners with one name share a
+  row; `vcs.owner.name` tells them apart in a query.
+- **A directory with no `origin`** can name itself in `OTEL_RESOURCE_ATTRIBUTES`, as
+  `project=name`. A space in a value makes Claude Code drop every custom key, without an error.
+
+`agent.name` shows built-in agents and those of official-marketplace plugins by name, and any other
+as `custom`. `OTEL_LOG_TOOL_DETAILS=1` gives the real names, and stores Bash commands and tool input
+along with them.
+
 ## What is already there
 
 The dashboards in `grafana/dashboards/` are provisioned into the **ClaudeCode** folder:
 
 | Dashboard | Shows |
 | --------- | ----- |
-| **Claude Code — Overview** | Cost, tokens, sessions, active time, lines added and commits for the window; cost by model and tokens by type over time; the cache hit rate, the cost per session, and the most expensive prompts; API request duration and errors; tool calls with failures and p95, and who decided each permission; a tail of the events. Filterable by session. |
+| **Claude Code — Overview** | Cost, tokens, sessions, active time, lines added and commits for the window; cost by model and tokens by type over time; the cache hit rate, the cost per session, the cost by project and agent, and the most expensive prompts; API request duration and errors; tool calls with failures and p95, and who decided each permission; a tail of the events. Filterable by project and session. |
 
 Drop any further dashboard JSON into `grafana/dashboards/` — it is picked up within 30 s, no
 restart.

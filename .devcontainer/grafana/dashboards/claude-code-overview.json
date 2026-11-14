@@ -19,6 +19,39 @@
   "templating": {
     "list": [
       {
+        "name": "project",
+        "label": "Project",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "clickhouse"
+        },
+        "description": "The repository name Claude Code derives from the origin remote; (none) for a session without one, or started without OTEL_METRICS_INCLUDE_REPOSITORY=1.",
+        "query": {
+          "refId": "tempvar",
+          "editorType": "sql",
+          "format": 1,
+          "pluginVersion": "4.20.0",
+          "rawSql": "SELECT DISTINCT if(Attributes['vcs.repository.name'] = '', '(none)', Attributes['vcs.repository.name']) FROM otel.otel_metrics_sum\nWHERE MetricName LIKE 'claude_code.%' AND $__timeFilter(TimeUnix) ORDER BY 1"
+        },
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": true,
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "options": [],
+        "sort": 1,
+        "hide": 0
+      },
+      {
         "name": "session",
         "label": "Session",
         "type": "query",
@@ -32,7 +65,7 @@
           "editorType": "sql",
           "format": 1,
           "pluginVersion": "4.20.0",
-          "rawSql": "SELECT DISTINCT Attributes['session.id'] FROM otel.otel_metrics_sum\nWHERE MetricName LIKE 'claude_code.%' AND $__timeFilter(TimeUnix) ORDER BY 1"
+          "rawSql": "SELECT DISTINCT Attributes['session.id'] FROM otel.otel_metrics_sum\nWHERE MetricName LIKE 'claude_code.%' AND match(if(Attributes['vcs.repository.name'] = '', '(none)', Attributes['vcs.repository.name']), '${project:regex}') AND $__timeFilter(TimeUnix) ORDER BY 1"
         },
         "refresh": 2,
         "includeAll": true,
@@ -103,7 +136,7 @@
           "format": 1,
           "queryType": "table",
           "pluginVersion": "4.20.0",
-          "rawSql": "SELECT sum(Value)\nFROM otel.otel_metrics_sum\nWHERE MetricName = 'claude_code.cost.usage' AND $__timeFilter(TimeUnix) AND match(Attributes['session.id'], '${session:regex}')"
+          "rawSql": "SELECT sum(Value)\nFROM otel.otel_metrics_sum\nWHERE MetricName = 'claude_code.cost.usage' AND $__timeFilter(TimeUnix) AND match(Attributes['session.id'], '${session:regex}') AND match(if(Attributes['vcs.repository.name'] = '', '(none)', Attributes['vcs.repository.name']), '${project:regex}')"
         }
       ],
       "id": 1,
@@ -157,7 +190,7 @@
           "format": 1,
           "queryType": "table",
           "pluginVersion": "4.20.0",
-          "rawSql": "SELECT sum(Value)\nFROM otel.otel_metrics_sum\nWHERE MetricName = 'claude_code.token.usage' AND $__timeFilter(TimeUnix) AND match(Attributes['session.id'], '${session:regex}')"
+          "rawSql": "SELECT sum(Value)\nFROM otel.otel_metrics_sum\nWHERE MetricName = 'claude_code.token.usage' AND $__timeFilter(TimeUnix) AND match(Attributes['session.id'], '${session:regex}') AND match(if(Attributes['vcs.repository.name'] = '', '(none)', Attributes['vcs.repository.name']), '${project:regex}')"
         }
       ],
       "id": 2,
@@ -211,7 +244,7 @@
           "format": 1,
           "queryType": "table",
           "pluginVersion": "4.20.0",
-          "rawSql": "SELECT sum(Value)\nFROM otel.otel_metrics_sum\nWHERE MetricName = 'claude_code.session.count' AND $__timeFilter(TimeUnix) AND match(Attributes['session.id'], '${session:regex}')"
+          "rawSql": "SELECT sum(Value)\nFROM otel.otel_metrics_sum\nWHERE MetricName = 'claude_code.session.count' AND $__timeFilter(TimeUnix) AND match(Attributes['session.id'], '${session:regex}') AND match(if(Attributes['vcs.repository.name'] = '', '(none)', Attributes['vcs.repository.name']), '${project:regex}')"
         }
       ],
       "id": 3,
@@ -265,7 +298,7 @@
           "format": 1,
           "queryType": "table",
           "pluginVersion": "4.20.0",
-          "rawSql": "SELECT sum(Value)\nFROM otel.otel_metrics_sum\nWHERE MetricName = 'claude_code.active_time.total' AND $__timeFilter(TimeUnix) AND match(Attributes['session.id'], '${session:regex}')"
+          "rawSql": "SELECT sum(Value)\nFROM otel.otel_metrics_sum\nWHERE MetricName = 'claude_code.active_time.total' AND $__timeFilter(TimeUnix) AND match(Attributes['session.id'], '${session:regex}') AND match(if(Attributes['vcs.repository.name'] = '', '(none)', Attributes['vcs.repository.name']), '${project:regex}')"
         }
       ],
       "id": 4,
@@ -319,7 +352,7 @@
           "format": 1,
           "queryType": "table",
           "pluginVersion": "4.20.0",
-          "rawSql": "SELECT sum(Value)\nFROM otel.otel_metrics_sum\nWHERE MetricName = 'claude_code.lines_of_code.count' AND $__timeFilter(TimeUnix) AND match(Attributes['session.id'], '${session:regex}') AND Attributes['type'] = 'added'"
+          "rawSql": "SELECT sum(Value)\nFROM otel.otel_metrics_sum\nWHERE MetricName = 'claude_code.lines_of_code.count' AND $__timeFilter(TimeUnix) AND match(Attributes['session.id'], '${session:regex}') AND match(if(Attributes['vcs.repository.name'] = '', '(none)', Attributes['vcs.repository.name']), '${project:regex}') AND Attributes['type'] = 'added'"
         }
       ],
       "id": 5
@@ -372,7 +405,7 @@
           "format": 1,
           "queryType": "table",
           "pluginVersion": "4.20.0",
-          "rawSql": "SELECT sum(Value)\nFROM otel.otel_metrics_sum\nWHERE MetricName = 'claude_code.commit.count' AND $__timeFilter(TimeUnix) AND match(Attributes['session.id'], '${session:regex}')"
+          "rawSql": "SELECT sum(Value)\nFROM otel.otel_metrics_sum\nWHERE MetricName = 'claude_code.commit.count' AND $__timeFilter(TimeUnix) AND match(Attributes['session.id'], '${session:regex}') AND match(if(Attributes['vcs.repository.name'] = '', '(none)', Attributes['vcs.repository.name']), '${project:regex}')"
         }
       ],
       "id": 6
@@ -447,7 +480,7 @@
           "format": 0,
           "queryType": "timeseries",
           "pluginVersion": "4.20.0",
-          "rawSql": "SELECT $__timeInterval(TimeUnix) AS time, Attributes['model'] AS model, sum(Value) AS cost\nFROM otel.otel_metrics_sum\nWHERE MetricName = 'claude_code.cost.usage' AND $__timeFilter(TimeUnix) AND match(Attributes['session.id'], '${session:regex}')\nGROUP BY time, model\nORDER BY time"
+          "rawSql": "SELECT $__timeInterval(TimeUnix) AS time, Attributes['model'] AS model, sum(Value) AS cost\nFROM otel.otel_metrics_sum\nWHERE MetricName = 'claude_code.cost.usage' AND $__timeFilter(TimeUnix) AND match(Attributes['session.id'], '${session:regex}') AND match(if(Attributes['vcs.repository.name'] = '', '(none)', Attributes['vcs.repository.name']), '${project:regex}')\nGROUP BY time, model\nORDER BY time"
         }
       ],
       "id": 8
@@ -509,7 +542,7 @@
           "format": 0,
           "queryType": "timeseries",
           "pluginVersion": "4.20.0",
-          "rawSql": "SELECT $__timeInterval(TimeUnix) AS time, Attributes['type'] AS type, sum(Value) AS tokens\nFROM otel.otel_metrics_sum\nWHERE MetricName = 'claude_code.token.usage' AND $__timeFilter(TimeUnix) AND match(Attributes['session.id'], '${session:regex}')\nGROUP BY time, type\nORDER BY time"
+          "rawSql": "SELECT $__timeInterval(TimeUnix) AS time, Attributes['type'] AS type, sum(Value) AS tokens\nFROM otel.otel_metrics_sum\nWHERE MetricName = 'claude_code.token.usage' AND $__timeFilter(TimeUnix) AND match(Attributes['session.id'], '${session:regex}') AND match(if(Attributes['vcs.repository.name'] = '', '(none)', Attributes['vcs.repository.name']), '${project:regex}')\nGROUP BY time, type\nORDER BY time"
         }
       ],
       "id": 9,
@@ -587,7 +620,7 @@
           "format": 0,
           "queryType": "timeseries",
           "pluginVersion": "4.20.0",
-          "rawSql": "SELECT $__timeInterval(TimeUnix) AS time,\n       sumIf(Value, Attributes['type'] = 'cacheRead') / nullIf(sumIf(Value, Attributes['type'] IN ('input', 'cacheRead', 'cacheCreation')), 0) AS \"Cache hit rate\"\nFROM otel.otel_metrics_sum\nWHERE MetricName = 'claude_code.token.usage' AND $__timeFilter(TimeUnix) AND match(Attributes['session.id'], '${session:regex}')\nGROUP BY time\nORDER BY time"
+          "rawSql": "SELECT $__timeInterval(TimeUnix) AS time,\n       sumIf(Value, Attributes['type'] = 'cacheRead') / nullIf(sumIf(Value, Attributes['type'] IN ('input', 'cacheRead', 'cacheCreation')), 0) AS \"Cache hit rate\"\nFROM otel.otel_metrics_sum\nWHERE MetricName = 'claude_code.token.usage' AND $__timeFilter(TimeUnix) AND match(Attributes['session.id'], '${session:regex}') AND match(if(Attributes['vcs.repository.name'] = '', '(none)', Attributes['vcs.repository.name']), '${project:regex}')\nGROUP BY time\nORDER BY time"
         }
       ],
       "id": 19,
@@ -675,11 +708,87 @@
           "format": 1,
           "queryType": "table",
           "pluginVersion": "4.20.0",
-          "rawSql": "SELECT LogAttributes['session.id'] AS \"Session\", min(Timestamp) AS \"Started\",\n       dateDiff('second', min(Timestamp), max(Timestamp)) AS \"Span\", count() AS \"Requests\",\n       sum(toUInt64OrZero(LogAttributes['input_tokens']) + toUInt64OrZero(LogAttributes['output_tokens']) + toUInt64OrZero(LogAttributes['cache_read_tokens']) + toUInt64OrZero(LogAttributes['cache_creation_tokens'])) AS \"Tokens\",\n       sum(toFloat64OrZero(LogAttributes['cost_usd'])) AS \"Cost\"\nFROM otel.otel_logs\nWHERE LogAttributes['event.name'] IN ('api_request', 'claude_code.api_request')\n  AND $__timeFilter(Timestamp) AND match(LogAttributes['session.id'], '${session:regex}')\nGROUP BY \"Session\"\nORDER BY \"Cost\" DESC"
+          "rawSql": "SELECT LogAttributes['session.id'] AS \"Session\", min(Timestamp) AS \"Started\",\n       dateDiff('second', min(Timestamp), max(Timestamp)) AS \"Span\", count() AS \"Requests\",\n       sum(toUInt64OrZero(LogAttributes['input_tokens']) + toUInt64OrZero(LogAttributes['output_tokens']) + toUInt64OrZero(LogAttributes['cache_read_tokens']) + toUInt64OrZero(LogAttributes['cache_creation_tokens'])) AS \"Tokens\",\n       sum(toFloat64OrZero(LogAttributes['cost_usd'])) AS \"Cost\"\nFROM otel.otel_logs\nWHERE LogAttributes['event.name'] IN ('api_request', 'claude_code.api_request')\n  AND $__timeFilter(Timestamp) AND match(LogAttributes['session.id'], '${session:regex}') AND match(if(LogAttributes['vcs.repository.name'] = '', '(none)', LogAttributes['vcs.repository.name']), '${project:regex}')\nGROUP BY \"Session\"\nORDER BY \"Cost\" DESC"
         }
       ],
       "id": 20,
       "description": "API requests per session, most expensive first. Span runs from the first request to the last in the window, idle time included."
+    },
+    {
+      "type": "table",
+      "title": "Cost by project and agent",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 22,
+        "w": 24,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {},
+          "mappings": []
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Tokens"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Cost"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "table",
+          "pluginVersion": "4.20.0",
+          "rawSql": "SELECT if(Attributes['vcs.repository.name'] = '', '(none)', Attributes['vcs.repository.name']) AS \"Project\", Attributes['query_source'] AS \"Source\",\n       if(Attributes['agent.name'] = '', '-', Attributes['agent.name']) AS \"Agent\",\n       uniqExact(Attributes['session.id']) AS \"Sessions\",\n       sumIf(Value, MetricName = 'claude_code.token.usage') AS \"Tokens\",\n       sumIf(Value, MetricName = 'claude_code.cost.usage') AS \"Cost\"\nFROM otel.otel_metrics_sum\nWHERE MetricName IN ('claude_code.token.usage', 'claude_code.cost.usage') AND $__timeFilter(TimeUnix) AND match(Attributes['session.id'], '${session:regex}') AND match(if(Attributes['vcs.repository.name'] = '', '(none)', Attributes['vcs.repository.name']), '${project:regex}')\nGROUP BY \"Project\", \"Source\", \"Agent\"\nORDER BY \"Cost\" DESC"
+        }
+      ],
+      "id": 24,
+      "description": "Source is main, subagent or auxiliary. Agent is the subagent type; a user-defined one shows as custom unless OTEL_LOG_TOOL_DETAILS=1. Project is (none) for a session without an origin remote or started without OTEL_METRICS_INCLUDE_REPOSITORY=1."
     },
     {
       "type": "table",
@@ -690,7 +799,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 22,
+        "y": 30,
         "w": 24,
         "h": 8
       },
@@ -763,7 +872,7 @@
           "format": 1,
           "queryType": "table",
           "pluginVersion": "4.20.0",
-          "rawSql": "SELECT LogAttributes['prompt.id'] AS \"Prompt\", any(LogAttributes['session.id']) AS \"Session\", min(Timestamp) AS \"Started\",\n       dateDiff('second', min(Timestamp), max(Timestamp)) AS \"Span\",\n       countIf(LogAttributes['event.name'] IN ('api_request', 'claude_code.api_request')) AS \"Requests\",\n       countIf(LogAttributes['event.name'] IN ('tool_result', 'claude_code.tool_result')) AS \"Tool calls\",\n       sumIf(toUInt64OrZero(LogAttributes['input_tokens']) + toUInt64OrZero(LogAttributes['output_tokens']) + toUInt64OrZero(LogAttributes['cache_read_tokens']) + toUInt64OrZero(LogAttributes['cache_creation_tokens']), LogAttributes['event.name'] IN ('api_request', 'claude_code.api_request')) AS \"Tokens\",\n       sumIf(toFloat64OrZero(LogAttributes['cost_usd']), LogAttributes['event.name'] IN ('api_request', 'claude_code.api_request')) AS \"Cost\"\nFROM otel.otel_logs\nWHERE LogAttributes['prompt.id'] != ''\n  AND $__timeFilter(Timestamp) AND match(LogAttributes['session.id'], '${session:regex}')\nGROUP BY \"Prompt\"\nORDER BY \"Cost\" DESC\nLIMIT 20"
+          "rawSql": "SELECT LogAttributes['prompt.id'] AS \"Prompt\", any(LogAttributes['session.id']) AS \"Session\", min(Timestamp) AS \"Started\",\n       dateDiff('second', min(Timestamp), max(Timestamp)) AS \"Span\",\n       countIf(LogAttributes['event.name'] IN ('api_request', 'claude_code.api_request')) AS \"Requests\",\n       countIf(LogAttributes['event.name'] IN ('tool_result', 'claude_code.tool_result')) AS \"Tool calls\",\n       sumIf(toUInt64OrZero(LogAttributes['input_tokens']) + toUInt64OrZero(LogAttributes['output_tokens']) + toUInt64OrZero(LogAttributes['cache_read_tokens']) + toUInt64OrZero(LogAttributes['cache_creation_tokens']), LogAttributes['event.name'] IN ('api_request', 'claude_code.api_request')) AS \"Tokens\",\n       sumIf(toFloat64OrZero(LogAttributes['cost_usd']), LogAttributes['event.name'] IN ('api_request', 'claude_code.api_request')) AS \"Cost\"\nFROM otel.otel_logs\nWHERE LogAttributes['prompt.id'] != ''\n  AND $__timeFilter(Timestamp) AND match(LogAttributes['session.id'], '${session:regex}') AND match(if(LogAttributes['vcs.repository.name'] = '', '(none)', LogAttributes['vcs.repository.name']), '${project:regex}')\nGROUP BY \"Prompt\"\nORDER BY \"Cost\" DESC\nLIMIT 20"
         }
       ],
       "id": 21,
@@ -774,7 +883,7 @@
       "title": "API",
       "gridPos": {
         "x": 0,
-        "y": 30,
+        "y": 38,
         "w": 24,
         "h": 1
       },
@@ -792,7 +901,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 31,
+        "y": 39,
         "w": 12,
         "h": 8
       },
@@ -839,7 +948,7 @@
           "format": 0,
           "queryType": "timeseries",
           "pluginVersion": "4.20.0",
-          "rawSql": "SELECT $__timeInterval(Timestamp) AS time,\n       quantile(0.5)(toFloat64OrZero(LogAttributes['duration_ms'])) AS p50,\n       quantile(0.95)(toFloat64OrZero(LogAttributes['duration_ms'])) AS p95\nFROM otel.otel_logs\nWHERE LogAttributes['event.name'] IN ('api_request', 'claude_code.api_request')\n  AND $__timeFilter(Timestamp) AND match(LogAttributes['session.id'], '${session:regex}')\nGROUP BY time\nORDER BY time"
+          "rawSql": "SELECT $__timeInterval(Timestamp) AS time,\n       quantile(0.5)(toFloat64OrZero(LogAttributes['duration_ms'])) AS p50,\n       quantile(0.95)(toFloat64OrZero(LogAttributes['duration_ms'])) AS p95\nFROM otel.otel_logs\nWHERE LogAttributes['event.name'] IN ('api_request', 'claude_code.api_request')\n  AND $__timeFilter(Timestamp) AND match(LogAttributes['session.id'], '${session:regex}') AND match(if(LogAttributes['vcs.repository.name'] = '', '(none)', LogAttributes['vcs.repository.name']), '${project:regex}')\nGROUP BY time\nORDER BY time"
         }
       ],
       "id": 11
@@ -853,7 +962,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 31,
+        "y": 39,
         "w": 12,
         "h": 8
       },
@@ -889,7 +998,7 @@
           "format": 1,
           "queryType": "table",
           "pluginVersion": "4.20.0",
-          "rawSql": "SELECT LogAttributes['status_code'] AS \"Status\", LogAttributes['error'] AS \"Error\",\n       count() AS \"Count\", max(Timestamp) AS \"Last\"\nFROM otel.otel_logs\nWHERE LogAttributes['event.name'] IN ('api_error', 'claude_code.api_error')\n  AND $__timeFilter(Timestamp) AND match(LogAttributes['session.id'], '${session:regex}')\nGROUP BY \"Status\", \"Error\"\nORDER BY \"Count\" DESC"
+          "rawSql": "SELECT LogAttributes['status_code'] AS \"Status\", LogAttributes['error'] AS \"Error\",\n       count() AS \"Count\", max(Timestamp) AS \"Last\"\nFROM otel.otel_logs\nWHERE LogAttributes['event.name'] IN ('api_error', 'claude_code.api_error')\n  AND $__timeFilter(Timestamp) AND match(LogAttributes['session.id'], '${session:regex}') AND match(if(LogAttributes['vcs.repository.name'] = '', '(none)', LogAttributes['vcs.repository.name']), '${project:regex}')\nGROUP BY \"Status\", \"Error\"\nORDER BY \"Count\" DESC"
         }
       ],
       "id": 12
@@ -899,7 +1008,7 @@
       "title": "Tools",
       "gridPos": {
         "x": 0,
-        "y": 39,
+        "y": 47,
         "w": 24,
         "h": 1
       },
@@ -916,7 +1025,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 40,
+        "y": 48,
         "w": 12,
         "h": 8
       },
@@ -965,7 +1074,7 @@
           "format": 1,
           "queryType": "table",
           "pluginVersion": "4.20.0",
-          "rawSql": "SELECT LogAttributes['tool_name'] AS \"Tool\", count() AS \"Calls\",\n       countIf(LogAttributes['success'] != 'true') AS \"Failed\",\n       quantile(0.95)(toFloat64OrZero(LogAttributes['duration_ms'])) AS \"p95\"\nFROM otel.otel_logs\nWHERE LogAttributes['event.name'] IN ('tool_result', 'claude_code.tool_result')\n  AND $__timeFilter(Timestamp) AND match(LogAttributes['session.id'], '${session:regex}')\nGROUP BY \"Tool\"\nORDER BY \"Calls\" DESC"
+          "rawSql": "SELECT LogAttributes['tool_name'] AS \"Tool\", count() AS \"Calls\",\n       countIf(LogAttributes['success'] != 'true') AS \"Failed\",\n       quantile(0.95)(toFloat64OrZero(LogAttributes['duration_ms'])) AS \"p95\"\nFROM otel.otel_logs\nWHERE LogAttributes['event.name'] IN ('tool_result', 'claude_code.tool_result')\n  AND $__timeFilter(Timestamp) AND match(LogAttributes['session.id'], '${session:regex}') AND match(if(LogAttributes['vcs.repository.name'] = '', '(none)', LogAttributes['vcs.repository.name']), '${project:regex}')\nGROUP BY \"Tool\"\nORDER BY \"Calls\" DESC"
         }
       ],
       "id": 14
@@ -979,7 +1088,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 40,
+        "y": 48,
         "w": 12,
         "h": 8
       },
@@ -1015,7 +1124,7 @@
           "format": 1,
           "queryType": "table",
           "pluginVersion": "4.20.0",
-          "rawSql": "SELECT LogAttributes['tool_name'] AS \"Tool\", LogAttributes['decision'] AS \"Decision\",\n       LogAttributes['source'] AS \"Source\", count() AS \"Count\"\nFROM otel.otel_logs\nWHERE LogAttributes['event.name'] IN ('tool_decision', 'claude_code.tool_decision')\n  AND $__timeFilter(Timestamp) AND match(LogAttributes['session.id'], '${session:regex}')\nGROUP BY \"Tool\", \"Decision\", \"Source\"\nORDER BY \"Count\" DESC"
+          "rawSql": "SELECT LogAttributes['tool_name'] AS \"Tool\", LogAttributes['decision'] AS \"Decision\",\n       LogAttributes['source'] AS \"Source\", count() AS \"Count\"\nFROM otel.otel_logs\nWHERE LogAttributes['event.name'] IN ('tool_decision', 'claude_code.tool_decision')\n  AND $__timeFilter(Timestamp) AND match(LogAttributes['session.id'], '${session:regex}') AND match(if(LogAttributes['vcs.repository.name'] = '', '(none)', LogAttributes['vcs.repository.name']), '${project:regex}')\nGROUP BY \"Tool\", \"Decision\", \"Source\"\nORDER BY \"Count\" DESC"
         }
       ],
       "id": 15,
@@ -1026,7 +1135,7 @@
       "title": "Events",
       "gridPos": {
         "x": 0,
-        "y": 48,
+        "y": 56,
         "w": 24,
         "h": 1
       },
@@ -1043,7 +1152,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 49,
+        "y": 57,
         "w": 24,
         "h": 10
       },
@@ -1078,7 +1187,7 @@
           "format": 2,
           "queryType": "logs",
           "pluginVersion": "4.20.0",
-          "rawSql": "SELECT Timestamp AS timestamp,\n       arrayStringConcat(arrayFilter(x -> x != '', [\n           LogAttributes['event.name'], LogAttributes['tool_name'], LogAttributes['model'],\n           LogAttributes['status_code']]), ' · ') AS body,\n       SeverityText AS level,\n       LogAttributes['session.id'] AS session\nFROM otel.otel_logs\nWHERE ServiceName = 'claude-code' AND $__timeFilter(Timestamp) AND match(LogAttributes['session.id'], '${session:regex}')\nORDER BY Timestamp DESC\nLIMIT 500"
+          "rawSql": "SELECT Timestamp AS timestamp,\n       arrayStringConcat(arrayFilter(x -> x != '', [\n           LogAttributes['event.name'], LogAttributes['tool_name'], LogAttributes['model'],\n           LogAttributes['status_code']]), ' · ') AS body,\n       SeverityText AS level,\n       LogAttributes['session.id'] AS session\nFROM otel.otel_logs\nWHERE ServiceName = 'claude-code' AND $__timeFilter(Timestamp) AND match(LogAttributes['session.id'], '${session:regex}') AND match(if(LogAttributes['vcs.repository.name'] = '', '(none)', LogAttributes['vcs.repository.name']), '${project:regex}')\nORDER BY Timestamp DESC\nLIMIT 500"
         }
       ],
       "id": 17
