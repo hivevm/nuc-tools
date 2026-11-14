@@ -10,15 +10,15 @@ name: Checks
 #
 # The sensors report for the reviewer and fail on nothing they count, except the plain rules,
 # which this workflow runs with --require, and the action references, which this project checks
-# with --require sha (SEC-actions-pinned-by-sha); their self-tests fail like any check's. The sensors job checks out
-# the full history because five sensors read it. The review binding sensor runs in
-# review-binding.yml, the repository settings sensor on a human's instruction
+# with --require sha (SEC-actions-pinned-by-sha); their self-tests fail like any check's. The
+# sensors job checks out the full history because five sensors read it. The review binding sensor
+# runs in review-binding.yml, the repository settings sensor on a human's instruction
 # (NUC-checks-are-bash §7); this workflow runs the self-test of each.
 #
 # The build job runs the toolchain's build, test, and lint, and the deps job the dependency audit
 # (OPS-rust-stable-behind-scripts); the parity job builds nuc for the parity harness
-# (TEST-parity-harness). The portability job runs the same build on Linux arm64, macOS, and Windows, each a
-# required check run (Q-4, OPS-rust-stable-behind-scripts).
+# (TEST-parity-harness). The portability job runs the same build on Linux arm64, macOS, and
+# Windows, each a required check run (Q-4, OPS-rust-stable-behind-scripts).
 #
 # Every job is bounded by a timeout — a hung step would otherwise occupy a runner until the
 # platform's own six-hour limit — and every checkout runs with 'persist-credentials: false': the
@@ -30,8 +30,8 @@ on:
   push:
     branches: [main]
   # Started by hand on a pushed branch that has no pull request yet, such as a feat/ branch
-  # under rework (NUC-main-only-via-pr §5): gh workflow run checks.yml --ref <branch>. GitHub offers
-  # it only once this trigger is on the default branch.
+  # under rework (NUC-main-only-via-pr §5): gh workflow run checks.yml --ref <branch>. GitHub
+  # offers it only once this trigger is on the default branch.
   workflow_dispatch:
   # Once a week against main without a change: catches what moves without a commit, the runner
   # image, a retagged action, a toolchain download. GitHub disables a schedule after 60 days
@@ -210,8 +210,8 @@ jobs:
       - name: Check that no gate runs a build of the working tree
         run: bash scripts/check-gates.sh
 
-  # The toolchain's job (OPS-rust-stable-behind-scripts): the runner image ships rustup, which installs the
-  # toolchain rust-toolchain.toml pins on the first cargo call.
+  # The toolchain's job (OPS-rust-stable-behind-scripts): the runner image ships rustup, which
+  # installs the toolchain rust-toolchain.toml pins on the first cargo call.
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -258,8 +258,8 @@ jobs:
         shell: bash
         run: bash scripts/check-build.sh
 
-  # The dependency audit (OPS-rust-stable-behind-scripts, Q-3): both tools are built from crates.io at the
-  # versions named here and fetch the RustSec advisory database.
+  # The dependency audit (OPS-rust-stable-behind-scripts, Q-3): both tools are built from crates.io
+  # at the versions named here and fetch the RustSec advisory database.
   deps:
     runs-on: ubuntu-latest
     timeout-minutes: 30

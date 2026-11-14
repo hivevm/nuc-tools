@@ -1,4 +1,5 @@
-//! The rules whose bash check changed between the template's releases. Verifies: API-version-coupling-hook-defaults
+//! The rules whose bash check changed between the template's releases.
+//! Verifies: API-version-coupling-hook-defaults
 //!
 //! `tests/parity/releases.tsv` names, for each rule, the releases of the corpus at which its bash
 //! check changed, which the parity harness holds to the template's trees. A rule whose check

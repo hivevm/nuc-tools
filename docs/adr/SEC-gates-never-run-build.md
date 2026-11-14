@@ -29,8 +29,8 @@ review.
   Action: the SHA pin [SEC-actions-pinned-by-sha](SEC-actions-pinned-by-sha.md) asks for would be
   moved by Dependabot to a source commit `vX.Y.Z`, which carries no checksums and installs nothing
   ([OPS-ships-binaries-feature-action](OPS-ships-binaries-feature-action.md)). The switch is a
-  decision of its own, an ADR that narrows the bash clause as NUC-checks-are-bash §1 and §8 say,
-  and is taken only once the released `nuc` reaches parity for every check these gates run.
+  decision of its own, which supersedes the bash clause of NUC-checks-are-bash §1, and is taken
+  only once the released `nuc` reaches parity for every check these gates run.
 - **Never:** `cargo run`, a binary under `target/`, or any other build of the working tree as a
   gate. The tests of the build run the build, `scripts/check-build.sh` and the parity harness
   `scripts/check-parity.sh`; they are not the gate's judge of it.
@@ -39,9 +39,9 @@ review.
 
 ## Alternatives considered
 
-- **The switch fixed at v0.1 now** — simpler, but it contradicts NUC-checks-are-bash §1 while that
-  clause is in force, and a v0.1 that does not cover every check would leave part of the gates
-  unchecked.
+- **The switch fixed at v0.1 now** — simpler, but it contradicts NUC-checks-are-bash §1 while
+  NUC-checks-are-bash §1 is in force, and a v0.1 that does not cover every check would leave part
+  of the gates unchecked.
 - **The gates run the binary being built** — the change judges itself; a broken build passes, and
   a malicious one waves itself through.
 
