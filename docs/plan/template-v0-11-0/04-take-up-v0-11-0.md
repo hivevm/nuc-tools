@@ -12,6 +12,8 @@ repository's own telemetry stack, which landed with pull request #82: the templa
 at a collector on the host, and the guide must name one collector, not two. The `Template release`
 line moves to v0.11.0.
 
+The branch stacks on ticket 03's and lands with it in one pull request.
+
 ## Acceptance criteria
 
 - [ ] Given the take-up, when `scripts/check-all.sh` runs, then it is green.

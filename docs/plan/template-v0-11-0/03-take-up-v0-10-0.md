@@ -9,7 +9,7 @@ takes its root only as `--root <dir>` through `scripts/lib/root.sh` and refuses 
 not read. Every script is tracked 100755. Callers in workflows, hooks, and scripts pass `--root`.
 The project's ADRs that name a check of `check-docs.sh` by number are each either superseded by one
 naming the rule key or left to bind the whole file, as the human decides. The `Template release`
-line moves to v0.10.0.
+line moves to v0.10.0. Ticket 04's branch stacks on this one, and both land in one pull request.
 
 ## Acceptance criteria
 

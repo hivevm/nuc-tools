@@ -43,8 +43,8 @@ rules of the template it ports.
 
 1. As a contributor, I want the repository's rules to be those of the current template release,
    so that a finding about the template written from here is about the template as it is.
-2. As a reviewer, I want each release taken up in its own pull request, green on its own, so that
-   the migration of the record is reviewed apart from the routine take-ups.
+2. As a reviewer, I want the migration of the record in a pull request of its own, green on its
+   own, so that it is reviewed apart from the routine take-ups.
 3. As the human who decides, I want each clause the project added to an inherited ADR proposed as
    an ADR of its own before anything is migrated, so that no addition is lost in the migration.
 4. As a maintainer of `nuc`, I want the messages and fixtures that copy an old release to keep
@@ -54,8 +54,9 @@ rules of the template it ports.
 
 ## Implementation decisions
 
-- One pull request per release, in order: v0.9.1 with the migration of the numbered record, then
-  v0.10.0, then v0.11.0. Each moves the `Template release` line and is green on its own.
+- Two pull requests, in order: v0.9.1 with the migration of the numbered record, then v0.10.0 and
+  v0.11.0 together, on the maintainer's choice of 2026-11-14. Each release moves the `Template
+  release` line in a commit of its own, and each pull request is green on its own.
 - The migration follows section 8 of the normalize skill of v0.9.1, taken from the template at that
   tag. Its first step diffs the inherited ADRs and `AGENTS.md` against v0.8.1. That diff is lost
   once the release's files are in, so it runs before any file is replaced.
