@@ -25,6 +25,8 @@
 #      of CONTRIBUTING.md and SECURITY.md hold in the container because it enables them on every
 #      start, the container's share of the local gate (ADR-0002, ADR-0004). The value is read from
 #      its key to the next top-level key, whatever its form: a string, an array, or an object.
+#      All four sit in one JSON string of it, since the entries of an object run in parallel and
+#      git locks its config file for each write.
 #   6. Mount path: 'workspaceFolder' and the target of 'workspaceMount', where the file sets them,
 #      are '/workspaces/${localWorkspaceFolderBasename}', the default of Dev Containers, so that
 #      every project sits under a path of its own and an agent's memory, keyed by that path,
@@ -145,11 +147,27 @@ else
   # 5. Git settings: the text from the postStartCommand key to the next top-level key, its
   # whitespace collapsed.
   post="$(top_level_value "$ROOT/$CONFIG" postStartCommand | tr '\t\n' '  ' | tr -s ' ')"
-  for setting in "core.hooksPath .githooks" "merge.ff false" "pull.ff only" \
-    "merge.adr-index.driver '.githooks/merge-adr-index %O %A %B %S %X %Y'"; do
-    [[ "$post" == *"git config $setting"* ]] \
-      || add_error "$CONFIG: postStartCommand does not run 'git config $setting' — the git hooks and the merge settings they rely on are enabled on every start (CONTRIBUTING.md, Git hooks)"
+  settings=("core.hooksPath .githooks" "merge.ff false" "pull.ff only"
+    "merge.adr-index.driver '.githooks/merge-adr-index %O %A %B %S %X %Y'")
+  missing=0
+  for setting in "${settings[@]}"; do
+    [[ "$post" == *"git config $setting"* ]] && continue
+    missing=1
+    add_error "$CONFIG: postStartCommand does not run 'git config $setting' — the git hooks and the merge settings they rely on are enabled on every start (CONTRIBUTING.md, Git hooks)"
   done
+  # All of them in one JSON string: the entries of an object run in parallel.
+  if ((!missing)); then
+    together=0
+    while IFS= read -r command; do
+      held=1
+      for setting in "${settings[@]}"; do
+        [[ "$command" == *"git config $setting"* ]] || held=0
+      done
+      ((held)) && together=1
+    done < <(grep -oE '"([^"\\]|\\.)*"' <<< "$post")
+    ((together)) \
+      || add_error "$CONFIG: postStartCommand splits the git settings across entries — the entries of an object run in parallel and race on the lock of .git/config, so a setting can stay unset; run them in one command (CONTRIBUTING.md, Git hooks)"
+  fi
 
   # 6. Mount path: a key the file leaves out takes the default, which is the path itself.
   # shellcheck disable=SC2016  # the variable is devcontainer.json's, not the shell's

@@ -180,6 +180,9 @@ run "Traceability self-test" scripts/test-check-traceability.sh
 run "Traceability" scripts/check-traceability.sh
 run "Dev Container self-test" scripts/test-check-devcontainer.sh
 run "Dev Container" scripts/check-devcontainer.sh
+run "gh host login self-test" scripts/test-gh-host-login.sh
+run "Dashboard self-test" scripts/test-check-dashboards.sh
+run "Dashboard" scripts/check-dashboards.sh
 run "Tests-kept sensor self-test" scripts/test-sensor-tests-kept.sh
 run "Tests-kept sensor" scripts/sensor-tests-kept.sh
 run "Binding ADRs sensor self-test" scripts/test-sensor-binding-adrs.sh

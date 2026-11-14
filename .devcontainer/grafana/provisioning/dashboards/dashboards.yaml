@@ -1,0 +1,14 @@
+apiVersion: 1
+
+# Drop any dashboard JSON into ./grafana/dashboards and it is picked up within 30 s.
+providers:
+  - name: local
+    orgId: 1
+    folder: ClaudeCode
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false

@@ -61,7 +61,8 @@ scripts/*.sh          # run by hand, steps 7 and 8 of the integration branches: 
                       # publishes a release, release-test.yml tests what it runs; benchmark.yml
                       # measures Q-5 on a schedule
 .github/              # Dependabot, issue & pull request templates, code owners
-.devcontainer/        # Dev Container definition (base image + Features)
+.devcontainer/        # Dev Container definition (base image + Features), and the development
+                      # telemetry stack: Collector, ClickHouse, Grafana; nothing shipped depends on it
 .vscode/              # shared editor settings
 .editorconfig         # editor-neutral formatting baseline
 .gitattributes        # line-ending normalization (LF everywhere), the ADR index merged by its driver
@@ -94,6 +95,34 @@ Compose file is required. Customise the environment by adding Features, switchin
 or adding extensions. Features are pinned by major tag and resolved in the committed
 `devcontainer-lock.json`. Extensions are listed by identifier only, because a published extension
 version cannot be repointed and a version suffix is VS Code-specific.
+
+### GitHub access
+
+The container uses the login and the git identity of the host, through the Dev Containers extension
+of VS Code. Nothing is written to a tracked file, and VS Code may start in any way.
+
+| What | Where it comes from |
+|---|---|
+| `user.name`, `user.email` | the extension copies the host's `~/.gitconfig` into the container |
+| the login of `git` | the extension forwards the requests of git to the host's credential helper |
+| the login of `gh` | the wrapper [`gh-host-login.sh`](.devcontainer/gh-host-login.sh) asks git for it on each call |
+
+Make `gh` the host's credential helper, so that both use the login of the web flow
+([`AGENTS.md` §6](AGENTS.md#6-project-rules)). Run this once, on the host, and reopen the container
+afterwards:
+
+```sh
+gh auth login
+gh auth setup-git
+```
+
+`gh auth status` in the container then reports the login through `GH_TOKEN`. The wrapper takes
+effect after a rebuild, and only in a terminal or process of a connected VS Code window. Elsewhere,
+such as under `docker exec`, it has no way to the host, and `gh` runs without the login. Any process
+in such a window can ask for the token, the agents included.
+
+With no login on the host, `gh auth login` in the container works as before, until a rebuild.
+Setting `GH_TOKEN` by hand overrides the host's login.
 
 ### Host container management
 
