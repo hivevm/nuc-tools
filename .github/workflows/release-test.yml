@@ -48,8 +48,10 @@ jobs:
         with:
           persist-credentials: false
       # The release tooling's own tests run first: a tool that is wrong publishes nothing worth
-      # trusting.
+      # trusting. Not on macOS, whose bash 3.2 is below the floor of the self-tests
+      # (NUC-checks-are-bash §1); the Linux and Windows builds run them.
       - name: Self-test the release tooling
+        if: runner.os != 'macOS'
         shell: bash
         run: bash scripts/test-release.sh
       - name: Build the release binary
