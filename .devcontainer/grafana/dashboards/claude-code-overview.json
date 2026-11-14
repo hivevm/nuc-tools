@@ -1,0 +1,833 @@
+{
+  "uid": "claude-code-overview",
+  "title": "Claude Code — Overview",
+  "description": "Claude Code's own metrics and events, from the ClickHouse tables the Collector writes.",
+  "tags": [
+    "claude-code",
+    "clickhouse"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "graphTooltip": 1,
+  "refresh": "30s",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "session",
+        "label": "Session",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "clickhouse"
+        },
+        "description": "Claude Code's session.id; one per started or resumed session.",
+        "query": {
+          "refId": "tempvar",
+          "editorType": "sql",
+          "format": 1,
+          "pluginVersion": "4.20.0",
+          "rawSql": "SELECT DISTINCT Attributes['session.id'] FROM otel.otel_metrics_sum\nWHERE MetricName LIKE 'claude_code.%' AND $__timeFilter(TimeUnix) ORDER BY 1"
+        },
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": true,
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "options": [],
+        "sort": 1,
+        "hide": 0
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Cost",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {},
+          "mappings": [],
+          "unit": "currencyUSD",
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "table",
+          "pluginVersion": "4.20.0",
+          "rawSql": "SELECT sum(Value)\nFROM otel.otel_metrics_sum\nWHERE MetricName = 'claude_code.cost.usage' AND $__timeFilter(TimeUnix) AND match(Attributes['session.id'], '${session:regex}')"
+        }
+      ],
+      "id": 1,
+      "description": "Estimated by Claude Code from the token counts — not the invoice."
+    },
+    {
+      "type": "stat",
+      "title": "Tokens",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "gridPos": {
+        "x": 4,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {},
+          "mappings": [],
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "table",
+          "pluginVersion": "4.20.0",
+          "rawSql": "SELECT sum(Value)\nFROM otel.otel_metrics_sum\nWHERE MetricName = 'claude_code.token.usage' AND $__timeFilter(TimeUnix) AND match(Attributes['session.id'], '${session:regex}')"
+        }
+      ],
+      "id": 2,
+      "description": "Input, output and both cache kinds together."
+    },
+    {
+      "type": "stat",
+      "title": "Sessions",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {},
+          "mappings": [],
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "table",
+          "pluginVersion": "4.20.0",
+          "rawSql": "SELECT sum(Value)\nFROM otel.otel_metrics_sum\nWHERE MetricName = 'claude_code.session.count' AND $__timeFilter(TimeUnix) AND match(Attributes['session.id'], '${session:regex}')"
+        }
+      ],
+      "id": 3,
+      "description": "Sessions started in the window, fresh and resumed alike."
+    },
+    {
+      "type": "stat",
+      "title": "Active time",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {},
+          "mappings": [],
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "table",
+          "pluginVersion": "4.20.0",
+          "rawSql": "SELECT sum(Value)\nFROM otel.otel_metrics_sum\nWHERE MetricName = 'claude_code.active_time.total' AND $__timeFilter(TimeUnix) AND match(Attributes['session.id'], '${session:regex}')"
+        }
+      ],
+      "id": 4,
+      "description": "Your typing plus Claude's working time."
+    },
+    {
+      "type": "stat",
+      "title": "Lines added",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {},
+          "mappings": [],
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "table",
+          "pluginVersion": "4.20.0",
+          "rawSql": "SELECT sum(Value)\nFROM otel.otel_metrics_sum\nWHERE MetricName = 'claude_code.lines_of_code.count' AND $__timeFilter(TimeUnix) AND match(Attributes['session.id'], '${session:regex}') AND Attributes['type'] = 'added'"
+        }
+      ],
+      "id": 5
+    },
+    {
+      "type": "stat",
+      "title": "Commits",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "gridPos": {
+        "x": 20,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {},
+          "mappings": [],
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "table",
+          "pluginVersion": "4.20.0",
+          "rawSql": "SELECT sum(Value)\nFROM otel.otel_metrics_sum\nWHERE MetricName = 'claude_code.commit.count' AND $__timeFilter(TimeUnix) AND match(Attributes['session.id'], '${session:regex}')"
+        }
+      ],
+      "id": 6
+    },
+    {
+      "type": "row",
+      "title": "Cost and tokens",
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 24,
+        "h": 1
+      },
+      "collapsed": false,
+      "panels": [],
+      "id": 7
+    },
+    {
+      "type": "timeseries",
+      "title": "Cost by model",
+      "interval": "1m",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 5,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 80,
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            }
+          },
+          "mappings": [],
+          "unit": "currencyUSD"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "timeseries",
+          "pluginVersion": "4.20.0",
+          "rawSql": "SELECT $__timeInterval(TimeUnix) AS time, Attributes['model'] AS model, sum(Value) AS cost\nFROM otel.otel_metrics_sum\nWHERE MetricName = 'claude_code.cost.usage' AND $__timeFilter(TimeUnix) AND match(Attributes['session.id'], '${session:regex}')\nGROUP BY time, model\nORDER BY time"
+        }
+      ],
+      "id": 8
+    },
+    {
+      "type": "timeseries",
+      "title": "Tokens by type",
+      "interval": "1m",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 5,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 80,
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            }
+          },
+          "mappings": [],
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "timeseries",
+          "pluginVersion": "4.20.0",
+          "rawSql": "SELECT $__timeInterval(TimeUnix) AS time, Attributes['type'] AS type, sum(Value) AS tokens\nFROM otel.otel_metrics_sum\nWHERE MetricName = 'claude_code.token.usage' AND $__timeFilter(TimeUnix) AND match(Attributes['session.id'], '${session:regex}')\nGROUP BY time, type\nORDER BY time"
+        }
+      ],
+      "id": 9,
+      "description": "cacheRead dominating is the normal case: it is the prompt cache doing its job."
+    },
+    {
+      "type": "row",
+      "title": "API",
+      "gridPos": {
+        "x": 0,
+        "y": 13,
+        "w": 24,
+        "h": 1
+      },
+      "collapsed": false,
+      "panels": [],
+      "id": 10
+    },
+    {
+      "type": "timeseries",
+      "title": "Request duration",
+      "interval": "1m",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 14,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            }
+          },
+          "mappings": [],
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "timeseries",
+          "pluginVersion": "4.20.0",
+          "rawSql": "SELECT $__timeInterval(Timestamp) AS time,\n       quantile(0.5)(toFloat64OrZero(LogAttributes['duration_ms'])) AS p50,\n       quantile(0.95)(toFloat64OrZero(LogAttributes['duration_ms'])) AS p95\nFROM otel.otel_logs\nWHERE LogAttributes['event.name'] IN ('api_request', 'claude_code.api_request')\n  AND $__timeFilter(Timestamp) AND match(LogAttributes['session.id'], '${session:regex}')\nGROUP BY time\nORDER BY time"
+        }
+      ],
+      "id": 11
+    },
+    {
+      "type": "table",
+      "title": "API errors",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 14,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {},
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "table",
+          "pluginVersion": "4.20.0",
+          "rawSql": "SELECT LogAttributes['status_code'] AS \"Status\", LogAttributes['error'] AS \"Error\",\n       count() AS \"Count\", max(Timestamp) AS \"Last\"\nFROM otel.otel_logs\nWHERE LogAttributes['event.name'] IN ('api_error', 'claude_code.api_error')\n  AND $__timeFilter(Timestamp) AND match(LogAttributes['session.id'], '${session:regex}')\nGROUP BY \"Status\", \"Error\"\nORDER BY \"Count\" DESC"
+        }
+      ],
+      "id": 12
+    },
+    {
+      "type": "row",
+      "title": "Tools",
+      "gridPos": {
+        "x": 0,
+        "y": 22,
+        "w": 24,
+        "h": 1
+      },
+      "collapsed": false,
+      "panels": [],
+      "id": 13
+    },
+    {
+      "type": "table",
+      "title": "Tool calls",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 23,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {},
+          "mappings": []
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "p95"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "ms"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "table",
+          "pluginVersion": "4.20.0",
+          "rawSql": "SELECT LogAttributes['tool_name'] AS \"Tool\", count() AS \"Calls\",\n       countIf(LogAttributes['success'] != 'true') AS \"Failed\",\n       quantile(0.95)(toFloat64OrZero(LogAttributes['duration_ms'])) AS \"p95\"\nFROM otel.otel_logs\nWHERE LogAttributes['event.name'] IN ('tool_result', 'claude_code.tool_result')\n  AND $__timeFilter(Timestamp) AND match(LogAttributes['session.id'], '${session:regex}')\nGROUP BY \"Tool\"\nORDER BY \"Calls\" DESC"
+        }
+      ],
+      "id": 14
+    },
+    {
+      "type": "table",
+      "title": "Permission decisions",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 23,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {},
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "table",
+          "pluginVersion": "4.20.0",
+          "rawSql": "SELECT LogAttributes['tool_name'] AS \"Tool\", LogAttributes['decision'] AS \"Decision\",\n       LogAttributes['source'] AS \"Source\", count() AS \"Count\"\nFROM otel.otel_logs\nWHERE LogAttributes['event.name'] IN ('tool_decision', 'claude_code.tool_decision')\n  AND $__timeFilter(Timestamp) AND match(LogAttributes['session.id'], '${session:regex}')\nGROUP BY \"Tool\", \"Decision\", \"Source\"\nORDER BY \"Count\" DESC"
+        }
+      ],
+      "id": 15,
+      "description": "Source says who decided: config (an allow/deny rule), hook, or you."
+    },
+    {
+      "type": "row",
+      "title": "Events",
+      "gridPos": {
+        "x": 0,
+        "y": 31,
+        "w": 24,
+        "h": 1
+      },
+      "collapsed": false,
+      "panels": [],
+      "id": 16
+    },
+    {
+      "type": "logs",
+      "title": "Events",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 32,
+        "w": 24,
+        "h": 10
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {},
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": false,
+        "enableLogDetails": true,
+        "dedupStrategy": "none",
+        "sortOrder": "Descending"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 2,
+          "queryType": "logs",
+          "pluginVersion": "4.20.0",
+          "rawSql": "SELECT Timestamp AS timestamp,\n       arrayStringConcat(arrayFilter(x -> x != '', [\n           LogAttributes['event.name'], LogAttributes['tool_name'], LogAttributes['model'],\n           LogAttributes['status_code']]), ' · ') AS body,\n       SeverityText AS level,\n       LogAttributes['session.id'] AS session\nFROM otel.otel_logs\nWHERE ServiceName = 'claude-code' AND $__timeFilter(Timestamp) AND match(LogAttributes['session.id'], '${session:regex}')\nORDER BY Timestamp DESC\nLIMIT 500"
+        }
+      ],
+      "id": 17
+    }
+  ]
+}

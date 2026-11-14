@@ -61,7 +61,8 @@ scripts/*.sh          # run by hand, steps 7 and 8 of the integration branches: 
                       # publishes a release, release-test.yml tests what it runs; benchmark.yml
                       # measures Q-5 on a schedule
 .github/              # Dependabot, issue & pull request templates, code owners
-.devcontainer/        # Dev Container definition (base image + Features)
+.devcontainer/        # Dev Container definition (base image + Features), and the development
+                      # telemetry stack: Collector, ClickHouse, Grafana; nothing shipped depends on it
 .vscode/              # shared editor settings
 .editorconfig         # editor-neutral formatting baseline
 .gitattributes        # line-ending normalization (LF everywhere), the ADR index merged by its driver

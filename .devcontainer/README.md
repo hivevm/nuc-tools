@@ -1,0 +1,206 @@
+# Development observability stack
+
+OTLP in, Grafana out: Claude Code's own metrics and events, stored in ClickHouse. It is a Compose
+project of its own ([`compose.yaml`](compose.yaml)) that runs on the host, apart from the Dev
+Container: start it when you want to look, leave it off when you do not. This is a **development
+tool**: nothing shipped depends on it, it holds no credentials worth having, and it retains 24 h of
+data on a local volume.
+
+```
+Claude Code ──OTLP/HTTP:4318──▶ OpenTelemetry Collector ──▶ ClickHouse ──▶ Grafana :3001
+                                            otel_metrics_sum · otel_logs · otel_traces
+```
+
+## Why one store
+
+All three signals sit in one SQL database instead of one backend per signal (Prometheus, Loki,
+Tempo):
+
+- **One query language.** Every panel is SQL.
+- **Cross-signal questions become joins** — `otel_logs` and `otel_traces` share `TraceId`.
+- **One retention setting.** `ttl: 24h` in [otel-collector.yaml](otel-collector.yaml).
+
+What it costs:
+
+- **The datasource is a plugin.** `grafana-clickhouse-datasource` is not built into Grafana, so the
+  first `up` needs network access to install it, and it requires Grafana ≥ 11.6.0.
+- **No PromQL.** A dashboard copied from elsewhere has to be rewritten.
+- **The Collector is not optional.** ClickHouse speaks no OTLP; if the Collector is down, nothing
+  is stored.
+
+## Start
+
+On the **host**, from the repository root (Podman's `podman compose` takes the same arguments):
+
+```sh
+docker compose -f .devcontainer/compose.yaml up -d      # start, in the background
+docker compose -f .devcontainer/compose.yaml down       # stop; the data is kept
+docker compose -f .devcontainer/compose.yaml down -v    # stop, and throw the data away
+```
+
+Or `cd observability` and leave out the `-f`. The stack needs roughly 2 GB of memory.
+
+Grafana is on <http://localhost:3001> — anonymous access is enabled with the Admin role, so there
+is nothing to log in to, and a visitor can edit and save as it is. It opens on **Claude Code —
+Overview**.
+
+**Every port is published on every interface of the host**, Grafana and ClickHouse without a
+credential worth the name. On a machine that sits on a network you do not trust, bind them to the
+loopback instead:
+
+```sh
+OBSERVABILITY_BIND=127.0.0.1 docker compose -f .devcontainer/compose.yaml up -d
+```
+
+Whether the Dev Container still reaches a port bound to the host's loopback depends on the
+container engine and its network mode; check with the `curl` under
+[Checking that data arrives](#checking-that-data-arrives) from inside the container.
+
+### Reaching it from the Dev Container
+
+The Dev Container reaches the Collector **through the host**, over the ports published above; it
+needs no Docker socket for that.
+
+| From | Collector (OTLP/HTTP) | Grafana | ClickHouse |
+| ---- | --------------------- | ------- | ---------- |
+| the host | `http://127.0.0.1:4318` | <http://localhost:3001> | `localhost:9000` / `:8123` |
+| the Dev Container, Podman or Docker Desktop | `http://host.docker.internal:4318` | the host's browser | `host.docker.internal:9000` / `:8123` |
+| the Dev Container, Docker Engine on Linux | `http://172.17.0.1:4318` | the host's browser | `172.17.0.1:9000` / `:8123` |
+
+Podman also answers to `host.containers.internal`. Docker Engine on Linux gives the host no name;
+the container reaches it through the bridge gateway, which `ip route` inside the container shows as
+the default route (`default via 172.17.0.1` on the default bridge). A host firewall that filters
+the `docker0` interface blocks it there; allow the published ports from the bridge.
+`--add-host=host.docker.internal:host-gateway` in the container's `runArgs` gives the gateway the
+name the other engines use.
+
+## Pointing Claude Code at it
+
+Claude Code exports when its environment says so. Put the variables into
+`~/.claude/settings.json`. Claude Code ignores these keys in `.claude/settings.json` and
+`.claude/settings.local.json`, and logs a warning naming each one. The setting applies to every
+project that uses this configuration directory:
+
+```json
+{
+  "env": {
+    "CLAUDE_CODE_ENABLE_TELEMETRY": "1",
+    "OTEL_METRICS_EXPORTER": "otlp",
+    "OTEL_LOGS_EXPORTER": "otlp",
+    "OTEL_EXPORTER_OTLP_PROTOCOL": "http/protobuf",
+    "OTEL_EXPORTER_OTLP_ENDPOINT": "http://host.docker.internal:4318",
+    "OTEL_METRIC_EXPORT_INTERVAL": "10000",
+    "OTEL_LOGS_EXPORT_INTERVAL": "5000"
+  }
+}
+```
+
+The endpoint is the one from the table above for your engine — `http://172.17.0.1:4318` on Docker
+Engine on Linux; on the host it is `http://127.0.0.1:4318`. The variables are read when a session
+starts, so start a new one after changing them.
+
+Things this stack is shaped around:
+
+- **Delta temporality.** Claude Code's default for metrics. Every sum panel adds the exported
+  deltas up; with `OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE=cumulative` they would count
+  the same usage again on every export.
+- **No content by default.** Prompts and tool parameters are left out unless
+  `OTEL_LOG_USER_PROMPTS=1` or `OTEL_LOG_TOOL_DETAILS=1` is set. The export is plaintext HTTP and
+  ClickHouse keeps it for 24 h; turn those on deliberately.
+- **Identity is always there.** Metrics and events carry `user.email`, `user.account_uuid`, and
+  `organization.id` whatever the settings above say, so the store is personal data to anyone who
+  reaches its ports.
+- **Traces are beta.** `CLAUDE_CODE_ENHANCED_TELEMETRY_BETA=1` together with
+  `OTEL_TRACES_EXPORTER=otlp` sends them to `otel_traces`; no dashboard here reads that table yet.
+
+## The schema
+
+The Collector's ClickHouse exporter owns it — `create_schema: true` runs `CREATE TABLE IF NOT
+EXISTS` at startup, so no `.sql` file here has to be kept in step with the exporter's column list.
+
+| Table | Holds | Time column |
+| ----- | ----- | ----------- |
+| `otel.otel_metrics_sum` | Claude Code's counters — `claude_code.cost.usage`, `.token.usage`, `.session.count`, `.active_time.total`, `.lines_of_code.count`, `.commit.count`, `.pull_request.count`, `.code_edit_tool.decision` | `TimeUnix` |
+| `otel.otel_logs` | Claude Code's events, named in `LogAttributes['event.name']` — `api_request`, `api_error`, `tool_result`, `tool_decision`, `user_prompt`, … | `Timestamp` |
+| `otel.otel_traces` | Spans, when the beta is on; `Duration` in nanoseconds | `Timestamp` |
+
+The exporter creates its other metric tables too (`otel_metrics_gauge`, `otel_metrics_histogram`,
+…); Claude Code writes only counters, so they stay empty.
+
+Metric names are stored unmodified, with no Prometheus-style normalisation. A metric's own
+attributes — `model`, `type`, `session.id` — are in `Attributes`; an event's — `tool_name`,
+`duration_ms`, `cost_usd`, all as strings — in `LogAttributes`. The panels also accept an event
+name with the `claude_code.` prefix. `ServiceName` is `claude-code`.
+
+## Reading the data
+
+### When a row appears
+
+The two intervals say how often Claude Code sends, not how often something is measured:
+
+- **Metrics.** Every `OTEL_METRIC_EXPORT_INTERVAL`, the sum since the last export goes out, and only
+  if it changed. An idle session writes no rows, so the gaps in `TimeUnix` are as long as the idle
+  time, on a grid of the interval.
+- **Events.** An event is created when the thing happens. `OTEL_LOGS_EXPORT_INTERVAL` only says when
+  it is sent; `Timestamp` stays the moment it happened.
+
+The Collector then batches for up to 5 s, so with the settings above a metric lands in ClickHouse
+within about 15 s and an event within about 10 s.
+
+## What is already there
+
+The dashboards in `grafana/dashboards/` are provisioned into the **ClaudeCode** folder:
+
+| Dashboard | Shows |
+| --------- | ----- |
+| **Claude Code — Overview** | Cost, tokens, sessions, active time, lines added and commits for the window; cost by model and tokens by type over time; API request duration and errors; tool calls with failures and p95, and who decided each permission; a tail of the events. Filterable by session. |
+
+Drop any further dashboard JSON into `grafana/dashboards/` — it is picked up within 30 s, no
+restart.
+
+## Starting from an empty store
+
+ClickHouse deduplicates nothing, so to start clean (its HTTP interface takes one statement per
+request):
+
+```sh
+for table in otel_logs otel_traces otel_metrics_sum; do
+  curl -s 'http://localhost:8123/?user=otel&password=otel' --data-binary "TRUNCATE TABLE otel.$table"
+done
+```
+
+## Checking that data arrives
+
+```sh
+# Does the Collector accept OTLP at all? (from the Dev Container: host.docker.internal)
+curl -i -X POST http://127.0.0.1:4318/v1/logs \
+     -H 'Content-Type: application/json' --data '{"resourceLogs":[]}'
+
+# What is the Collector itself doing?
+docker compose -f .devcontainer/compose.yaml logs -f otel-collector   # on the host
+
+# What made it into ClickHouse?
+curl -s 'http://localhost:8123/?user=otel&password=otel' --data-binary "
+  SELECT 'metrics' AS signal, count() AS rows, max(TimeUnix)  AS newest FROM otel.otel_metrics_sum
+  UNION ALL
+  SELECT 'logs',              count(),        max(Timestamp)         FROM otel.otel_logs
+  UNION ALL
+  SELECT 'traces',            count(),        max(Timestamp)         FROM otel.otel_traces"
+```
+
+If a dashboard stays empty but the counts above are non-zero, the fault is in the panel, not the
+pipeline. If the counts are zero, the Collector is the place to look — add `debug` to the
+`exporters` of the relevant pipeline in [otel-collector.yaml](otel-collector.yaml) and restart that
+one service, and it prints what it receives.
+
+## Ports
+
+| Port | Service | What for |
+| ---- | ------- | -------- |
+| 4318 | Collector | OTLP/HTTP — what Claude Code exports to |
+| 4317 | Collector | OTLP/gRPC — for anything else you want to point here |
+| 8888 | Collector | The Collector's own metrics |
+| 13133 | Collector | Health check |
+| 3001 | Grafana | The UI |
+| 8123 | ClickHouse | HTTP interface — `curl`-able, and what the checks above use |
+| 9000 | ClickHouse | Native protocol — what the Collector and Grafana speak |
