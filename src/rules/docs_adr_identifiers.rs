@@ -89,10 +89,9 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
             finding(
                 "numbered",
                 name,
-                format!(
-                    "{name}: a numbered ADR, a form no check reads — migrate the record with the \
+                "a numbered ADR, a form no check reads — migrate the record with the \
                      normalize skill of a v0.9 release, which maps it to '<CAT>-<slug>'"
-                ),
+                    .to_string(),
             )
         })
         .collect();
@@ -104,10 +103,9 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
             found.push(finding(
                 "form",
                 name,
-                format!(
-                    "{name}: the identifier is not '<CAT>-<slug>': two to five capital letters, a \
+                "the identifier is not '<CAT>-<slug>': two to five capital letters, a \
                      hyphen, and two to five lower case words or numbers joined by hyphens"
-                ),
+                    .to_string(),
             ));
             continue;
         }
@@ -117,7 +115,7 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
                 "category",
                 name,
                 format!(
-                    "{name}: the category {category} is neither fixed nor in the category list of \
+                    "the category {category} is neither fixed nor in the category list of \
                      docs/adr/README.md"
                 ),
             ));
@@ -128,7 +126,7 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
             found.push(finding(
                 "heading",
                 name,
-                format!("{name}: heading says '{shown}', but the filename says {id}"),
+                format!("heading says '{shown}', but the filename says {id}"),
             ));
         }
     }
@@ -151,7 +149,7 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
                 "taken",
                 name,
                 format!(
-                    "{name}: the identifier {id} was taken by a deleted ADR, deleted in {commit} — a \
+                    "the identifier {id} was taken by a deleted ADR, deleted in {commit} — a \
                      successor takes a new slug"
                 ),
             ));
