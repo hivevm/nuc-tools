@@ -1,8 +1,8 @@
 #!/bin/sh
 #
-# Git reference-transaction hook, the reference shim of nuc (API-hook-contract): 'nuc hook
-# reference-transaction' decides from the updates git hands it on the standard input and the git
-# state; this hook runs no check.
+# Git reference-transaction hook, the reference shim of nuc (API-hook-contract-names-check): 'nuc
+# hook reference-transaction' decides from the updates git hands it on the standard input and the
+# git state; this hook runs no check.
 #
 # In the 'prepared' state, where a non-zero exit aborts the transaction, nuc refuses an update of
 # the local main to a commit origin/main lacks, as the same transaction leaves origin/main; a

@@ -1,12 +1,15 @@
 //! `nuc hook` and the reference shims, through git.
-//! Verifies: API-command-line-keyed-findings API-hook-contract API-version-coupling-hook-defaults
+//! Verifies: API-command-line-keyed-findings API-hook-contract-names-check
+//! Verifies: API-version-coupling-hook-defaults
 //! Verifies: G-2 G-3 G-5 Q-1 Q-4 Q-7 Q-8 Q-9 Q-10 Q-11
 //!
 //! Each case builds a fixture repository whose hooks path is the repository's `shims/`, puts a
 //! `nuc` on the `PATH` of the git command, the one cargo built or a stand-in that answers as told,
-//! and runs a real `git commit` or `git merge`. The shim refuses every answer but 0 and 3, a
-//! missing `nuc` included, runs the hook's check only on 3, and refuses a red or unrunnable check;
-//! `nuc hook` refuses a commit and a merge on `main` at its ref, and runs no script itself. Every
+//! and runs a real `git commit` or `git merge`. The shim refuses every answer it does not name, a
+//! missing `nuc` included, runs the hook's check only on 3 and the documentation check of
+//! `pre-commit` only on 4, and refuses a red or unrunnable check; `nuc hook` refuses a commit and a
+//! merge on `main` at its ref, and from v0.11.0 on a `feat/` branch, answers 4 from v0.9.0 on a
+//! commit that concludes no merge, and runs no script itself. Every
 //! shim stops without `nuc`, with a `nuc` older than `nuc.toml` requires, on a panic, and where git
 //! names no work tree, and decides with no bash on the `PATH` (G-5, Q-4). Without
 //! `nuc.toml` every `hook/` rule is on; with one, its list governs and it is read fail closed. A
@@ -106,14 +109,19 @@ fn checks(fixture: &Fixture, code: u8) {
     );
 }
 
-/// A merge into `feat/x` stopped on a conflict, resolved and staged, as the template's self-test
-/// builds it.
+/// A merge into `topic` stopped on a conflict, resolved and staged, as the template's self-test of
+/// v0.11.0 builds it: from that release a `feat/` branch carries no merge commit.
 fn conflicted(fixture: &Fixture) {
+    conflicted_on(fixture, "topic");
+}
+
+/// A merge into the branch stopped on a conflict, resolved and staged.
+fn conflicted_on(fixture: &Fixture, branch: &str) {
     fixture.git(&["switch", "-q", "-c", "feature"]);
     fixture.write("f", "feature\n");
     fixture.git(&["add", "f"]);
     fixture.git(&["commit", "-q", "-m", "feature"]);
-    fixture.git(&["switch", "-q", "-c", "feat/x", "main"]);
+    fixture.git(&["switch", "-q", "-c", branch, "main"]);
     fixture.write("f", "other\n");
     fixture.git(&["add", "f"]);
     fixture.git(&["commit", "-q", "-m", "other"]);
@@ -262,9 +270,15 @@ fn a_git_dir_handed_from_elsewhere_is_not_decided_and_a_linked_worktree_is() {
 }
 
 #[test]
-fn every_shim_refuses_every_answer_but_0_and_3() {
+fn every_shim_refuses_every_answer_it_does_not_name() {
     for hook in every_shim() {
-        for code in [1, 2, 101, 7, 4] {
+        // Only the shim of pre-commit names 4, on which it runs the documentation check.
+        let codes: &[u8] = if hook == "pre-commit" {
+            &[1, 2, 101, 7]
+        } else {
+            &[1, 2, 101, 7, 4]
+        };
+        for &code in codes {
             let fixture = shimmed_only(&format!("hooks-answer-{hook}-{code}"), &hook);
             let args = trigger(&fixture, &hook);
             let bin = stand_in(&fixture, &format!("exit {code}"));
@@ -303,6 +317,149 @@ fn the_shim_runs_the_check_only_on_3_and_refuses_one_that_cannot_run() {
     let output = commit(&fixture, Some(&bin));
     assert!(!output.status.success(), "a check that cannot run passed");
     let _ = std::fs::remove_dir_all(bin);
+}
+
+#[test]
+fn the_pre_commit_shim_runs_the_documentation_check_only_on_4() {
+    let fixture = shimmed_only("hooks-run-docs", "pre-commit");
+    fixture.git(&["switch", "-q", "-c", "feature"]);
+    checks(&fixture, 0);
+    docs(&fixture, 0);
+    let bin = stand_in(&fixture, "exit 4");
+    let output = commit(&fixture, Some(&bin));
+    assert!(output.status.success(), "{}", both(&output));
+    assert!(both(&output).contains("docs output for the test"));
+    assert!(
+        !both(&output).contains("check output"),
+        "the full check ran on 4"
+    );
+
+    docs(&fixture, 1);
+    let output = commit(&fixture, Some(&bin));
+    assert!(!output.status.success(), "a red documentation check passed");
+    assert!(
+        both(&output).contains(
+            "pre-commit: refused — the documentation check is red, and the checks pass before a \
+             commit (NUC-checks-are-bash §6)"
+        ),
+        "{}",
+        both(&output)
+    );
+
+    let bin = stand_in(&fixture, "exit 3");
+    let output = commit(&fixture, Some(&bin));
+    assert!(output.status.success(), "{}", both(&output));
+    assert!(
+        !both(&output).contains("docs output"),
+        "the documentation check ran on 3"
+    );
+
+    std::fs::remove_file(fixture.root().join("scripts/check-docs.sh")).expect("removed");
+    let bin = stand_in(&fixture, "exit 4");
+    let output = commit(&fixture, Some(&bin));
+    assert!(
+        !output.status.success(),
+        "a documentation check that cannot run passed"
+    );
+    let _ = std::fs::remove_dir_all(bin);
+}
+
+/// The README of a fixture that carries the release.
+fn carrying(release: &str) -> String {
+    format!("# X\n\n- **Template release:** {release}\n")
+}
+
+// The shim of a release before v0.9.0 knows 0 and 3 alone: on such a tree `nuc hook pre-commit`
+// answers as before, so that shim runs what it ran before.
+#[test]
+fn pre_commit_answers_4_from_v0_9_0_on_a_commit_that_concludes_no_merge_and_0_before() {
+    for (readme, code) in [
+        (Some("v0.9.0"), 4),
+        (Some("v0.11.0"), 4),
+        (Some("unreleased"), 4),
+        (None, 4),
+        (Some("v0.8.1"), 0),
+        (Some("v0.6.1"), 0),
+    ] {
+        let fixture = shimmed(&format!("hooks-answer-docs-{}", readme.unwrap_or("none")));
+        fixture.git(&["switch", "-q", "-c", "feature"]);
+        docs(&fixture, 0);
+        if let Some(release) = readme {
+            fixture.write("README.md", &carrying(release));
+        }
+        assert_eq!(decide(&fixture).status.code(), Some(code), "{readme:?}");
+    }
+    let fixture = shimmed("hooks-answer-docs-absent");
+    fixture.git(&["switch", "-q", "-c", "feature"]);
+    assert_eq!(
+        decide(&fixture).status.code(),
+        Some(0),
+        "no check-docs.sh to run"
+    );
+
+    let fixture = shimmed("hooks-answer-merge-v0-8-1");
+    checks(&fixture, 0);
+    docs(&fixture, 0);
+    fixture.write("README.md", &carrying("v0.8.1"));
+    conflicted(&fixture);
+    assert_eq!(
+        decide(&fixture).status.code(),
+        Some(3),
+        "a concluded merge on v0.8.1"
+    );
+}
+
+#[test]
+fn from_v0_11_0_a_merge_on_a_feat_branch_and_its_conclusion_are_refused_at_its_ref() {
+    let fixture = shimmed("hooks-feat-merge");
+    docs(&fixture, 0);
+    merging(&fixture);
+    fixture.git(&["switch", "-q", "-c", "feat/x", "main"]);
+    let output = git_hooked(&fixture, Some(&built()), &[], MERGE);
+    assert!(!output.status.success(), "a merge on feat/x passed");
+    assert!(
+        both(&output).contains(
+            "refs/heads/feat/x: hook/merge-on-feat: the checkout is on the feat/ branch 'feat/x', \
+             which carries no merge commit (NUC-main-only-via-pr §5)."
+        ),
+        "{}",
+        both(&output)
+    );
+    assert!(both(&output).contains(" [hook/merge-on-feat:feat]"));
+    let fixture = shimmed("hooks-feat-merge-v0-10-0");
+    docs(&fixture, 0);
+    merging(&fixture);
+    fixture.git(&["switch", "-q", "-c", "feat/x", "main"]);
+    fixture.write("README.md", &carrying("v0.10.0"));
+    let output = git_hooked(&fixture, Some(&built()), &[], MERGE);
+    assert!(
+        output.status.success(),
+        "a merge on feat/x on v0.10.0: {}",
+        both(&output)
+    );
+
+    let fixture = shimmed("hooks-feat-conclusion");
+    checks(&fixture, 0);
+    conflicted_on(&fixture, "feat/x");
+    let output = git_hooked(
+        &fixture,
+        Some(&built()),
+        &[],
+        &["commit", "-q", "--no-edit"],
+    );
+    assert!(
+        !output.status.success(),
+        "the conclusion of a merge on feat/x passed"
+    );
+    assert!(
+        both(&output).contains("refs/heads/feat/x: hook/concluded-merge-on-feat: "),
+        "{}",
+        both(&output)
+    );
+    assert!(
+        !both(&output).contains("check output"),
+        "the checks ran on a refusal"
+    );
 }
 
 /// `nuc hook pre-commit` in the fixture, called directly.
@@ -569,13 +726,13 @@ fn docs(fixture: &Fixture, code: u8) {
     );
 }
 
-/// A branch `feature` one commit ahead of `main`, and `feat/x` at `main` checked out.
+/// A branch `feature` one commit ahead of `main`, and `topic` at `main` checked out.
 fn merging(fixture: &Fixture) {
     fixture.git(&["switch", "-q", "-c", "feature"]);
     fixture.write("f", "feature\n");
     fixture.git(&["add", "f"]);
     fixture.git(&["commit", "-q", "-m", "feature"]);
-    fixture.git(&["switch", "-q", "-c", "feat/x", "main"]);
+    fixture.git(&["switch", "-q", "-c", "topic", "main"]);
 }
 
 const MERGE: &[&str] = &["merge", "-q", "--no-ff", "-m", "m", "feature"];
@@ -1117,6 +1274,8 @@ fn a_canary_token_shows_in_no_push_output_and_not_in_the_record() {
         "hooks-push-token",
         "echo \"check output for the test\"\nexit 0",
     );
+    // A release before v0.9.0, whose hook gives the notice on drafts.
+    fixture.write("README.md", "# X\n\n- **Template release:** v0.8.1\n");
     fixture.write("docs/adr/draft-x.md", "");
     fixture.commit("draft");
     fixture.git(&[
@@ -1206,8 +1365,9 @@ fn a_readme_that_cannot_be_read_refuses_no_push() {
     let output = git_hooked(&fixture, Some(&built()), &[], PUSH);
     assert!(output.status.success(), "{}", both(&output));
     assert!(
-        both(&output).contains("(CONTRIBUTING.md, Integration branches, step 7)."),
-        "an unreadable README words the notice as the newest release: {}",
+        !both(&output).contains("draft ADR"),
+        "an unreadable README is decided as the newest release, which gives no notice on drafts: \
+         {}",
         both(&output)
     );
 }

@@ -25,9 +25,8 @@
 # name no tree has, a scenario that names a case no tree has, and no tree at all fail.
 #
 # The hooks nuc ports reach HOOKS_PORTED: a tree of a later release is left out, named on standard
-# output, until the port of its hooks lifts the bound, as the plan's ticket on the hooks of v0.9.0
-# and v0.11.0 does (docs/plan/port-v0-9-to-v0-11/). Its checks are compared as any tree's. A tree
-# whose README names no release is compared, and fails where its hooks are not ported.
+# output, until the port of its hooks lifts the bound. Its checks are compared as any tree's. A
+# tree whose README names no release is compared, and fails where its hooks are not ported.
 #
 # PARITY_HOOK_SCENARIOS, PARITY_HOOK_TABLE, PARITY_HOOK_CASES, and PARITY_HOOKS_PORTED name other
 # files and another bound, for scripts/test-check-parity.sh.
@@ -39,7 +38,7 @@ HOOK_SCENARIOS="${PARITY_HOOK_SCENARIOS:-$ROOT/tests/parity/hook-scenarios.sh}"
 HOOK_TABLE="${PARITY_HOOK_TABLE:-$ROOT/tests/parity/hooks.tsv}"
 HOOK_CASES="${PARITY_HOOK_CASES:-$ROOT/tests/parity/hook-cases.tsv}"
 SHIMS="$ROOT/shims"
-HOOKS_PORTED="${PARITY_HOOKS_PORTED:-v0.8.1}"
+HOOKS_PORTED="${PARITY_HOOKS_PORTED:-v0.11.0}"
 
 # The scenarios, filled by hook_scenario as the scenario file is sourced.
 hs_names=() hs_hooks=() hs_cases=() hs_setups=() hs_args=() hs_bare=()
@@ -168,13 +167,16 @@ hp_run() {
   return 0
 }
 
-# hp_reached <scenario> <bash path> <label> — whether the bash side ends as each case the scenario
-# names expects, pass or refuse: a setup that no longer reaches its state would agree on nothing.
+# hp_reached <scenario> <bash path> <label> <tree> — whether the bash side ends as each case the
+# scenario names expects, pass or refuse, among the cases the tree's own self-test names: a setup
+# that no longer reaches its state would agree on nothing. A case of another release is not held
+# here, where the hook it shows may decide otherwise, and both sides are compared all the same.
 hp_reached() {
   local s="$1" rc c ok=0
   rc="$(cat "$2.rc")"
   IFS='|' read -ra named <<< "${hs_cases[s]}"
   for c in "${named[@]}"; do
+    grep -qxF -- "$c" <<< "${hp_tree_cases[$4]:-}" || continue
     case "${hp_kinds[$c]:-}" in
       pass) ((rc == 0)) && continue ;;
       refuse) ((rc != 0)) && continue ;;
@@ -272,7 +274,7 @@ hook_parity() {
   local tree release newest="" newest_release="" t_names kind
   local -a all_names=()
   # What each case expects, pass or refuse, by its name.
-  declare -gA hp_kinds=()
+  declare -gA hp_kinds=() hp_tree_cases=()
   for tree in "${trees[@]}"; do
     release="$(release_of "$tree/README.md")"
     if [[ ! -f "$tree/scripts/test-git-hooks.sh" ]]; then
@@ -286,6 +288,7 @@ hook_parity() {
       [[ -n "$name" ]] || continue
       all_names+=("$name")
       hp_kinds["$name"]="$kind"
+      hp_tree_cases["$tree"]+="$name"$'\n'
     done <<< "$t_names"
     if [[ -z "$newest" || "$(printf '%s\n%s\n' "$newest_release" "$release" | sort -V | tail -1)" == "$release" ]]; then
       newest="$tree" newest_release="$release"
@@ -349,13 +352,13 @@ rules = [$ids]"
       b="$hw/$n.bash"
       if ((hs_bare[s])); then
         hp_run "$s" "$hw/bash-$release-$hook" "" "" "$b"
-        hp_reached "$s" "$b" "hook scenario ${hs_names[s]} at $release, bare" || failed=1
+        hp_reached "$s" "$b" "hook scenario ${hs_names[s]} at $release, bare" "$tree" || failed=1
         hp_run "$s" "$hw/shim-$hook" "" "" "$hw/$n.nuc"
         hp_compare "hook scenario ${hs_names[s]} at $release, bare" "$hook" "$b" "$hw/$n.nuc" || failed=1
         continue
       fi
       hp_run "$s" "$hw/bash-$release-$hook" "$release" "" "$b"
-      hp_reached "$s" "$b" "hook scenario ${hs_names[s]} at $release" || failed=1
+      hp_reached "$s" "$b" "hook scenario ${hs_names[s]} at $release" "$tree" || failed=1
       for side in plain configured; do
         if [[ "$side" == plain ]]; then
           hp_run "$s" "$hw/shim-$hook" "$release" "" "$hw/$n.$side"

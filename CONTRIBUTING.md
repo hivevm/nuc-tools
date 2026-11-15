@@ -87,7 +87,7 @@ Cargo.lock            # the resolved dependencies, built with --locked
 rust-toolchain.toml   # the pinned Rust toolchain
 deny.toml             # what cargo deny allows: advisories, bans, licenses, sources
 src/                  # the library's functional core, its shell in src/shell/, and the binary
-shims/                # the reference shims: POSIX sh hooks that hand each to 'nuc hook' (API-hook-contract)
+shims/                # the reference shims: POSIX sh hooks that hand each to 'nuc hook' (API-hook-contract-names-check)
 action.yml            # the GitHub Action: installs the nuc of its release and runs it
 release/              # the release tooling: build, checksums, the installer, and the release commit
 tests/                # the integration tests, their fixture helpers and the readings of the

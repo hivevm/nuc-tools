@@ -30,13 +30,14 @@
 # and no build.
 #
 # The hook cases run the scenarios alone, through '--hooks', on a tree of the template whose bash
-# pre-commit refuses a commit on main, with the reference shim and a stand-in nuc: an agreeing
-# nuc passes; one whose exit status differs, one whose refusal maps to another rule ID, one that
-# differs only with nuc.toml, an unknown line of the bash hook, an uncovered self-test case, a
-# listed case the self-test lacks, a scenario that names a case no release has, a scenario whose
-# bash side does not end as its case expects, a notice whose field differs, a record of green
-# trees that differs, a merge driver that writes another index, no tree at all, and a malformed
-# table each fail (TEST-hook-scenario-parity).
+# pre-commit refuses a commit on main, with the reference shim and a stand-in nuc: an agreeing nuc
+# passes; one whose exit status differs, one whose refusal maps to another rule ID or cites another
+# release, one that differs only with nuc.toml, an unknown line of the bash hook, an uncovered
+# self-test case, a listed case the self-test lacks, a scenario that names a case no release has, a
+# scenario whose bash side does not end as its case expects, a notice whose field differs, a record
+# of green trees that differs, a merge driver that writes another index, no tree at all, and a
+# malformed table each fail (TEST-hook-scenario-parity). A case is held only on a tree whose
+# self-test names it.
 #
 # Inputs: scripts/check-parity.sh tests/parity/ scripts/lib/ shims/
 #
@@ -727,14 +728,15 @@ expect fail "a malformed row of the table of releases is refused" "a row needs a
 
 ON_MAIN="pre-commit: refused — the checkout is on 'main', and changes reach main through a pull request (AGENTS.md, section 6). Create a branch first: git switch -c <name>"
 
-# hook_tree <name> <extra hook line> [extra case] — a tree of the template at v0.7.0 whose bash
+# hook_tree <name> <extra hook line> [extra case] — a tree of the template at v0.7.0, or at
+# HOOK_TREE_RELEASE, whose bash
 # pre-commit refuses a commit on main, writing the extra line first where one is given, and whose
 # self-test names the cases of the scenarios and the extra case. Printed as its path.
 # shellcheck disable=SC2016 # the hook's and the self-test's own expansions
 hook_tree() {
   local dir="$work/hooks-$1"
   mkdir -p "$dir/.githooks" "$dir/scripts"
-  printf '# Template\n\n- **Template release:** v0.7.0\n' > "$dir/README.md"
+  printf '# Template\n\n- **Template release:** %s\n' "${HOOK_TREE_RELEASE:-v0.7.0}" > "$dir/README.md"
   {
     echo '#!/usr/bin/env bash'
     [[ -n "$2" ]] && printf 'echo %q >&2\n' "$2"
@@ -751,7 +753,7 @@ hook_tree() {
 # hook_nuc <name> <shell code> — a stand-in nuc whose 'hook pre-commit' runs the code, printed as
 # its path; HOOK_AGREES is the code that answers as the bash does.
 # shellcheck disable=SC2016 # the stand-in's own expansion
-HOOK_AGREES='[ "$(git symbolic-ref --short -q HEAD)" = main ] || exit 0; echo "refs/heads/main: hook/commit-on-main: on main [hook/commit-on-main:main]"; exit 1'
+HOOK_AGREES='[ "$(git symbolic-ref --short -q HEAD)" = main ] || exit 0; echo "refs/heads/main: hook/commit-on-main: the checkout is on '"'"'main'"'"', and changes reach main through a pull request (AGENTS.md, section 6). Create a branch first: git switch -c <name> [hook/commit-on-main:main]"; exit 1'
 hook_nuc() {
   local f="$work/hook-nuc-$1"
   printf '#!/bin/sh\n%s\n' "$2" > "$f"
@@ -800,6 +802,10 @@ expect pass "a tree at the bound of the hooks nuc ports is compared" "" \
 expect fail "a refusal mapped to another rule ID fails" "only nuc: rule hook/merge-checks refs/heads/main" \
   run_hooks "$(hook_nuc other-rule '[ "$(git symbolic-ref --short -q HEAD)" = main ] || exit 0; echo "refs/heads/main: hook/merge-checks: x [hook/merge-checks:main]"; exit 1')" \
   "$HOOK_SCENARIOS_FILE" "$NO_CASES" "$tree"
+expect fail "a refusal that cites another release than the tree carries fails" \
+  "only nuc: rule hook/commit-on-main refs/heads/main NUC-main-only-via-pr §1, §4" \
+  run_hooks "$(hook_nuc cites "${HOOK_AGREES/AGENTS.md, section 6/NUC-main-only-via-pr §1, §4}")" \
+  "$HOOK_SCENARIOS_FILE" "$NO_CASES" "$tree"
 # shellcheck disable=SC2016 # the stand-in's own expansion
 expect fail "a refusal without its key fails" "nuc refuses with hook/commit-on-main without its key" \
   run_hooks "$(hook_nuc unkeyed '[ "$(git symbolic-ref --short -q HEAD)" = main ] || exit 0; echo "refs/heads/main: hook/commit-on-main: on main"; exit 1')" \
@@ -821,6 +827,20 @@ cp "$HOOK_SCENARIOS_FILE" "$work/hook-scenarios-unreached.sh"
 echo 'hook_scenario unreached pre-commit "a commit on main" on_branch commit -q --allow-empty -m x' >> "$work/hook-scenarios-unreached.sh"
 expect fail "a scenario whose bash side does not end as its case expects fails" "the scenario does not reach its case" \
   run_hooks "$(hook_nuc agrees "$HOOK_AGREES")" "$work/hook-scenarios-unreached.sh" "$NO_CASES" "$tree"
+# A case is held on the trees whose self-test names it: the scenario that does not reach the case
+# of the tree of v0.8.0 fails there, and is compared on the tree of v0.7.0, which lacks the case.
+later="$(HOOK_TREE_RELEASE=v0.8.0 hook_tree later "" "a case of the later tree")"
+cp "$HOOK_SCENARIOS_FILE" "$work/hook-scenarios-later.sh"
+echo 'hook_scenario elsewhere pre-commit "a case of the later tree" : commit -q --allow-empty -m x' >> "$work/hook-scenarios-later.sh"
+out="$(run_hooks "$(hook_nuc agrees "$HOOK_AGREES")" "$work/hook-scenarios-later.sh" "$NO_CASES" "$tree" "$later" 2>&1)"; rc=$?
+if ((rc == 1)) && [[ "$out" == *"elsewhere at v0.8.0 — the bash side exits 1"* \
+  && "$out" != *"elsewhere at v0.7.0 — the bash side"* ]]; then
+  passed=$((passed + 1))
+else
+  failed=$((failed + 1))
+  echo "FAIL: a case is held only on the trees whose self-test names it (exit $rc)" >&2
+  while IFS= read -r l; do printf '    %s\n' "$l"; done <<< "$out" >&2
+fi
 printf '%s\t%s\t%s\n' "^pre-commit: notice (.+)$" notice/test '\1' > "$work/hooks-notice.tsv"
 cat "$ROOT/tests/parity/hooks.tsv" >> "$work/hooks-notice.tsv"
 expect fail "a notice whose field differs fails" "only nuc: rule notice/test B" \

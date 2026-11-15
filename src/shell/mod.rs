@@ -30,6 +30,9 @@ const UNDECIDED: u8 = 2;
 /// Exit code of `nuc hook` alone: the hook passed so far, and its shim runs the check now
 /// (API-command-line-keyed-findings).
 const RUN_CHECK: u8 = 3;
+/// Exit code of `nuc hook pre-commit` alone: the hook passed so far, and its shim runs the
+/// documentation check now (API-command-line-keyed-findings).
+const RUN_DOCS: u8 = 4;
 
 const USAGE: &str = "usage: nuc check [--repo <path>] [--format text|json|sarif] | nuc hook <name> | nuc \
                      explain <rule ID> | nuc --version";

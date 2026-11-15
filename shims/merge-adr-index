@@ -1,8 +1,8 @@
 #!/bin/sh
 #
 # Git merge driver for the ADR index, docs/adr/README.md, the reference shim of nuc
-# (API-hook-contract): 'nuc hook merge-adr-index' merges the rows of its tables by keeping the lines
-# of both sides, and its prose as any other text.
+# (API-hook-contract-names-check): 'nuc hook merge-adr-index' merges the rows of its tables by
+# keeping the lines of both sides, and its prose as any other text.
 #
 # Git calls the driver with the base, ours, and theirs, and the three labels of the markers, and
 # takes the merged file from ours. nuc writes the union of both sides into ours where its prose is

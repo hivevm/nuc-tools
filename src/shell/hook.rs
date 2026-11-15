@@ -1,6 +1,7 @@
 //! `nuc hook <name>`: the git state a hook decides on, read through git, and the answer the
-//! reference shim acts on (API-hook-contract). It runs no command but git and no script of the
-//! repository (Q-7): where a hook's check runs, it exits 3 and the shim runs it.
+//! reference shim acts on (API-hook-contract-names-check). It runs no command but git and no
+//! script of the repository (Q-7): where a hook's check runs, it exits 3, or 4 for the
+//! documentation check of `pre-commit`, and the shim runs it.
 
 use std::env;
 use std::fs;
@@ -12,7 +13,7 @@ use crate::hook::{self, Answer, HookRule};
 use crate::rules;
 
 use super::tree::Tree;
-use super::{FOUND, PASSED, RUN_CHECK, git, running};
+use super::{FOUND, PASSED, RUN_CHECK, RUN_DOCS, git, running};
 
 /// How a hook decides on the state of a commit, with the hook rules turned on.
 type Decide = fn(&hook::Commit, &dyn Fn(&HookRule) -> bool) -> Answer;
@@ -41,7 +42,8 @@ pub(super) fn run(name: &str, args: &[&str]) -> Result<u8, String> {
     run(args)
 }
 
-/// `nuc hook pre-commit`, whose shim runs `scripts/check-all.sh` on 3.
+/// `nuc hook pre-commit`, whose shim runs `scripts/check-all.sh` on 3 and `scripts/check-docs.sh`
+/// on 4.
 fn pre_commit(args: &[&str]) -> Result<u8, String> {
     commit_hook("pre-commit", args, "scripts/check-all.sh", hook::pre_commit)
 }
@@ -66,14 +68,18 @@ fn commit_hook(name: &str, args: &[&str], script: &str, decide: Decide) -> Resul
     same_git_dir(&dir)?;
     let root = work_tree(&dir)?;
     let on = turned_on(root.as_deref())?;
+    // A test of existence, which reads nothing (Q-12).
+    let has = |script: &str| {
+        root.as_ref()
+            .is_some_and(|root| root.join(script).is_file())
+    };
     let state = hook::Commit {
         branch: git::probe(&dir, &["symbolic-ref", "--short", "-q", "HEAD"])?
             .map(|branch| line(&branch).to_owned()),
         merging: git::probe(&dir, &["rev-parse", "-q", "--verify", "MERGE_HEAD"])?.is_some(),
-        // A test of existence, which reads nothing (Q-12).
-        check_script: root
-            .as_ref()
-            .is_some_and(|root| root.join(script).is_file()),
+        check_script: has(script),
+        docs_script: has("scripts/check-docs.sh"),
+        release: release(root.as_deref()),
     };
     carry_out(decide(&state, &is_on(&on)))
 }
@@ -105,6 +111,7 @@ fn carry_out(answer: Answer) -> Result<u8, String> {
             Ok(FOUND)
         }
         Answer::RunCheck => Ok(RUN_CHECK),
+        Answer::RunDocs => Ok(RUN_DOCS),
     }
 }
 
@@ -176,11 +183,13 @@ fn pre_push(args: &[&str]) -> Result<u8, String> {
         Some(tree) => read_in_git_dir(&green)?.is_some_and(|text| hook::holds(&text, tree)),
         None => false,
     };
-    // The README is read only for a notice, and a README that cannot be read words it as the
-    // newest release: a hook refuses nothing for the release (API-version-coupling-hook-defaults).
-    let notice = refs.iter().any(|(_, drafts)| matches!(drafts, Some(1..)));
+    // The README is read only for a refusal or a notice, where a ref goes to main or carries
+    // draft ADRs.
+    let read = refs
+        .iter()
+        .any(|(to, drafts)| to == "refs/heads/main" || matches!(drafts, Some(1..)));
     let state = hook::Push {
-        contributing: !notice || contributing(root.as_deref()).unwrap_or(true),
+        release: if read { release(root.as_deref()) } else { None },
         refs,
         tree,
         recorded,
@@ -273,6 +282,7 @@ fn reference_transaction(args: &[&str]) -> Result<u8, String> {
         current.as_deref(),
         &has,
         &is_on(&on),
+        &|| release(Some(&dir)),
     ))
 }
 
@@ -292,25 +302,18 @@ fn drafts(dir: &Path, object: &str) -> usize {
         .unwrap_or(0)
 }
 
-/// Whether the draft notice names `CONTRIBUTING.md`, as the README's release line places it: from
-/// v0.7.0 on, and where no release is named, as the newest; a release before v0.5.0 is decided as
-/// v0.5.0 (API-version-coupling-hook-defaults).
-fn contributing(root: Option<&Path>) -> Result<bool, String> {
-    let Some(root) = root else {
-        return Ok(true);
-    };
-    let tree = Tree::new(root.to_path_buf())?;
-    let readme = tree.read_checked(&root.join("README.md"))?;
-    // The hook places every tree: a release before the earliest as the earliest, and
-    // `unreleased` or none as the newest.
-    let release = match readme
-        .as_deref()
-        .and_then(rules::docs_template_release::carried)
-    {
+/// The release a hook decides as, read from the README's release line: none, the newest, where
+/// the repository has no work tree, the README cannot be read, or its line names no release; a
+/// release before v0.5.0 as v0.5.0. A hook refuses nothing for the release
+/// (API-version-coupling-hook-defaults).
+fn release(root: Option<&Path>) -> Option<config::Version> {
+    let root = root?;
+    let tree = Tree::new(root.to_path_buf()).ok()?;
+    let readme = tree.read_checked(&root.join("README.md")).ok()??;
+    match rules::docs_template_release::carried(&readme) {
         Some(rules::Carried::Release(release)) => Some(release.max(rules::RELEASES[0])),
         _ => None,
-    };
-    Ok(rules::guide_is_contributing(release))
+    }
 }
 
 /// The run of the shim that calls `nuc hook pre-push` and then its `--record`, as the shim names

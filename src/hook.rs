@@ -1,8 +1,34 @@
 //! The decisions of `nuc hook`: what each git hook of the template decides from the git state, as
-//! the bash hook of the release does (API-hook-contract). The shell reads the state; these
-//! functions decide on it, and the reference shim runs the project's check where they say it runs.
+//! the bash hook of the release does (API-hook-contract-names-check). The shell reads the state;
+//! these functions decide on it, and the reference shim runs the project's check where they say it
+//! runs. Each decides as the release the tree carries, none as the newest
+//! (API-version-coupling-hook-defaults).
 
+use crate::config::Version;
 use crate::finding::Finding;
+
+/// The release from which `pre-commit` has `scripts/check-docs.sh` run on a commit that concludes
+/// no merge, `pre-push` gives no notice on draft ADRs, and the refusals cite the `NUC-` ADRs.
+pub const DOCS_BEFORE_COMMIT: Version = Version(0, 9, 0);
+
+/// The release from which a `feat/` branch carries no merge commit: `pre-merge-commit` refuses a
+/// merge on one, and `pre-commit` the conclusion of one.
+pub const FEAT_FAST_FORWARD: Version = Version(0, 11, 0);
+
+/// Whether a tree that carries `release`, none for the newest, decides as `since` or later.
+fn at_least(release: Option<Version>, since: Version) -> bool {
+    release.is_none_or(|release| release >= since)
+}
+
+/// The citation of the rule that changes reach main through a pull request, as the release words
+/// it: the section of `AGENTS.md` before v0.9.0, the clauses of NUC-main-only-via-pr from then.
+fn main_only(release: Option<Version>, clauses: &str) -> String {
+    if at_least(release, DOCS_BEFORE_COMMIT) {
+        format!("NUC-main-only-via-pr {clauses}")
+    } else {
+        "AGENTS.md, section 6".to_owned()
+    }
+}
 
 /// A hook rule: its ID and the reason `nuc explain` gives. A hook rule decides in `nuc hook`
 /// alone; `nuc check` knows its ID, so that one `nuc.toml` lists both, and runs it never.
@@ -38,6 +64,34 @@ pub const MERGE_ON_MAIN: HookRule = HookRule {
     explain: "changes reach main through a pull request, and the local main only takes up the \
               remote's by a fast-forward (AGENTS.md, section 6); the pre-merge-commit hook \
               refuses a merge while the checkout is on main",
+};
+
+/// The documentation check on a commit that concludes no merge, from template release v0.9.0.
+pub const COMMIT_DOCS: HookRule = HookRule {
+    id: "hook/commit-docs",
+    reasons: &[],
+    explain: "the checks pass before a commit, so the pre-commit hook has scripts/check-docs.sh \
+              run on every commit off main that concludes no merge, and refuses it while the \
+              documentation check is red; it reads the working tree. From template release \
+              v0.9.0 on.",
+};
+
+/// The refusal of the commit that concludes a merge on a `feat/` branch, from v0.11.0.
+pub const CONCLUDED_MERGE_ON_FEAT: HookRule = HookRule {
+    id: "hook/concluded-merge-on-feat",
+    reasons: &["feat"],
+    explain: "a feat/ branch carries no merge commit: a branch reaches it rebased onto it and by a \
+              fast-forward (NUC-main-only-via-pr §5), so the pre-commit hook refuses the commit \
+              that concludes a merge that stopped on one. From template release v0.11.0 on.",
+};
+
+/// The refusal of a merge on a `feat/` branch, from v0.11.0.
+pub const MERGE_ON_FEAT: HookRule = HookRule {
+    id: "hook/merge-on-feat",
+    reasons: &["feat"],
+    explain: "a feat/ branch carries no merge commit: a branch reaches it rebased onto it and by a \
+              fast-forward (NUC-main-only-via-pr §5), so the pre-merge-commit hook refuses a \
+              merge while the checkout is on one. From template release v0.11.0 on.",
 };
 
 /// The documentation check on the tree of a merge into any other branch.
@@ -81,8 +135,11 @@ pub const MAIN_MOVES: HookRule = HookRule {
 /// (API-version-coupling-hook-defaults).
 pub const ALL: &[HookRule] = &[
     COMMIT_ON_MAIN,
+    COMMIT_DOCS,
+    CONCLUDED_MERGE_ON_FEAT,
     MERGE_CHECKS,
     MERGE_ON_MAIN,
+    MERGE_ON_FEAT,
     MERGE_DOCS,
     PUSH_TO_MAIN,
     PUSH_CHECKS,
@@ -97,13 +154,15 @@ pub fn find(id: &str) -> Option<&'static HookRule> {
     ALL.iter().find(|rule| rule.id == id)
 }
 
-/// What a hook answers the shim: pass, refuse with a finding, or pass so far and the check of the
-/// hook runs now, exit 0, 1, and 3 (API-hook-contract).
+/// What a hook answers the shim: pass, refuse with a finding, pass so far and the check of the
+/// hook runs now, or pass so far and the documentation check runs now, exit 0, 1, 3, and 4
+/// (API-hook-contract-names-check).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Answer {
     Pass,
     Refuse(Finding),
     RunCheck,
+    RunDocs,
 }
 
 /// The git state `pre-commit` and `pre-merge-commit` decide on.
@@ -117,22 +176,57 @@ pub struct Commit {
     /// Whether the repository has a work tree with the hook's check script as a file in it:
     /// `scripts/check-all.sh` for `pre-commit`, `scripts/check-docs.sh` for `pre-merge-commit`.
     pub check_script: bool,
+    /// Whether it has `scripts/check-docs.sh` as a file in it, which `pre-commit` has run on a
+    /// commit that concludes no merge.
+    pub docs_script: bool,
+    /// The release the tree carries, none for the newest.
+    pub release: Option<Version>,
 }
 
-/// `pre-merge-commit`: refuse a merge on `main`; on any other branch, the merge only after the
-/// documentation check, where there is one to run.
+/// The refusal of a merge, or of its conclusion, on the `feat/` branch the checkout is on.
+fn on_feat(rule: &HookRule, branch: &str) -> Answer {
+    Answer::Refuse(Finding {
+        rule: rule.id,
+        reason: "feat",
+        file: format!("refs/heads/{branch}"),
+        line: None,
+        message: format!(
+            "the checkout is on the feat/ branch '{branch}', which carries no merge commit \
+             (NUC-main-only-via-pr §5). git merge --abort, then rebase the branch onto it and \
+             move it forward: git rebase {branch} <branch>, then git switch {branch} && git merge \
+             --ff-only <branch>"
+        ),
+    })
+}
+
+/// `pre-merge-commit`: refuse a merge on `main`, and from v0.11.0 on a `feat/` branch; on any
+/// other branch, the merge only after the documentation check, where there is one to run.
 pub fn pre_merge_commit(state: &Commit, on: &dyn Fn(&HookRule) -> bool) -> Answer {
-    if state.branch.as_deref() == Some("main") && on(&MERGE_ON_MAIN) {
+    let branch = state.branch.as_deref();
+    if branch == Some("main") && on(&MERGE_ON_MAIN) {
+        let into = if at_least(state.release, FEAT_FAST_FORWARD) {
+            "rebase the branch onto a feat/ branch"
+        } else {
+            "merge into a feat/ branch"
+        };
         return Answer::Refuse(Finding {
             rule: MERGE_ON_MAIN.id,
             reason: "main",
             file: "refs/heads/main".to_owned(),
             line: None,
-            message: "the checkout is on 'main', and changes reach main through a pull request \
-                      (AGENTS.md, section 6). git merge --abort, then merge into a feat/ branch, \
-                      or take up the remote's main: git merge --ff-only origin/main"
-                .to_owned(),
+            message: format!(
+                "the checkout is on 'main', and changes reach main through a pull request ({}). \
+                 git merge --abort, then {into}, or take up the remote's main: git merge \
+                 --ff-only origin/main",
+                main_only(state.release, "§1, §4")
+            ),
         });
+    }
+    if let Some(feat) = branch.filter(|branch| branch.starts_with("feat/"))
+        && at_least(state.release, FEAT_FAST_FORWARD)
+        && on(&MERGE_ON_FEAT)
+    {
+        return on_feat(&MERGE_ON_FEAT, feat);
     }
     if state.check_script && on(&MERGE_DOCS) {
         return Answer::RunCheck;
@@ -140,23 +234,39 @@ pub fn pre_merge_commit(state: &Commit, on: &dyn Fn(&HookRule) -> bool) -> Answe
     Answer::Pass
 }
 
-/// `pre-commit`: refuse a commit on `main`; on any other branch, the commit that concludes a
-/// conflicted merge only after the full check, where there is one to run. `on` says which hook
-/// rules are turned on.
+/// `pre-commit`: refuse a commit on `main`; from v0.11.0, refuse the commit that concludes a merge
+/// on a `feat/` branch; on any other branch, the commit that concludes a conflicted merge only
+/// after the full check, and from v0.9.0 every other commit only after the documentation check,
+/// where there is one to run. `on` says which hook rules are turned on.
 pub fn pre_commit(state: &Commit, on: &dyn Fn(&HookRule) -> bool) -> Answer {
-    if state.branch.as_deref() == Some("main") && on(&COMMIT_ON_MAIN) {
+    let branch = state.branch.as_deref();
+    if branch == Some("main") && on(&COMMIT_ON_MAIN) {
         return Answer::Refuse(Finding {
             rule: COMMIT_ON_MAIN.id,
             reason: "main",
             file: "refs/heads/main".to_owned(),
             line: None,
-            message: "the checkout is on 'main', and changes reach main through a pull request \
-                      (AGENTS.md, section 6). Create a branch first: git switch -c <name>"
-                .to_owned(),
+            message: format!(
+                "the checkout is on 'main', and changes reach main through a pull request ({}). \
+                 Create a branch first: git switch -c <name>",
+                main_only(state.release, "§1, §4")
+            ),
         });
     }
-    if state.merging && state.check_script && on(&MERGE_CHECKS) {
-        return Answer::RunCheck;
+    if state.merging {
+        if let Some(feat) = branch.filter(|branch| branch.starts_with("feat/"))
+            && at_least(state.release, FEAT_FAST_FORWARD)
+            && on(&CONCLUDED_MERGE_ON_FEAT)
+        {
+            return on_feat(&CONCLUDED_MERGE_ON_FEAT, feat);
+        }
+        if state.check_script && on(&MERGE_CHECKS) {
+            return Answer::RunCheck;
+        }
+        return Answer::Pass;
+    }
+    if at_least(state.release, DOCS_BEFORE_COMMIT) && state.docs_script && on(&COMMIT_DOCS) {
+        return Answer::RunDocs;
     }
     Answer::Pass
 }
@@ -200,9 +310,11 @@ pub struct Push {
     /// Each ref the push sends, with the count of the draft ADRs its object carries, none for a
     /// deletion.
     pub refs: Vec<(String, Option<usize>)>,
-    /// Whether the draft notice names `CONTRIBUTING.md`, as from template release v0.7.0, rather
-    /// than the README.
-    pub contributing: bool,
+    /// The release the tree carries, none for the newest: the draft notice is given before
+    /// v0.9.0 alone, and names `CONTRIBUTING.md` from v0.7.0 on, the README before. The shell
+    /// reads it only where a ref goes to main or carries draft ADRs, and leaves it none
+    /// elsewhere, so a decision on any other push reads no release from it.
+    pub release: Option<Version>,
     /// The tree of `HEAD` where the working tree is clean, none otherwise or without a work tree.
     pub tree: Option<String>,
     /// Whether the record of green trees holds that tree.
@@ -218,16 +330,17 @@ pub struct PushAnswer {
     pub answer: Answer,
 }
 
-/// `pre-push`: refuse a push to the remote's `main`; pass one that only deletes; tell each ref
-/// that carries draft ADRs where they take their numbers; pass a clean tree the checks passed on
-/// before; otherwise the full check, where there is one to run.
+/// `pre-push`: refuse a push to the remote's `main`; pass one that only deletes; before v0.9.0,
+/// tell each ref that carries draft ADRs where they take their numbers; pass a clean tree the
+/// checks passed on before; otherwise the full check, where there is one to run.
 pub fn pre_push(state: &Push, on: &dyn Fn(&HookRule) -> bool) -> PushAnswer {
     let mut notices = Vec::new();
-    let guide = if state.contributing {
+    let guide = if crate::rules::guide_is_contributing(state.release) {
         "CONTRIBUTING.md"
     } else {
         "README"
     };
+    let drafts_noticed = !at_least(state.release, DOCS_BEFORE_COMMIT);
     for (remote_ref, drafts) in &state.refs {
         if remote_ref == "refs/heads/main" && on(&PUSH_TO_MAIN) {
             let answer = Answer::Refuse(Finding {
@@ -235,14 +348,17 @@ pub fn pre_push(state: &Push, on: &dyn Fn(&HookRule) -> bool) -> PushAnswer {
                 reason: "main",
                 file: "refs/heads/main".to_owned(),
                 line: None,
-                message: "changes reach main through a pull request, not a push (AGENTS.md, \
-                          section 6). Push a branch of its own and open one: gh pr create --base \
-                          main"
-                    .to_owned(),
+                message: format!(
+                    "changes reach main through a pull request, not a push ({}). Push a branch \
+                     of its own and open one: gh pr create --base main",
+                    main_only(state.release, "§4")
+                ),
             });
             return PushAnswer { notices, answer };
         }
-        if let Some(drafts @ 1..) = drafts {
+        if let Some(drafts @ 1..) = drafts
+            && drafts_noticed
+        {
             let branch = remote_ref.strip_prefix("refs/heads/").unwrap_or(remote_ref);
             notices.push(format!(
                 "pre-push: {branch} carries {drafts} draft ADR(s); they take their numbers on the \
@@ -343,12 +459,14 @@ pub fn remote_main(updates: &[RefUpdate], before: Option<String>) -> Option<Stri
 
 /// `reference-transaction` in the `prepared` state: refuse a move of `main` to a commit the
 /// remote's main lacks, `has(commit)` saying whether it is one `origin/main` has; with the hint
-/// for a `main` already ahead where `has(current)` says it is not.
+/// for a `main` already ahead where `has(current)` says it is not, and the citation of the release
+/// `release()` reads, asked only for a refusal.
 pub fn reference_transaction(
     moves: &[&str],
     current: Option<&str>,
     has: &dyn Fn(&str) -> bool,
     on: &dyn Fn(&HookRule) -> bool,
+    release: &dyn Fn() -> Option<Version>,
 ) -> Answer {
     if !on(&MAIN_MOVES) || moves.iter().all(|new| has(new)) {
         return Answer::Pass;
@@ -366,7 +484,8 @@ pub fn reference_transaction(
         line: None,
         message: format!(
             "main moves only to what origin/main has, and changes reach it through a pull request \
-             (AGENTS.md, section 6). {hint}"
+             ({}). {hint}",
+            main_only(release(), "§4")
         ),
     })
 }
@@ -413,13 +532,28 @@ pub fn takes_union(prose_merged: Option<&[u8]>, union: Option<&[u8]>) -> bool {
 mod tests {
     use super::*;
 
+    /// The state of a commit on a tree of v0.8.1, whose hooks run no documentation check on a
+    /// commit and refuse no merge on a feat/ branch.
     fn state(branch: Option<&str>, merging: bool, check_script: bool) -> Commit {
         Commit {
             branch: branch.map(str::to_owned),
             merging,
             check_script,
+            docs_script: true,
+            release: Some(Version(0, 8, 1)),
         }
     }
+
+    fn on(release: Option<Version>, branch: Option<&str>, merging: bool) -> Commit {
+        Commit {
+            release,
+            ..state(branch, merging, true)
+        }
+    }
+
+    const V9: Option<Version> = Some(Version(0, 9, 0));
+    const V10: Option<Version> = Some(Version(0, 10, 0));
+    const V11: Option<Version> = Some(Version(0, 11, 0));
 
     fn all(_: &HookRule) -> bool {
         true
@@ -500,6 +634,82 @@ mod tests {
         );
     }
 
+    // The bash of v0.9.0: a commit off main that concludes no merge runs the documentation check.
+    #[test]
+    fn from_v0_9_0_a_commit_that_concludes_no_merge_runs_the_documentation_check() {
+        for release in [V9, V10, V11, None] {
+            assert_eq!(
+                pre_commit(&on(release, Some("x"), false), &all),
+                Answer::RunDocs
+            );
+            assert_eq!(pre_commit(&on(release, None, false), &all), Answer::RunDocs);
+            assert_eq!(
+                pre_commit(&on(release, Some("x"), true), &all),
+                Answer::RunCheck
+            );
+        }
+        assert_eq!(
+            pre_commit(&state(Some("x"), false, true), &all),
+            Answer::Pass
+        );
+        let without = Commit {
+            docs_script: false,
+            ..on(V9, Some("x"), false)
+        };
+        assert_eq!(pre_commit(&without, &all), Answer::Pass);
+        let only_main = |rule: &HookRule| rule.id == COMMIT_ON_MAIN.id;
+        assert_eq!(
+            pre_commit(&on(V9, Some("x"), false), &only_main),
+            Answer::Pass
+        );
+    }
+
+    // The bash of v0.11.0: a feat/ branch carries no merge commit.
+    #[test]
+    fn from_v0_11_0_a_merge_on_a_feat_branch_and_its_conclusion_are_refused() {
+        for release in [V11, None] {
+            let Answer::Refuse(merge) = pre_merge_commit(&on(release, Some("feat/x"), false), &all)
+            else {
+                panic!("a merge on feat/x passed");
+            };
+            assert_eq!((merge.rule, merge.reason), ("hook/merge-on-feat", "feat"));
+            assert_eq!(merge.file, "refs/heads/feat/x");
+            assert!(
+                merge
+                    .message
+                    .contains("git rebase feat/x <branch>, then git switch feat/x")
+            );
+            let Answer::Refuse(concluded) = pre_commit(&on(release, Some("feat/x"), true), &all)
+            else {
+                panic!("the conclusion of a merge on feat/x passed");
+            };
+            assert_eq!(concluded.rule, "hook/concluded-merge-on-feat");
+            assert_eq!(concluded.file, "refs/heads/feat/x");
+        }
+        assert_eq!(
+            pre_merge_commit(&on(V10, Some("feat/x"), false), &all),
+            Answer::RunCheck
+        );
+        assert_eq!(
+            pre_commit(&on(V10, Some("feat/x"), true), &all),
+            Answer::RunCheck
+        );
+        assert_eq!(
+            pre_merge_commit(&on(V11, Some("feature"), false), &all),
+            Answer::RunCheck
+        );
+        let off =
+            |rule: &HookRule| rule.id != MERGE_ON_FEAT.id && rule.id != CONCLUDED_MERGE_ON_FEAT.id;
+        assert_eq!(
+            pre_merge_commit(&on(V11, Some("feat/x"), false), &off),
+            Answer::RunCheck
+        );
+        assert_eq!(
+            pre_commit(&on(V11, Some("feat/x"), true), &off),
+            Answer::RunCheck
+        );
+    }
+
     #[test]
     fn rules_turned_off_decide_nothing() {
         assert_eq!(
@@ -519,7 +729,7 @@ mod tests {
     fn push(refs: &[(&str, Option<usize>)]) -> Push {
         Push {
             refs: refs.iter().map(|(r, d)| ((*r).to_owned(), *d)).collect(),
-            contributing: true,
+            release: Some(Version(0, 8, 1)),
             tree: Some("t".to_owned()),
             recorded: false,
             check_script: true,
@@ -593,10 +803,61 @@ mod tests {
         );
         assert!(out.notices[0].starts_with("pre-push: feature carries 2 draft ADR(s);"));
         assert!(out.notices[0].ends_with("(CONTRIBUTING.md, Integration branches, step 7)."));
-        state.contributing = false;
+        state.release = Some(Version(0, 6, 1));
         state.refs.pop();
         let out = pre_push(&state, &all);
         assert!(out.notices[0].ends_with("(README, Integration branches, step 7)."));
+    }
+
+    // The bash of v0.9.0 dropped the notice on drafts.
+    #[test]
+    fn from_v0_9_0_a_push_gives_no_notice_on_drafts() {
+        for release in [V9, V11, None] {
+            let mut state = push(&[("refs/heads/feature", Some(2))]);
+            state.release = release;
+            let out = pre_push(&state, &all);
+            assert!(out.notices.is_empty(), "{release:?}: {:?}", out.notices);
+            assert_eq!(out.answer, Answer::RunCheck);
+        }
+    }
+
+    #[test]
+    fn a_refusal_cites_the_rule_as_the_release_words_it() {
+        let cite = |answer: Answer| match answer {
+            Answer::Refuse(finding) => finding.message,
+            other => panic!("not refused: {other:?}"),
+        };
+        assert!(
+            cite(pre_commit(&state(Some("main"), false, true), &all))
+                .contains("(AGENTS.md, section 6)")
+        );
+        assert!(
+            cite(pre_commit(&on(V9, Some("main"), false), &all))
+                .contains("(NUC-main-only-via-pr §1, §4)")
+        );
+        let mut to_main = push(&[("refs/heads/main", Some(0))]);
+        assert!(cite(pre_push(&to_main, &all).answer).contains("(AGENTS.md, section 6)"));
+        to_main.release = None;
+        assert!(cite(pre_push(&to_main, &all).answer).contains("(NUC-main-only-via-pr §4)"));
+        let merge = |release| cite(pre_merge_commit(&on(release, Some("main"), false), &all));
+        assert!(merge(V10).contains(
+            "(NUC-main-only-via-pr §1, §4). git merge --abort, then merge into a feat/ branch,"
+        ));
+        assert!(
+            merge(V11).contains("git merge --abort, then rebase the branch onto a feat/ branch,")
+        );
+        let has = |commit: &str| commit == ONE;
+        let moved = |release| {
+            cite(reference_transaction(
+                &[TWO],
+                Some(ONE),
+                &has,
+                &all,
+                &|| release,
+            ))
+        };
+        assert!(moved(Some(Version(0, 8, 1))).contains("(AGENTS.md, section 6)"));
+        assert!(moved(V9).contains("(NUC-main-only-via-pr §4)"));
     }
 
     // The bash cases: "a reworked branch on a tree that passed before …", "the same tree with an
@@ -691,11 +952,13 @@ mod tests {
     #[test]
     fn a_move_to_a_commit_origin_main_lacks_is_refused_with_its_hint() {
         let has = |commit: &str| commit == ONE;
+        let newest = || None;
         assert_eq!(
-            reference_transaction(&[ONE], Some(ONE), &has, &all),
+            reference_transaction(&[ONE], Some(ONE), &has, &all, &newest),
             Answer::Pass
         );
-        let Answer::Refuse(finding) = reference_transaction(&[TWO], Some(ONE), &has, &all) else {
+        let Answer::Refuse(finding) = reference_transaction(&[TWO], Some(ONE), &has, &all, &newest)
+        else {
             panic!("a move to a local commit passed");
         };
         assert_eq!(finding.rule, "hook/main-moves");
@@ -705,7 +968,8 @@ mod tests {
                 .message
                 .ends_with("Take up the remote's main: git merge --ff-only origin/main")
         );
-        let Answer::Refuse(ahead) = reference_transaction(&[TWO], Some(TWO), &has, &all) else {
+        let Answer::Refuse(ahead) = reference_transaction(&[TWO], Some(TWO), &has, &all, &newest)
+        else {
             panic!("a main ahead moved");
         };
         assert!(
@@ -714,7 +978,7 @@ mod tests {
                 .contains("git switch -c feat/<topic> main, then git branch -f main origin/main")
         );
         assert_eq!(
-            reference_transaction(&[TWO], None, &has, &none),
+            reference_transaction(&[TWO], None, &has, &none, &newest),
             Answer::Pass
         );
     }
