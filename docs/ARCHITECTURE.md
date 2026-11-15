@@ -69,9 +69,9 @@ golden path and the test pattern an agent copies from are named here.
   one answer to which IDs `nuc.toml` may name, those of `rules::ALL` and of `hook::ALL`, and the
   reason `nuc explain` gives for each, so `nuc check`, `nuc hook`, and `nuc explain` ask it alike.
 - **Formats** — `src/format.rs` turns what a run of `nuc check` decided into its standard output:
-  the lines of API-command-line-with-hook-signal, one JSON document, or one SARIF 2.1.0 log, without
+  the lines of API-command-line-keyed-findings, one JSON document, or one SARIF 2.1.0 log, without
   a crate and byte for byte the same for the same findings
-  ([API-output-formats-short-description](adr/API-output-formats-short-description.md)).
+  ([API-output-formats-carry-reason](adr/API-output-formats-carry-reason.md)).
 - **Hooks** — `src/hook.rs` decides what each git hook of the template decides, from the git state
   the shell reads in `shell::hook`, which finds each hook in its one table `HOOKS`, and holds the
   `hook/` rules, `hook::ALL`, which `nuc check` knows and runs never. The reference shims under
@@ -106,7 +106,14 @@ golden path and the test pattern an agent copies from are named here.
   scenarios of `tests/parity/hook-scenarios.sh` through git, with the bash hook of each of the
   template's trees and with the shim and `nuc`, maps the hooks' lines by `tests/parity/hooks.tsv`,
   and holds the template's hook self-test to the scenarios and `tests/parity/hook-cases.tsv`
-  ([TEST-hook-scenario-parity](adr/TEST-hook-scenario-parity.md)).
+  ([TEST-hook-scenario-parity](adr/TEST-hook-scenario-parity.md)). Before the comparisons it holds
+  each pin of `tests/tables.blobs` to the template's tag of its release.
+- **Table runner** — `tests/tables.rs` builds the tree of each case of the template's fixture
+  tables, copied under `tests/tables/` from the newest release `nuc` ports and pinned by their
+  blobs in `tests/tables.blobs`, runs `nuc check` on it, and compares the exit and the keys and
+  subjects each case expects; a case that does not agree stands in `tests/tables.cases`, pending on
+  the ticket that ports it or not ported
+  ([TEST-cases-from-template-tables](adr/TEST-cases-from-template-tables.md)).
 - **Release tooling** — `release/` builds a binary per target, writes `SHA256SUMS`, checks the
   tag against the crate's version, writes the release commit, and moves the major tag;
   `release/install-nuc.sh` is the installer the Action runs, of which `hivevm/features` carries a
@@ -121,7 +128,8 @@ golden path and the test pattern an agent copies from are named here.
      `rules::ALL` and its ID in `tests/contract.rule-ids`, which keeps it from then on, its unit
      tests the cases of the bash self-test of the check it ports, each named in a `// bash:`
      comment and given its rule in `tests/bash_cases.tsv`, which `tests/bash_cases.rs` holds to the
-     comments;
+     comments, and from template release v0.9.1 the cases of the fixture tables, which
+     `tests/tables.rs` runs;
   2. what it needs to read, an `Input` the rule names in its `reads`, a field of the inputs, its
      type in the rule's module unless several rules read it, and the shell's reading of it;
   3. its rows in the normalization table of the parity harness, one per bash message;

@@ -19,8 +19,11 @@
 # that does not apply to one tree, one that does not make its rule fire beyond the tree's own
 # findings, a ported rule without one, a path outside the tree, a sed expression that runs a
 # command or writes a file, a name used twice, and a malformed or unmapped row; a 'chomp' applies
-# and is compared, does not apply to a file without a last newline, and takes '-' alone. No
-# network and no build.
+# and is compared, does not apply to a file without a last newline, and takes '-' alone. The pin
+# cases pass a pin of a copied fixture table that the tag of a template tree bears out, and fail
+# one the tag does not, one whose tag cannot be read, and one without a template tree, and exit 2
+# on a malformed or missing list of pins. No network
+# and no build.
 #
 # The hook cases run the scenarios alone, through '--hooks', on a tree of the template whose bash
 # pre-commit refuses a commit on main, with the reference shim and a stand-in nuc: an agreeing
@@ -60,8 +63,24 @@ bash_out() {
   echo "$f"
 }
 
-# nuc_out <name> [lines...] — the standard output of nuc with the lines.
+# keyed — each finding line of the standard input ending in a key of its rule, as nuc writes it
+# (API-command-line-keyed-findings), unless it ends in one already; the rule is the first
+# '<area>/<name>' between ': ' and ': '.
+keyed() {
+  awk '!/ \[[a-z]+\/[a-z0-9-]+:[a-z]+\]$/ && match($0, /: [a-z]+\/[a-z0-9-]+: /) {
+    $0 = $0 " [" substr($0, RSTART + 2, RLENGTH - 4) ":x]"
+  } { print }'
+}
+
+# nuc_out <name> [lines...] — the standard output of nuc with the lines, each keyed.
 nuc_out() {
+  local f="$work/$1.nuc"; shift
+  printf '%s\n' "$@" | sed '/^$/d' | keyed > "$f"
+  echo "$f"
+}
+
+# raw_nuc_out <name> [lines...] — the standard output of nuc with the lines as given.
+raw_nuc_out() {
   local f="$work/$1.nuc"; shift
   printf '%s\n' "$@" | sed '/^$/d' > "$f"
   echo "$f"
@@ -104,6 +123,9 @@ expect pass "both pass" "" compare "$(bash_out pass)" 0 "$(nuc_out pass)" 0
 
 expect pass "the same finding, bash without a line, nuc with one" "" \
   compare "$(bash_out same "$MALFORMED")" 1 "$(nuc_out same "README.md:5: docs/template-release: $MALFORMED_TEXT")" 1
+
+expect fail "a finding of nuc without its key" "without its key" \
+  compare "$(bash_out unkeyed "$MALFORMED")" 1 "$(raw_nuc_out unkeyed "README.md:5: docs/template-release: $MALFORMED_TEXT")" 1
 
 # The table of the repository and a row for a check not ported yet.
 { cat "$ROOT/tests/parity/normalize.tsv"; printf '^docs/x\\.md:[0-9]+: a line of prose\t-\t-\n'; } > "$work/unported.tsv"
@@ -249,7 +271,7 @@ reactive_nuc() {
   # shellcheck disable=SC2016 # the script is the stand-in's
   printf '%s\n' '#!/usr/bin/env bash' \
     'grep -q "^- \*\*Template release:\*\* v" "$3/README.md" && exit 0' \
-    "echo $(printf %q "README.md: docs/template-release: $MISSING_TEXT"); exit 1" > "$f"
+    "echo $(printf %q "README.md: docs/template-release: $MISSING_TEXT [docs/template-release:line]"); exit 1" > "$f"
   chmod +x "$f"
   echo "$f"
 }
@@ -258,7 +280,9 @@ reactive_nuc() {
 # there are any.
 stand_in() {
   local f="$work/nuc-$1"; shift
-  { echo '#!/usr/bin/env bash'; (($#)) && printf 'printf "%%s\\n" %q\n' "$@"; (($#)) && echo 'exit 1'; echo 'exit 0'; } > "$f"
+  local lines=()
+  (($#)) && mapfile -t lines < <(printf '%s\n' "$@" | keyed)
+  { echo '#!/usr/bin/env bash'; ((${#lines[@]})) && printf 'printf "%%s\\n" %q\n' "${lines[@]}"; ((${#lines[@]})) && echo 'exit 1'; echo 'exit 0'; } > "$f"
   chmod +x "$f"
   echo "$f"
 }
@@ -272,6 +296,10 @@ DEFAULT="$(variants "$work/default.tsv" "# The variant of the one ported rule." 
 # The table of the repository with the rows of docs/template-release alone, the one rule the
 # fixtures carry.
 grep -E $'^#|\tdocs/template-release\t' "$ROOT/tests/parity/normalize.tsv" > "$work/one-rule.tsv"
+# No pin of a copied fixture table, but where a case gives one: the fixtures' corpora hold no tag of
+# a template release.
+: > "$work/no-blobs"
+export PARITY_TABLE_BLOBS="$work/no-blobs"
 
 # run <corpus> <nuc> [variants] — the harness on the corpus, with the default variant unless given.
 # shellcheck disable=SC2317,SC2329 # run through expect
@@ -290,6 +318,29 @@ check "the variant leaves the cached tree as pinned" \
   bash -c "test -z \"\$(git -C \"$work/cache/agree\" status --porcelain --untracked-files=no)\""
 
 expect fail "a corpus on which they differ" "variant deleted — 2 difference" run "$c" "$(stand_in silent)"
+
+# The pins of the copied fixture tables (TEST-cases-from-template-tables): a tree of the template,
+# TEMPLATE-SETUP.md in it, whose tag v9.9.9 the harness fetches from its source through file://.
+src="$(source_repo tables)"
+mkdir -p "$src/scripts/fixtures" && echo "a case" > "$src/scripts/fixtures/t.txt"
+echo "# Template setup" > "$src/TEMPLATE-SETUP.md"
+git -C "$src" add -A
+git -C "$src" -c user.name=F -c user.email=f@example.invalid -c core.hooksPath=/dev/null commit -q -m tables
+git -C "$src" tag v9.9.9
+git -C "$src" rev-parse HEAD > "$work/src-tables.commit"
+tables="$(corpus "$work/tables.toml" tables)"
+printf 'v9.9.9 %s t.txt\n' "$(git -C "$src" rev-parse v9.9.9:scripts/fixtures/t.txt)" > "$work/blobs-good"
+printf 'v9.9.9 %s t.txt\n' "$(printf 'other\n' | git hash-object --stdin)" > "$work/blobs-other"
+sed 's/^v9.9.9/v9.9.8/' "$work/blobs-good" > "$work/blobs-no-tag"
+# pinned <blobs> <corpus> — the harness on the corpus, the pins those of the file.
+# shellcheck disable=SC2317,SC2329 # run through expect
+pinned() { PARITY_TABLE_BLOBS="$1" run "$2" "$(reactive_nuc)"; }
+expect pass "a pin the template's tag bears out" "" pinned "$work/blobs-good" "$tables"
+expect fail "a pin the template's tag does not bear out" "t.txt is not the blob v9.9.9 holds at scripts/fixtures/t.txt" \
+  pinned "$work/blobs-other" "$tables"
+expect fail "a pin whose tag cannot be read" "the tag v9.9.8 cannot be read" pinned "$work/blobs-no-tag" "$tables"
+expect fail "a pin without a tree of the template in the corpus" "no tree of the template in the corpus" \
+  pinned "$work/blobs-good" "$c"
 
 source_repo trace-fails "" 'echo "Traceability check FAILED:"; exit 1' > /dev/null
 expect fail "a script that fails without a finding fails the harness, though the other passes" \
@@ -358,6 +409,9 @@ exits_two() { "$@" > /dev/null 2>&1; (($? == 2)); }
 check "a number of jobs that is none exits 2, as a malformed input does" \
   exits_two env PARITY_JOBS=many PARITY_TABLE="$work/one-rule.tsv" bash "$HARNESS" --no-hooks \
     --corpus "$many" --cache "$work/cache" --nuc "$(reactive_nuc)" --variants "$DEFAULT"
+printf 'v9.9.9 nohash t.txt\n' > "$work/blobs-malformed"
+check "a malformed list of pins exits 2" exits_two pinned "$work/blobs-malformed" "$tables"
+check "a missing list of pins exits 2" exits_two pinned "$work/no-such-blobs" "$tables"
 
 source_repo no-trace "" none > /dev/null
 expect fail "a tree without check-traceability.sh fails" "the tree has no scripts/check-traceability.sh" \
@@ -546,8 +600,18 @@ printf '# Setup\n' > "$work/src-tpl-bare/TEMPLATE-SETUP.md"
 git -C "$work/src-tpl-bare" add -A
 git -C "$work/src-tpl-bare" -c user.name=F -c user.email=f@example.invalid -c core.hooksPath=/dev/null commit -qm bare
 git -C "$work/src-tpl-bare" rev-parse HEAD > "$work/src-tpl-bare.commit"
-expect fail "a tree of the template without the function fails" "has no check_template_release in scripts/check-docs.sh" \
+expect pass "a tree of the template without the function has no such check, a change at its release" "" \
   run_releases "$(corpus "$work/tpl-bare.toml" tpl-old tpl-bare)" "$(releases "$work/r-bare.tsv" v0.6.0)"
+expect fail "a check gone at a release the table does not list fails" "changed at v0.6.0 across" \
+  run_releases "$(corpus "$work/tpl-bare.toml" tpl-old tpl-bare)" "$(releases "$work/r-bare-unlisted.tsv" -)"
+printf '# One rule.\ndocs/template-release\tscripts/check-docs.sh\tcheck_nowhere\t-\n' > "$work/r-nowhere.tsv"
+expect fail "a function no tree of the template has fails, as a mistyped one would" \
+  "no tree of the template in the corpus has check_nowhere" run_releases "$changed" "$work/r-nowhere.tsv"
+printf '# One rule.\ndocs/template-release\tscripts/check-docs.sh\tcheck_nowhere\tv9.0.0\n' > "$work/r-ahead.tsv"
+expect pass "a function no tree has, whose check comes at a release ahead of the corpus, passes" "" \
+  run_releases "$changed" "$work/r-ahead.tsv"
+expect pass "a change at a release ahead of the corpus is not compared" "" \
+  run_releases "$changed" "$(releases "$work/r-listed-ahead.tsv" v0.6.0,v9.0.0)"
 printf 'docs/template-release\tREADME.md\tcheck_template_release\t-\n' > "$work/r-malformed.tsv"
 expect fail "a malformed row of the table of releases is refused" "a row needs a rule ID" \
   run_releases "$c" "$work/r-malformed.tsv"
@@ -580,7 +644,7 @@ hook_tree() {
 # hook_nuc <name> <shell code> — a stand-in nuc whose 'hook pre-commit' runs the code, printed as
 # its path; HOOK_AGREES is the code that answers as the bash does.
 # shellcheck disable=SC2016 # the stand-in's own expansion
-HOOK_AGREES='[ "$(git symbolic-ref --short -q HEAD)" = main ] || exit 0; echo "refs/heads/main: hook/commit-on-main: on main"; exit 1'
+HOOK_AGREES='[ "$(git symbolic-ref --short -q HEAD)" = main ] || exit 0; echo "refs/heads/main: hook/commit-on-main: on main [hook/commit-on-main:main]"; exit 1'
 hook_nuc() {
   local f="$work/hook-nuc-$1"
   printf '#!/bin/sh\n%s\n' "$2" > "$f"
@@ -612,7 +676,11 @@ expect fail "a nuc whose exit status differs in one scenario fails" "bash exits 
   run_hooks "$(hook_nuc passes 'exit 0')" "$HOOK_SCENARIOS_FILE" "$NO_CASES" "$tree"
 # shellcheck disable=SC2016 # the stand-in's own expansion
 expect fail "a refusal mapped to another rule ID fails" "only nuc: rule hook/merge-checks refs/heads/main" \
-  run_hooks "$(hook_nuc other-rule '[ "$(git symbolic-ref --short -q HEAD)" = main ] || exit 0; echo "refs/heads/main: hook/merge-checks: x"; exit 1')" \
+  run_hooks "$(hook_nuc other-rule '[ "$(git symbolic-ref --short -q HEAD)" = main ] || exit 0; echo "refs/heads/main: hook/merge-checks: x [hook/merge-checks:main]"; exit 1')" \
+  "$HOOK_SCENARIOS_FILE" "$NO_CASES" "$tree"
+# shellcheck disable=SC2016 # the stand-in's own expansion
+expect fail "a refusal without its key fails" "nuc refuses with hook/commit-on-main without its key" \
+  run_hooks "$(hook_nuc unkeyed '[ "$(git symbolic-ref --short -q HEAD)" = main ] || exit 0; echo "refs/heads/main: hook/commit-on-main: on main"; exit 1')" \
   "$HOOK_SCENARIOS_FILE" "$NO_CASES" "$tree"
 expect fail "a nuc that agrees without nuc.toml and differs with it fails" "on-main at v0.7.0, with nuc.toml" \
   run_hooks "$(hook_nuc configured "[ -f nuc.toml ] && exit 0; $HOOK_AGREES")" "$HOOK_SCENARIOS_FILE" "$NO_CASES" "$tree"

@@ -22,9 +22,17 @@ const SET: &[(&str, &str)] = &[
 /// The configuration keys that would make a git command `nuc` runs start another command, set on
 /// every call. The hooks path is the null device, which can hold no hook.
 #[cfg(not(windows))]
-pub const NEUTRALIZED: &[&str] = &["core.fsmonitor=false", "core.hooksPath=/dev/null"];
+pub const NEUTRALIZED: &[&str] = &[
+    "core.fsmonitor=false",
+    "core.hooksPath=/dev/null",
+    "log.showSignature=false",
+];
 #[cfg(windows)]
-pub const NEUTRALIZED: &[&str] = &["core.fsmonitor=false", "core.hooksPath=NUL"];
+pub const NEUTRALIZED: &[&str] = &[
+    "core.fsmonitor=false",
+    "core.hooksPath=NUL",
+    "log.showSignature=false",
+];
 
 /// The git command for `args` on the repository at `repo`, ready to spawn.
 pub fn command(repo: &Path, args: &[&str]) -> Command {

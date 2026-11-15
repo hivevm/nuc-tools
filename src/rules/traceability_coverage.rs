@@ -13,14 +13,21 @@ pub const RULE_ID: &str = "traceability/coverage";
 
 pub const RULE: Rule = Rule {
     id: RULE_ID,
+    reasons: &["unreasoned", "uncited"],
     explain: "Every accepted ADR is cited by at least one 'Verifies:' marker in a file git does \
               not ignore that is not Markdown, unless its Enforcement section carries a paragraph \
               starting '**Not mechanically decidable:**' followed by the reason. A decision no test \
               verifies is one nobody notices breaking; one no test can decide says why, so that \
               the gap is a choice and not an oversight. Proposed ADRs are out of scope, and the \
               criteria of the specification no test cites yet are listed in the summary as \
-              pending work, never as a finding.",
-    reads: &[Input::Markers, Input::Adr, Input::Specification],
+              pending work, never as a finding. From template release v0.9.0 on, the ADRs are \
+              those named by category, each cited by its name.",
+    reads: &[
+        Input::Markers,
+        Input::Adr,
+        Input::Specification,
+        Input::Release,
+    ],
     check: outcome,
 };
 
@@ -48,15 +55,25 @@ fn outcome(inputs: &Inputs) -> Outcome {
 
 fn check(inputs: &Inputs) -> Vec<Finding> {
     let cited = cited(inputs);
+    let named = inputs.carries_at_least(super::CATEGORY_IDENTIFIERS);
     let mut findings = Vec::new();
     let mut accepted = Vec::new();
     let mut exempt = BTreeSet::new();
-    for (name, header) in adr::headers(&inputs.adr) {
+    let headers = if named {
+        adr::named_headers(&inputs.adr)
+    } else {
+        adr::headers(&inputs.adr)
+    };
+    for (name, header) in headers {
         let status = header.field("Status").unwrap_or(b"");
         if !bash::contains(status, "🟢".as_bytes()) {
             continue;
         }
-        let id = format!("ADR-{}", adr::key_of(name));
+        let id = if named {
+            name.strip_suffix(".md").unwrap_or(name).to_owned()
+        } else {
+            format!("ADR-{}", adr::key_of(name))
+        };
         match exemption(&inputs.adr[name]) {
             Exemption::None => {}
             Exemption::Reasoned => {
@@ -64,6 +81,7 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
             }
             Exemption::Unreasoned => findings.push(Finding {
                 rule: RULE_ID,
+                reason: "unreasoned",
                 file: format!("docs/adr/{name}"),
                 line: None,
                 message: "'Not mechanically decidable' declared without a reason — the \
@@ -78,6 +96,7 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
         if !exempt.contains(&id) && !cited.contains(&id) {
             findings.push(Finding {
                 rule: RULE_ID,
+                reason: "uncited",
                 file: format!("docs/adr/{name}"),
                 line: None,
                 message: format!(
@@ -103,7 +122,8 @@ fn pending(inputs: &Inputs) -> Vec<String> {
 
 /// Every identifier a marker cites, whether it names anything or not.
 fn cited(inputs: &Inputs) -> BTreeSet<String> {
-    traceability::citations(&inputs.markers)
+    let named = inputs.carries_at_least(super::CATEGORY_IDENTIFIERS);
+    traceability::citations(&inputs.markers, named)
         .into_iter()
         .map(|citation| citation.id)
         .collect()
@@ -162,6 +182,7 @@ mod tests {
             markers: [("tests/t.txt".to_owned(), marks.as_bytes().to_vec())]
                 .into_iter()
                 .collect(),
+            release: Some(crate::config::Version(0, 8, 1)),
             ..Inputs::default()
         }
     }
@@ -285,6 +306,7 @@ mod tests {
         let inputs = Inputs {
             specification: Some(SPEC.as_bytes().to_vec()),
             adr: adrs,
+            release: Some(crate::config::Version(0, 8, 1)),
             ..Inputs::default()
         };
         assert!(messages(&inputs).is_empty());
@@ -302,6 +324,7 @@ mod tests {
         let inputs = Inputs {
             specification: Some(SPEC.as_bytes().to_vec()),
             adr: adrs,
+            release: Some(crate::config::Version(0, 8, 1)),
             ..Inputs::default()
         };
         // The bash says the same twice; each finding names the file it is about.
@@ -332,5 +355,39 @@ mod tests {
         // bash: criterion without a citing test is listed, not failed
         assert_eq!(outcome.notes, ["2 criteria without a test: G-1 Q-1"]);
         assert!(outcome.notes.iter().all(|note| !note.ends_with('.')));
+    }
+
+    #[test]
+    fn from_v0_9_0_the_adrs_named_by_category_are_held_and_cited_by_name() {
+        use crate::testing::cat_id;
+        let (cited, uncited) = (
+            cat_id("SEC", "cited-rule"),
+            cat_id("SEC", "host-socket-closed"),
+        );
+        let inputs = Inputs {
+            specification: Some(SPEC.as_bytes().to_vec()),
+            adr: [
+                (format!("{cited}.md"), "- **Status:** 🟢 accepted\n"),
+                (format!("{uncited}.md"), "- **Status:** 🟢 accepted\n"),
+                ("0001-decision.md".to_owned(), "- **Status:** 🟢 accepted\n"),
+            ]
+            .into_iter()
+            .map(|(n, t)| (n, t.as_bytes().to_vec()))
+            .collect(),
+            markers: [(
+                "tests/t.txt".to_owned(),
+                mark(&format!("{cited} G-1")).into_bytes(),
+            )]
+            .into(),
+            ..Inputs::default()
+        };
+        assert_eq!(
+            messages(&inputs),
+            [format!(
+                "docs/adr/{uncited}.md: {uncited} is accepted but no test cites it — add a \
+                 'Verifies' marker or declare it not mechanically decidable in its Enforcement \
+                 section"
+            )]
+        );
     }
 }

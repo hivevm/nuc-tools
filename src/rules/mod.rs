@@ -6,11 +6,13 @@ use crate::config::Version;
 use crate::finding::Finding;
 
 pub mod docs_adr_header;
+pub mod docs_adr_identifiers;
 pub mod docs_adr_index;
 pub mod docs_adr_link_targets;
 pub mod docs_adr_numbering;
 pub mod docs_adr_refs;
 pub mod docs_adr_supersessions;
+pub mod docs_base_blobs;
 pub mod docs_check_lists;
 pub mod docs_inherited_adrs;
 pub mod docs_links;
@@ -24,6 +26,7 @@ pub mod docs_template_release;
 pub mod traceability_citations;
 pub mod traceability_coverage;
 pub mod traceability_criteria;
+pub mod traceability_sensor_tests;
 
 /// What the shell reads from the repository for the rules, before any of them runs.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -64,12 +67,18 @@ pub struct Inputs {
     pub generated: std::collections::BTreeSet<String>,
     /// What CI says about the change, and the drafts of the record.
     pub landing: docs_no_draft_on_main::Landing,
+    /// The ADR files the first-parent history deleted, as `docs/adr-identifiers` reads them.
+    pub history: docs_adr_identifiers::History,
+    /// The blobs of the base and the list of them, as `docs/base-blobs` reads them.
+    pub base: docs_base_blobs::Base,
     /// The bytes of `docs/SPECIFICATION.md`, if it is a file.
     pub specification: Option<Vec<u8>>,
     /// Every file that may carry a `Verifies:` marker, by its path, as the bash's traceability
     /// check reads them: listed by git as tracked or new and not ignored, a file, not Markdown,
     /// not binary to `grep -I`, and holding the marker.
     pub markers: std::collections::BTreeMap<String, Vec<u8>>,
+    /// The sensors and their self-tests, as `traceability/sensor-tests` reads them.
+    pub sensors: traceability_sensor_tests::Sensors,
 }
 
 pub use crate::bash::read_lines;
@@ -98,7 +107,12 @@ pub const RELEASES: &[Version] = &[
     Version(0, 6, 0),
     Version(0, 6, 1),
     Version(0, 7, 0),
+    CATEGORY_IDENTIFIERS,
 ];
+
+/// The release from which an ADR is named `<CAT>-<slug>` by category, its file name its
+/// identifier, and the record no longer knows numbers, drafts, or inherited ADRs.
+pub const CATEGORY_IDENTIFIERS: Version = Version(0, 9, 0);
 
 /// The release from which the required checks and the Project Layout stand in `CONTRIBUTING.md`.
 pub const CONTRIBUTING_GUIDE: Version = Version(0, 7, 0);
@@ -148,15 +162,24 @@ pub enum Input {
     Generated,
     /// The environment CI sets for the change, and the draft files of `docs/adr/`.
     Landing,
+    /// The ADR files the first-parent history deleted, as `docs/adr-identifiers` reads them.
+    History,
+    /// The blobs of the base and the list of them, as `docs/base-blobs` reads them.
+    Base,
     /// `docs/SPECIFICATION.md`.
     Specification,
     /// The files that carry a `Verifies:` marker.
     Markers,
+    /// The sensors of `scripts/`, their self-tests, and the ADR that decides the checks.
+    Sensors,
 }
 
 /// One rule: its ID, the reason `nuc explain` gives, what it reads, and the check.
 pub struct Rule {
     pub id: &'static str,
+    /// The reasons its findings carry, each with the ID the key `<id>:<reason>` of a line
+    /// (API-command-line-keyed-findings); a finding with another is refused.
+    pub reasons: &'static [&'static str],
     pub explain: &'static str,
     /// The inputs the check reads; the shell reads only those a rule turned on needs.
     pub reads: &'static [Input],
@@ -174,19 +197,31 @@ pub struct Outcome {
 }
 
 impl Outcome {
-    /// Why the outcome of the rule `id` cannot be carried out: its own refusal, or a finding it
-    /// reports under another rule's ID, which every format would name wrongly and the SARIF could
-    /// not place in its list of rules (API-output-formats-short-description). Either ends the run
-    /// not decided (Q-1).
-    pub fn refusal_of(&self, id: &str) -> Option<String> {
+    /// Why the outcome of the rule `id`, whose findings carry one of `reasons`, cannot be carried
+    /// out: its own refusal; a finding it reports under another rule's ID, which every format
+    /// would name wrongly and the SARIF could not place in its list of rules
+    /// (API-output-formats-carry-reason); or a finding with a reason it does not declare, whose key
+    /// no list holds (API-command-line-keyed-findings). Each ends the run not decided (Q-1).
+    pub fn refusal_of(&self, id: &str, reasons: &[&str]) -> Option<String> {
         if let Some(refusal) = &self.refusal {
             return Some(refusal.clone());
         }
-        self.findings.iter().find(|f| f.rule != id).map(|f| {
-            format!(
-                "{id}: reports a finding under the rule ID '{}', which is not its own — not decided",
-                f.rule
-            )
+        self.findings.iter().find_map(|f| {
+            if f.rule != id {
+                Some(format!(
+                    "{id}: reports a finding under the rule ID '{}', which is not its own — not \
+                     decided",
+                    f.rule
+                ))
+            } else if !reasons.contains(&f.reason) {
+                Some(format!(
+                    "{id}: reports a finding with the reason '{}', which it does not declare — not \
+                     decided",
+                    f.reason
+                ))
+            } else {
+                None
+            }
         })
     }
 }
@@ -204,6 +239,7 @@ impl From<Vec<Finding>> for Outcome {
 pub const ALL: &[Rule] = &[
     docs_adr_index::RULE,
     docs_adr_numbering::RULE,
+    docs_adr_identifiers::RULE,
     docs_adr_header::RULE,
     docs_adr_supersessions::RULE,
     docs_adr_refs::RULE,
@@ -214,6 +250,7 @@ pub const ALL: &[Rule] = &[
     docs_project_layout::RULE,
     docs_skill_pointers::RULE,
     docs_inherited_adrs::RULE,
+    docs_base_blobs::RULE,
     docs_template_identity::RULE,
     docs_prose_width::RULE,
     docs_no_draft_on_main::RULE,
@@ -221,6 +258,7 @@ pub const ALL: &[Rule] = &[
     traceability_criteria::RULE,
     traceability_citations::RULE,
     traceability_coverage::RULE,
+    traceability_sensor_tests::RULE,
 ];
 
 /// The rule with the ID, if this `nuc` knows it.
@@ -244,15 +282,22 @@ mod tests {
     fn an_outcome_refuses_a_finding_of_another_rule_and_its_own_refusal_comes_first() {
         let finding = |rule| Finding {
             rule,
+            reason: "r",
             file: "a.md".to_owned(),
             line: None,
             message: "m".to_owned(),
         };
         let own: Outcome = vec![finding("docs/links")].into();
-        assert_eq!(own.refusal_of("docs/links"), None);
+        assert_eq!(own.refusal_of("docs/links", &["r"]), None);
+        assert_eq!(
+            own.refusal_of("docs/links", &["s"]).as_deref(),
+            Some(
+                "docs/links: reports a finding with the reason 'r', which it does not declare — not decided"
+            )
+        );
         let foreign: Outcome = vec![finding("docs/links"), finding("docs/adr-index")].into();
         assert_eq!(
-            foreign.refusal_of("docs/links").as_deref(),
+            foreign.refusal_of("docs/links", &["r"]).as_deref(),
             Some(
                 "docs/links: reports a finding under the rule ID 'docs/adr-index', which is not its \
                  own — not decided"
@@ -262,6 +307,9 @@ mod tests {
             refusal: Some("why".to_owned()),
             ..foreign
         };
-        assert_eq!(refused.refusal_of("docs/links").as_deref(), Some("why"));
+        assert_eq!(
+            refused.refusal_of("docs/links", &["r"]).as_deref(),
+            Some("why")
+        );
     }
 }

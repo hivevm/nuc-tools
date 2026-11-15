@@ -28,7 +28,7 @@ const FOUND: u8 = 1;
 /// Exit code of a run that could not decide, whatever the cause: it never passes (Q-1).
 const UNDECIDED: u8 = 2;
 /// Exit code of `nuc hook` alone: the hook passed so far, and its shim runs the check now
-/// (API-command-line-with-hook-signal).
+/// (API-command-line-keyed-findings).
 const RUN_CHECK: u8 = 3;
 
 const USAGE: &str = "usage: nuc check [--repo <path>] [--format text|json|sarif] | nuc hook <name> | nuc \
@@ -36,7 +36,7 @@ const USAGE: &str = "usage: nuc check [--repo <path>] [--format text|json|sarif]
 
 /// The entry point of the binary: runs the command named on the command line and returns the exit
 /// code the process ends with. A panic is an internal error: it names its cause and where it arose,
-/// and ends the process with exit 101, never a pass (API-command-line-with-hook-signal, Q-1).
+/// and ends the process with exit 101, never a pass (API-command-line-keyed-findings, Q-1).
 pub fn main() -> ExitCode {
     panic::set_hook(Box::new(|info| {
         let at = info
@@ -160,16 +160,15 @@ fn check(repo: Option<&Path>, format: Format) -> Result<u8, String> {
     }
     read_guides(&tree, &mut inputs, unplaced, &needs)?;
     if needs(Input::Adr) {
-        inputs.adr = tree.read_adr(&tree.root.join("docs/adr"))?;
-        inputs.adr_targets = tree.read_adr_targets(&inputs.adr)?;
+        read_record(&tree, carried.as_ref(), &mut inputs)?;
     }
     if needs(Input::TextFiles) {
-        let text = tree.read_text_files()?;
-        inputs.text_files = text.files;
-        unspelled = text.unspelled;
-    }
-    if needs(Input::LinkTargets) {
-        inputs.link_targets = tree.read_link_targets(&inputs.text_files, &inputs.adr)?;
+        unspelled = read_text(
+            &tree,
+            &mut inputs,
+            needs(Input::LinkTargets),
+            carried.as_ref(),
+        )?;
     }
     if needs(Input::Agents) {
         let agents = tree.root.join("AGENTS.md");
@@ -183,7 +182,7 @@ fn check(repo: Option<&Path>, format: Format) -> Result<u8, String> {
         inputs.check_lists = tree.read_check_lists()?;
     }
     if needs(Input::Skills) {
-        inputs.skills = tree.read_skills()?;
+        inputs.skills = tree.read_skills(named_record(carried.as_ref()))?;
     }
     if needs(Input::SetupFile) {
         inputs.setup_file = tree.root.join("TEMPLATE-SETUP.md").is_file();
@@ -194,12 +193,8 @@ fn check(repo: Option<&Path>, format: Format) -> Result<u8, String> {
     if needs(Input::Landing) {
         inputs.landing = tree.read_landing()?;
     }
-    if needs(Input::Specification) {
-        inputs.specification = tree.read_specification()?;
-    }
-    if needs(Input::Markers) {
-        inputs.markers = tree.read_markers()?;
-    }
+    read_by_git(&tree, &mut inputs, &needs, carried.as_ref())?;
+    read_traceability(&tree, &mut inputs, &needs, carried.as_ref())?;
     // While the setup file exists the identity rule is silent, so it reads nothing (check 13).
     if needs(Input::Identity) && !inputs.setup_file {
         inputs.identity = tree.read_identity()?;
@@ -246,7 +241,7 @@ fn run_rules(
     if let Some(refusal) = selected
         .iter()
         .zip(&outcomes)
-        .find_map(|(rule, outcome)| outcome.refusal_of(rule.id))
+        .find_map(|(rule, outcome)| outcome.refusal_of(rule.id, rule.reasons))
     {
         return Err(refusal);
     }
@@ -335,7 +330,9 @@ fn read_guides(
 const EARLIEST_RELEASE: Version = rules::RELEASES[0];
 
 /// The findings of a rule that checks by the release on a tree whose README names none: those it
-/// reports on every release it knows, which no release could take back.
+/// reports on every release it knows, which no release could take back. A finding is the same on
+/// two releases when only the citation that ends its message differs, since a later release cites
+/// a renamed ADR; the message is the newest release's.
 fn on_every_release(rule: &rules::Rule, inputs: &Inputs) -> Outcome {
     let runs: Vec<Outcome> = rules::RELEASES
         .iter()
@@ -348,11 +345,19 @@ fn on_every_release(rule: &rules::Rule, inputs: &Inputs) -> Outcome {
         })
         .collect();
     let (first, rest) = runs.split_first().expect("the rules know a release");
+    let newest = runs.last().expect("the rules know a release");
+    let same = |a: &Finding, b: &Finding| {
+        (a.rule, a.reason, &a.file, a.line, uncited(&a.message))
+            == (b.rule, b.reason, &b.file, b.line, uncited(&b.message))
+    };
     Outcome {
-        findings: first
+        findings: newest
             .findings
             .iter()
-            .filter(|finding| rest.iter().all(|run| run.findings.contains(finding)))
+            .filter(|finding| {
+                runs.iter()
+                    .all(|run| run.findings.iter().any(|other| same(finding, other)))
+            })
             .cloned()
             .collect(),
         refusal: runs.iter().find_map(|run| run.refusal.clone()),
@@ -362,6 +367,24 @@ fn on_every_release(rule: &rules::Rule, inputs: &Inputs) -> Outcome {
             .filter(|note| rest.iter().all(|run| run.notes.contains(note)))
             .cloned()
             .collect(),
+    }
+}
+
+/// A message without the citation that ends it, ` (ADR-NNNN)` or a group with a section sign such
+/// as ` (<ADR> §N)`; any other message as it is. It holds by a convention of the rules: a closing
+/// group with a section sign is a fixed citation, and what tells two findings apart stands before.
+fn uncited(message: &str) -> &str {
+    let Some(open) = message.strip_suffix(')').and_then(|m| m.rfind(" (")) else {
+        return message;
+    };
+    let cited = &message[open + 2..message.len() - 1];
+    let numbered = cited
+        .strip_prefix("ADR-")
+        .is_some_and(|n| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()));
+    if numbered || cited.contains('\u{a7}') {
+        &message[..open]
+    } else {
+        message
     }
 }
 
@@ -389,6 +412,115 @@ fn carried_release(
     }
 }
 
+/// Every text file, and the targets of their relative links where `links` asks for them; the paths
+/// that are no UTF-8, which no finding can name as the bash does.
+fn read_text(
+    tree: &Tree,
+    inputs: &mut Inputs,
+    links: bool,
+    carried: Option<&rules::Carried>,
+) -> Result<std::collections::BTreeSet<String>, String> {
+    let text = tree.read_text_files()?;
+    inputs.text_files = text.files;
+    if links {
+        inputs.link_targets =
+            tree.read_link_targets(&inputs.text_files, &inputs.adr, named_record(carried))?;
+    }
+    Ok(text.unspelled)
+}
+
+/// What the rules of the area `traceability` read: the specification, the markers, and, from
+/// template release v0.9.0 on, where the bash checks them, the sensors.
+fn read_traceability(
+    tree: &Tree,
+    inputs: &mut Inputs,
+    needs: &dyn Fn(Input) -> bool,
+    carried: Option<&rules::Carried>,
+) -> Result<(), String> {
+    if needs(Input::Specification) {
+        inputs.specification = tree.read_specification()?;
+    }
+    if needs(Input::Markers) {
+        inputs.markers = tree.read_markers()?;
+    }
+    if needs(Input::Sensors) && named_record(carried) {
+        inputs.sensors = tree.read_sensors()?;
+    }
+    Ok(())
+}
+
+/// What the rules of a record named by category read through git: the blobs of the base and the
+/// history of the deleted ADRs, each where a rule turned on needs it.
+fn read_by_git(
+    tree: &Tree,
+    inputs: &mut Inputs,
+    needs: &dyn Fn(Input) -> bool,
+    carried: Option<&rules::Carried>,
+) -> Result<(), String> {
+    if needs(Input::Base) && named_record(carried) {
+        inputs.base = tree.read_base()?;
+    }
+    if needs(Input::History) {
+        inputs.history = read_history(&tree.root, carried)?;
+    }
+    Ok(())
+}
+
+/// Whether the record is named by category: from template release v0.9.0 on, and for
+/// `unreleased` or none.
+fn named_record(carried: Option<&rules::Carried>) -> bool {
+    match carried {
+        Some(rules::Carried::Release(release)) => *release >= rules::CATEGORY_IDENTIFIERS,
+        _ => true,
+    }
+}
+
+/// The files of the record and the targets of its index, named as `named_record` says.
+fn read_record(
+    tree: &Tree,
+    carried: Option<&rules::Carried>,
+    inputs: &mut Inputs,
+) -> Result<(), String> {
+    let named = named_record(carried);
+    inputs.adr = tree.read_adr(&tree.root.join("docs/adr"), named)?;
+    inputs.adr_targets = tree.read_adr_targets(&inputs.adr, named)?;
+    Ok(())
+}
+
+/// The ADR files the first-parent history deleted, read by the `git log` the bash runs; none
+/// without a commit, or on a tree of a release before v0.9.0. A git that cannot read the history,
+/// as one before 2.31 rejects `--diff-merges`, is the rule's finding, not a refusal, as in the
+/// bash; its standard error stays out of the list.
+fn read_history(
+    root: &Path,
+    carried: Option<&rules::Carried>,
+) -> Result<rules::docs_adr_identifiers::History, String> {
+    use rules::docs_adr_identifiers::{History, LOG, deleted};
+    // The history matters from template release v0.9.0 on, and for `unreleased` or none.
+    if let Some(rules::Carried::Release(release)) = carried
+        && *release < rules::CATEGORY_IDENTIFIERS
+    {
+        return Ok(History::default());
+    }
+    if git::probe(root, &["rev-parse", "-q", "--verify", "HEAD^{commit}"])?.is_none() {
+        return Ok(History::default());
+    }
+    let output = git::command(root, &LOG)
+        .output()
+        .map_err(|e| format!("git could not be run ({e}) — install git and put it on the PATH"))?;
+    if output.status.success() {
+        return Ok(History {
+            deleted: deleted(&String::from_utf8_lossy(&output.stdout)),
+            error: None,
+        });
+    }
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    Ok(History {
+        deleted: std::collections::BTreeMap::new(),
+        error: Some(stderr.lines().next().unwrap_or("").to_owned()),
+    })
+}
+
 /// `nuc explain <id>`: the reason of the rule (G-6).
 fn explain(id: &str) -> Result<u8, String> {
     let (id, reason) =
@@ -402,14 +534,63 @@ mod tests {
     use super::*;
 
     #[test]
+    fn a_finding_is_kept_without_a_release_line_only_when_every_release_reports_it() {
+        use crate::testing::cat_id;
+        fn check(inputs: &Inputs) -> Outcome {
+            let at = |reason, line, message: &str| Finding {
+                rule: "x/y",
+                reason,
+                file: "a.md".to_owned(),
+                line: Some(line),
+                message: message.to_owned(),
+            };
+            let named = inputs.carries_at_least(rules::CATEGORY_IDENTIFIERS);
+            let (cited, other) = if named {
+                (
+                    format!("({} \u{a7}6)", cat_id("NUC", "x-y")),
+                    cat_id("SEC", "y-rule"),
+                )
+            } else {
+                ("(ADR-0003)".to_owned(), "ADR-0099".to_owned())
+            };
+            vec![
+                at("stray", 1, &format!("is stray {cited}")),
+                at("unmatched", 2, &format!("reference '{other}' matches none")),
+            ]
+            .into()
+        }
+        let rule = rules::Rule {
+            id: "x/y",
+            reasons: &["stray", "unmatched"],
+            explain: "",
+            reads: &[],
+            check,
+        };
+        let kept: Vec<String> = on_every_release(&rule, &Inputs::default())
+            .findings
+            .into_iter()
+            .map(|f| f.message)
+            .collect();
+        assert_eq!(
+            kept,
+            [format!("is stray ({} \u{a7}6)", cat_id("NUC", "x-y"))]
+        );
+        assert_eq!(uncited("no (ADR-0003)"), "no");
+        assert_eq!(uncited("no (see a.md)"), "no (see a.md)");
+        assert_eq!(uncited("no (ADR-x)"), "no (ADR-x)");
+    }
+
+    #[test]
     fn a_rule_that_reports_under_another_id_ends_the_run_not_decided() {
         let foreign = rules::Rule {
             id: "x/a",
+            reasons: &["r"],
             explain: "",
             reads: &[],
             check: |_| {
                 vec![Finding {
                     rule: "x/b",
+                    reason: "r",
                     file: "a.md".to_owned(),
                     line: None,
                     message: "m".to_owned(),

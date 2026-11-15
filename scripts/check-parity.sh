@@ -37,8 +37,16 @@
 # trees of the corpus that are the template's, those that still carry TEMPLATE-SETUP.md, in the
 # order of their releases. A change the table does not list, or one it lists that the trees do not
 # show, fails the harness and names the rule; tests/releases.rs holds the rules to the table
-# (API-version-coupling-hook-defaults). With fewer than two trees of the template there is nothing
-# to compare. A helper the function calls is not compared.
+# (API-version-coupling-hook-defaults). A tree whose script lacks the function has no such check,
+# and its body counts as empty, so the release a check comes or goes at is a change. A release the
+# table names that is later than every tree of the template is ahead of the corpus and not
+# compared; a function no tree has fails, unless its row names such a release. With fewer than two
+# trees of the template there is nothing to compare. A helper the function calls is not compared.
+#
+# Before the comparisons, each blob of tests/tables.blobs, the pins of the copies of the
+# template's fixture tables under tests/tables/, is held to the blob the template's tag of its
+# release has at scripts/fixtures/, fetched from the corpus's template into the cache
+# (TEST-cases-from-template-tables).
 #
 # Then the hook scenarios run on the template's trees of the corpus, through
 # scripts/lib/hook-parity.sh (TEST-hook-scenario-parity): each scenario of
@@ -61,10 +69,11 @@
 # --nuc runs the given binary instead of building one; --no-hooks leaves the hook scenarios out;
 # --hooks runs them alone, on the trees given; --compare compares one pair of outputs, for
 # scripts/test-check-parity.sh. PARITY_TABLE names another normalization table,
-# PARITY_RELEASES another table of releases, and PARITY_JOBS the number of comparisons that run at
-# once.
+# PARITY_RELEASES another table of releases, PARITY_TABLE_BLOBS another list of the blobs of the
+# copied fixture tables, and PARITY_JOBS the number of comparisons that run at once.
 # Exit code 0 when every repository and variant agrees, 1 on a difference, a refused tree, a
-# variant that fits no tree or does not fire, or a cache that cannot be filled, 2 on a malformed
+# variant that fits no tree or does not fire, a cache that cannot be filled, or a pin of a copied
+# table the template's tag does not bear out, 2 on a missing or malformed list of pins, a malformed
 # corpus, table, or variants file, a PARITY_JOBS that is no number of jobs, a root that does not
 # exist, or an argument it does not read.
 
@@ -86,6 +95,7 @@ usage="scripts/check-parity.sh [--root <dir>] [--corpus <file>] [--cache <dir>] 
 enter_root "${BASH_SOURCE[0]}" "$usage" "$@"
 set -- "${ARGS[@]}"
 TABLE="${PARITY_TABLE:-$ROOT/tests/parity/normalize.tsv}"
+TABLE_BLOBS="${PARITY_TABLE_BLOBS:-$ROOT/tests/tables.blobs}"
 RELEASES="${PARITY_RELEASES:-$ROOT/tests/parity/releases.tsv}"
 
 # shellcheck source-path=SCRIPTDIR source=lib/check.sh
@@ -159,6 +169,13 @@ compare() {
     fi
     if [[ -n "$rule" ]]; then
       n="" text="${line#"$file: $rule: "}"
+      # The line ends in its key, '[<rule>:<reason>]' (API-command-line-keyed-findings), which
+      # is no part of the bash's wording before v0.9.1; a finding without it is a difference.
+      if [[ "$text" =~ \ \["$rule":[a-z]+\]$ ]]; then
+        text="${text% \["$rule":*\]}"
+      else
+        diffs+=("nuc reports a finding of '$rule' without its key: $line")
+      fi
       [[ "$(mode_of "$rule")" == "unknown" ]] && diffs+=("nuc reports '$rule', which the table maps no message to")
       if [[ "$file" =~ ^(.*):([0-9]+)$ ]]; then file="${BASH_REMATCH[1]}" n="${BASH_REMATCH[2]}"; fi
       nuc_files+=("$file")
@@ -517,7 +534,7 @@ for i in "${!variant_names[@]}"; do
     fi
   done
 done
-template_trees=() trees=()
+template_trees=() trees=() template_url=""
 for entry in "${repositories[@]}"; do
   read -r name url commit <<< "$entry"
   dir="$cache/$name"
@@ -541,12 +558,49 @@ for entry in "${repositories[@]}"; do
     failed=1
     continue
   fi
-  [[ -f "$dir/TEMPLATE-SETUP.md" ]] && template_trees+=("$release $dir")
+  [[ -f "$dir/TEMPLATE-SETUP.md" ]] && template_trees+=("$release $dir") template_url="$url"
   printf '%s\n' "$config" > "$dir/nuc.toml"
   grep -qx '/nuc.toml' "$dir/.git/info/exclude" 2>/dev/null || echo '/nuc.toml' >> "$dir/.git/info/exclude"
 
   trees+=("$name $commit $dir")
 done
+
+# check_table_blobs — the pins of the copies of the template's fixture tables
+# (TEST-cases-from-template-tables): each line '<release> <blob> <file>' of TABLE_BLOBS names the
+# blob of scripts/fixtures/<file> at the release's tag of the template, which a repository of its
+# own in the cache fetches from the corpus's template where it lacks the tag. A tag it cannot read
+# fails, and so does a blob the tag does not hold; no tree of that release need be pinned.
+check_table_blobs() {
+  local line release blob file extra at tags="$cache/.tables"
+  [[ -f "$TABLE_BLOBS" ]] || { echo "Parity check: $TABLE_BLOBS — not found" >&2; exit 2; }
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ -z "$line" || "$line" == "#"* ]] && continue
+    read -r release blob file extra <<< "$line"
+    if ! [[ "$release" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ && "$blob" =~ ^[0-9a-f]{40}$ \
+      && "$file" =~ ^[A-Za-z0-9._-]+$ && -z "$extra" ]]; then
+      echo "Parity check: $TABLE_BLOBS — the line '$line' is not '<release> <blob> <file>'" >&2
+      exit 2
+    fi
+    if [[ -z "$template_url" ]]; then
+      echo "Parity check: $TABLE_BLOBS — no tree of the template in the corpus to read $release from" >&2
+      failed=1
+      return
+    fi
+    if ! cgit "$tags" rev-parse -q --verify "refs/tags/$release" > /dev/null 2>&1 \
+      && ! { { [[ -d "$tags/.git" ]] || { mkdir -p "$tags" && cgit "$tags" init -q; }; } \
+        && cgit "$tags" fetch -q --depth 1 "$template_url" "refs/tags/$release:refs/tags/$release"; } 2> /dev/null; then
+      echo "Parity check: $TABLE_BLOBS — the tag $release cannot be read from $template_url" >&2
+      failed=1
+      continue
+    fi
+    at="$(cgit "$tags" rev-parse -q --verify "refs/tags/$release:scripts/fixtures/$file" 2> /dev/null)"
+    if [[ "$at" != "$blob" ]]; then
+      echo "Parity check: $TABLE_BLOBS — $file is not the blob $release holds at scripts/fixtures/$file (${at:-none there})" >&2
+      failed=1
+    fi
+  done < "$TABLE_BLOBS"
+}
+check_table_blobs
 
 # run_variant <name> <commit> <dir> <index> — bash and nuc on a copy of the tree with the variant
 # applied, in a directory of its own, never on the cache; fails on a difference, on an edit that
@@ -613,17 +667,35 @@ if ((${#template_trees[@]} >= 2)); then
   mapfile -t template_trees < <(printf '%s\n' "${template_trees[@]}" | sort -V -k1,1)
   for row in "${release_rows[@]}"; do
     read -r r_rule r_script r_function r_changed <<< "$row"
-    changed=() previous="" first=1
+    changed=() previous="" first=1 present=0
     for tree in "${template_trees[@]}"; do
       t_release="${tree%% *}" t_dir="${tree#* }"
-      if ! body="$(check_body "$t_dir/$r_script" "$r_function")"; then
-        echo "Parity check: $r_rule — the template's tree at $t_release has no $r_function in $r_script" >&2
-        failed=1
-        continue 2
-      fi
+      # A release whose script has no such function has no such check yet, or no longer: its body
+      # is empty, so that the release it comes or goes at is a change.
+      if body="$(check_body "$t_dir/$r_script" "$r_function")"; then present=1; else body=""; fi
       ((first)) || [[ "$body" == "$previous" ]] || changed+=("$t_release")
       previous="$body" first=0
     done
+    # A release the row names that is later than every tree of the template in the corpus is ahead
+    # of the corpus: it is not compared until a tree of it is pinned.
+    newest="${template_trees[-1]%% *}" listed=() ahead=()
+    IFS=, read -r -a releases_named <<< "${r_changed/#-/}"
+    for t_release in "${releases_named[@]}"; do
+      if [[ "$(printf '%s\n' "$newest" "$t_release" | sort -V | tail -n 1)" != "$newest" ]]; then
+        ahead+=("$t_release")
+      else
+        listed+=("$t_release")
+      fi
+    done
+    # A function no tree has is compared nowhere: only a row whose check comes at a release ahead
+    # of the corpus may name one, so that a mistyped function or script is no silent pass (Q-1).
+    if ((!present)) && ((${#ahead[@]} == 0)); then
+      echo "Parity check: $r_rule — no tree of the template in the corpus has $r_function in $r_script, and the row names no release ahead of the corpus" >&2
+      failed=1
+      continue
+    fi
+    ((present)) || echo "Parity check: $r_rule — its check comes at ${ahead[*]}, ahead of the corpus, and nothing of it is compared yet"
+    r_changed="$(IFS=,; echo "${listed[*]:--}")"
     got="$(IFS=,; echo "${changed[*]:--}")"
     if [[ "$got" != "$r_changed" ]]; then
       echo "Parity check: $r_rule — its bash check changed at $got across the template's trees of the corpus, where ${RELEASES#"$ROOT/"} says $r_changed" >&2

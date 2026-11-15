@@ -1,5 +1,5 @@
 //! `nuc hook` and the reference shims, through git.
-//! Verifies: API-command-line-with-hook-signal API-hook-contract API-version-coupling-hook-defaults
+//! Verifies: API-command-line-keyed-findings API-hook-contract API-version-coupling-hook-defaults
 //! Verifies: G-2 G-3 G-5 Q-1 Q-4 Q-7 Q-8 Q-9 Q-10 Q-11
 //!
 //! Each case builds a fixture repository whose hooks path is the repository's `shims/`, puts a
@@ -327,6 +327,13 @@ fn without_nuc_toml_every_hook_rule_is_on() {
         "{}",
         stdout(&output)
     );
+    assert!(
+        stdout(&output)
+            .trim_end()
+            .ends_with(" [hook/commit-on-main:main]"),
+        "a refusal ends in its key: {}",
+        stdout(&output)
+    );
     fixture.git(&["switch", "-q", "-c", "feature"]);
     let output = decide(&fixture);
     assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
@@ -584,6 +591,11 @@ fn a_merge_on_main_is_refused_and_one_elsewhere_passes_the_documentation_check()
     assert!(
         both(&output).contains("refs/heads/main: hook/merge-on-main: the checkout is on 'main'"),
         "{}",
+        both(&output)
+    );
+    assert!(
+        both(&output).contains(" [hook/merge-on-main:main]"),
+        "a refusal ends in its key: {}",
         both(&output)
     );
 
@@ -1035,6 +1047,23 @@ fn malformed_standard_input_is_not_decided() {
     }
 }
 
+#[test]
+fn a_push_to_main_is_refused_at_its_ref_and_ends_in_its_key() {
+    let fixture = pushing("hooks-push-main", "exit 0");
+    let line = push_line(&fixture).replacen(" refs/heads/feature ", " refs/heads/main ", 1);
+    let output = decide_push(&fixture, &line, &[]);
+    assert_eq!(output.status.code(), Some(1), "{}", stderr(&output));
+    let out = stdout(&output);
+    assert!(
+        out.starts_with("refs/heads/main: hook/push-to-main: "),
+        "{out}"
+    );
+    assert!(
+        out.trim_end().ends_with(" [hook/push-to-main:main]"),
+        "a refusal ends in its key: {out}"
+    );
+}
+
 /// Verifies: Q-8 Q-9
 #[test]
 fn nuc_hook_pre_push_decides_and_writes_in_its_own_repository_only() {
@@ -1259,6 +1288,11 @@ fn main_moves_only_to_what_origin_main_has_through_the_shim() {
         both(&output)
             .contains("refs/heads/main: hook/main-moves: main moves only to what origin/main has"),
         "{}",
+        both(&output)
+    );
+    assert!(
+        both(&output).contains(" [hook/main-moves:main]"),
+        "a refusal ends in its key: {}",
         both(&output)
     );
     let output = git_hooked(

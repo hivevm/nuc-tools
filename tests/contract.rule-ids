@@ -2,11 +2,13 @@
 # files name it, so no rule is renamed or dropped while a project may still turn it on.
 
 docs/adr-header
+docs/adr-identifiers
 docs/adr-index
 docs/adr-link-targets
 docs/adr-numbering
 docs/adr-refs
 docs/adr-supersessions
+docs/base-blobs
 docs/check-lists
 docs/inherited-adrs
 docs/links
@@ -27,3 +29,4 @@ hook/push-to-main
 traceability/citations
 traceability/coverage
 traceability/criteria
+traceability/sensor-tests

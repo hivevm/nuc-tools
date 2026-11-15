@@ -23,14 +23,20 @@ its release reads them, the root by `--root` from v0.10.0.
 - [ ] Given a `nuc.toml` that lists `shell/bash-floor`, when `nuc check` runs, then it is refused
       as an unknown rule.
 
+## Decided
+
+- The human accepted ARCH-rules-need-only-git on 2026-11-15. This ticket writes its Enforcement,
+  the refusal in `tests/contract.rs` and the one spawn in `tests/functional_core.rs`, and flips it
+  to accepted in that change.
+
 ## Read first
 
 - Touches: a new rule module, `src/rules/mod.rs`, `src/shell/mod.rs`, `src/shell/git.rs`,
   `tests/contract.rule-ids`, `tests/parity/corpus.toml`, `tests/parity/releases.tsv`,
   `tests/parity/variants.tsv`, `tests/parity/normalize.tsv`, `scripts/check-parity.sh`,
-  `tests/git_cli.neutralized`
+  `tests/git_cli.neutralized`, `tests/functional_core.rs`, `tests/contract.rs`, `docs/adr/`
 - The template's `scripts/check-shell.sh` at v0.10.0, its `shell/mode` part only.
-- The ADR from ticket 01 on rules that run the project's scripts.
+- ARCH-rules-need-only-git.
 - Seam: the table runner; the parity harness.
 
 ## Blocked by

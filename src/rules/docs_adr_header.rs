@@ -11,13 +11,14 @@ pub const RULE_ID: &str = "docs/adr-header";
 
 pub const RULE: Rule = Rule {
     id: RULE_ID,
+    reasons: &["field", "emojis", "word", "instruction"],
     explain: "Every ADR's '**Status:**' line carries exactly one legend emoji and the word that \
               belongs to it, every header field is the list item '- **<Name>:** …' of \
               docs/adr/template.md, and no ADR still contains the template's instruction \
               paragraph. A leftover list of alternatives or a word contradicting its emoji \
               survives the index check, and the word is what a reader believes; a field in \
               another form is skipped by every script that reads the header.",
-    reads: &[Input::Adr],
+    reads: &[Input::Adr, Input::Release],
     check: |inputs| check(inputs).into(),
 };
 
@@ -33,10 +34,18 @@ fn word_of(emoji: &str) -> &'static str {
 
 fn check(inputs: &Inputs) -> Vec<Finding> {
     let mut found = Vec::new();
-    for (name, header) in adr::headers(&inputs.adr) {
+    // From template release v0.9.0 on, the record is named by category and its header knows the
+    // fields Extends, Narrows, and Role.
+    let headers = if inputs.carries_at_least(super::CATEGORY_IDENTIFIERS) {
+        adr::named_headers(&inputs.adr)
+    } else {
+        adr::headers(&inputs.adr)
+    };
+    for (name, header) in headers {
         let path = format!("docs/adr/{name}");
-        let at = |line, message: &str| Finding {
+        let at = |line, reason, message: &str| Finding {
             rule: RULE_ID,
+            reason,
             file: path.clone(),
             line,
             message: message.to_owned(),
@@ -45,7 +54,7 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
             // '<line number>:<line>' as the awk prints it; the bash names the part before ':'.
             let before = stray.split(|&b| b == b':').next().unwrap_or(stray);
             let line = show(before).parse().ok();
-            found.push(at(line, "a header field not written as the list item '- **<Name>:** …' of template.md — every script reads only that form"));
+            found.push(at(line, "field", "a header field not written as the list item '- **<Name>:** …' of template.md — every script reads only that form"));
         }
         let status = header.field("Status").unwrap_or(b"");
         if let (Some(emoji), count) = adr::status_emoji(status) {
@@ -55,6 +64,7 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
             if count > 1 {
                 found.push(at(
                     None,
+                    "emojis",
                     &format!("status line carries {count} status emoji — keep exactly one"),
                 ));
             } else if word != expected.as_bytes() {
@@ -65,6 +75,7 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
                 };
                 found.push(at(
                     None,
+                    "word",
                     &format!("status line reads '{emoji} {word}', but {emoji} means '{expected}'"),
                 ));
             }
@@ -72,6 +83,7 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
         if header.needle {
             found.push(at(
                 None,
+                "instruction",
                 "still carries the instruction paragraph from template.md — delete it",
             ));
         }
@@ -96,6 +108,7 @@ mod tests {
         .into();
         Inputs {
             adr,
+            release: Some(crate::config::Version(0, 8, 1)),
             ..Inputs::default()
         }
     }
@@ -177,5 +190,26 @@ mod tests {
             messages(text),
             ["still carries the instruction paragraph from template.md — delete it"]
         );
+    }
+
+    #[test]
+    fn from_v0_9_0_the_fields_extends_narrows_and_role_count_as_header_fields() {
+        let id = crate::testing::cat_id("SEC", "a-rule");
+        let text = format!("# {id}: x\n\n**Role:** harness\n- **Status:** 🟡 proposed\n");
+        let mut found = inputs(text.as_bytes());
+        found.adr.remove("0001-a.md");
+        found
+            .adr
+            .insert(format!("{id}.md"), text.clone().into_bytes());
+        assert!(
+            check(&found).is_empty(),
+            "v0.8.1 reads no record named by category"
+        );
+        found.release = None;
+        let reasons: Vec<&str> = check(&found).into_iter().map(|f| f.reason).collect();
+        assert_eq!(reasons, ["field"]);
+        let mut numbered = inputs(text.as_bytes());
+        numbered.release = Some(crate::config::Version(0, 8, 1));
+        assert!(check(&numbered).is_empty(), "Role is no field of v0.8.1");
     }
 }

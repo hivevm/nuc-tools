@@ -1,9 +1,10 @@
 # The releases at which the bash check of each rule changed, read by tests/releases.rs and by
 # scripts/check-parity.sh. One row per rule of nuc, four or six fields separated by tabs: the rule
 # ID; the script of the template that holds its bash check; the function of that script, or "-" for
-# the whole script; the template releases of the corpus at which that check changed, the earliest
-# pinned release of the template left out, separated by commas, or "-" for none; and, for a rule
-# that checks some or every release alike although its bash changed, the releases the reason
+# the whole script; the template releases at which that check changed, the earliest pinned release
+# of the template left out, separated by commas, or "-" for none, where a release later than every
+# tree of the template in the corpus is ahead of it and not compared until one is pinned; and, for
+# a rule that checks some or every release alike although its bash changed, the releases the reason
 # covers, separated by commas, or "-" for every release of the row, and the reason. A release there
 # that does not parse is refused, and so is a reason whose first word reads as a release and is not
 # one release followed by a word.
@@ -15,22 +16,25 @@
 # it calls or a global it reads, as placeholder or add_error, shows in no row, and is found by
 # reading the release's diff.
 
-docs/adr-index	scripts/check-docs.sh	check_adr_index	v0.8.1	-	v0.8.0 moved its patterns and the ADR key into scripts/lib/adr.sh with the same expressions, so every release checks alike, which the parity corpus shows on the tree of v0.8.1
-docs/adr-numbering	scripts/check-docs.sh	check_adr_numbering	v0.8.1	-	v0.8.0 moved its patterns and the ADR key into scripts/lib/adr.sh with the same expressions, so every release checks alike, which the parity corpus shows on the tree of v0.8.1
-docs/no-draft-on-main	scripts/check-docs.sh	check_no_draft_on_main	v0.8.1	-	v0.8.0 moved its patterns and the ADR key into scripts/lib/adr.sh with the same expressions, so every release checks alike, which the parity corpus shows on the tree of v0.8.1
-docs/adr-header	scripts/check-docs.sh	check_adr_headers	-
-docs/adr-supersessions	scripts/check-docs.sh	check_adr_supersessions	v0.6.0,v0.8.1	v0.8.1	v0.8.0 moved its patterns and the ADR key into scripts/lib/adr.sh with the same expressions, so v0.8.1 checks as v0.7.0, which the parity corpus shows on the tree of v0.8.1
-docs/links	scripts/check-docs.sh	check_relative_links	-
-docs/section-refs	scripts/check-docs.sh	check_section_refs	-
-docs/adr-refs	scripts/check-docs.sh	check_adr_refs	-
-docs/adr-link-targets	scripts/check-docs.sh	check_adr_link_targets	v0.8.1	-	v0.8.0 moved its patterns and the ADR key into scripts/lib/adr.sh with the same expressions, so every release checks alike, which the parity corpus shows on the tree of v0.8.1
+docs/adr-index	scripts/check-docs.sh	check_adr_index	v0.8.1,v0.9.0	v0.8.1	v0.8.0 moved its patterns and the ADR key into scripts/lib/adr.sh with the same expressions, so every release checks alike, which the parity corpus shows on the tree of v0.8.1
+docs/adr-numbering	scripts/check-docs.sh	check_adr_numbering	v0.8.1,v0.9.0	v0.8.1	v0.8.0 moved its patterns and the ADR key into scripts/lib/adr.sh with the same expressions, so every release checks alike, which the parity corpus shows on the tree of v0.8.1; from v0.9.0 on the record has no such check
+docs/adr-identifiers	scripts/check-docs.sh	check_adr_identifiers	v0.9.0
+docs/no-draft-on-main	scripts/check-docs.sh	check_no_draft_on_main	v0.8.1,v0.9.0	v0.8.1	v0.8.0 moved its patterns and the ADR key into scripts/lib/adr.sh with the same expressions, so every release checks alike, which the parity corpus shows on the tree of v0.8.1; from v0.9.0 on the record has no such check
+docs/adr-header	scripts/check-docs.sh	check_adr_headers	v0.9.0
+docs/adr-supersessions	scripts/check-docs.sh	check_adr_supersessions	v0.6.0,v0.8.1,v0.9.0	v0.8.1	v0.8.0 moved its patterns and the ADR key into scripts/lib/adr.sh with the same expressions, so v0.8.1 checks as v0.7.0, which the parity corpus shows on the tree of v0.8.1
+docs/base-blobs	scripts/check-docs.sh	check_base_blobs	v0.9.0
+docs/links	scripts/check-docs.sh	check_relative_links	v0.9.0
+docs/section-refs	scripts/check-docs.sh	check_section_refs	v0.9.0
+docs/adr-refs	scripts/check-docs.sh	check_adr_refs	v0.9.0
+docs/adr-link-targets	scripts/check-docs.sh	check_adr_link_targets	v0.8.1,v0.9.0	v0.8.1	v0.8.0 moved its patterns and the ADR key into scripts/lib/adr.sh with the same expressions, so every release checks alike, which the parity corpus shows on the tree of v0.8.1
 docs/check-lists	scripts/check-docs.sh	check_check_lists	v0.6.0,v0.7.0
 docs/project-layout	scripts/check-docs.sh	check_project_layout	v0.7.0
-docs/skill-pointers	scripts/check-docs.sh	check_skill_pointers	-
-docs/inherited-adrs	scripts/check-docs.sh	check_inherited_adrs	v0.8.1	-	v0.8.0 moved its patterns and the ADR key into scripts/lib/adr.sh with the same expressions, so every release checks alike, which the parity corpus shows on the tree of v0.8.1
-docs/template-identity	scripts/check-docs.sh	check_template_identity	v0.6.1
+docs/skill-pointers	scripts/check-docs.sh	check_skill_pointers	v0.9.0
+docs/inherited-adrs	scripts/check-docs.sh	check_inherited_adrs	v0.8.1,v0.9.0	v0.8.1	v0.8.0 moved its patterns and the ADR key into scripts/lib/adr.sh with the same expressions, so every release checks alike, which the parity corpus shows on the tree of v0.8.1; from v0.9.0 on the record has no such check
+docs/template-identity	scripts/check-docs.sh	check_template_identity	v0.6.1,v0.9.0
 docs/prose-width	scripts/check-docs.sh	check_prose_width	v0.8.1	-	v0.8.0 moved its patterns and the ADR key into scripts/lib/adr.sh with the same expressions, so every release checks alike, which the parity corpus shows on the tree of v0.8.1
 docs/template-release	scripts/check-docs.sh	check_template_release	v0.7.0	-	v0.7.0 reports a missing README itself, where earlier releases leave it to check 10; nuc refuses a tree without a README before any rule runs, so no tree tells the two apart
-traceability/criteria	scripts/check-traceability.sh	-	-
-traceability/citations	scripts/check-traceability.sh	-	-
-traceability/coverage	scripts/check-traceability.sh	-	-
+traceability/criteria	scripts/check-traceability.sh	-	v0.9.0	v0.9.0	its part of the script, the criteria of the specification, reads as before; v0.9.0 changed the other parts
+traceability/citations	scripts/check-traceability.sh	-	v0.9.0
+traceability/coverage	scripts/check-traceability.sh	-	v0.9.0
+traceability/sensor-tests	scripts/check-traceability.sh	-	v0.9.0

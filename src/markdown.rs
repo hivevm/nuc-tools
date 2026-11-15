@@ -134,10 +134,16 @@ pub struct Target {
     pub fragment: Option<Vec<u8>>,
 }
 
+/// The template's placeholder in a link of `docs/adr/template.md`: `NNNN`, and `<CAT>` from
+/// template release v0.9.0 on, whose record is `named` by category.
+pub fn placeholder(named: bool) -> &'static [u8] {
+    if named { b"<CAT>" } else { b"NNNN" }
+}
+
 /// The relative links of the Markdown file at `file`, a path from the root: every link outside
 /// fences but those to `http://`, `https://`, and `mailto:`, and those whose target carries the
-/// template's placeholder `NNNN`.
-pub fn relative_targets(file: &str, text: &[u8]) -> Vec<Target> {
+/// template's `placeholder`.
+pub fn relative_targets(file: &str, text: &[u8], placeholder: &[u8]) -> Vec<Target> {
     let dir = file.rsplit_once('/').map(|(dir, _)| dir);
     links(text)
         .into_iter()
@@ -146,7 +152,7 @@ pub fn relative_targets(file: &str, text: &[u8]) -> Vec<Target> {
             let skipped = [&b"http://"[..], b"https://", b"mailto:"]
                 .iter()
                 .any(|p| target.starts_with(p))
-                || crate::bash::contains(target, b"NNNN");
+                || crate::bash::contains(target, placeholder);
             if skipped {
                 return None;
             }
@@ -335,12 +341,12 @@ mod tests {
     #[test]
     fn relative_targets_join_the_directory_and_skip_the_web_and_placeholders() {
         let text = b"[a](../x.md#s) [b](#top) [c](https://e.invalid) [d](mailto:m) [e](NNNN-x.md) [f](y/)\n";
-        let found = relative_targets("docs/adr/0001-a.md", text);
+        let found = relative_targets("docs/adr/0001-a.md", text, b"NNNN");
         let paths: Vec<Option<&str>> = found.iter().map(|t| t.path.as_deref()).collect();
         assert_eq!(paths, [Some("docs/adr/../x.md"), None, Some("docs/adr/y/")]);
         assert_eq!(found[0].fragment.as_deref(), Some(&b"s"[..]));
         assert_eq!(
-            relative_targets("README.md", b"[a](x.md)\n")[0]
+            relative_targets("README.md", b"[a](x.md)\n", b"NNNN")[0]
                 .path
                 .as_deref(),
             Some("x.md")

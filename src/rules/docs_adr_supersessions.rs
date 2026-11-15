@@ -5,7 +5,7 @@
 //! names no successor that is not accepted. One superseded in its turn counts as accepted, so a
 //! chain stays whole.
 
-use super::{Input, Inputs, Rule};
+use super::{CATEGORY_IDENTIFIERS, Input, Inputs, Rule};
 use crate::adr::{self, Header, show};
 use crate::bash;
 use crate::config::Version;
@@ -15,12 +15,24 @@ pub const RULE_ID: &str = "docs/adr-supersessions";
 
 pub const RULE: Rule = Rule {
     id: RULE_ID,
+    reasons: &[
+        "unflipped",
+        "unnamed",
+        "unclaimed",
+        "unaccepted",
+        "base",
+        "field",
+        "clause",
+    ],
     explain: "The '**Supersedes:**' field of a new ADR and the '⚪ superseded by ADR-NNNN' \
               status line of every old one it names, one or several it consolidates, name each \
               other. The two halves stand in two files, and the index check sees neither one \
               missing. Every name of a Supersedes field counts, on whichever line it sits. From \
               template release v0.6.0 the old line flips only when a human accepts the new ADR, \
-              so a proposed one leaves the old ones in force.",
+              so a proposed one leaves the old ones in force. From template release v0.9.0 on, \
+              ADRs are named '<CAT>-<slug>', no project ADR supersedes an ADR of the base, and \
+              each clause an Extends or Narrows field names is a numbered clause of that ADR's \
+              Decision.",
     reads: &[Input::Adr, Input::Release],
     check: |inputs| check(inputs).into(),
 };
@@ -57,10 +69,14 @@ fn superseded(header: &Header) -> Vec<String> {
 }
 
 fn check(inputs: &Inputs) -> Vec<Finding> {
+    if inputs.carries_at_least(CATEGORY_IDENTIFIERS) {
+        return named(inputs);
+    }
     let headers = adr::headers(&inputs.adr);
     let by_key = adr::by_key(&inputs.adr);
-    let at = |name: &str, message: String| Finding {
+    let at = |name: &str, reason, message: String| Finding {
         rule: RULE_ID,
+        reason,
         file: format!("docs/adr/{name}"),
         line: None,
         message,
@@ -76,7 +92,7 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
             };
             let status = headers[target_name].field("Status").unwrap_or(b"");
             if successor(status).as_deref() != Some(key) {
-                found.push(at(target_name, format!(
+                found.push(at(target_name, "unflipped", format!(
                     "{name} supersedes it, but its status line does not say 'superseded by ADR-{key}'"
                 )));
             }
@@ -86,6 +102,7 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
             None if adr::status_emoji(status).0 == Some("⚪") => {
                 found.push(at(
                     name,
+                    "unnamed",
                     "status is ⚪ but the line names no superseding ADR".to_owned(),
                 ));
             }
@@ -95,14 +112,117 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
                     continue;
                 };
                 if !superseded(&headers[next_name]).iter().any(|k| k == key) {
-                    found.push(at(next_name, format!(
+                    found.push(at(next_name, "unclaimed", format!(
                         "{name} says it supersedes, but it carries no '**Supersedes:**' field naming ADR-{key}"
                     )));
                 }
                 if on_acceptance && !accepted(headers[next_name].field("Status").unwrap_or(b"")) {
-                    found.push(at(name, format!(
+                    found.push(at(name, "unaccepted", format!(
                         "superseded by ADR-{next}, which is not accepted — the status line flips when the human accepts ADR-{next}"
                     )));
+                }
+            }
+        }
+    }
+    found
+}
+
+/// Whether a status line holds 🟢 or ⚪, as `status_emoji` gives its emoji.
+fn accepted_or_superseded(status: &[u8]) -> bool {
+    matches!(adr::status_emoji(status).0, Some("🟢" | "⚪"))
+}
+
+/// The check from template release v0.9.0 on, by identifier, as the bash of v0.9.1 runs it: once
+/// an ADR is accepted, each it supersedes says it is superseded by it; a superseded one names its
+/// successor, which claims it and is accepted; no project ADR supersedes the base; and an Extends
+/// or Narrows field names clauses of the base that its Decision has.
+fn named(inputs: &Inputs) -> Vec<Finding> {
+    let headers = adr::named_headers(&inputs.adr);
+    let categories = adr::categories(inputs.adr.get("README.md").map(Vec::as_slice));
+    let id_of = |name: &str| name.strip_suffix(".md").unwrap_or(name).to_owned();
+    let by_id: std::collections::BTreeMap<String, &str> =
+        headers.keys().map(|name| (id_of(name), *name)).collect();
+    let refs = |text: &[u8]| -> Vec<String> {
+        adr::named_references(text, &categories)
+            .into_iter()
+            .map(show)
+            .collect()
+    };
+    let at = |name: &str, reason, message: String| Finding {
+        rule: RULE_ID,
+        reason,
+        file: format!("docs/adr/{name}"),
+        line: None,
+        message,
+    };
+    let mut found = Vec::new();
+    for (name, header) in &headers {
+        let nr = id_of(name);
+        let status = header.field("Status").unwrap_or(b"");
+        let accepted = accepted_or_superseded(status);
+        for target in refs(&header.supersedes) {
+            if target.starts_with("NUC-") && !name.starts_with("NUC-") {
+                found.push(at(name, "base", format!(
+                    "supersedes {target} — no project ADR supersedes the base; extend or narrow its clause, or fork the template (NUC-base-is-fixed §1)"
+                )));
+            }
+            if let Some(&target_name) = by_id.get(&target).filter(|_| accepted) {
+                let target_status = headers[target_name].field("Status").unwrap_or(b"");
+                if adr::named_successor(target_status, &categories).as_deref() != Some(nr.as_str())
+                {
+                    found.push(at(target_name, "unflipped", format!(
+                        "{name} supersedes it, but its status line does not say 'superseded by {nr}'"
+                    )));
+                }
+            }
+        }
+        match adr::named_successor(status, &categories) {
+            None if adr::status_emoji(status).0 == Some("⚪") => found.push(at(
+                name,
+                "unnamed",
+                "status is ⚪ but the line names no superseding ADR".to_owned(),
+            )),
+            None => {}
+            Some(next) => {
+                if let Some(&next_name) = by_id.get(&next) {
+                    if !refs(&headers[next_name].supersedes).contains(&nr) {
+                        found.push(at(next_name, "unclaimed", format!(
+                            "{name} says it supersedes, but it carries no '**Supersedes:**' field naming {nr}"
+                        )));
+                    }
+                    if !accepted_or_superseded(headers[next_name].field("Status").unwrap_or(b"")) {
+                        found.push(at(name, "unaccepted", format!(
+                            "superseded by {next}, which is not accepted — the status line flips when the human accepts {next}"
+                        )));
+                    }
+                }
+            }
+        }
+        for (field, text) in [("Extends", &header.extends), ("Narrows", &header.narrows)] {
+            if text.is_empty() {
+                continue;
+            }
+            let named = adr::clauses(text);
+            if named.is_empty() {
+                found.push(at(name, "field", format!(
+                    "the {field} field names no clause of a NUC- ADR, 'NUC-<slug> §n' (NUC-base-is-fixed §1)"
+                )));
+            }
+            for (target, number) in named {
+                let Some(&target_name) = by_id.get(&target) else {
+                    continue;
+                };
+                let decision = adr::section(&inputs.adr[target_name], "Decision");
+                let clause = format!("{number}. ");
+                if !decision
+                    .iter()
+                    .any(|line| line.starts_with(clause.as_bytes()))
+                {
+                    found.push(at(
+                        name,
+                        "clause",
+                        format!("{field} {target} §{number}, a clause its Decision does not have"),
+                    ));
                 }
             }
         }
@@ -309,10 +429,10 @@ mod tests {
                 )
             )]
         );
-        // The same trees on v0.5.x and on 'unreleased', the newest release.
+        // The same trees on v0.5.x and on v0.8.1, the newest release of a numbered record.
         assert_eq!(found(&early), []);
         assert_eq!(found(&proposed_supersession("🟢 accepted")).len(), 1);
-        assert_eq!(found_at(None, &early).len(), 1);
+        assert_eq!(found_at(Some(Version(0, 8, 1)), &early).len(), 1);
     }
 
     /// Verifies: API-version-coupling-hook-defaults

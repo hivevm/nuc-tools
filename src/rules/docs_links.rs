@@ -12,12 +12,19 @@ pub const RULE_ID: &str = "docs/links";
 
 pub const RULE: Rule = Rule {
     id: RULE_ID,
+    reasons: &["broken", "anchor"],
     explain: "Every relative Markdown link in a tracked Markdown file resolves to a file or \
               directory that exists, and its '#anchor' to a heading of a Markdown file, or to \
               its lines as 'Lnn' or 'Lnn-Lmm' in any file. Links in fenced code are \
-              illustrations, a target with the template's 'NNNN' is a placeholder, and \
-              superseded and rejected ADRs describe a tree that no longer exists.",
-    reads: &[Input::Adr, Input::TextFiles, Input::LinkTargets],
+              illustrations, a target with the template's 'NNNN', from template release v0.9.0 \
+              on '<CAT>', is a placeholder, and superseded and rejected ADRs describe a tree that \
+              no longer exists.",
+    reads: &[
+        Input::Adr,
+        Input::TextFiles,
+        Input::LinkTargets,
+        Input::Release,
+    ],
     check: |inputs| check(inputs).into(),
 };
 
@@ -30,13 +37,18 @@ pub struct Resolved {
 }
 
 fn check(inputs: &Inputs) -> Vec<Finding> {
-    let inactive = adr::inactive_paths(&inputs.adr);
+    let named = inputs.carries_at_least(super::CATEGORY_IDENTIFIERS);
+    let inactive = if named {
+        adr::named_inactive_paths(&inputs.adr)
+    } else {
+        adr::inactive_paths(&inputs.adr)
+    };
     let mut found = Vec::new();
     for (file, text) in &inputs.text_files {
         if !file.ends_with(".md") || inactive.contains(file.as_str()) {
             continue;
         }
-        for target in markdown::relative_targets(file, text) {
+        for target in markdown::relative_targets(file, text, markdown::placeholder(named)) {
             found.extend(target_finding(inputs, file, text, &target));
         }
     }
@@ -45,8 +57,9 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
 
 /// The finding of one link, if its path does not exist or its anchor names nothing there.
 fn target_finding(inputs: &Inputs, file: &str, text: &[u8], target: &Target) -> Option<Finding> {
-    let finding = |message: String| Finding {
+    let finding = |reason, message: String| Finding {
         rule: RULE_ID,
+        reason,
         file: file.to_owned(),
         line: Some(target.line),
         message,
@@ -56,10 +69,10 @@ fn target_finding(inputs: &Inputs, file: &str, text: &[u8], target: &Target) -> 
         Some(path) => {
             let resolved = inputs.link_targets.get(path)?;
             if !resolved.exists {
-                return Some(finding(format!(
-                    "broken relative link -> '{}'",
-                    show(&target.target)
-                )));
+                return Some(finding(
+                    "broken",
+                    format!("broken relative link -> '{}'", show(&target.target)),
+                ));
             }
             (path.clone(), resolved.file.as_deref())
         }
@@ -73,11 +86,14 @@ fn target_finding(inputs: &Inputs, file: &str, text: &[u8], target: &Target) -> 
                 .any(|slug| slug == fragment)
     });
     (!resolves).then(|| {
-        finding(format!(
-            "link '{}' has no matching anchor '#{}' in {path}",
-            show(&target.target),
-            show(fragment)
-        ))
+        finding(
+            "anchor",
+            format!(
+                "link '{}' has no matching anchor '#{}' in {path}",
+                show(&target.target),
+                show(fragment)
+            ),
+        )
     })
 }
 
@@ -86,7 +102,10 @@ mod tests {
     use super::*;
 
     fn inputs(files: &[(&str, &str)], targets: &[(&str, bool, Option<&str>)]) -> Inputs {
-        let mut inputs = Inputs::default();
+        let mut inputs = Inputs {
+            release: Some(crate::config::Version(0, 8, 1)),
+            ..Inputs::default()
+        };
         for (path, text) in files {
             inputs
                 .text_files
@@ -180,5 +199,14 @@ mod tests {
             .adr
             .insert("0001-a.md".to_owned(), superseded.as_bytes().to_vec());
         assert_eq!(messages(&inputs), Vec::<String>::new());
+    }
+
+    #[test]
+    fn from_v0_9_0_the_placeholder_is_cat() {
+        let readme = "[a](<CAT>-x.md) [b](NNNN-x.md)\n";
+        let mut found = inputs(&[("README.md", readme)], &[("NNNN-x.md", false, None)]);
+        found.release = Some(crate::config::Version(0, 9, 0));
+        let messages: Vec<String> = check(&found).into_iter().map(|f| f.message).collect();
+        assert_eq!(messages, ["broken relative link -> 'NNNN-x.md'"]);
     }
 }

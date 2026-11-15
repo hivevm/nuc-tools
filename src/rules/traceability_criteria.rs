@@ -10,6 +10,7 @@ pub const RULE_ID: &str = "traceability/criteria";
 
 pub const RULE: Rule = Rule {
     id: RULE_ID,
+    reasons: &["absent", "section", "twice", "unnamed"],
     explain: "Every list item under '## Goals / Success Criteria' and '## Quality Goals' of \
               docs/SPECIFICATION.md starts with a bold identifier, **G-n** under Goals and **Q-n** \
               under Quality Goals, and no identifier appears twice. A test cites a criterion by \
@@ -41,14 +42,15 @@ fn read(specification: Option<&[u8]>) -> Criteria {
         findings: read
             .problems
             .into_iter()
-            .map(|(line, message)| finding(line, message))
+            .map(|(line, reason, message)| finding(reason, line, message))
             .collect(),
     }
 }
 
-fn finding(line: Option<usize>, message: String) -> Finding {
+fn finding(reason: &'static str, line: Option<usize>, message: String) -> Finding {
     Finding {
         rule: RULE_ID,
+        reason,
         file: SPECIFICATION.to_owned(),
         line,
         message,

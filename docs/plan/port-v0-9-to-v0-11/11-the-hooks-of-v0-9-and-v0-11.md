@@ -4,10 +4,10 @@
 
 `nuc hook` decides as the bash hooks of v0.9.0 to v0.11.0:
 
-- from v0.9.0, `pre-commit` on a commit off `main` that concludes no merge answers that the
-  documentation check runs, and the shim runs `scripts/check-docs.sh` and refuses on red; on a
-  concluded merge the shim runs `scripts/check-all.sh --changed` as today, as the ADR accepted from
-  ticket 01 decides how the shim learns which;
+- from v0.9.0, `pre-commit` on a commit off `main` that concludes no merge answers 4, as
+  API-hook-contract-names-check decides, and the shim runs `scripts/check-docs.sh` and refuses on
+  red; on a concluded merge it answers 3 and the shim runs `scripts/check-all.sh --changed`, as
+  today;
 - from v0.9.0, `pre-push` gives no notice on drafts;
 - from v0.11.0, `pre-merge-commit` refuses a merge on a `feat/` branch, and `pre-commit` refuses
   the conclusion of one.
@@ -27,12 +27,20 @@ decided as v0.11.0, the newest release `nuc` then knows.
 - [ ] Given the new hook rule IDs, when the contract test runs, then they are listed, on without
       a `nuc.toml` and governed by its list where there is one.
 
+## Decided
+
+- The human accepted API-hook-contract-names-check on 2026-11-15: `nuc hook pre-commit` answers 4
+  where the shim runs `scripts/check-docs.sh`. This ticket moves the `Verifies:` markers of
+  API-hook-contract to it and flips both, header lines only.
+- The human agreed on 2026-11-15 to change Q-4 of `docs/SPECIFICATION.md` to "when `nuc hook`
+  answers 3 or 4" in the change that makes `nuc` answer 4.
+
 ## Read first
 
 - Touches: `src/hook.rs`, `src/shell/hook.rs`, `shims/pre-commit`, `shims/pre-merge-commit`,
   `src/config.rs`, `tests/hooks.rs`, `tests/contract.rule-ids`, `tests/parity/hook-scenarios.sh`,
-  `scripts/lib/hook-parity.sh`
-- API-hook-contract or the ADR that supersedes it from ticket 01; TEST-hook-scenario-parity;
+  `scripts/lib/hook-parity.sh`, `docs/SPECIFICATION.md`
+- API-hook-contract-names-check; TEST-hook-scenario-parity;
   API-version-coupling-hook-defaults *Hooks*.
 - The template's `.githooks/pre-commit`, `.githooks/pre-merge-commit`, `.githooks/pre-push`,
   diffed v0.8.1 to v0.11.0.
@@ -40,7 +48,6 @@ decided as v0.11.0, the newest release `nuc` then knows.
 
 ## Blocked by
 
-- docs/plan/port-v0-9-to-v0-11/01-propose-the-adrs-of-the-port.md
 - docs/plan/port-v0-9-to-v0-11/10-shell-mode-and-parity-on-v0-10-and-v0-11.md
 
 ## Mode

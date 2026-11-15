@@ -3,19 +3,20 @@
 //! bash does: the base of a pull request, else the branch a push runs on; a draft pull request
 //! passes, and so does a run outside CI.
 
-use super::{Input, Inputs, Outcome, Rule};
+use super::{CATEGORY_IDENTIFIERS, Input, Inputs, Outcome, Rule};
 use crate::finding::Finding;
 
 pub const RULE_ID: &str = "docs/no-draft-on-main";
 
 pub const RULE: Rule = Rule {
     id: RULE_ID,
+    reasons: &["draft"],
     explain: "A change that lands on main carries no draft ADR: a draft takes its number on the \
               branch whose pull request brings it there, by scripts/number-adrs.sh. The branch a \
               change lands on is the one CI names: the base of a pull request, else the branch a \
               push runs on. A draft pull request passes, since it tests a feat/ branch still \
               under rework, and so does a run outside CI, where nothing names the branch.",
-    reads: &[Input::Landing],
+    reads: &[Input::Landing, Input::Release],
     check: outcome,
 };
 
@@ -47,8 +48,12 @@ impl Landing {
 }
 
 /// The findings of the rule, or its refusal of a draft whose name holds a newline, which the bash
-/// reads from find's list as two (Q-1).
+/// reads from find's list as two (Q-1); nothing from template release v0.9.0 on, whose record has
+/// no such check.
 fn outcome(inputs: &Inputs) -> Outcome {
+    if inputs.carries_at_least(CATEGORY_IDENTIFIERS) {
+        return Outcome::default();
+    }
     if let Some(name) = inputs
         .landing
         .drafts
@@ -76,6 +81,7 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
         .iter()
         .map(|name| Finding {
             rule: RULE_ID,
+            reason: "draft",
             file: format!("docs/adr/{name}"),
             line: None,
             message: "a draft lands on main — give it its number first with scripts/number-adrs.sh (ADR-0002)"
@@ -94,6 +100,7 @@ mod tests {
                 drafts: vec!["draft-next.md".to_owned()],
                 ..landing
             },
+            release: Some(crate::config::Version(0, 8, 1)),
             ..Inputs::default()
         };
         check(&inputs).len()
@@ -150,6 +157,7 @@ mod tests {
                 drafts: vec!["draft-a\nb.md".to_owned()],
                 ..pull_request("main", false)
             },
+            release: Some(crate::config::Version(0, 8, 1)),
             ..Inputs::default()
         };
         let outcome = outcome(&inputs);
@@ -160,5 +168,20 @@ mod tests {
                 "docs/adr/draft-a\\nb.md: a draft whose name holds a newline, which the bash reads as two — not decided"
             )
         );
+    }
+
+    #[test]
+    fn from_v0_9_0_a_draft_neither_fails_nor_is_refused() {
+        for name in ["draft-next.md", "draft-a\nb.md"] {
+            let inputs = Inputs {
+                landing: Landing {
+                    drafts: vec![name.to_owned()],
+                    ..pull_request("main", false)
+                },
+                release: Some(crate::config::Version(0, 9, 0)),
+                ..Inputs::default()
+            };
+            assert_eq!(outcome(&inputs), Outcome::default(), "{name:?}");
+        }
     }
 }

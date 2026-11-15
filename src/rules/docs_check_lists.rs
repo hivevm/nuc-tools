@@ -15,6 +15,22 @@ pub const RULE_ID: &str = "docs/check-lists";
 
 pub const RULE: Rule = Rule {
     id: RULE_ID,
+    reasons: &[
+        "absent",
+        "jobless",
+        "runless",
+        "unrun",
+        "extra",
+        "orphan",
+        "gate",
+        "nonworkflow",
+        "inline",
+        "unnamed",
+        "unreported",
+        "matrix",
+        "nomatrix",
+        "ungated",
+    ],
     explain: "The jobs of .github/workflows/checks.yml and the required checks named between the \
               'required-checks' markers of CONTRIBUTING.md (README.md before template release \
               v0.7.0) list the same jobs, and the workflows and scripts/check-all.sh run the same \
@@ -54,9 +70,10 @@ const NOT_A_GATE_AND_MATRIX: Version = Version(0, 6, 0);
 const CHECKS: &str = ".github/workflows/checks.yml";
 const CHECK_ALL: &str = "scripts/check-all.sh";
 
-fn finding(file: &str, message: String) -> Finding {
+fn finding(reason: &'static str, file: &str, message: String) -> Finding {
     Finding {
         rule: RULE_ID,
+        reason,
         file: file.to_owned(),
         line: None,
         message,
@@ -77,6 +94,7 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
         .find(|(_, present)| !present)
         .map_or(CHECKS, |(file, _)| file);
         return vec![finding(
+            "absent",
             missing,
             "not found — the check lists cannot be compared".to_owned(),
         )];
@@ -91,6 +109,7 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
     let workflows = Workflows::read(lists, checks, &not_gate, v0_6, &mut found);
     if workflows.jobs.is_empty() {
         found.push(finding(
+            "jobless",
             CHECKS,
             "no jobs found under 'jobs:' — the check lists cannot be compared".to_owned(),
         ));
@@ -103,6 +122,7 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
         .collect();
     if all_scripts.is_empty() {
         found.push(finding(
+            "runless",
             CHECK_ALL,
             "no 'run <label> <script>' invocations found — the check lists cannot be compared"
                 .to_owned(),
@@ -112,6 +132,7 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
     for s in &workflows.scripts {
         if !all_scripts.contains(s) {
             found.push(finding(
+                "unrun",
                 CHECK_ALL,
                 format!(
                     "does not run '{}', which a workflow runs — CI and the local gate disagree",
@@ -123,6 +144,7 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
     for s in &all_scripts {
         if !workflows.scripts.contains(s) {
             found.push(finding(
+                "extra",
                 CHECK_ALL,
                 format!(
                     "runs '{}', which no job of a workflow runs — CI and the local gate disagree",
@@ -142,7 +164,7 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
         let runs =
             all_scripts.iter().any(|a| a == s.as_bytes()) || on_instruction.contains(&s.as_bytes());
         if !runs {
-            found.push(finding(&s, format!(
+            found.push(finding("orphan", &s, format!(
                 "no workflow and not {CHECK_ALL} runs it — add it to both lists, or name it on an '# On instruction:' line of {CHECK_ALL}"
             )));
         }
@@ -162,6 +184,7 @@ fn not_gate(all: &[u8], lists: &CheckLists, found: &mut Vec<Finding>) -> Vec<Str
         let name = show(name);
         if name == CHECKS {
             found.push(finding(
+                "gate",
                 CHECK_ALL,
                 format!("'# Not a gate: {name}' names the workflow of the required checks"),
             ));
@@ -171,6 +194,7 @@ fn not_gate(all: &[u8], lists: &CheckLists, found: &mut Vec<Finding>) -> Vec<Str
                 .contains(&name[".github/workflows/".len()..])
         {
             found.push(finding(
+                "nonworkflow",
                 CHECK_ALL,
                 format!("'# Not a gate: {name}' names no workflow of this repository"),
             ));
@@ -239,7 +263,7 @@ impl Workflows {
                 && is_gate
                 && job_scripts == 0
             {
-                found.push(finding(rel, format!(
+                found.push(finding("inline", rel, format!(
                     "job '{}' runs no script under scripts/ — the local gate cannot run what it does",
                     show(&name)
                 )));
@@ -311,6 +335,7 @@ fn required_checks(
     }
     if names.is_empty() {
         found.push(finding(
+            "unnamed",
             guide,
             "no job names between the 'required-checks' markers — the required status checks are unverifiable"
                 .to_owned(),
@@ -324,26 +349,35 @@ fn required_checks(
         let (shown, shown_base) = (show(name), show(base));
         let is_job = workflows.jobs.iter().any(|j| j == base);
         let has_matrix = workflows.matrix_jobs.iter().any(|j| j == base);
-        let message = if !is_job {
-            format!(
-                "required check '{shown}' is not a job of {CHECKS} — a ruleset would wait for a check that never reports"
+        let (reason, message) = if !is_job {
+            (
+                "unreported",
+                format!(
+                    "required check '{shown}' is not a job of {CHECKS} — a ruleset would wait for a check that never reports"
+                ),
             )
         } else if name.as_slice() == base && has_matrix {
-            format!(
-                "required check '{shown}' is a job with a matrix, which reports as '{shown} (<values>)' — name each check run"
+            (
+                "matrix",
+                format!(
+                    "required check '{shown}' is a job with a matrix, which reports as '{shown} (<values>)' — name each check run"
+                ),
             )
         } else if name.as_slice() != base && !has_matrix {
-            format!(
-                "required check '{shown}' names a check run of '{shown_base}', which has no matrix and reports as '{shown_base}'"
+            (
+                "nomatrix",
+                format!(
+                    "required check '{shown}' names a check run of '{shown_base}', which has no matrix and reports as '{shown_base}'"
+                ),
             )
         } else {
             continue;
         };
-        found.push(finding(guide, message));
+        found.push(finding(reason, guide, message));
     }
     for job in &workflows.jobs {
         if !bases.contains(&job.as_slice()) {
-            found.push(finding(guide, format!(
+            found.push(finding("ungated", guide, format!(
                 "job '{}' of {CHECKS} is missing from the required checks — it would run without gating a merge",
                 show(job)
             )));

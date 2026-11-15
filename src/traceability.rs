@@ -14,8 +14,9 @@ pub const SPECIFICATION: &str = "docs/SPECIFICATION.md";
 pub struct Criteria {
     /// Every identifier, in the order of the specification, each as often as it appears.
     pub ids: Vec<String>,
-    /// Each problem of the list, by its line when it has one, as the bash words it.
-    pub problems: Vec<(Option<usize>, String)>,
+    /// Each problem of the list, by its line when it has one, with its reason and as the bash
+    /// words it.
+    pub problems: Vec<(Option<usize>, &'static str, String)>,
 }
 
 /// The criteria of the specification, read as the bash reads it: line by line, a heading of two
@@ -23,9 +24,11 @@ pub struct Criteria {
 pub fn criteria(specification: Option<&[u8]>) -> Criteria {
     let mut criteria = Criteria::default();
     let Some(text) = specification else {
-        criteria
-            .problems
-            .push((None, "not found — the criteria cannot be read".to_owned()));
+        criteria.problems.push((
+            None,
+            "absent",
+            "not found — the criteria cannot be read".to_owned(),
+        ));
         return criteria;
     };
     let mut section = None;
@@ -52,6 +55,7 @@ pub fn criteria(specification: Option<&[u8]>) -> Criteria {
                 if kind != section {
                     criteria.problems.push((
                         lineno,
+                        "section",
                         format!(
                             "'{id}' is listed under the wrong section — G-n belongs under Goals / \
                              Success Criteria, Q-n under Quality Goals"
@@ -61,6 +65,7 @@ pub fn criteria(specification: Option<&[u8]>) -> Criteria {
                 if criteria.ids.contains(&id) {
                     criteria.problems.push((
                         lineno,
+                        "twice",
                         format!("identifier '{id}' appears twice — identifiers are never reused"),
                     ));
                 }
@@ -71,6 +76,7 @@ pub fn criteria(specification: Option<&[u8]>) -> Criteria {
                 let excerpt = String::from_utf8_lossy(&body[..body.len().min(60)]);
                 criteria.problems.push((
                     lineno,
+                    "unnamed",
                     format!(
                         "list item without a bold {}-n identifier: '{excerpt}'",
                         char::from(section)
@@ -128,12 +134,13 @@ pub struct Citation {
 }
 
 /// Every citation of every file, in the order of the files and their lines, each as often as it
-/// is written.
-pub fn citations(markers: &BTreeMap<String, Vec<u8>>) -> Vec<Citation> {
+/// is written; `named` from template release v0.9.0 on, where a marker cites any word of capital
+/// letters, a hyphen, and the rest of the word.
+pub fn citations(markers: &BTreeMap<String, Vec<u8>>, named: bool) -> Vec<Citation> {
     let mut found = Vec::new();
     for (file, bytes) in markers {
         for (i, line) in bash::awk_lines(bytes).into_iter().enumerate() {
-            for id in cited(line) {
+            for id in cited(line, named) {
                 found.push(Citation {
                     file: file.clone(),
                     line: i + 1,
@@ -148,7 +155,14 @@ pub fn citations(markers: &BTreeMap<String, Vec<u8>>) -> Vec<Citation> {
 /// The identifiers the markers of one line cite, as `grep -oE` finds each marker
 /// `Verifies:[[:space:]]*(ID)([[:space:],]+(ID))*`, leftmost and longest, the search going on
 /// after it, and `grep -oE ID` takes the identifiers out of it.
-fn cited(line: &[u8]) -> Vec<&[u8]> {
+fn cited(line: &[u8], named: bool) -> Vec<&[u8]> {
+    let identifier_at = |text: &[u8]| {
+        if named {
+            word_at(text)
+        } else {
+            identifier_at(text)
+        }
+    };
     let mut ids = Vec::new();
     let mut from = 0;
     while let Some(at) = bash::find(&line[from..], MARKER) {
@@ -182,6 +196,21 @@ fn cited(line: &[u8]) -> Vec<&[u8]> {
     ids
 }
 
+/// The length of the word a marker cites from template release v0.9.0 on at the start of the bytes,
+/// as `[A-Z]+-[A-Za-z0-9_-]+` matches there, longest: the rest of the word read whole, so that a
+/// malformed identifier is seen as one.
+fn word_at(text: &[u8]) -> Option<usize> {
+    let capitals = text.iter().take_while(|b| b.is_ascii_uppercase()).count();
+    if capitals == 0 || text.get(capitals) != Some(&b'-') {
+        return None;
+    }
+    let rest = text[capitals + 1..]
+        .iter()
+        .take_while(|&&b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
+        .count();
+    (rest > 0).then_some(capitals + 1 + rest)
+}
+
 /// The length of the identifier at the start of the bytes, as `ADR-([0-9]{4}|draft-<slug>)` or
 /// `[GQ]-[0-9]+` match there, longest.
 fn identifier_at(text: &[u8]) -> Option<usize> {
@@ -205,7 +234,7 @@ mod tests {
     #[test]
     fn a_marker_reads_as_the_bash_pattern_reads_it() {
         let ids = |line: String| -> Vec<String> {
-            cited(line.as_bytes())
+            cited(line.as_bytes(), false)
                 .into_iter()
                 .map(|id| String::from_utf8_lossy(id).into_owned())
                 .collect()
@@ -229,11 +258,35 @@ mod tests {
     }
 
     #[test]
+    fn from_v0_9_0_a_marker_cites_each_word_of_capitals_and_a_hyphen_read_whole() {
+        let ids = |line: String| -> Vec<String> {
+            cited(line.as_bytes(), true)
+                .into_iter()
+                .map(|id| String::from_utf8_lossy(id).into_owned())
+                .collect()
+        };
+        let v = verifies();
+        let named = crate::testing::cat_id("SEC", "a-rule");
+        assert_eq!(
+            ids(format!("{v} {named}, G-1 {} Q-2x", adr_id(3))),
+            [named.as_str(), "G-1", &adr_id(3), "Q-2x"]
+        );
+        let long = crate::testing::cat_id("API", "a-b-c-d-e-f_G");
+        assert_eq!(ids(format!("{v} {long}")), [long]);
+        assert!(ids(format!("{v} Sec-a-rule G-1")).is_empty());
+        assert!(ids(format!("{v} SEC- G-1")).is_empty());
+        assert_eq!(ids(format!("{v} x {v}G-1")), ["G-1"]);
+    }
+
+    #[test]
     fn lines_are_numbered_as_grep_numbers_them() {
         // The marker stands on a last line without a newline, which awk reads as a line.
         let text = format!("a\n\n{}", mark("G-9").trim_end());
         assert_eq!(
-            citations(&[("f".to_owned(), text.into_bytes())].into_iter().collect()),
+            citations(
+                &[("f".to_owned(), text.into_bytes())].into_iter().collect(),
+                false
+            ),
             [Citation {
                 file: "f".to_owned(),
                 line: 3,

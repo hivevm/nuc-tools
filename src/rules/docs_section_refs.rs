@@ -12,20 +12,32 @@ pub const RULE_ID: &str = "docs/section-refs";
 
 pub const RULE: Rule = Rule {
     id: RULE_ID,
+    reasons: &[
+        "absent",
+        "unnumbered",
+        "order",
+        "unmatched",
+        "anchorless",
+        "anchor",
+        "unlinked",
+    ],
     explain: "Every section reference names a numbered '## N.' heading of AGENTS.md, whose \
               headings run 1..N in order: the section sign and a number in Markdown, YAML, \
               shell scripts, and the git hooks, and 'AGENTS.md, section N' in every text file \
               but Markdown. In Markdown a section is cited as a link to its anchor, so that a \
-              renumbering breaks the link instead of leaving the number pointing elsewhere.",
-    reads: &[Input::Adr, Input::TextFiles, Input::Agents],
+              renumbering breaks the link instead of leaving the number pointing elsewhere. From \
+              template release v0.9.0 on, a clause citation of an ADR, its identifier and the \
+              section signs after it, is no section reference.",
+    reads: &[Input::Adr, Input::TextFiles, Input::Agents, Input::Release],
     check: |inputs| check(inputs).into(),
 };
 
 const SECTION: &str = "§";
 
-fn finding(file: &str, line: Option<usize>, message: String) -> Finding {
+fn finding(reason: &'static str, file: &str, line: Option<usize>, message: String) -> Finding {
     Finding {
         rule: RULE_ID,
+        reason,
         file: file.to_owned(),
         line,
         message,
@@ -64,6 +76,7 @@ fn section_slugs(agents: &[u8], valid: &[String]) -> Vec<(String, String)> {
 fn check(inputs: &Inputs) -> Vec<Finding> {
     let Some(agents) = &inputs.agents else {
         return vec![finding(
+            "absent",
             "AGENTS.md",
             None,
             "AGENTS.md not found in the repository root".to_owned(),
@@ -72,6 +85,7 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
     let valid = sections(agents);
     if valid.is_empty() {
         return vec![finding(
+            "unnumbered",
             "AGENTS.md",
             None,
             "AGENTS.md: no numbered '## N.' section headings found".to_owned(),
@@ -83,14 +97,29 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
         .enumerate()
         .find(|(i, n)| **n != (i + 1).to_string())
     {
-        found.push(finding("AGENTS.md", None, format!(
+        found.push(finding("order", "AGENTS.md", None, format!(
             "AGENTS.md: numbered sections must run 1..N in order — expected '## {}.' at position {}, found '## {n}.'",
             i + 1,
             i + 1
         )));
     }
     let slugs = section_slugs(agents, &valid);
-    let inactive = adr::inactive_paths(&inputs.adr);
+    // From template release v0.9.0 on, a clause citation of an ADR is no section reference, and
+    // the record is named by category.
+    let named = inputs.carries_at_least(super::CATEGORY_IDENTIFIERS);
+    let categories = adr::categories(inputs.adr.get("README.md").map(Vec::as_slice));
+    let clauses = |line: Vec<u8>| {
+        if named {
+            adr::clauses_out(&line, &categories)
+        } else {
+            line
+        }
+    };
+    let inactive = if named {
+        adr::named_inactive_paths(&inputs.adr)
+    } else {
+        adr::inactive_paths(&inputs.adr)
+    };
     for (file, text) in &inputs.text_files {
         if inactive.contains(file.as_str()) {
             continue;
@@ -99,9 +128,9 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
             found.extend(word_form(file, text, &valid));
         }
         if file.ends_with(".md") {
-            found.extend(markdown_refs(file, text, &valid, &slugs));
+            found.extend(markdown_refs(file, text, &valid, &slugs, &clauses));
         } else if is_doc_file(file) {
-            found.extend(sign_refs(file, text, &valid));
+            found.extend(sign_refs(file, text, &valid, &clauses));
         }
     }
     found
@@ -139,7 +168,7 @@ fn word_form(file: &str, text: &[u8], valid: &[String]) -> Vec<Finding> {
                 Some((r, digits)) if digits > 0 => {
                     let n = show(&r[..digits]);
                     if !valid.contains(&n) {
-                        found.push(finding(file, Some(i + 1), format!(
+                        found.push(finding("unmatched", file, Some(i + 1), format!(
                             "reference 'AGENTS.md, section {n}' matches no numbered section in AGENTS.md"
                         )));
                     }
@@ -171,13 +200,23 @@ fn signs(line: &[u8]) -> Vec<String> {
     found
 }
 
-/// Each `§N` of a YAML file, shell script, or hook whose N names no section.
-fn sign_refs(file: &str, text: &[u8], valid: &[String]) -> Vec<Finding> {
+/// Each `§N` of a YAML file, shell script, or hook whose N names no section, its clause citations
+/// taken out as `clauses` takes them.
+fn sign_refs(
+    file: &str,
+    text: &[u8],
+    valid: &[String],
+    clauses: &dyn Fn(Vec<u8>) -> Vec<u8>,
+) -> Vec<Finding> {
     let mut found = Vec::new();
     for (i, line) in bash::awk_lines(text).into_iter().enumerate() {
-        for n in signs(line) {
+        if !bash::contains(line, SECTION.as_bytes()) {
+            continue;
+        }
+        for n in signs(&clauses(line.to_vec())) {
             if !valid.contains(&n) {
                 found.push(finding(
+                    "unmatched",
                     file,
                     Some(i + 1),
                     format!("reference '§{n}' matches no numbered section in AGENTS.md"),
@@ -210,6 +249,7 @@ fn markdown_refs(
     text: &[u8],
     valid: &[String],
     slugs: &[(String, String)],
+    clauses: &dyn Fn(Vec<u8>) -> Vec<u8>,
 ) -> Vec<Finding> {
     let slug_of = |n: &str| slug_of(slugs, n).to_owned();
     let mut found = Vec::new();
@@ -217,7 +257,7 @@ fn markdown_refs(
         if !read || !bash::contains(raw, SECTION.as_bytes()) {
             continue;
         }
-        let line = without_code_spans(raw);
+        let line = clauses(without_code_spans(raw));
         let mut links = Vec::new();
         let mut clean = Vec::new();
         let mut rest = line.as_slice();
@@ -227,15 +267,16 @@ fn markdown_refs(
             rest = &rest[start + length..];
         }
         clean.extend_from_slice(rest);
-        let at = |message: String| finding(file, Some(n), message);
+        let at = |reason, message: String| finding(reason, file, Some(n), message);
         for link in links {
             let Some(s) = signs(link).into_iter().next() else {
                 continue;
             };
             if !valid.contains(&s) {
-                found.push(at(format!(
-                    "reference '§{s}' matches no numbered section in AGENTS.md"
-                )));
+                found.push(at(
+                    "unmatched",
+                    format!("reference '§{s}' matches no numbered section in AGENTS.md"),
+                ));
                 continue;
             }
             let target = markdown::link_target(link);
@@ -245,11 +286,11 @@ fn markdown_refs(
                 .map(|i| show(&target[i + 1..]))
                 .filter(|f| !f.is_empty());
             match fragment {
-                None => found.push(at(format!(
+                None => found.push(at("anchorless", format!(
                     "'§{s}' is cited without an anchor — point the link at '#{}'",
                     slug_of(&s)
                 ))),
-                Some(f) if f != slug_of(&s) => found.push(at(format!(
+                Some(f) if f != slug_of(&s) => found.push(at("anchor", format!(
                     "'§{s}' links to anchor '#{f}', but section {s} of AGENTS.md anchors as '#{}'",
                     slug_of(&s)
                 ))),
@@ -257,11 +298,11 @@ fn markdown_refs(
             }
         }
         for s in signs(&clean) {
-            found.push(at(if valid.contains(&s) {
-                format!("'§{s}' stands outside a link — cite a section as a link to its anchor, e.g. [`AGENTS.md` §{s}](AGENTS.md#{})", slug_of(&s))
+            found.push(if valid.contains(&s) {
+                at("unlinked", format!("'§{s}' stands outside a link — cite a section as a link to its anchor, e.g. [`AGENTS.md` §{s}](AGENTS.md#{})", slug_of(&s)))
             } else {
-                format!("reference '§{s}' matches no numbered section in AGENTS.md")
-            }));
+                at("unmatched", format!("reference '§{s}' matches no numbered section in AGENTS.md"))
+            });
         }
     }
     found
@@ -452,5 +493,45 @@ mod tests {
     #[test]
     fn a_code_span_hides_a_sign_and_an_unpaired_backquote_stays() {
         assert_eq!(without_code_spans(b"a `\xc2\xa71` b `c"), b"a  b `c");
+    }
+
+    #[test]
+    fn a_clause_citation_and_a_named_inactive_adr_are_read_from_v0_9_0_on_only() {
+        let cited = format!("see {} \u{a7}9\n", crate::testing::cat_id("SEC", "x-rule"));
+        let old = format!("docs/adr/{}.md", crate::testing::cat_id("SEC", "old-rule"));
+        let superseded = "# Old\n\n- **Status:** \u{26aa} superseded\n\n\u{a7}9 here\n";
+        let at = |release| {
+            let mut inputs = Inputs {
+                agents: Some(AGENTS.as_bytes().to_vec()),
+                release,
+                ..Inputs::default()
+            };
+            inputs.adr.insert(
+                old.trim_start_matches("docs/adr/").to_owned(),
+                superseded.as_bytes().to_vec(),
+            );
+            for (path, text) in [
+                ("scripts/a.sh", cited.as_str()),
+                ("notes.md", cited.as_str()),
+                (old.as_str(), superseded),
+            ] {
+                inputs
+                    .text_files
+                    .insert(path.to_owned(), text.as_bytes().to_vec());
+            }
+            check(&inputs)
+                .into_iter()
+                .map(|f| (f.reason, f.file))
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            at(Some(crate::config::Version(0, 8, 1))),
+            [
+                ("unmatched", old.clone()),
+                ("unmatched", "notes.md".to_owned()),
+                ("unmatched", "scripts/a.sh".to_owned()),
+            ]
+        );
+        assert_eq!(at(None), []);
     }
 }

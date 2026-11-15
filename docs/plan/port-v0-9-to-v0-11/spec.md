@@ -45,8 +45,9 @@ and `check-traceability.sh` and the rule `shell/mode`, and switch those checks o
   - the rule list of the contract test;
   - the output-format tests.
   All stay green throughout; a test that changes says why in its hand-off.
-- The text output keeps its shape `<file>[:<line>]: <rule ID>: <message>`; the key is added as the
-  ADR of ticket 01 decides, and the parity harness and the output-format tests move with it.
+- The text output keeps its shape `<file>[:<line>]: <rule ID>: <message>`; the key is added as
+  API-command-line-keyed-findings decides, and the parity harness and the output-format tests move
+  with it.
 - Hooks: a tree whose README names no release is decided as the newest release `nuc` knows. With
   this port that becomes v0.11.0, so a hook on such a tree runs the documentation check on every
   commit off `main` and refuses a merge on `feat/`.
@@ -99,12 +100,12 @@ and `check-traceability.sh` and the rule `shell/mode`, and switch those checks o
   known and report nothing from v0.9.0 on. `docs/adr-identifiers` reports from v0.9.0 on and
   accepts the key `docs/adr-numbering` as an older name, as the bash of v0.10.0 does.
 - **The key.** Each finding carries the reason the bash names, and the output shows the key
-  `<rule>:<reason>` in every format, as the ADR proposed in ticket 01 decides. On a tree before
-  v0.9.1, whose bash names no key, the key is shown all the same: it is the reason of `nuc`, not of
-  that release's wording.
+  `<rule>:<reason>` in every format, as API-command-line-keyed-findings and
+  API-output-formats-carry-reason decide. On a tree before v0.9.1, whose bash names no key, the key
+  is shown all the same: it is the reason of `nuc`, not of that release's wording.
 - **The fixture tables.** The tables `check-docs-record.txt`, `check-traceability.txt`, and
-  `check-shell.txt` of v0.11.0 are copied into the tests with the blob of each at that tag, as the
-  ADR proposed in ticket 01 decides. A test fails where a copy differs from its blob. A runner
+  `check-shell.txt` of v0.11.0 are copied into the tests with the blob of each at that tag, as
+  TEST-cases-from-template-tables decides. A test fails where a copy differs from its blob. A runner
   builds each case's tree from the table's steps, runs the rules, and compares the keys and
   subjects. A case not yet ported is listed as pending with its rule; each ticket takes out the
   cases it ports, and no case is pending when the spec closes. The cases of `shell/bash-floor` and
@@ -126,7 +127,7 @@ and `check-traceability.sh` and the rule `shell/mode`, and switch those checks o
   The pre-push hook gives its notice on drafts only for a tree before v0.9.0. Today the shim of
   `pre-commit` runs the whole check run on the answer 3; from v0.9.0 it runs the documentation
   check on an ordinary commit and the whole check run on a concluded merge, so the shim has to
-  learn from `nuc` which one, as the ADR proposed in ticket 01 decides.
+  learn from `nuc` which one, with the answer 4 of API-hook-contract-names-check.
 - **Corpus.** The template is pinned at the commits of v0.9.0, v0.9.1, v0.10.0, and v0.11.0, and
   this repository on v0.11.0. Each is pinned in the ticket that completes its release, since a
   pinned tree is compared on every rule. The bash of v0.10.0 and later reads its root only from
@@ -161,19 +162,17 @@ and `check-traceability.sh` and the rule `shell/mode`, and switch those checks o
 ## ADR impact
 
 - Bind this work: API-version-coupling-hook-defaults (release dispatch, rules off by default, the
-  newest release for hooks), API-command-line-with-hook-signal (the text output and the hook's
-  answer), API-output-formats-short-description (JSON and SARIF), API-hook-contract (what a shim
+  newest release for hooks), API-command-line-keyed-findings (the text output, its key, and the
+  hook's answer), API-output-formats-carry-reason (JSON and SARIF), API-hook-contract (what a shim
   runs on the answer), ARCH-rules-outcome-hooks-answer (rules pure, git in the shell),
   SEC-git-cleared-environment (the history reads), TEST-parity-harness, TEST-hook-scenario-parity,
   TEST-fixtures-with-own-home, TEST-copies-keep-old-identifiers, DEV-one-agent-one-ticket.
-- Needs `proposed` ADRs before implementation, in ticket 01:
-  - The key in the output: supersedes API-command-line-with-hook-signal and
-    API-output-formats-short-description as far as the shape of a finding goes, so that the text,
-    JSON, and SARIF of a finding carry `<rule>:<reason>`.
-  - Testing against the template's fixture tables, copied and pinned by blob: a reader would take a
-    copy of the template's file for a mistake, and it binds every later port.
-  - `nuc` ports no rule that runs the project's scripts: `shell/bash-floor` and `shell/root` stay
-    with the bash under Q-7, so a reader who finds them missing does not port them.
-  - Which check the `pre-commit` shim runs: supersedes API-hook-contract, whose shim runs
-    `check-all.sh --changed` on every answer 3, so that `nuc` names the documentation check or the
-    whole check run, and a shim of a release before v0.9.0 keeps working.
+- Proposed in ticket 01 and accepted by the human on 2026-11-15, each flipped in the ticket that
+  implements it:
+  - API-command-line-keyed-findings and API-output-formats-carry-reason: every finding ends in its
+    key `[<rule>:<reason>]`, and JSON and SARIF carry the reason (ticket 02);
+  - TEST-cases-from-template-tables: the copies of the tables, pinned by blob (ticket 12, cut
+    from ticket 02);
+  - ARCH-rules-need-only-git: no rule that needs a process other than git (ticket 10);
+  - API-hook-contract-names-check: `nuc hook pre-commit` answers 4 where the shim runs the
+    documentation check, with Q-4 of the specification changed to "answers 3 or 4" (ticket 11).

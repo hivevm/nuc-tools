@@ -10,6 +10,7 @@ pub const RULE_ID: &str = "docs/template-release";
 
 pub const RULE: Rule = Rule {
     id: RULE_ID,
+    reasons: &["line", "version"],
     explain: "README.md names the release of the template the repository carries on a \
               '**Template release:**' line: a 'vX.Y.Z' tag, or 'unreleased'. Tags do not travel \
               with GitHub's template mechanism, so the line is the one thing that tells a derived \
@@ -32,21 +33,24 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
         .split('\n')
         .enumerate()
         .find(|(_, line)| is_release_line(line));
-    let (line, message) = match found {
+    let (line, reason, message) = match found {
         None => (
             None,
+            "line",
             "no '**Template release:**' line — the Template section names the release of the \
              template this repository carries, or 'unreleased' (ADR-0005)",
         ),
         Some((_, text)) if names_release(after_label(text)) => return Vec::new(),
         Some((i, _)) => (
             Some(i + 1),
+            "version",
             "the Template release line names neither a 'vX.Y.Z' tag nor 'unreleased' — a \
              release moves it to the tag it cuts (ADR-0005)",
         ),
     };
     vec![Finding {
         rule: RULE_ID,
+        reason,
         file: README.to_owned(),
         line,
         message: message.to_owned(),

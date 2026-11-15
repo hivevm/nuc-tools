@@ -139,8 +139,9 @@ carries checks it, v0.5.0 or later: `docs/adr-index`, `docs/adr-numbering`, `doc
 `docs/adr-supersessions`, `docs/check-lists`, `docs/project-layout`, `docs/skill-pointers`,
 `docs/inherited-adrs`, `docs/template-identity`, `docs/prose-width`, `docs/no-draft-on-main`, and
 `docs/template-release`. They port every part of the template's `check-traceability.sh` too:
-`traceability/criteria`, `traceability/citations`, and `traceability/coverage`, which names the
-criteria no test cites yet in the summary on standard error.
+`traceability/criteria`, `traceability/citations`, `traceability/coverage`, which names the
+criteria no test cites yet in the summary on standard error, and, from v0.9.0 on,
+`traceability/sensor-tests`.
 
 ### Git hooks
 

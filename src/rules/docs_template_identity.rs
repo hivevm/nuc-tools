@@ -20,6 +20,28 @@ pub const RULE_ID: &str = "docs/template-identity";
 
 pub const RULE: Rule = Rule {
     id: RULE_ID,
+    reasons: &[
+        "title",
+        "intro",
+        "why",
+        "overview",
+        "usage",
+        "badge",
+        "container",
+        "copyright",
+        "security",
+        "conduct",
+        "instruction",
+        "codeowners",
+        "projectname",
+        "criterion",
+        "part",
+        "term",
+        "convention",
+        "command",
+        "unfilled",
+        "several",
+    ],
     explain: "Once TEMPLATE-SETUP.md is gone, none of the template's placeholders is left: the \
               name NUC in the README's title, intro, Why NUC section, and the Dev Container, the \
               template's repository in a README badge, the placeholder copyright holder, \
@@ -28,7 +50,12 @@ pub const RULE: Rule = Rule {
               TODO command or scaffold sentence in the README. A placeholder that survives the \
               setup describes the template, not the project. Before template release v0.6.1 a \
               badge of any repository whose name starts with the template's counts.",
-    reads: &[Input::SetupFile, Input::Identity, Input::Release],
+    reads: &[
+        Input::SetupFile,
+        Input::Identity,
+        Input::Release,
+        Input::Adr,
+    ],
     check: |inputs| check(inputs).into(),
 };
 
@@ -49,60 +76,71 @@ pub const FILES: &[&str] = &[
 /// The message of a badge that points at the template's repository.
 const BADGE: &str = "a badge still points at the template's repository; repoint or delete it";
 
-/// A placeholder: the file, whether a line of it shows the placeholder, and the message.
-type Placeholder = (&'static str, fn(&[u8]) -> bool, &'static str);
+/// A placeholder: the file, whether a line of it shows the placeholder, the message, and the
+/// reason of its key, as the bash names it.
+type Placeholder = (&'static str, fn(&[u8]) -> bool, &'static str, &'static str);
 
 const PLACEHOLDERS: &[Placeholder] = &[
     (
         "README.md",
         |l| l.starts_with("# NUC — an Agentic".as_bytes()),
         "the title is still the template's; give the project its name",
+        "title",
     ),
     (
         "README.md",
         |l| l.starts_with(b"**NUC** is named after"),
         "the intro still explains the template's name; say what the project is",
+        "intro",
     ),
     (
         "README.md",
         |l| l == b"## Why NUC",
         "the Why NUC section still presents the template; delete it",
+        "why",
     ),
     (
         "README.md",
         |l| l.starts_with(b"Describe what this project does"),
         "the Overview is still the scaffold's sentence; describe the project",
+        "overview",
     ),
     (
         "README.md",
         |l| l.starts_with("TODO — show a minimal example".as_bytes()),
         "the Usage section is still TODO; show how the project is used, or say there is nothing to use yet",
+        "usage",
     ),
-    ("README.md", |l| template_badge(l, true), BADGE),
+    ("README.md", |l| template_badge(l, true), BADGE, "badge"),
     (
         ".devcontainer/devcontainer.json",
         |l| contains(l, b"\"name\": \"NUC DevContainer\""),
         "the Dev Container still carries the template's name",
+        "container",
     ),
     (
         "LICENSE",
         copyright_placeholder,
         "the copyright holder is still the placeholder; name the maintainer",
+        "copyright",
     ),
     (
         "SECURITY.md",
         |l| contains(l, b"TODO: add a security contact"),
         "the security contact is still the placeholder",
+        "security",
     ),
     (
         "CODE_OF_CONDUCT.md",
         |l| contains(l, b"TODO: add a contact address"),
         "the reporting contact is still the placeholder",
+        "conduct",
     ),
     (
         ".github/CODEOWNERS",
         |l| l.starts_with(b"# TODO: add a code owner"),
         "the instruction to add a code owner is still there; remove it once the rules are active",
+        "instruction",
     ),
 ];
 
@@ -113,26 +151,31 @@ const SCAFFOLD: &[Placeholder] = &[
         "docs/SPECIFICATION.md",
         scaffold_criterion,
         "a criterion is still the scaffold's placeholder; write it, or delete the item",
+        "criterion",
     ),
     (
         "docs/ARCHITECTURE.md",
         |l| l.starts_with(b"- **<Part>**"),
         "the scaffold's building block is still listed; describe the parts, or delete the entry",
+        "part",
     ),
     (
         "docs/GLOSSARY.md",
         |l| l.starts_with(b"- **<Term>**"),
         "the scaffold's entry is still listed; write the first term, or delete the entry",
+        "term",
     ),
     (
         "docs/CONVENTIONS.md",
         |l| l.starts_with(b"- **<Convention>**"),
         "the scaffold's entry is still listed; write the first convention, or delete the entry",
+        "convention",
     ),
     (
         "README.md",
         todo_command,
         "a Build, Test, Lint, or Run command is still TODO; name the command the toolchain ADR chose",
+        "command",
     ),
 ];
 
@@ -141,9 +184,10 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
         return Vec::new();
     }
     let mut found = Vec::new();
-    let mut report = |file: &str, message: &str| {
+    let mut report = |file: &str, reason: &'static str, message: &str| {
         found.push(Finding {
             rule: RULE_ID,
+            reason,
             file: file.to_owned(),
             line: None,
             message: message.to_owned(),
@@ -156,13 +200,13 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
             .is_some_and(|text| awk_lines(text).into_iter().any(matches))
     };
     let corrected = inputs.carries_at_least(BADGE_NAME_ENDS);
-    for &(file, matches, message) in PLACEHOLDERS {
+    for &(file, matches, message, reason) in PLACEHOLDERS {
         let matches: fn(&[u8]) -> bool = match (message == BADGE, corrected) {
             (true, false) => |l| template_badge(l, false),
             _ => matches,
         };
         if any_line(file, matches) {
-            report(file, message);
+            report(file, reason, message);
         }
     }
     let codeowners = ".github/CODEOWNERS";
@@ -173,6 +217,7 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
     {
         report(
             codeowners,
+            "codeowners",
             "no active rule; name the code owner and uncomment the two rules",
         );
     }
@@ -181,13 +226,16 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
         if any_line(&file, |l| {
             l.starts_with(b"# ") && contains(l, b"<Project Name>")
         }) {
-            report(&file, TITLE);
+            report(&file, "projectname", TITLE);
         }
     }
-    for &(file, matches, message) in SCAFFOLD {
+    for &(file, matches, message, reason) in SCAFFOLD {
         if any_line(file, matches) {
-            report(file, message);
+            report(file, reason, message);
         }
+    }
+    if inputs.carries_at_least(super::CATEGORY_IDENTIFIERS) {
+        found.extend(roles(&inputs.adr));
     }
     found
 }
@@ -274,6 +322,57 @@ fn todo_command(line: &[u8]) -> bool {
     })
 }
 
+/// The roles a project's record fills, each by exactly one accepted ADR with its `Role:` line, from
+/// template release v0.9.0 on (NUC-base-is-fixed §3).
+const ROLES: [&str; 2] = ["harness", "toolchain"];
+
+/// A role no accepted ADR fills, or several do, as the bash of v0.9.1 counts them: the value after
+/// the last `**Role:**` of the field, trimmed, and a Status line that holds 🟢.
+fn roles(dir: &crate::adr::Dir) -> Vec<Finding> {
+    let headers = crate::adr::named_headers(dir);
+    let mut found = Vec::new();
+    for role in ROLES {
+        let n = headers
+            .values()
+            .filter(|header| {
+                let value = header.field("Role").map_or(&b""[..], |line| {
+                    let label: &[u8] = b"**Role:**";
+                    (0..=line.len().saturating_sub(label.len()))
+                        .rev()
+                        .find(|&i| line[i..].starts_with(label))
+                        .map_or(line, |i| &line[i + label.len()..])
+                });
+                crate::bash::trim(value) == role.as_bytes()
+                    && contains(header.field("Status").unwrap_or(b""), "🟢".as_bytes())
+            })
+            .count();
+        let (reason, message) = match n {
+            0 => (
+                "unfilled",
+                format!(
+                    "no accepted ADR fills the role {role} — one carries '- **Role:** {role}' \
+                     (NUC-base-is-fixed §3)"
+                ),
+            ),
+            1 => continue,
+            n => (
+                "several",
+                format!(
+                    "{n} accepted ADRs fill the role {role} — exactly one does (NUC-base-is-fixed §3)"
+                ),
+            ),
+        };
+        found.push(Finding {
+            rule: RULE_ID,
+            reason,
+            file: "docs/adr/".to_owned(),
+            line: None,
+            message,
+        });
+    }
+    found
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -282,8 +381,9 @@ mod tests {
         template_badge(line, true)
     }
 
+    /// The findings on v0.8.1, the newest release whose record fills no role.
     fn found(files: &[(&str, &str)], setup: bool) -> Vec<String> {
-        found_on(files, setup, None)
+        found_on(files, setup, Some(Version(0, 8, 1)))
     }
 
     fn found_on(files: &[(&str, &str)], setup: bool, release: Option<Version>) -> Vec<String> {
@@ -552,5 +652,35 @@ mod tests {
         ));
 
         assert!(!template_badge_v0_6_1(b"[![x] (hivevm/nuc)"));
+    }
+
+    #[test]
+    fn from_v0_9_0_each_role_is_filled_by_exactly_one_accepted_adr() {
+        let adr = |id: &str, status: &str, role: &str| {
+            (
+                format!("{id}.md"),
+                format!("# {id}: x\n\n- **Status:** {status}\n- **Role:** {role}\n").into_bytes(),
+            )
+        };
+        let id = crate::testing::cat_id;
+        let dir: crate::adr::Dir = [
+            adr(&id("OPS", "one-harness"), "🟢 accepted", "harness"),
+            adr(&id("OPS", "two-harness"), "🟢 accepted", " harness "),
+            adr(&id("OPS", "the-toolchain"), "🟡 proposed", "toolchain"),
+        ]
+        .into();
+        let found: Vec<(&str, String)> = roles(&dir)
+            .into_iter()
+            .map(|f| (f.reason, f.message))
+            .collect();
+        assert_eq!(found.len(), 2, "{found:?}");
+        assert_eq!(found[0].0, "several");
+        assert!(
+            found[0]
+                .1
+                .starts_with("2 accepted ADRs fill the role harness")
+        );
+        assert_eq!(found[1].0, "unfilled");
+        assert!(found[1].1.contains("the role toolchain"));
     }
 }

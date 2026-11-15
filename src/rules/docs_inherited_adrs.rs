@@ -2,7 +2,7 @@
 //! in force whose Deciders field names the NUC maintainer also names a decider of the project and
 //! is not proposed. Superseded and rejected ADRs are not read.
 
-use super::{Input, Inputs, Rule};
+use super::{CATEGORY_IDENTIFIERS, Input, Inputs, Rule};
 use crate::adr;
 use crate::bash;
 use crate::bash::contains;
@@ -12,13 +12,14 @@ pub const RULE_ID: &str = "docs/inherited-adrs";
 
 pub const RULE: Rule = Rule {
     id: RULE_ID,
+    reasons: &["undecided", "proposed"],
     explain: "Once TEMPLATE-SETUP.md is gone, every ADR in force whose '**Deciders:**' field \
               names the NUC maintainer also names a decider of this project and is not \
               proposed. An inherited ADR binds a derived project once its own maintainer has \
               added their name and accepted it, or it is superseded: an inherited ADR nobody \
               here decided is a rule nobody decided. While the setup file exists the decision \
               is pending by design.",
-    reads: &[Input::Adr, Input::SetupFile],
+    reads: &[Input::Adr, Input::SetupFile, Input::Release],
     check: |inputs| check(inputs).into(),
 };
 
@@ -26,6 +27,10 @@ pub const RULE: Rule = Rule {
 const TEMPLATE_DECIDER: &[u8] = b"NUC maintainer";
 
 fn check(inputs: &Inputs) -> Vec<Finding> {
+    // The record of template release v0.9.0 on has no such check.
+    if inputs.carries_at_least(CATEGORY_IDENTIFIERS) {
+        return Vec::new();
+    }
     if inputs.setup_file {
         return Vec::new();
     }
@@ -38,15 +43,22 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
         if matches!(status, Some("⚪" | "🔴")) {
             continue;
         }
-        let message = if others(&header.deciders).is_empty() {
-            "inherited from the template and not decided by this project — add your name to Deciders and accept it, or supersede it (docs/adr/README.md)"
+        let (reason, message) = if others(&header.deciders).is_empty() {
+            (
+                "undecided",
+                "inherited from the template and not decided by this project — add your name to Deciders and accept it, or supersede it (docs/adr/README.md)",
+            )
         } else if status == Some("🟡") {
-            "inherited from the template and still proposed after setup — flip the status to accepted, or supersede it (docs/adr/README.md)"
+            (
+                "proposed",
+                "inherited from the template and still proposed after setup — flip the status to accepted, or supersede it (docs/adr/README.md)",
+            )
         } else {
             continue;
         };
         found.push(Finding {
             rule: RULE_ID,
+            reason,
             file: format!("docs/adr/{name}"),
             line: None,
             message: message.to_owned(),
@@ -128,6 +140,7 @@ mod tests {
     fn found(status: &str, deciders: &str, setup: bool) -> Vec<String> {
         let mut inputs = Inputs {
             setup_file: setup,
+            release: Some(crate::config::Version(0, 8, 1)),
             ..Inputs::default()
         };
         let text = format!(
@@ -202,5 +215,19 @@ mod tests {
         assert_eq!(others(b"x and and y\n"), b"xandy");
         assert_eq!(others(b"and,and\n"), b"and");
         assert_eq!(others(b",and\n"), b"");
+    }
+
+    #[test]
+    fn from_v0_9_0_an_inherited_adr_is_no_concern_of_the_record() {
+        let mut inputs = Inputs::default();
+        inputs.adr.insert(
+            "0001-decision.md".to_owned(),
+            b"# T\n\n- **Status:** \xf0\x9f\x9f\xa1 proposed\n- **Deciders:** NUC maintainer\n"
+                .to_vec(),
+        );
+        inputs.release = Some(crate::config::Version(0, 8, 1));
+        assert!(!check(&inputs).is_empty());
+        inputs.release = Some(crate::config::Version(0, 9, 0));
+        assert!(check(&inputs).is_empty());
     }
 }

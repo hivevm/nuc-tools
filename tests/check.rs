@@ -194,7 +194,7 @@ fn without_git_on_the_path_it_refuses_and_names_how_to_install_it() {
 fn a_panic_is_an_internal_error_that_names_its_cause_and_never_passes() {
     let fixture = Fixture::project("panic", CONFIG, README);
     let output = fixture.nuc_with(&[("NUC_TEST_PANIC", "1")], &["check"]);
-    // API-command-line-with-hook-signal: a panic exits 101, non-zero as the refusals are.
+    // API-command-line-keyed-findings: a panic exits 101, non-zero as the refusals are.
     assert_eq!(code(&output), Some(101), "{}", stderr(&output));
     assert_eq!(stdout(&output), "");
     let err = stderr(&output);
@@ -472,7 +472,8 @@ fn a_nul_byte_past_grep_s_first_buffer_is_not_decided() {
 fn a_repository_without_a_text_file_is_not_decided() {
     // Nothing tracked, and everything new ignored, nuc.toml and the README included.
     let fixture = Fixture::new("no-text");
-    fixture.write("README.md", "# No text\n");
+    // The rule reads the release, so the README names one, and only the empty list is refused.
+    fixture.write("README.md", "# No text\n\n- **Template release:** v0.5.0\n");
     fixture.write(
         "nuc.toml",
         "minimum = \"0.0.0\"\nrules = [\"docs/adr-refs\"]\n",
@@ -526,8 +527,8 @@ fn links_into_a_submodule_a_directory_and_with_a_title_resolve_as_for_the_bash()
     assert_eq!(
         lines,
         [
-            "docs/links.md:3: docs/links: link '../vendor/module/guide.md#nope' has no matching anchor '#nope' in docs/../vendor/module/guide.md",
-            "docs/links.md:3: docs/links: broken relative link -> 'missing/'",
+            "docs/links.md:3: docs/links: link '../vendor/module/guide.md#nope' has no matching anchor '#nope' in docs/../vendor/module/guide.md [docs/links:anchor]",
+            "docs/links.md:3: docs/links: broken relative link -> 'missing/' [docs/links:broken]",
         ],
         "{}",
         stderr(&output)
@@ -624,6 +625,27 @@ fn a_link_path_that_is_no_utf8_is_not_decided() {
     );
 }
 
+/// A record named by category, its old ADR flipped while its successor is only proposed, which
+/// every release from v0.9.0 on reports. The identifiers are assembled, so that the gate's bash
+/// checks read no reference here.
+fn named_flipped_early(name: &str, release_line: &str) -> Fixture {
+    let config = "minimum = \"0.0.0\"\nrules = [\"docs/adr-supersessions\"]\n";
+    let fixture = Fixture::project(name, config, &format!("# Fixture\n\n{release_line}\n"));
+    let (old, new) = (format!("{}-old-rule", "SEC"), format!("{}-new-rule", "SEC"));
+    fixture.write(
+        &format!("docs/adr/{old}.md"),
+        &format!("# {old}: a\n\n- **Status:** ⚪ superseded by {new}\n- **Applies to:** x\n"),
+    );
+    fixture.write(
+        &format!("docs/adr/{new}.md"),
+        &format!(
+            "# {new}: b\n\n- **Status:** 🟡 proposed\n- **Supersedes:** [{old}]({old}.md)\n\
+             - **Applies to:** x\n"
+        ),
+    );
+    fixture
+}
+
 /// A project on the template release given, with only the supersession rule turned on, and ADR
 /// 0001 flipped for 0002, which is only proposed.
 fn flipped_early(name: &str, release_line: &str) -> Fixture {
@@ -656,13 +678,32 @@ fn a_rule_checks_a_tree_as_the_release_it_carries() {
         stdout(&output),
         stderr(&output)
     );
+    // A later release, and 'unreleased', is checked as the newest release nuc knows, whose record
+    // is named by category from v0.9.0 on: a numbered ADR is then no concern of the rule.
     for (name, line) in [
-        ("release-0.6", "- **Template release:** v0.6.0"),
         (
             "release-later",
             "- **Template release:** [v9.0.0](https://example.invalid)",
         ),
         ("release-unreleased", "- **Template release:** unreleased"),
+    ] {
+        let output = flipped_early(name, line).nuc(&["check"]);
+        assert_eq!(code(&output), Some(0), "{line}: {}", stdout(&output));
+        let output = named_flipped_early(&format!("{name}-named"), line).nuc(&["check"]);
+        assert_eq!(code(&output), Some(1), "{line}: {}", stderr(&output));
+        assert!(
+            stdout(&output).contains("[docs/adr-supersessions:unaccepted]"),
+            "{line}: {}",
+            stdout(&output)
+        );
+    }
+    // A record named by category on a release before v0.9.0 is read as numbered: no finding.
+    let output =
+        named_flipped_early("release-0.8-named", "- **Template release:** v0.8.1").nuc(&["check"]);
+    assert_eq!(code(&output), Some(0), "{}", stdout(&output));
+    for (name, line) in [
+        ("release-0.6", "- **Template release:** v0.6.0"),
+        ("release-0.8", "- **Template release:** v0.8.1"),
     ] {
         let output = flipped_early(name, line).nuc(&["check"]);
         assert_eq!(code(&output), Some(1), "{line}: {}", stderr(&output));
@@ -748,6 +789,22 @@ fn without_a_readme_no_rule_set_is_decided() {
     }
 }
 
+/// Verifies: API-version-coupling-hook-defaults
+#[test]
+fn without_a_release_line_a_finding_every_release_reports_stays_though_its_citation_moved() {
+    let config =
+        "minimum = \"0.0.0\"\nrules = [\"docs/template-release\", \"docs/skill-pointers\"]\n";
+    let fixture = Fixture::project("release-stray-cited", config, "# Project\n");
+    fixture.write(".claude/skills/lonely/SKILL.md", "# Lonely\n");
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(1), "{}", stderr(&output));
+    let out = stdout(&output);
+    assert!(
+        out.contains("(NUC-procedures-are-skills §6) [docs/skill-pointers:stray]"),
+        "{out}"
+    );
+}
+
 /// A project with only the skill pointer rule on and the skill `review` under `.agents/skills/`.
 fn skills(name: &str) -> Fixture {
     let config = "minimum = \"0.0.0\"\nrules = [\"docs/skill-pointers\"]\n";
@@ -771,8 +828,8 @@ fn a_skill_pointer_that_is_a_copy_or_missing_fails_as_for_the_bash() {
     assert_eq!(
         out.lines().collect::<Vec<_>>(),
         [
-            ".claude/skills/review: docs/skill-pointers: is a copy of the skill, not a symlink — a second source drifts; replace it: rm -r .claude/skills/review && ln -s ../../.agents/skills/review .claude/skills/review",
-            ".claude/skills/stray: docs/skill-pointers: is not a symlink into .agents/skills/ — a skill lives there, where every agent reads it, and is pointed at from here (ADR-0003)",
+            ".claude/skills/review: docs/skill-pointers: is a copy of the skill, not a symlink — a second source drifts; replace it: rm -r .claude/skills/review && ln -s ../../.agents/skills/review .claude/skills/review [docs/skill-pointers:copy]",
+            ".claude/skills/stray: docs/skill-pointers: is not a symlink into .agents/skills/ — a skill lives there, where every agent reads it, and is pointed at from here (ADR-0003) [docs/skill-pointers:stray]",
         ]
     );
 }
@@ -792,8 +849,8 @@ fn a_skill_pointer_that_resolves_passes_and_one_that_dangles_or_strays_fails() {
     assert_eq!(
         stdout(&output).lines().collect::<Vec<_>>(),
         [
-            ".claude/skills/gone: docs/skill-pointers: dangles — its target does not exist; point it at .agents/skills/gone or delete it",
-            ".claude/skills/other: docs/skill-pointers: points at '.agents/skills/review', not at the skill .agents/skills/other",
+            ".claude/skills/gone: docs/skill-pointers: dangles — its target does not exist; point it at .agents/skills/gone or delete it [docs/skill-pointers:dangles]",
+            ".claude/skills/other: docs/skill-pointers: points at '.agents/skills/review', not at the skill .agents/skills/other [docs/skill-pointers:target]",
         ],
         "{}",
         stderr(&output)
@@ -814,9 +871,9 @@ fn the_project_layout_is_checked_against_the_tree_and_what_git_tracks() {
     assert_eq!(
         stdout(&output).lines().collect::<Vec<_>>(),
         [
-            "README.md: docs/project-layout: Project Layout lists 'docs/*.txt', which matches nothing in this repository",
-            "README.md: docs/project-layout: Project Layout lists 'gone/', which is not a directory of this repository",
-            "README.md: docs/project-layout: Project Layout does not name 'extra.txt', a top-level part of this repository",
+            "README.md: docs/project-layout: Project Layout lists 'docs/*.txt', which matches nothing in this repository [docs/project-layout:unmatched]",
+            "README.md: docs/project-layout: Project Layout lists 'gone/', which is not a directory of this repository [docs/project-layout:notdir]",
+            "README.md: docs/project-layout: Project Layout does not name 'extra.txt', a top-level part of this repository [docs/project-layout:unnamed]",
         ],
         "{}",
         stderr(&output)
@@ -855,9 +912,9 @@ fn the_check_lists_are_read_as_the_bash_globs_and_find_list_them() {
     assert_eq!(
         stdout(&output).lines().collect::<Vec<_>>(),
         [
-            ".github/workflows/b.yml: docs/check-lists: job 'publish' runs no script under scripts/ — the local gate cannot run what it does",
-            ".github/workflows/a.yaml: docs/check-lists: job 'publish' runs no script under scripts/ — the local gate cannot run what it does",
-            "scripts/.dot.sh: docs/check-lists: no workflow and not scripts/check-all.sh runs it — add it to both lists, or name it on an '# On instruction:' line of scripts/check-all.sh",
+            ".github/workflows/b.yml: docs/check-lists: job 'publish' runs no script under scripts/ — the local gate cannot run what it does [docs/check-lists:inline]",
+            ".github/workflows/a.yaml: docs/check-lists: job 'publish' runs no script under scripts/ — the local gate cannot run what it does [docs/check-lists:inline]",
+            "scripts/.dot.sh: docs/check-lists: no workflow and not scripts/check-all.sh runs it — add it to both lists, or name it on an '# On instruction:' line of scripts/check-all.sh [docs/check-lists:orphan]",
         ],
         "{}",
         stderr(&output)
@@ -873,8 +930,8 @@ fn an_absolute_layout_path_names_a_path_under_the_root_as_for_the_bash() {
     assert_eq!(
         stdout(&output).lines().collect::<Vec<_>>(),
         [
-            "README.md: docs/project-layout: Project Layout lists '/etc/', which is not a directory of this repository",
-            "README.md: docs/project-layout: Project Layout lists '/etc/hostname', which does not exist",
+            "README.md: docs/project-layout: Project Layout lists '/etc/', which is not a directory of this repository [docs/project-layout:notdir]",
+            "README.md: docs/project-layout: Project Layout lists '/etc/hostname', which does not exist [docs/project-layout:missing]",
         ],
         "{}",
         stderr(&output)
@@ -959,8 +1016,8 @@ fn from_v0_7_0_the_lists_stand_in_the_contributing_guide() {
     assert_eq!(
         stdout(&output).lines().collect::<Vec<_>>(),
         [
-            "CONTRIBUTING.md: docs/check-lists: not found — the check lists cannot be compared",
-            "CONTRIBUTING.md: docs/project-layout: not found — the Project Layout block cannot be checked",
+            "CONTRIBUTING.md: docs/check-lists: not found — the check lists cannot be compared [docs/check-lists:absent]",
+            "CONTRIBUTING.md: docs/project-layout: not found — the Project Layout block cannot be checked [docs/project-layout:absent]",
         ],
         "{}",
         stderr(&output)
@@ -973,8 +1030,8 @@ fn from_v0_7_0_the_lists_stand_in_the_contributing_guide() {
     assert_eq!(
         stdout(&output).lines().collect::<Vec<_>>(),
         [
-            "CONTRIBUTING.md: docs/check-lists: required check 'lint' is not a job of .github/workflows/checks.yml — a ruleset would wait for a check that never reports",
-            "CONTRIBUTING.md: docs/project-layout: Project Layout lists 'gone/', which is not a directory of this repository",
+            "CONTRIBUTING.md: docs/check-lists: required check 'lint' is not a job of .github/workflows/checks.yml — a ruleset would wait for a check that never reports [docs/check-lists:unreported]",
+            "CONTRIBUTING.md: docs/project-layout: Project Layout lists 'gone/', which is not a directory of this repository [docs/project-layout:notdir]",
         ],
         "{}",
         stderr(&output)
@@ -1025,8 +1082,8 @@ fn an_unplaced_tree_keeps_only_the_check_list_findings_every_release_reports() {
     assert_eq!(
         stdout(&output).lines().collect::<Vec<_>>(),
         [
-            "scripts/extra.sh: docs/check-lists: no workflow and not scripts/check-all.sh runs it — add it to both lists, or name it on an '# On instruction:' line of scripts/check-all.sh",
-            "README.md: docs/template-release: no '**Template release:**' line — the Template section names the release of the template this repository carries, or 'unreleased' (ADR-0005)",
+            "scripts/extra.sh: docs/check-lists: no workflow and not scripts/check-all.sh runs it — add it to both lists, or name it on an '# On instruction:' line of scripts/check-all.sh [docs/check-lists:orphan]",
+            "README.md: docs/template-release: no '**Template release:**' line — the Template section names the release of the template this repository carries, or 'unreleased' (ADR-0005) [docs/template-release:line]",
         ],
         "{}",
         stderr(&output)
@@ -1063,7 +1120,7 @@ fn a_repository_without_skills_passes_and_one_with_pointers_only_fails() {
     pointers.write(".claude/skills/lonely/SKILL.md", "# Lonely\n");
     assert_eq!(
         stdout(&pointers.nuc(&["check"])).trim_end(),
-        ".claude/skills/lonely: docs/skill-pointers: is not a symlink into .agents/skills/ — a skill lives there, where every agent reads it, and is pointed at from here (ADR-0003)"
+        ".claude/skills/lonely: docs/skill-pointers: is not a symlink into .agents/skills/ — a skill lives there, where every agent reads it, and is pointed at from here (ADR-0003) [docs/skill-pointers:stray]"
     );
 }
 
@@ -1131,8 +1188,8 @@ fn the_inherited_adrs_and_the_identity_are_checked_once_the_setup_file_is_gone()
     assert_eq!(
         stdout(&output).lines().collect::<Vec<_>>(),
         [
-            "docs/adr/0001-a.md: docs/inherited-adrs: inherited from the template and not decided by this project — add your name to Deciders and accept it, or supersede it (docs/adr/README.md)",
-            "README.md: docs/template-identity: the title is still the template's; give the project its name",
+            "docs/adr/0001-a.md: docs/inherited-adrs: inherited from the template and not decided by this project — add your name to Deciders and accept it, or supersede it (docs/adr/README.md) [docs/inherited-adrs:undecided]",
+            "README.md: docs/template-identity: the title is still the template's; give the project its name [docs/template-identity:title]",
         ],
         "{}",
         stderr(&output)
@@ -1160,7 +1217,7 @@ fn a_derived_badge_is_the_template_s_on_a_tree_before_v0_6_1() {
         (
             "v0.6.0",
             vec![
-                "README.md: docs/template-identity: a badge still points at the template's repository; repoint or delete it",
+                "README.md: docs/template-identity: a badge still points at the template's repository; repoint or delete it [docs/template-identity:badge]",
             ],
         ),
         ("v0.6.1", vec![]),
@@ -1303,7 +1360,7 @@ fn a_draft_fails_where_ci_says_a_ready_change_lands_on_main() {
     let output = fixture.nuc_with(&ready, &["check"]);
     assert_eq!(
         stdout(&output).trim_end(),
-        "docs/adr/draft-next.md: docs/no-draft-on-main: a draft lands on main — give it its number first with scripts/number-adrs.sh (ADR-0002)",
+        "docs/adr/draft-next.md: docs/no-draft-on-main: a draft lands on main — give it its number first with scripts/number-adrs.sh (ADR-0002) [docs/no-draft-on-main:draft]",
         "{}",
         stderr(&output)
     );
@@ -1341,7 +1398,8 @@ fn the_criteria_of_the_specification_are_checked_where_the_bash_finds_them() {
     assert_eq!(code(&output), Some(1), "{}", stderr(&output));
     assert_eq!(
         stdout(&output),
-        "docs/SPECIFICATION.md: traceability/criteria: not found — the criteria cannot be read\n"
+        "docs/SPECIFICATION.md: traceability/criteria: not found — the criteria cannot be read \
+         [traceability/criteria:absent]\n"
     );
     // A directory in its place is no file, as `-f` finds it.
     std::fs::create_dir_all(fixture.root().join("docs/SPECIFICATION.md")).unwrap();
@@ -1357,7 +1415,7 @@ fn the_criteria_of_the_specification_are_checked_where_the_bash_finds_them() {
     assert_eq!(
         stdout(&output),
         "docs/SPECIFICATION.md:4: traceability/criteria: identifier 'G-1' appears twice — \
-         identifiers are never reused\n"
+         identifiers are never reused [traceability/criteria:twice]\n"
     );
     fixture.write(
         "docs/SPECIFICATION.md",
@@ -1388,6 +1446,33 @@ fn the_criteria_rule_is_explained() {
     );
 }
 
+/// Verifies: NUC-checks-are-bash
+#[test]
+fn a_sensor_without_its_self_test_fails_from_v0_9_0_on_only() {
+    let config = "minimum = \"0.0.0\"\nrules = [\"traceability/sensor-tests\"]\n";
+    for (release, expected) in [
+        (
+            "v0.9.0",
+            "scripts/sensor-a.sh: traceability/sensor-tests: has no self-test \
+             scripts/test-sensor-a.sh — each sensor runs after one that cites NUC-checks-are-bash \
+             [traceability/sensor-tests:absent]\n",
+        ),
+        ("v0.8.1", ""),
+    ] {
+        let readme = format!("# Fixture\n\n- **Template release:** {release}\n");
+        let fixture = Fixture::project(&format!("sensor-tests-{release}"), config, &readme);
+        fixture.write(
+            "docs/adr/NUC-checks-are-bash.md",
+            "# NUC-checks-are-bash: x\n",
+        );
+        fixture.write("scripts/sensor-a.sh", "#!/usr/bin/env bash\n");
+        fixture.write("scripts/sensor-b.sh", "#!/usr/bin/env bash\n");
+        fixture.write("scripts/test-sensor-b.sh", &mark("NUC-checks-are-bash"));
+        let output = fixture.nuc(&["check"]);
+        assert_eq!(stdout(&output), expected, "{release}: {}", stderr(&output));
+    }
+}
+
 const CITATIONS: &str = "minimum = \"0.0.0\"\nrules = [\"traceability/citations\"]\n";
 
 #[test]
@@ -1413,9 +1498,9 @@ fn citations_are_read_from_the_files_the_bash_reads_them_from() {
     assert_eq!(
         stdout(&output),
         "new.txt:2: traceability/citations: cites 'G-8', which is not a criterion of \
-         docs/SPECIFICATION.md\n\
+         docs/SPECIFICATION.md [traceability/citations:criterion]\n\
          tests/é.txt:1: traceability/citations: cites 'Q-3', which is not a criterion of \
-         docs/SPECIFICATION.md\n"
+         docs/SPECIFICATION.md [traceability/citations:criterion]\n"
     );
 }
 
@@ -1493,5 +1578,35 @@ fn the_criteria_without_a_test_are_named_in_the_summary_and_never_fail_the_run()
     assert_eq!(
         stderr(&output),
         "nuc check: 1 finding(s); 2 criteria without a test: G-1 Q-1.\n"
+    );
+}
+
+/// The rules the record of template release v0.9.0 retired stay known, so that a `nuc.toml` that
+/// lists them is read, and report nothing on a tree of that release or later; on v0.8.1 they
+/// report as before.
+#[test]
+fn the_retired_rules_report_nothing_from_v0_9_0_on() {
+    let config = "minimum = \"0.0.0\"\nrules = [\"docs/adr-numbering\", \"docs/no-draft-on-main\", \
+                  \"docs/inherited-adrs\"]\n";
+    let fixture = Fixture::project(
+        "retired-rules",
+        config,
+        "# X\n\n- **Template release:** v0.9.0\n",
+    );
+    fixture
+        .write("docs/adr/0002-gap.md", "# ADR-0002: a gap\n")
+        .commit("A numbered ADR with a gap before it");
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(0), "{}", stderr(&output));
+    assert_eq!(stdout(&output), "");
+    fixture
+        .write("README.md", "# X\n\n- **Template release:** v0.8.1\n")
+        .commit("Back to v0.8.1");
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(1), "{}", stderr(&output));
+    assert!(
+        stdout(&output).contains("[docs/adr-numbering:gap]"),
+        "{}",
+        stdout(&output)
     );
 }

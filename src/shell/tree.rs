@@ -163,8 +163,9 @@ impl Tree {
     /// The files of the directory the bash reads for the record: each ADR file of its own, as
     /// `find -type f` lists it, and the index and the template wherever they resolve, as `-f`
     /// and `grep` do; empty when the directory does not exist. A directory that resolves outside
-    /// the repository is not listed, and not decided.
-    pub(super) fn read_adr(&self, dir: &Path) -> Result<adr::Dir, String> {
+    /// the repository is not listed, and not decided. From template release v0.9.0 on, `named` by
+    /// category, the files named `<CAT>-<slug>` and the numbered files it refuses are its own too.
+    pub(super) fn read_adr(&self, dir: &Path, named: bool) -> Result<adr::Dir, String> {
         let entries = match self.resolve(dir, || outside(dir))?.and_then(fs::read_dir) {
             Ok(entries) => entries,
             Err(e) if e.kind() == ErrorKind::NotFound => return Ok(adr::Dir::new()),
@@ -181,7 +182,9 @@ impl Tree {
                 ));
             };
             let own_file = entry.file_type().is_ok_and(|kind| kind.is_file());
-            let wanted = (own_file && adr::is_adr_name(&name))
+            let ours = adr::is_adr_name(&name)
+                || (named && (adr::is_category_name(&name) || adr::is_numbered_name(&name)));
+            let wanted = (own_file && ours)
                 || ((name == "README.md" || name == "template.md") && path.is_file());
             let bytes = if wanted {
                 self.read_record_file(&path)?
@@ -197,18 +200,84 @@ impl Tree {
         Ok(files)
     }
 
+    /// The base as `docs/base-blobs` reads it: the blob of each `NUC-` file of the record and,
+    /// where there is one, of `AGENTS.md` after them, as `adr_blobs` has git hash each, or the line
+    /// adr_blobs ends on where git could not; and the bytes of `docs/adr/NUC.blobs`. `AGENTS.md`
+    /// is hashed only where it resolves inside the repository, since git would read it (Q-12).
+    /// git hashes each file as it would store it, its line endings converted, so it applies the
+    /// filters `.gitattributes` names, as the bash does: a filter's clean command comes from the
+    /// user's configuration, which SEC-git-cleared-environment trusts, and no key of
+    /// `tests/git_cli.neutralized` can name every filter; `--no-filters` would hash other blobs
+    /// than the bash where line endings are converted.
+    pub(super) fn read_base(&self) -> Result<rules::docs_base_blobs::Base, String> {
+        let dir = self.root.join("docs/adr");
+        let record = self.read_adr(&dir, true)?;
+        let mut names: Vec<String> = adr::category_names(&record)
+            .into_iter()
+            .filter(|name| name.starts_with("NUC-"))
+            .map(str::to_owned)
+            .collect();
+        // A list that is no file, as `-f` finds it, is no list.
+        let list_path = dir.join("NUC.blobs");
+        let list = if list_path.is_file() {
+            self.read_bytes(&list_path)?
+        } else {
+            None
+        };
+        if names.is_empty() {
+            return Ok(rules::docs_base_blobs::Base {
+                blobs: Ok(Vec::new()),
+                list,
+            });
+        }
+        let agents = self.root.join("AGENTS.md");
+        if agents.is_file() {
+            self.resolve(&agents, || outside(&agents))?
+                .map_err(|e| format!("{}: unreadable — {e}", agents.display()))?;
+            names.push("AGENTS.md".to_owned());
+        }
+        let paths: Vec<String> = names
+            .iter()
+            .map(|name| {
+                if name == "AGENTS.md" {
+                    name.clone()
+                } else {
+                    format!("docs/adr/{name}")
+                }
+            })
+            .collect();
+        let mut args = vec!["hash-object", "--"];
+        args.extend(paths.iter().map(String::as_str));
+        let output = git::command(&self.root, &args).output().map_err(|e| {
+            format!("git could not be run ({e}) — install git and put it on the PATH")
+        })?;
+        let blobs = if output.status.success() {
+            let text = String::from_utf8_lossy(&output.stdout);
+            Ok(names
+                .into_iter()
+                .zip(text.lines().map(str::to_owned))
+                .collect())
+        } else {
+            // The last line the bash's adr_blobs writes when git fails, the record named from the
+            // root rather than by the root's own path.
+            Err("adr_blobs: git hash-object failed in docs/adr".to_owned())
+        };
+        Ok(rules::docs_base_blobs::Base { blobs, list })
+    }
+
     /// The file each row of the index links, resolved under `docs/adr/` as `-f` resolves it: its
     /// bytes when it is a file, or none.
     pub(super) fn read_adr_targets(
         &self,
         adr: &adr::Dir,
+        named: bool,
     ) -> Result<BTreeMap<String, Option<Vec<u8>>>, String> {
         let Some(index) = adr.get("README.md") else {
             return Ok(BTreeMap::new());
         };
         let base = self.root.join("docs/adr");
         let mut targets = BTreeMap::new();
-        for target in rules::docs_adr_index::targets(index) {
+        for target in rules::docs_adr_index::targets(index, named) {
             let path = base.join(&target);
             let resolved = self.resolve(&path, || {
                 format!(
@@ -281,6 +350,44 @@ impl Tree {
         Ok(text)
     }
 
+    /// The sensors as part 4 of the bash's traceability check reads them: each path git lists as
+    /// tracked or new and not ignored that names `scripts/sensor-<name>.sh` and is a file, as `-f`
+    /// finds it, with whether its self-test is a file; and whether `docs/adr/` holds the ADR that
+    /// decides the checks. A sensor's path that is no UTF-8 and a file is not decided, since a
+    /// finding could not name it.
+    pub(super) fn read_sensors(&self) -> Result<rules::traceability_sensor_tests::Sensors, String> {
+        use rules::traceability_sensor_tests::{CHECKS_ADR, Sensors, self_test, sensor_name};
+        let mut sensors = Vec::new();
+        for raw in self.listed(Listing::Nul, Files::TrackedAndNew)? {
+            let named = raw
+                .strip_prefix(b"scripts/sensor-")
+                .and_then(|rest| rest.strip_suffix(b".sh"))
+                .is_some_and(|name| !name.is_empty() && !name.contains(&b'/'));
+            if !named || !path_of(&self.root, &raw).is_some_and(|full| full.is_file()) {
+                continue;
+            }
+            let Ok(path) = std::str::from_utf8(&raw) else {
+                return Err(format!(
+                    "{}: a sensor's path that is no UTF-8, which a finding could not name — not decided",
+                    String::from_utf8_lossy(&raw)
+                ));
+            };
+            let Some(name) = sensor_name(path) else {
+                continue;
+            };
+            let tested = self.root.join(self_test(name)).is_file();
+            sensors.push((path.to_owned(), tested));
+        }
+        let checks_adr = self
+            .root
+            .join(format!("docs/adr/{CHECKS_ADR}.md"))
+            .is_file();
+        Ok(Sensors {
+            sensors,
+            checks_adr,
+        })
+    }
+
     /// Every path git lists, the tracked ones and with `files` the new ones it does not ignore,
     /// as a bash script asks for them: separated by NUL bytes with `-z`, so that no path is
     /// quoted, or by lines, so that a path git quotes stays quoted and names no file.
@@ -313,14 +420,19 @@ impl Tree {
         &self,
         text_files: &BTreeMap<String, Vec<u8>>,
         adr: &adr::Dir,
+        named: bool,
     ) -> Result<BTreeMap<String, rules::docs_links::Resolved>, String> {
-        let inactive = adr::inactive_paths(adr);
+        let inactive = if named {
+            adr::named_inactive_paths(adr)
+        } else {
+            adr::inactive_paths(adr)
+        };
         let read = text_files
             .iter()
             .filter(|(file, _)| file.ends_with(".md") && !inactive.contains(file.as_str()));
         let mut resolved: BTreeMap<String, rules::docs_links::Resolved> = BTreeMap::new();
         for (file, text) in read {
-            for target in markdown::relative_targets(file, text) {
+            for target in markdown::relative_targets(file, text, markdown::placeholder(named)) {
                 let Some(path) = target.path else { continue };
                 let named = target.target.split(|&b| b == b'#').next().unwrap_or(&[]);
                 if std::str::from_utf8(named).is_err() {
@@ -641,7 +753,10 @@ impl Tree {
 
     /// What check 11 tests: each skill and what stands at its pointer, and each entry of the
     /// pointer directory, resolved as `cd -P` resolves it.
-    pub(super) fn read_skills(&self) -> Result<rules::docs_skill_pointers::Skills, String> {
+    pub(super) fn read_skills(
+        &self,
+        named: bool,
+    ) -> Result<rules::docs_skill_pointers::Skills, String> {
         let skills = self.root.join(".agents/skills");
         let pointers = self.root.join(".claude/skills");
         let has_skill = |name: &str| skills.join(name).join("SKILL.md").is_file();
@@ -655,6 +770,10 @@ impl Tree {
                 Ok(_) => rules::docs_skill_pointers::Pointer::Other,
                 Err(_) => rules::docs_skill_pointers::Pointer::Missing,
             };
+            // From template release v0.9.0 on, the front matter of each skill is read.
+            if named && let Some(text) = self.read_bytes(&skills.join(&name).join("SKILL.md"))? {
+                found.texts.insert(name.clone(), text);
+            }
             found.skills.push((name, pointer));
         }
         for name in self.list(&pointers)? {

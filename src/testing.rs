@@ -9,6 +9,11 @@ pub fn id(key: &str) -> String {
     format!("{}-{key}", "ADR")
 }
 
+/// The identifier `<CAT>-<slug>` of a record from template release v0.9.0 on.
+pub fn cat_id(category: &str, slug: &str) -> String {
+    format!("{category}-{slug}")
+}
+
 /// The identifier of the ADR numbered `n`, `ADR-000n`.
 pub fn adr_id(n: u32) -> String {
     id(&format!("{n:04}"))
