@@ -38,9 +38,10 @@
 # order of their releases. A change the table does not list, or one it lists that the trees do not
 # show, fails the harness and names the rule; tests/releases.rs holds the rules to the table
 # (API-version-coupling-hook-defaults). A tree whose script lacks the function has no such check,
-# and its body counts as empty, so the release a check comes or goes at is a change; a function no
-# tree has is named, since nothing of it is compared. With fewer than two trees of the template
-# there is nothing to compare. A helper the function calls is not compared.
+# and its body counts as empty, so the release a check comes or goes at is a change. A release the
+# table names that is later than every tree of the template is ahead of the corpus and not
+# compared; a function no tree has fails, unless its row names such a release. With fewer than two
+# trees of the template there is nothing to compare. A helper the function calls is not compared.
 #
 # Before the comparisons, each blob of tests/tables.blobs, the pins of the copies of the
 # template's fixture tables under tests/tables/, is held to the blob the template's tag of its
@@ -675,7 +676,26 @@ if ((${#template_trees[@]} >= 2)); then
       ((first)) || [[ "$body" == "$previous" ]] || changed+=("$t_release")
       previous="$body" first=0
     done
-    ((present)) || echo "Parity check: $r_rule — no tree of the template in the corpus has $r_function in $r_script, so nothing of it is compared"
+    # A release the row names that is later than every tree of the template in the corpus is ahead
+    # of the corpus: it is not compared until a tree of it is pinned.
+    newest="${template_trees[-1]%% *}" listed=() ahead=()
+    IFS=, read -r -a releases_named <<< "${r_changed/#-/}"
+    for t_release in "${releases_named[@]}"; do
+      if [[ "$(printf '%s\n' "$newest" "$t_release" | sort -V | tail -n 1)" != "$newest" ]]; then
+        ahead+=("$t_release")
+      else
+        listed+=("$t_release")
+      fi
+    done
+    # A function no tree has is compared nowhere: only a row whose check comes at a release ahead
+    # of the corpus may name one, so that a mistyped function or script is no silent pass (Q-1).
+    if ((!present)) && ((${#ahead[@]} == 0)); then
+      echo "Parity check: $r_rule — no tree of the template in the corpus has $r_function in $r_script, and the row names no release ahead of the corpus" >&2
+      failed=1
+      continue
+    fi
+    ((present)) || echo "Parity check: $r_rule — its check comes at ${ahead[*]}, ahead of the corpus, and nothing of it is compared yet"
+    r_changed="$(IFS=,; echo "${listed[*]:--}")"
     got="$(IFS=,; echo "${changed[*]:--}")"
     if [[ "$got" != "$r_changed" ]]; then
       echo "Parity check: $r_rule — its bash check changed at $got across the template's trees of the corpus, where ${RELEASES#"$ROOT/"} says $r_changed" >&2

@@ -194,7 +194,7 @@ fn check(repo: Option<&Path>, format: Format) -> Result<u8, String> {
         inputs.landing = tree.read_landing()?;
     }
     if needs(Input::History) {
-        inputs.history = read_history(&tree.root)?;
+        inputs.history = read_history(&tree.root, carried.as_ref())?;
     }
     if needs(Input::Specification) {
         inputs.specification = tree.read_specification()?;
@@ -408,11 +408,20 @@ fn read_record(
 }
 
 /// The ADR files the first-parent history deleted, read by the `git log` the bash runs; none
-/// without a commit. A git that cannot read the history, as one before 2.31 rejects
-/// `--diff-merges`, is the rule's finding, not a refusal, as in the bash; its standard error stays
-/// out of the list.
-fn read_history(root: &Path) -> Result<rules::docs_adr_identifiers::History, String> {
+/// without a commit, or on a tree of a release before v0.9.0. A git that cannot read the history,
+/// as one before 2.31 rejects `--diff-merges`, is the rule's finding, not a refusal, as in the
+/// bash; its standard error stays out of the list.
+fn read_history(
+    root: &Path,
+    carried: Option<&rules::Carried>,
+) -> Result<rules::docs_adr_identifiers::History, String> {
     use rules::docs_adr_identifiers::{History, LOG, deleted};
+    // The history matters from template release v0.9.0 on, and for `unreleased` or none.
+    if let Some(rules::Carried::Release(release)) = carried
+        && *release < rules::CATEGORY_IDENTIFIERS
+    {
+        return Ok(History::default());
+    }
     if git::probe(root, &["rev-parse", "-q", "--verify", "HEAD^{commit}"])?.is_none() {
         return Ok(History::default());
     }

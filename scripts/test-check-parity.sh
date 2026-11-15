@@ -605,8 +605,13 @@ expect pass "a tree of the template without the function has no such check, a ch
 expect fail "a check gone at a release the table does not list fails" "changed at v0.6.0 across" \
   run_releases "$(corpus "$work/tpl-bare.toml" tpl-old tpl-bare)" "$(releases "$work/r-bare-unlisted.tsv" -)"
 printf '# One rule.\ndocs/template-release\tscripts/check-docs.sh\tcheck_nowhere\t-\n' > "$work/r-nowhere.tsv"
-check "a function no tree of the template has is named, since nothing of it is compared" \
-  bash -c "PARITY_TABLE=\"$work/one-rule.tsv\" PARITY_RELEASES=\"$work/r-nowhere.tsv\" bash \"$HARNESS\" --no-hooks --corpus \"$changed\" --cache \"$work/cache\" --nuc \"$(reactive_nuc)\" --variants \"$DEFAULT\" | grep -c 'no tree of the template in the corpus has check_nowhere' > /dev/null"
+expect fail "a function no tree of the template has fails, as a mistyped one would" \
+  "no tree of the template in the corpus has check_nowhere" run_releases "$changed" "$work/r-nowhere.tsv"
+printf '# One rule.\ndocs/template-release\tscripts/check-docs.sh\tcheck_nowhere\tv9.0.0\n' > "$work/r-ahead.tsv"
+expect pass "a function no tree has, whose check comes at a release ahead of the corpus, passes" "" \
+  run_releases "$changed" "$work/r-ahead.tsv"
+expect pass "a change at a release ahead of the corpus is not compared" "" \
+  run_releases "$changed" "$(releases "$work/r-listed-ahead.tsv" v0.6.0,v9.0.0)"
 printf 'docs/template-release\tREADME.md\tcheck_template_release\t-\n' > "$work/r-malformed.tsv"
 expect fail "a malformed row of the table of releases is refused" "a row needs a rule ID" \
   run_releases "$c" "$work/r-malformed.tsv"

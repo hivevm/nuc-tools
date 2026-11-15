@@ -48,8 +48,12 @@ impl Landing {
 }
 
 /// The findings of the rule, or its refusal of a draft whose name holds a newline, which the bash
-/// reads from find's list as two (Q-1).
+/// reads from find's list as two (Q-1); nothing from template release v0.9.0 on, whose record has
+/// no such check.
 fn outcome(inputs: &Inputs) -> Outcome {
+    if inputs.carries_at_least(CATEGORY_IDENTIFIERS) {
+        return Outcome::default();
+    }
     if let Some(name) = inputs
         .landing
         .drafts
@@ -68,10 +72,6 @@ fn outcome(inputs: &Inputs) -> Outcome {
 }
 
 fn check(inputs: &Inputs) -> Vec<Finding> {
-    // The record of template release v0.9.0 on has no such check.
-    if inputs.carries_at_least(CATEGORY_IDENTIFIERS) {
-        return Vec::new();
-    }
     let landing = &inputs.landing;
     if landing.lands_on() != Some("main") || landing.draft_pull_request {
         return Vec::new();
@@ -168,5 +168,20 @@ mod tests {
                 "docs/adr/draft-a\\nb.md: a draft whose name holds a newline, which the bash reads as two — not decided"
             )
         );
+    }
+
+    #[test]
+    fn from_v0_9_0_a_draft_neither_fails_nor_is_refused() {
+        for name in ["draft-next.md", "draft-a\nb.md"] {
+            let inputs = Inputs {
+                landing: Landing {
+                    drafts: vec![name.to_owned()],
+                    ..pull_request("main", false)
+                },
+                release: Some(crate::config::Version(0, 9, 0)),
+                ..Inputs::default()
+            };
+            assert_eq!(outcome(&inputs), Outcome::default(), "{name:?}");
+        }
     }
 }

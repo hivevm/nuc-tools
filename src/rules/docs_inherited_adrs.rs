@@ -216,4 +216,18 @@ mod tests {
         assert_eq!(others(b"and,and\n"), b"and");
         assert_eq!(others(b",and\n"), b"");
     }
+
+    #[test]
+    fn from_v0_9_0_an_inherited_adr_is_no_concern_of_the_record() {
+        let mut inputs = Inputs::default();
+        inputs.adr.insert(
+            "0001-decision.md".to_owned(),
+            b"# T\n\n- **Status:** \xf0\x9f\x9f\xa1 proposed\n- **Deciders:** NUC maintainer\n"
+                .to_vec(),
+        );
+        inputs.release = Some(crate::config::Version(0, 8, 1));
+        assert!(!check(&inputs).is_empty());
+        inputs.release = Some(crate::config::Version(0, 9, 0));
+        assert!(check(&inputs).is_empty());
+    }
 }
