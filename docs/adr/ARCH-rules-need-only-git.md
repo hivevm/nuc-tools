@@ -39,7 +39,7 @@ project or ShellCheck, and leave each such rule to the bash.
   rule's name or another, since that can decide otherwise than the bash (Q-2).
 - **The tables:** each case of a rule left to the bash stands in `tests/tables.cases` as not
   ported, its reason naming this ADR
-  ([TEST-cases-from-template-tables](TEST-cases-from-template-tables.md)).
+  ([TEST-template-table-cases](TEST-template-table-cases.md)).
 
 **Out of scope:** the rules of `check-shell.sh` that read text only, `sed -i` and the pipe into
 `grep -q`, which carry no key and wait on one; which checks the template switches to `nuc`; the

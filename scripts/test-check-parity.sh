@@ -354,7 +354,7 @@ check "the variant leaves the cached tree as pinned" \
 
 expect fail "a corpus on which they differ" "variant deleted — 2 difference" run "$c" "$(stand_in silent)"
 
-# The pins of the copied fixture tables (TEST-cases-from-template-tables): a tree of the template,
+# The pins of the copied fixture tables (TEST-template-table-cases): a tree of the template,
 # TEMPLATE-SETUP.md in it, whose tag v9.9.9 the harness fetches from its source through file://.
 src="$(source_repo tables)"
 mkdir -p "$src/scripts/fixtures" && echo "a case" > "$src/scripts/fixtures/t.txt"

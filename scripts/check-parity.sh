@@ -46,7 +46,7 @@
 # Before the comparisons, each blob of tests/tables.blobs, the pins of the copies of the
 # template's fixture tables under tests/tables/, is held to the blob the template's tag of its
 # release has at scripts/fixtures/, fetched from the corpus's template into the cache
-# (TEST-cases-from-template-tables).
+# (TEST-template-table-cases).
 #
 # Then the hook scenarios run on the template's trees of the corpus, through
 # scripts/lib/hook-parity.sh (TEST-hook-scenario-parity): each scenario of
@@ -599,7 +599,7 @@ for entry in "${repositories[@]}"; do
 done
 
 # check_table_blobs — the pins of the copies of the template's fixture tables
-# (TEST-cases-from-template-tables): each line '<release> <blob> <file>' of TABLE_BLOBS names the
+# (TEST-template-table-cases): each line '<release> <blob> <file>' of TABLE_BLOBS names the
 # blob of scripts/fixtures/<file> at the release's tag of the template, which a repository of its
 # own in the cache fetches from the corpus's template where it lacks the tag. A tag it cannot read
 # fails, and so does a blob the tag does not hold; no tree of that release need be pinned.

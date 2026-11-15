@@ -1,6 +1,6 @@
 # TEST-template-table-cases: The rules are tested against copies of the template's fixture tables of the newest release `nuc` ports, each pinned by its blob, with every case that does not agree listed as pending on a ticket, as not ported, or as decided by an ADR in force
 
-- **Status:** 🟡 proposed
+- **Status:** 🟢 accepted
 - **Date:** 2026-11-15
 - **Deciders:** Markus Brigl
 - **Applies to:** the copies of the template's fixture tables under `tests/tables/`, their blob list `tests/tables.blobs`, the list of cases that do not agree `tests/tables.cases`, the runner `tests/tables.rs`, and the check of the blobs in `scripts/check-parity.sh`

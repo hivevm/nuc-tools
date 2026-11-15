@@ -1,5 +1,5 @@
 //! The rules held to the cases of the template's fixture tables.
-//! Verifies: TEST-cases-from-template-tables
+//! Verifies: TEST-template-table-cases
 //!
 //! `tests/tables/` holds the tables of the template's checks `nuc` ports, copied byte for byte
 //! from the newest release it ports, and `tests/tables.blobs` the blob of each at that release's
@@ -885,6 +885,7 @@ fn judge(
     case: &Verdict,
     entry: Option<(String, String)>,
     exists: &dyn Fn(&str) -> bool,
+    in_force: &dyn Fn(&str) -> bool,
 ) -> Vec<String> {
     let Verdict {
         table,
@@ -924,9 +925,26 @@ fn judge(
         if !unported_rule {
             problems.push(format!("{at}: not ported, but {rule} is a rule nuc ports"));
         }
+    } else if let Some(decided) = status.strip_prefix("decided by ") {
+        let (adr, reason) = decided.split_once(' ').unwrap_or((decided, ""));
+        if agrees {
+            problems.push(format!(
+                "{at}: agrees now — take it out of tests/tables.cases"
+            ));
+        }
+        if reason.trim().is_empty() {
+            problems.push(format!(
+                "{at}: decided by {adr}, but the line gives no reason"
+            ));
+        }
+        if !in_force(adr) {
+            problems.push(format!(
+                "{at}: decided by {adr}, which is no accepted ADR of docs/adr/ — the case is pending again, or another ADR decides it"
+            ));
+        }
     } else {
         problems.push(format!(
-            "{at}: '{status}' is neither 'pending <ticket>' nor 'not ported <reason>'"
+            "{at}: '{status}' is neither 'pending <ticket>', 'not ported <reason>', nor 'decided by <ADR> <reason>'"
         ));
     }
     if must_be_unported && !status.starts_with("not ported ") {
@@ -982,6 +1000,15 @@ fn every_case_agrees_or_is_listed() {
             .collect()
     });
     let root = support::sources::root();
+    // An ADR in force for a decided case: its file under docs/adr/, its status line accepted.
+    let accepted = |adr: &str| {
+        !adr.contains('/')
+            && fs::read_to_string(root.join(format!("docs/adr/{adr}.md"))).is_ok_and(|text| {
+                text.lines()
+                    .find(|l| l.starts_with("- **Status:**"))
+                    .is_some_and(|l| l.contains("🟢"))
+            })
+    };
     let mut problems = Vec::new();
     for (case, run) in &runs {
         let table = case.table.trim_end_matches(".txt");
@@ -995,7 +1022,7 @@ fn every_case_agrees_or_is_listed() {
             agrees: run.agrees,
         };
         let exists = |ticket: &str| root.join(ticket).is_file();
-        for problem in judge(&verdict, entry, &exists) {
+        for problem in judge(&verdict, entry, &exists, &accepted) {
             problems.push(if problem.ends_with("does not agree") {
                 format!(
                     "{problem}: exit {:?}\n      stdout: {}\n      stderr: {}",
@@ -1026,6 +1053,8 @@ fn a_case_is_judged_against_its_line_as_the_decision_asks() {
     let ticket = "docs/plan/x/01-y.md";
     // Cargo.toml exists, so that only the prefix refuses it as a ticket.
     let exists = |t: &str| t == ticket || t == "Cargo.toml";
+    let adr = format!("{}-{}", "API", "x-y");
+    let in_force = |a: &str| a == adr;
     let pending = format!("pending {ticket}");
     let case = |rule, agrees| Verdict {
         table: "t",
@@ -1036,20 +1065,29 @@ fn a_case_is_judged_against_its_line_as_the_decision_asks() {
     };
     let line = |rule: &str, status: &str| Some((rule.to_owned(), status.to_owned()));
     // Agreeing and unlisted, not agreeing and pending on a ticket that exists, or not ported: none.
-    assert!(judge(&case("docs/a", true), None, &exists).is_empty());
-    assert!(judge(&case("docs/a", false), line("docs/a", &pending), &exists).is_empty());
+    assert!(judge(&case("docs/a", true), None, &exists, &in_force).is_empty());
+    assert!(
+        judge(
+            &case("docs/a", false),
+            line("docs/a", &pending),
+            &exists,
+            &in_force
+        )
+        .is_empty()
+    );
     assert!(
         judge(
             &case("shell/root", false),
             line("shell/root", "not ported r"),
-            &exists
+            &exists,
+            &in_force
         )
         .is_empty()
     );
     // Three failures of the decision's Enforcement, and the rest of the list's rules; a line that
     // names no case is held by the loop over the lines left, a copy's byte by the pin's test.
     let problem = |c: Verdict, e, needle: &str| {
-        let found = judge(&c, e, &exists);
+        let found = judge(&c, e, &exists, &in_force);
         assert!(
             found.iter().any(|p| p.contains(needle)),
             "{needle}: {found:?}"
@@ -1084,6 +1122,29 @@ fn a_case_is_judged_against_its_line_as_the_decision_asks() {
         "stands only as not ported",
     );
     problem(case("docs/a", false), line("docs/a", "later"), "neither");
+    // A case an ADR in force decides otherwise: listed with that ADR and why, while it does not
+    // agree and the ADR is accepted.
+    let decided = format!("decided by {adr} it says so");
+    assert!(
+        judge(
+            &case("docs/a", false),
+            line("docs/a", &decided),
+            &exists,
+            &in_force
+        )
+        .is_empty()
+    );
+    problem(case("docs/a", true), line("docs/a", &decided), "agrees now");
+    problem(
+        case("docs/a", false),
+        line("docs/a", &format!("decided by {adr}")),
+        "gives no reason",
+    );
+    problem(
+        case("docs/a", false),
+        line("docs/a", &format!("decided by {}-{} r", "API", "gone-away")),
+        "no accepted ADR",
+    );
 }
 
 #[test]

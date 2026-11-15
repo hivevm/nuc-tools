@@ -31,17 +31,11 @@ v0.10.0 joins the releases at which a ported check changed.
 
 ## Open
 
-- The case 'no README to carry the Template release line' of `tests/tables/check-docs-record.txt`
-  expects `docs/template-release:absent`, but `nuc` refuses a tree without a README before any rule
-  runs (API-version-coupling-hook-defaults), so it cannot agree. TEST-cases-from-template-tables
-  knows no status for a case an ADR in force decides otherwise; it stands as pending on this ticket
-  until the human settles it, by a superseding ADR or otherwise.
-- So does the case 'a release line that says 'not forked'', for the same reason in another form:
-  its README names v0.8.1, which `nuc` checks as the bash of v0.8.1, which has no
-  `docs/base-blobs`, while the table expects the check of v0.11.0. The case 'a fork without a
-  list, the README naming the release it forked' agrees by chance for the same reason: its README
-  names v0.8.1, where nuc has no `docs/base-blobs` to pass, so no table case decides the forked
-  path of v0.9.0 on; a unit test does.
+- The cases 'no README to carry the Template release line' and 'a release line that says 'not
+  forked'' stand as decided by API-version-coupling-hook-defaults (TEST-template-table-cases). The
+  case 'a fork without a list, the README naming the release it forked' agrees by chance for the
+  same reason: its README names v0.8.1, where nuc has no `docs/base-blobs` to pass, so no table
+  case decides the forked path of v0.9.0 on; a unit test does.
 
 ## Notes
 

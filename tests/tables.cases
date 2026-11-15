@@ -1,7 +1,8 @@
 # The cases of the copies under tests/tables/ that do not agree with nuc, read by tests/tables.rs
-# (TEST-cases-from-template-tables): '<table> | <case name> | <rule> | <status>' a line, the table
-# without '.txt', the status 'pending <ticket>', the ticket under docs/plan/ that ports the
-# case, or 'not ported <reason>', for a rule nuc leaves to the bash (ARCH-rules-need-only-git).
+# (TEST-template-table-cases): '<table> | <case name> | <rule> | <status>' a line, the table without
+# '.txt', the status 'pending <ticket>', the ticket under docs/plan/ that ports the case, 'not
+# ported <reason>', for a rule nuc leaves to the bash (ARCH-rules-need-only-git), or 'decided by
+# <ADR> <reason>', for a case an ADR in force decides otherwise for nuc.
 
 check-docs-record | a GET to the issues endpoint with a field | docs/opens-no-issue | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
 check-docs-record | a POST to the issues endpoint by -X, the endpoint on a continuation line | docs/opens-no-issue | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
@@ -15,7 +16,7 @@ check-docs-record | a leading zero, which SemVer forbids | docs/template-release
 check-docs-record | a link to the documentation of issues in a skill | docs/opens-no-issue | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
 check-docs-record | a project's own script after the setup, no file of the template | docs/opens-no-issue | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
 check-docs-record | a proposed ADR that names a missing key among keys that exist | docs/adr-refs | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
-check-docs-record | a release line that says 'not forked' | docs/base-blobs | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
+check-docs-record | a release line that says 'not forked' | docs/base-blobs | decided by API-version-coupling-hook-defaults — it checks the tree as the v0.8.1 its README names, a release without this check
 check-docs-record | a script of the template that creates an issue with gh | docs/opens-no-issue | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
 check-docs-record | a skill that posts to the issues endpoint with --method | docs/opens-no-issue | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
 check-docs-record | a step of actions/github-script that creates an issue | docs/opens-no-issue | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
@@ -24,7 +25,7 @@ check-docs-record | a workflow step that posts fields to the issues endpoint | d
 check-docs-record | an accepted ADR that names a rule key the header of check-docs.sh lacks | docs/adr-refs | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
 check-docs-record | curl posting to the issues endpoint of the REST API | docs/opens-no-issue | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
 check-docs-record | curl sending data, its flag on a continuation line | docs/opens-no-issue | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
-check-docs-record | no README to carry the Template release line | docs/template-release | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
+check-docs-record | no README to carry the Template release line | docs/template-release | decided by API-version-coupling-hook-defaults — it refuses a tree without a README before any rule runs
 check-docs-record | no Template release line | docs/template-release | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
 check-docs-record | reading issues, as a revision does on the human's instruction | docs/opens-no-issue | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
 check-docs-record | the GraphQL mutation that creates an issue | docs/opens-no-issue | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
