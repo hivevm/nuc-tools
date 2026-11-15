@@ -25,6 +25,10 @@
 //! trees hold symbolic links, so the cases run on Unix; the pins and the list are held on every
 //! platform.
 
+// The runner and its helpers serve the cases alone, which run on Unix only; elsewhere they stand
+// unused, and the pins and the judgement still compile and run.
+#![cfg_attr(not(unix), allow(dead_code, unused_imports))]
+
 mod support;
 
 use std::collections::BTreeMap;
