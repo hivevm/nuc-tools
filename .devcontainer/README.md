@@ -42,15 +42,16 @@ docker compose -f .devcontainer/compose.yaml down -v    # stop, and throw the da
 
 Or `cd .devcontainer` and leave out the `-f`. The stack needs roughly 2 GB of memory.
 
-Grafana is on <http://localhost:3001> and opens on **Claude Code — Overview**. Anyone who reaches
-it may look without a login; editing a dashboard takes the login `admin`/`admin`, which Grafana
-asks to change on the first sign-in.
+Grafana is on <http://localhost:3001>, or on <http://172.17.0.1:3001> under the bridge bind
+below, and opens on **Claude Code — Overview**. Anyone who reaches it may look without a login;
+editing a dashboard takes the login `admin`/`admin`, which Grafana asks to change on the first
+sign-in.
 
-**The ports are published on the host's loopback only**, since Grafana and ClickHouse hold
+**The ports are published on the host's loopback by default**, since Grafana and ClickHouse hold
 personal data behind no credential worth the name. Docker Desktop forwards
 `host.docker.internal` to the host's loopback, so the Dev Container reaches them as they are;
 whether Podman does depends on its network mode. Docker Engine on Linux does not: there, bind them
-to the bridge gateway instead, which only the host and its containers reach:
+to the bridge gateway instead, which only the host and its containers reach (the *bridge bind*):
 
 ```sh
 OBSERVABILITY_BIND=172.17.0.1 docker compose -f .devcontainer/compose.yaml up -d
@@ -62,11 +63,13 @@ the container.
 ### Reaching it from the Dev Container
 
 The Dev Container reaches the Collector **through the host**, over the ports published above; it
-needs no Docker socket for that.
+needs no Docker socket for that. The host reaches the stack on the address it is bound to: under
+the bridge bind nothing listens on the loopback, so the host uses the gateway too.
 
 | From | Collector (OTLP/HTTP) | Grafana | ClickHouse |
 | ---- | --------------------- | ------- | ---------- |
-| the host | `http://127.0.0.1:4318` | <http://localhost:3001> | `localhost:8123` |
+| the host, default bind | `http://127.0.0.1:4318` | <http://localhost:3001> | `localhost:8123` |
+| the host, `OBSERVABILITY_BIND=172.17.0.1` | `http://172.17.0.1:4318` | <http://172.17.0.1:3001> | `172.17.0.1:8123` |
 | the Dev Container, Podman or Docker Desktop | `http://host.docker.internal:4318` | the host's browser | `host.docker.internal:8123` |
 | the Dev Container, Docker Engine on Linux | `http://172.17.0.1:4318` | the host's browser | `172.17.0.1:8123` |
 
@@ -102,9 +105,10 @@ project that uses this configuration directory:
 ```
 
 The endpoint is the one from the table above for your engine — `http://172.17.0.1:4318` on Docker
-Engine on Linux; on the host it is `http://127.0.0.1:4318`. Start a new session after changing the
-variables: only that is sure to read them all. A running session may still take up a change, as it
-does `OTEL_METRICS_INCLUDE_REPOSITORY`, and then its earlier rows stay without the new value.
+Engine on Linux; on the host it is `http://127.0.0.1:4318`, or `http://172.17.0.1:4318` under the
+bridge bind. Start a new session after changing the variables: only that is sure to read them all.
+A running session may still take up a change, as it does `OTEL_METRICS_INCLUDE_REPOSITORY`, and
+then its earlier rows stay without the new value.
 This stack is the one collector that the contributing guide names in
 [Measuring a session](../CONTRIBUTING.md#measuring-a-session). The five keys given there are the
 first five here, the endpoint set for Docker Engine on Linux; the rest add the export intervals,
@@ -240,8 +244,13 @@ done
 
 ## Checking that data arrives
 
+The commands below use the host's addresses under the default bind. Under the bridge bind, put
+`172.17.0.1` in place of `127.0.0.1` and `localhost`, on the host and in the Dev Container alike;
+the same holds for the `curl` calls under [Retention](#retention) and
+[Starting from an empty store](#starting-from-an-empty-store).
+
 ```sh
-# Does the Collector accept OTLP at all? (from the Dev Container: host.docker.internal)
+# Does the Collector accept OTLP at all? (from the Dev Container: the address of the table above)
 curl -i -X POST http://127.0.0.1:4318/v1/logs \
      -H 'Content-Type: application/json' --data '{"resourceLogs":[]}'
 
