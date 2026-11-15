@@ -4,7 +4,7 @@
 
 use std::collections::BTreeSet;
 
-use super::{Input, Inputs, Rule};
+use super::{CATEGORY_IDENTIFIERS, Input, Inputs, Rule};
 use crate::adr::{self, show};
 use crate::bash;
 use crate::finding::Finding;
@@ -25,14 +25,17 @@ pub const RULE: Rule = Rule {
         "status",
         "noapplies",
         "applies",
+        "base",
     ],
     explain: "Every ADR in docs/adr/ is listed once in the index docs/adr/README.md, with the \
               status and the 'Applies to' its file states, and every row links a file that \
               exists. A superseded or rejected row sits below the 'Superseded and rejected' \
               heading, an accepted or proposed one above it. The index routes a reader from a \
               change to the ADRs that bind it, so a row that misstates what its ADR governs, or \
-              stands in the wrong table, misroutes them.",
-    reads: &[Input::Adr],
+              stands in the wrong table, misroutes them. From template release v0.9.0 on, a row \
+              links '<CAT>-<slug>.md' of its own identifier, and the index lists no ADR of the \
+              base.",
+    reads: &[Input::Adr, Input::Release],
     check: |inputs| check(inputs).into(),
 };
 
@@ -58,9 +61,10 @@ fn finding(reason: &'static str, file: &str, line: Option<usize>, message: Strin
     }
 }
 
-/// The file each row of the index links, as the shell resolves them for the rule.
-pub fn targets(index: &[u8]) -> Vec<String> {
-    rows(index).into_iter().map(|row| row.file).collect()
+/// The file each row of the index links, as the shell resolves them for the rule; `named` from
+/// template release v0.9.0 on, whose rows name ADRs by category.
+pub fn targets(index: &[u8], named: bool) -> Vec<String> {
+    rows(index, named).into_iter().map(|row| row.file).collect()
 }
 
 fn check(inputs: &Inputs) -> Vec<Finding> {
@@ -72,8 +76,12 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
             "ADR index not found: docs/adr/README.md".to_owned(),
         )];
     };
-    let rows = rows(index);
-    let mut found: Vec<Finding> = rows.iter().flat_map(row_findings).collect();
+    let named = inputs.carries_at_least(CATEGORY_IDENTIFIERS);
+    let rows = rows(index, named);
+    let mut found: Vec<Finding> = rows
+        .iter()
+        .flat_map(|row| row_findings(row, named))
+        .collect();
     let mut seen = BTreeSet::new();
     for row in &rows {
         if !seen.insert(row.file.as_str()) {
@@ -83,7 +91,17 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
             )));
         }
     }
-    for name in adr::adr_names(&inputs.adr) {
+    // The files of the record, named by category from v0.9.0 on, the base left out: a numbered
+    // file is no ADR of that record, which docs/adr-identifiers reports.
+    let names = if named {
+        adr::category_names(&inputs.adr)
+            .into_iter()
+            .filter(|name| !name.starts_with("NUC-"))
+            .collect::<BTreeSet<_>>()
+    } else {
+        adr::adr_names(&inputs.adr).into_iter().collect()
+    };
+    for name in names {
         if !seen.contains(name) {
             found.push(finding(
                 "unlisted",
@@ -101,7 +119,7 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
 }
 
 /// The rows of the index, as the bash's row pattern finds them in the lines `read` reads.
-fn rows(index: &[u8]) -> Vec<Row> {
+fn rows(index: &[u8], named: bool) -> Vec<Row> {
     let mut archive = false;
     let mut rows = Vec::new();
     for (i, line) in bash::read_lines(index).into_iter().enumerate() {
@@ -109,7 +127,7 @@ fn rows(index: &[u8]) -> Vec<Row> {
             archive = true;
             continue;
         }
-        let Some((key, target)) = row_link(line) else {
+        let Some((key, target)) = row_link(line, named) else {
             continue;
         };
         let cells: Vec<&[u8]> = line.split(|&b| b == b'|').collect();
@@ -139,8 +157,10 @@ fn is_archive_heading(line: &[u8]) -> bool {
     hashes > 0 && spaces > 0 && &words[..end] == b"Superseded and rejected"
 }
 
-/// The key and the link target of a row `| [<key>](<target>)`, the key four digits or a draft.
-fn row_link(line: &[u8]) -> Option<(&[u8], &[u8])> {
+/// The key and the link target of a row `| [<key>](<target>)`: the key four digits or a draft, or
+/// from template release v0.9.0 on, `named`, letters, a hyphen, and more, as
+/// `\[([A-Za-z]+-[^]]+)\]` reads it.
+fn row_link(line: &[u8], named: bool) -> Option<(&[u8], &[u8])> {
     let rest = line.strip_prefix(b"|")?;
     let rest = &rest[rest.iter().take_while(|&&b| bash::is_space(b)).count()..];
     let rest = rest.strip_prefix(b"[")?;
@@ -148,7 +168,13 @@ fn row_link(line: &[u8]) -> Option<(&[u8], &[u8])> {
     let key = &rest[..close];
     let is_number = key.len() == 4 && key.iter().all(u8::is_ascii_digit);
     let is_draft = key.len() > b"draft-".len() && key.starts_with(b"draft-");
-    if !is_number && !is_draft {
+    let letters = key.iter().take_while(|b| b.is_ascii_alphabetic()).count();
+    let is_named = letters > 0 && key.get(letters) == Some(&b'-') && key.len() > letters + 1;
+    if !(if named {
+        is_named
+    } else {
+        is_number || is_draft
+    }) {
         return None;
     }
     let target = rest[close + 1..].strip_prefix(b"(")?;
@@ -156,12 +182,36 @@ fn row_link(line: &[u8]) -> Option<(&[u8], &[u8])> {
     (end > 0).then(|| (key, &target[..end]))
 }
 
-/// What the row itself gets wrong: the file it links, and the table it sits in.
-fn row_findings(row: &Row) -> Vec<Finding> {
+/// What the row itself gets wrong: the file it links, and the table it sits in; from template
+/// release v0.9.0 on, `named`, a row of the base and a link to another file than `<id>.md`.
+fn row_findings(row: &Row, named: bool) -> Vec<Finding> {
     let mut found = Vec::new();
     let line = Some(row.line);
     let key = &row.key;
-    if key.starts_with("draft-") {
+    if named {
+        if key.starts_with("NUC-") {
+            found.push(finding(
+                "base",
+                INDEX,
+                line,
+                format!(
+                    "ADR index: lists {key}, an ADR of the base — the index links the base in one \
+                     line and lists no NUC- ADR (NUC-adrs-are-named-by-category §5)"
+                ),
+            ));
+        }
+        if row.file != format!("{key}.md") {
+            found.push(finding(
+                "link",
+                INDEX,
+                line,
+                format!(
+                    "ADR index: row for {key} links to '{}', not to '{key}.md'",
+                    row.file
+                ),
+            ));
+        }
+    } else if key.starts_with("draft-") {
         if row.file != format!("{key}.md") {
             found.push(finding(
                 "link",
@@ -288,14 +338,17 @@ mod tests {
 
     /// The inputs of an index and the ADR files, each a target too, as the shell resolves them.
     fn dir(index: &str, files: &[(&str, Vec<u8>)]) -> Inputs {
-        let mut inputs = Inputs::default();
+        let mut inputs = Inputs {
+            release: Some(crate::config::Version(0, 8, 1)),
+            ..Inputs::default()
+        };
         for (name, text) in files {
             inputs.adr.insert((*name).to_owned(), text.clone());
         }
         inputs
             .adr
             .insert("README.md".to_owned(), index.as_bytes().to_vec());
-        for target in targets(index.as_bytes()) {
+        for target in targets(index.as_bytes(), false) {
             let text = files
                 .iter()
                 .find(|(n, _)| *n == target)
@@ -458,7 +511,10 @@ mod tests {
         ]
         .concat();
         let file = b"- **Status:** \xf0\x9f\x9f\xa2 accepted\n- **Applies to:** caf\xe8\n".to_vec();
-        let mut inputs = Inputs::default();
+        let mut inputs = Inputs {
+            release: Some(crate::config::Version(0, 8, 1)),
+            ..Inputs::default()
+        };
         inputs.adr.insert("README.md".to_owned(), index);
         inputs.adr.insert("0001-a.md".to_owned(), file.clone());
         inputs
@@ -484,5 +540,18 @@ mod tests {
                 .any(|m| m == "no '**Status:**' line with a status emoji found"),
             "{found:?}"
         );
+    }
+
+    #[test]
+    fn from_v0_9_0_a_numbered_file_is_no_adr_the_index_lists() {
+        let mut inputs = Inputs::default();
+        let head = "| ADR | Title | Applies to | Status |\n|-----|-------|------------|--------|\n";
+        inputs
+            .adr
+            .insert("README.md".to_owned(), head.as_bytes().to_vec());
+        inputs
+            .adr
+            .insert("0001-old.md".to_owned(), b"# old\n".to_vec());
+        assert_eq!(messages(&inputs), Vec::<String>::new());
     }
 }

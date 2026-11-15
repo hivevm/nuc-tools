@@ -472,7 +472,8 @@ fn a_nul_byte_past_grep_s_first_buffer_is_not_decided() {
 fn a_repository_without_a_text_file_is_not_decided() {
     // Nothing tracked, and everything new ignored, nuc.toml and the README included.
     let fixture = Fixture::new("no-text");
-    fixture.write("README.md", "# No text\n");
+    // The rule reads the release, so the README names one, and only the empty list is refused.
+    fixture.write("README.md", "# No text\n\n- **Template release:** v0.5.0\n");
     fixture.write(
         "nuc.toml",
         "minimum = \"0.0.0\"\nrules = [\"docs/adr-refs\"]\n",
@@ -626,6 +627,27 @@ fn a_link_path_that_is_no_utf8_is_not_decided() {
 
 /// A project on the template release given, with only the supersession rule turned on, and ADR
 /// 0001 flipped for 0002, which is only proposed.
+/// A record named by category, its old ADR flipped while its successor is only proposed, which
+/// every release from v0.9.0 on reports. The identifiers are assembled, so that the gate's bash
+/// checks read no reference here.
+fn named_flipped_early(name: &str, release_line: &str) -> Fixture {
+    let config = "minimum = \"0.0.0\"\nrules = [\"docs/adr-supersessions\"]\n";
+    let fixture = Fixture::project(name, config, &format!("# Fixture\n\n{release_line}\n"));
+    let (old, new) = (format!("{}-old-rule", "SEC"), format!("{}-new-rule", "SEC"));
+    fixture.write(
+        &format!("docs/adr/{old}.md"),
+        &format!("# {old}: a\n\n- **Status:** ⚪ superseded by {new}\n- **Applies to:** x\n"),
+    );
+    fixture.write(
+        &format!("docs/adr/{new}.md"),
+        &format!(
+            "# {new}: b\n\n- **Status:** 🟡 proposed\n- **Supersedes:** [{old}]({old}.md)\n\
+             - **Applies to:** x\n"
+        ),
+    );
+    fixture
+}
+
 fn flipped_early(name: &str, release_line: &str) -> Fixture {
     let config = "minimum = \"0.0.0\"\nrules = [\"docs/adr-supersessions\"]\n";
     let fixture = Fixture::project(name, config, &format!("# Fixture\n\n{release_line}\n"));
@@ -656,13 +678,32 @@ fn a_rule_checks_a_tree_as_the_release_it_carries() {
         stdout(&output),
         stderr(&output)
     );
+    // A later release, and 'unreleased', is checked as the newest release nuc knows, whose record
+    // is named by category from v0.9.0 on: a numbered ADR is then no concern of the rule.
     for (name, line) in [
-        ("release-0.6", "- **Template release:** v0.6.0"),
         (
             "release-later",
             "- **Template release:** [v9.0.0](https://example.invalid)",
         ),
         ("release-unreleased", "- **Template release:** unreleased"),
+    ] {
+        let output = flipped_early(name, line).nuc(&["check"]);
+        assert_eq!(code(&output), Some(0), "{line}: {}", stdout(&output));
+        let output = named_flipped_early(&format!("{name}-named"), line).nuc(&["check"]);
+        assert_eq!(code(&output), Some(1), "{line}: {}", stderr(&output));
+        assert!(
+            stdout(&output).contains("[docs/adr-supersessions:unaccepted]"),
+            "{line}: {}",
+            stdout(&output)
+        );
+    }
+    // A record named by category on a release before v0.9.0 is read as numbered: no finding.
+    let output =
+        named_flipped_early("release-0.8-named", "- **Template release:** v0.8.1").nuc(&["check"]);
+    assert_eq!(code(&output), Some(0), "{}", stdout(&output));
+    for (name, line) in [
+        ("release-0.6", "- **Template release:** v0.6.0"),
+        ("release-0.8", "- **Template release:** v0.8.1"),
     ] {
         let output = flipped_early(name, line).nuc(&["check"]);
         assert_eq!(code(&output), Some(1), "{line}: {}", stderr(&output));

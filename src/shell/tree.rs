@@ -205,13 +205,14 @@ impl Tree {
     pub(super) fn read_adr_targets(
         &self,
         adr: &adr::Dir,
+        named: bool,
     ) -> Result<BTreeMap<String, Option<Vec<u8>>>, String> {
         let Some(index) = adr.get("README.md") else {
             return Ok(BTreeMap::new());
         };
         let base = self.root.join("docs/adr");
         let mut targets = BTreeMap::new();
-        for target in rules::docs_adr_index::targets(index) {
+        for target in rules::docs_adr_index::targets(index, named) {
             let path = base.join(&target);
             let resolved = self.resolve(&path, || {
                 format!(
@@ -316,14 +317,19 @@ impl Tree {
         &self,
         text_files: &BTreeMap<String, Vec<u8>>,
         adr: &adr::Dir,
+        named: bool,
     ) -> Result<BTreeMap<String, rules::docs_links::Resolved>, String> {
-        let inactive = adr::inactive_paths(adr);
+        let inactive = if named {
+            adr::named_inactive_paths(adr)
+        } else {
+            adr::inactive_paths(adr)
+        };
         let read = text_files
             .iter()
             .filter(|(file, _)| file.ends_with(".md") && !inactive.contains(file.as_str()));
         let mut resolved: BTreeMap<String, rules::docs_links::Resolved> = BTreeMap::new();
         for (file, text) in read {
-            for target in markdown::relative_targets(file, text) {
+            for target in markdown::relative_targets(file, text, markdown::placeholder(named)) {
                 let Some(path) = target.path else { continue };
                 let named = target.target.split(|&b| b == b'#').next().unwrap_or(&[]);
                 if std::str::from_utf8(named).is_err() {

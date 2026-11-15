@@ -15,6 +15,7 @@ docs/adr-identifiers:taken
 docs/adr-index:above
 docs/adr-index:absent
 docs/adr-index:applies
+docs/adr-index:base
 docs/adr-index:below
 docs/adr-index:link
 docs/adr-index:missing
@@ -28,6 +29,9 @@ docs/adr-numbering:form
 docs/adr-numbering:gap
 docs/adr-numbering:heading
 docs/adr-refs:unmatched
+docs/adr-supersessions:base
+docs/adr-supersessions:clause
+docs/adr-supersessions:field
 docs/adr-supersessions:unaccepted
 docs/adr-supersessions:unclaimed
 docs/adr-supersessions:unflipped

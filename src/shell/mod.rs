@@ -163,12 +163,12 @@ fn check(repo: Option<&Path>, format: Format) -> Result<u8, String> {
         read_record(&tree, carried.as_ref(), &mut inputs)?;
     }
     if needs(Input::TextFiles) {
-        let text = tree.read_text_files()?;
-        inputs.text_files = text.files;
-        unspelled = text.unspelled;
-    }
-    if needs(Input::LinkTargets) {
-        inputs.link_targets = tree.read_link_targets(&inputs.text_files, &inputs.adr)?;
+        unspelled = read_text(
+            &tree,
+            &mut inputs,
+            needs(Input::LinkTargets),
+            carried.as_ref(),
+        )?;
     }
     if needs(Input::Agents) {
         let agents = tree.root.join("AGENTS.md");
@@ -391,19 +391,41 @@ fn carried_release(
     }
 }
 
-/// The files of the record and the targets of its index; from template release v0.9.0 on, and for
-/// `unreleased` or none, the record is named by category.
+/// Every text file, and the targets of their relative links where `links` asks for them; the paths
+/// that are no UTF-8, which no finding can name as the bash does.
+fn read_text(
+    tree: &Tree,
+    inputs: &mut Inputs,
+    links: bool,
+    carried: Option<&rules::Carried>,
+) -> Result<std::collections::BTreeSet<String>, String> {
+    let text = tree.read_text_files()?;
+    inputs.text_files = text.files;
+    if links {
+        inputs.link_targets =
+            tree.read_link_targets(&inputs.text_files, &inputs.adr, named_record(carried))?;
+    }
+    Ok(text.unspelled)
+}
+
+/// Whether the record is named by category: from template release v0.9.0 on, and for
+/// `unreleased` or none.
+fn named_record(carried: Option<&rules::Carried>) -> bool {
+    match carried {
+        Some(rules::Carried::Release(release)) => *release >= rules::CATEGORY_IDENTIFIERS,
+        _ => true,
+    }
+}
+
+/// The files of the record and the targets of its index, named as `named_record` says.
 fn read_record(
     tree: &Tree,
     carried: Option<&rules::Carried>,
     inputs: &mut Inputs,
 ) -> Result<(), String> {
-    let named = match carried {
-        Some(rules::Carried::Release(release)) => *release >= rules::CATEGORY_IDENTIFIERS,
-        _ => true,
-    };
+    let named = named_record(carried);
     inputs.adr = tree.read_adr(&tree.root.join("docs/adr"), named)?;
-    inputs.adr_targets = tree.read_adr_targets(&inputs.adr)?;
+    inputs.adr_targets = tree.read_adr_targets(&inputs.adr, named)?;
     Ok(())
 }
 
