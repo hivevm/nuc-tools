@@ -293,6 +293,33 @@ mod tests {
     }
 
     #[test]
+    fn from_v0_9_0_a_skill_without_front_matter_fails_and_a_stray_cites_the_named_adr() {
+        let inputs = Inputs {
+            skills: Skills {
+                skills: vec![("a".to_owned(), Pointer::Symlink)],
+                pointers: vec![("d".to_owned(), Entry::NotSymlink { skill: false })],
+                texts: [("a".to_owned(), b"# A\n".to_vec())].into(),
+            },
+            ..Inputs::default()
+        };
+        let found: Vec<String> = check(&inputs)
+            .into_iter()
+            .map(|f| format!("{} {}: {}", f.reason, f.file, f.message))
+            .collect();
+        assert_eq!(
+            found,
+            [
+                "frontmatter .agents/skills/a/SKILL.md: no front matter an agent reads — '---' \
+                 first, a 'name: a' and a 'description:' line, unindented lines only keys, then \
+                 '---' (NUC-procedures-are-skills §7)",
+                "stray .claude/skills/d: is not a symlink into .agents/skills/ — a skill lives \
+                 there, where every agent reads it, and is pointed at from here \
+                 (NUC-procedures-are-skills §6)",
+            ]
+        );
+    }
+
+    #[test]
     fn the_front_matter_is_read_as_the_awk_of_v0_9_1_reads_it() {
         let ok = "---\nname: review\n# a comment\n- an item\n  indented: x\n\ndescription: d\n---\n# R\n";
         assert!(front_matter(ok.as_bytes(), "review"));

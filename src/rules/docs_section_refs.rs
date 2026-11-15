@@ -25,7 +25,9 @@ pub const RULE: Rule = Rule {
               headings run 1..N in order: the section sign and a number in Markdown, YAML, \
               shell scripts, and the git hooks, and 'AGENTS.md, section N' in every text file \
               but Markdown. In Markdown a section is cited as a link to its anchor, so that a \
-              renumbering breaks the link instead of leaving the number pointing elsewhere.",
+              renumbering breaks the link instead of leaving the number pointing elsewhere. From \
+              template release v0.9.0 on, a clause citation of an ADR, its identifier and the \
+              section signs after it, is no section reference.",
     reads: &[Input::Adr, Input::TextFiles, Input::Agents, Input::Release],
     check: |inputs| check(inputs).into(),
 };
@@ -491,5 +493,45 @@ mod tests {
     #[test]
     fn a_code_span_hides_a_sign_and_an_unpaired_backquote_stays() {
         assert_eq!(without_code_spans(b"a `\xc2\xa71` b `c"), b"a  b `c");
+    }
+
+    #[test]
+    fn a_clause_citation_and_a_named_inactive_adr_are_read_from_v0_9_0_on_only() {
+        let cited = format!("see {} \u{a7}9\n", crate::testing::cat_id("SEC", "x-rule"));
+        let old = format!("docs/adr/{}.md", crate::testing::cat_id("SEC", "old-rule"));
+        let superseded = "# Old\n\n- **Status:** \u{26aa} superseded\n\n\u{a7}9 here\n";
+        let at = |release| {
+            let mut inputs = Inputs {
+                agents: Some(AGENTS.as_bytes().to_vec()),
+                release,
+                ..Inputs::default()
+            };
+            inputs.adr.insert(
+                old.trim_start_matches("docs/adr/").to_owned(),
+                superseded.as_bytes().to_vec(),
+            );
+            for (path, text) in [
+                ("scripts/a.sh", cited.as_str()),
+                ("notes.md", cited.as_str()),
+                (old.as_str(), superseded),
+            ] {
+                inputs
+                    .text_files
+                    .insert(path.to_owned(), text.as_bytes().to_vec());
+            }
+            check(&inputs)
+                .into_iter()
+                .map(|f| (f.reason, f.file))
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            at(Some(crate::config::Version(0, 8, 1))),
+            [
+                ("unmatched", old.clone()),
+                ("unmatched", "notes.md".to_owned()),
+                ("unmatched", "scripts/a.sh".to_owned()),
+            ]
+        );
+        assert_eq!(at(None), []);
     }
 }
