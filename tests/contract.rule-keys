@@ -76,6 +76,7 @@ docs/section-refs:unmatched
 docs/section-refs:unnumbered
 docs/skill-pointers:copy
 docs/skill-pointers:dangles
+docs/skill-pointers:frontmatter
 docs/skill-pointers:missing
 docs/skill-pointers:stray
 docs/skill-pointers:target

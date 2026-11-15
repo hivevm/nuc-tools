@@ -26,7 +26,7 @@ pub const RULE: Rule = Rule {
               shell scripts, and the git hooks, and 'AGENTS.md, section N' in every text file \
               but Markdown. In Markdown a section is cited as a link to its anchor, so that a \
               renumbering breaks the link instead of leaving the number pointing elsewhere.",
-    reads: &[Input::Adr, Input::TextFiles, Input::Agents],
+    reads: &[Input::Adr, Input::TextFiles, Input::Agents, Input::Release],
     check: |inputs| check(inputs).into(),
 };
 
@@ -102,7 +102,22 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
         )));
     }
     let slugs = section_slugs(agents, &valid);
-    let inactive = adr::inactive_paths(&inputs.adr);
+    // From template release v0.9.0 on, a clause citation of an ADR is no section reference, and
+    // the record is named by category.
+    let named = inputs.carries_at_least(super::CATEGORY_IDENTIFIERS);
+    let categories = adr::categories(inputs.adr.get("README.md").map(Vec::as_slice));
+    let clauses = |line: Vec<u8>| {
+        if named {
+            adr::clauses_out(&line, &categories)
+        } else {
+            line
+        }
+    };
+    let inactive = if named {
+        adr::named_inactive_paths(&inputs.adr)
+    } else {
+        adr::inactive_paths(&inputs.adr)
+    };
     for (file, text) in &inputs.text_files {
         if inactive.contains(file.as_str()) {
             continue;
@@ -111,9 +126,9 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
             found.extend(word_form(file, text, &valid));
         }
         if file.ends_with(".md") {
-            found.extend(markdown_refs(file, text, &valid, &slugs));
+            found.extend(markdown_refs(file, text, &valid, &slugs, &clauses));
         } else if is_doc_file(file) {
-            found.extend(sign_refs(file, text, &valid));
+            found.extend(sign_refs(file, text, &valid, &clauses));
         }
     }
     found
@@ -183,11 +198,20 @@ fn signs(line: &[u8]) -> Vec<String> {
     found
 }
 
-/// Each `§N` of a YAML file, shell script, or hook whose N names no section.
-fn sign_refs(file: &str, text: &[u8], valid: &[String]) -> Vec<Finding> {
+/// Each `§N` of a YAML file, shell script, or hook whose N names no section, its clause citations
+/// taken out as `clauses` takes them.
+fn sign_refs(
+    file: &str,
+    text: &[u8],
+    valid: &[String],
+    clauses: &dyn Fn(Vec<u8>) -> Vec<u8>,
+) -> Vec<Finding> {
     let mut found = Vec::new();
     for (i, line) in bash::awk_lines(text).into_iter().enumerate() {
-        for n in signs(line) {
+        if !bash::contains(line, SECTION.as_bytes()) {
+            continue;
+        }
+        for n in signs(&clauses(line.to_vec())) {
             if !valid.contains(&n) {
                 found.push(finding(
                     "unmatched",
@@ -223,6 +247,7 @@ fn markdown_refs(
     text: &[u8],
     valid: &[String],
     slugs: &[(String, String)],
+    clauses: &dyn Fn(Vec<u8>) -> Vec<u8>,
 ) -> Vec<Finding> {
     let slug_of = |n: &str| slug_of(slugs, n).to_owned();
     let mut found = Vec::new();
@@ -230,7 +255,7 @@ fn markdown_refs(
         if !read || !bash::contains(raw, SECTION.as_bytes()) {
             continue;
         }
-        let line = without_code_spans(raw);
+        let line = clauses(without_code_spans(raw));
         let mut links = Vec::new();
         let mut clean = Vec::new();
         let mut rest = line.as_slice();

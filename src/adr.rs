@@ -671,6 +671,75 @@ pub fn clauses(field: &[u8]) -> Vec<(String, String)> {
     found
 }
 
+/// The length of `(<REF>) §[0-9]+((, |,? and |–)§[0-9]+)*` at the start of the text, the longest
+/// a slug of two to five words allows, as `clauses_out` matches it.
+fn clause_citation_length(text: &[u8], categories: &[String]) -> Option<usize> {
+    let sign = "§".as_bytes();
+    let number = |at: usize| -> Option<usize> {
+        let rest = text.get(at..)?.strip_prefix(sign)?;
+        let digits = rest.iter().take_while(|b| b.is_ascii_digit()).count();
+        (digits > 0).then_some(at + sign.len() + digits)
+    };
+    let mut best = None;
+    for category in categories {
+        let Some(slug) = text
+            .strip_prefix(category.as_bytes())
+            .and_then(|r| r.strip_prefix(b"-"))
+        else {
+            continue;
+        };
+        let mut at = 0;
+        for words in 1..=5 {
+            let len = slug[at..]
+                .iter()
+                .take_while(|b| b.is_ascii_lowercase() || b.is_ascii_digit())
+                .count();
+            if len == 0 {
+                break;
+            }
+            at += len;
+            let end = category.len() + 1 + at;
+            if words >= 2
+                && text.get(end) == Some(&b' ')
+                && let Some(mut stop) = number(end + 1)
+            {
+                loop {
+                    let next = [&b", "[..], b", and ", b" and ", "–".as_bytes()]
+                        .iter()
+                        .filter(|sep| text[stop..].starts_with(sep))
+                        .filter_map(|sep| number(stop + sep.len()))
+                        .max();
+                    match next {
+                        Some(n) => stop = n,
+                        None => break,
+                    }
+                }
+                best = best.max(Some(stop));
+            }
+            if slug.get(at) != Some(&b'-') {
+                break;
+            }
+            at += 1;
+        }
+    }
+    best
+}
+
+/// The line with each clause citation of an ADR, as `<CAT>-<slug> §4, §5` or `§2–§5`, taken out,
+/// as `clauses_out` takes them out from template release v0.9.0 on.
+pub fn clauses_out(line: &[u8], categories: &[String]) -> Vec<u8> {
+    let mut out = line.to_vec();
+    'again: loop {
+        for i in 0..out.len() {
+            if let Some(len) = clause_citation_length(&out[i..], categories) {
+                out.drain(i..i + len);
+                continue 'again;
+            }
+        }
+        return out;
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -829,5 +898,22 @@ mod tests {
             ]
         );
         assert!(clauses(format!("{} \u{a7}1", id("SEC", "x-y")).as_bytes()).is_empty());
+    }
+
+    #[test]
+    fn clause_citations_go_and_a_section_sign_alone_stays() {
+        let cats = ["NUC".to_owned(), "SEC".to_owned()];
+        let id = crate::testing::cat_id;
+        let line = format!(
+            "see {} §4, §5 and §6, {} §2–§3, and AGENTS.md §9",
+            id("NUC", "base-rule"),
+            id("SEC", "a-rule")
+        );
+        assert_eq!(
+            show(&clauses_out(line.as_bytes(), &cats)),
+            "see , , and AGENTS.md §9"
+        );
+        let unknown = format!("{} §4", id("UX", "dark-mode"));
+        assert_eq!(show(&clauses_out(unknown.as_bytes(), &cats)), unknown);
     }
 }

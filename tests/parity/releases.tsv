@@ -24,12 +24,12 @@ docs/adr-header	scripts/check-docs.sh	check_adr_headers	v0.9.0
 docs/adr-supersessions	scripts/check-docs.sh	check_adr_supersessions	v0.6.0,v0.8.1,v0.9.0	v0.8.1	v0.8.0 moved its patterns and the ADR key into scripts/lib/adr.sh with the same expressions, so v0.8.1 checks as v0.7.0, which the parity corpus shows on the tree of v0.8.1
 docs/base-blobs	scripts/check-docs.sh	check_base_blobs	v0.9.0
 docs/links	scripts/check-docs.sh	check_relative_links	v0.9.0
-docs/section-refs	scripts/check-docs.sh	check_section_refs	-
+docs/section-refs	scripts/check-docs.sh	check_section_refs	v0.9.0
 docs/adr-refs	scripts/check-docs.sh	check_adr_refs	v0.9.0
 docs/adr-link-targets	scripts/check-docs.sh	check_adr_link_targets	v0.8.1,v0.9.0	v0.8.1	v0.8.0 moved its patterns and the ADR key into scripts/lib/adr.sh with the same expressions, so every release checks alike, which the parity corpus shows on the tree of v0.8.1
 docs/check-lists	scripts/check-docs.sh	check_check_lists	v0.6.0,v0.7.0
 docs/project-layout	scripts/check-docs.sh	check_project_layout	v0.7.0
-docs/skill-pointers	scripts/check-docs.sh	check_skill_pointers	-
+docs/skill-pointers	scripts/check-docs.sh	check_skill_pointers	v0.9.0
 docs/inherited-adrs	scripts/check-docs.sh	check_inherited_adrs	v0.8.1,v0.9.0	v0.8.1	v0.8.0 moved its patterns and the ADR key into scripts/lib/adr.sh with the same expressions, so every release checks alike, which the parity corpus shows on the tree of v0.8.1; from v0.9.0 on the record has no such check
 docs/template-identity	scripts/check-docs.sh	check_template_identity	v0.6.1,v0.9.0
 docs/prose-width	scripts/check-docs.sh	check_prose_width	v0.8.1	-	v0.8.0 moved its patterns and the ADR key into scripts/lib/adr.sh with the same expressions, so every release checks alike, which the parity corpus shows on the tree of v0.8.1

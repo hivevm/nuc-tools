@@ -715,7 +715,10 @@ impl Tree {
 
     /// What check 11 tests: each skill and what stands at its pointer, and each entry of the
     /// pointer directory, resolved as `cd -P` resolves it.
-    pub(super) fn read_skills(&self) -> Result<rules::docs_skill_pointers::Skills, String> {
+    pub(super) fn read_skills(
+        &self,
+        named: bool,
+    ) -> Result<rules::docs_skill_pointers::Skills, String> {
         let skills = self.root.join(".agents/skills");
         let pointers = self.root.join(".claude/skills");
         let has_skill = |name: &str| skills.join(name).join("SKILL.md").is_file();
@@ -729,6 +732,10 @@ impl Tree {
                 Ok(_) => rules::docs_skill_pointers::Pointer::Other,
                 Err(_) => rules::docs_skill_pointers::Pointer::Missing,
             };
+            // From template release v0.9.0 on, the front matter of each skill is read.
+            if named && let Some(text) = self.read_bytes(&skills.join(&name).join("SKILL.md"))? {
+                found.texts.insert(name.clone(), text);
+            }
             found.skills.push((name, pointer));
         }
         for name in self.list(&pointers)? {

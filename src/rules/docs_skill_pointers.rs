@@ -9,14 +9,23 @@ pub const RULE_ID: &str = "docs/skill-pointers";
 
 pub const RULE: Rule = Rule {
     id: RULE_ID,
-    reasons: &["copy", "missing", "stray", "dangles", "target"],
+    reasons: &[
+        "copy",
+        "missing",
+        "stray",
+        "dangles",
+        "target",
+        "frontmatter",
+    ],
     explain: "Every skill under .agents/skills/, a directory with a SKILL.md, has a symlink of \
               the same name under .claude/skills/ that resolves to it, and every entry there is \
               such a symlink. Claude Code reads only the pointer directory, so a skill without \
               its pointer is invisible to it; a copy instead of a symlink is a second source \
               that drifts, and a skill that lives only in the pointer directory is one no other \
-              agent finds. Each message names the command that fixes it.",
-    reads: &[Input::Skills],
+              agent finds. Each message names the command that fixes it. From template release \
+              v0.9.0 on, each SKILL.md opens with a front matter an agent reads: '---', a 'name' \
+              that is its directory, a 'description', unindented lines only keys, then '---'.",
+    reads: &[Input::Skills, Input::Release],
     check: |inputs| check(inputs).into(),
 };
 
@@ -28,6 +37,78 @@ pub struct Skills {
     pub skills: Vec<(String, Pointer)>,
     /// Each entry of `.claude/skills/`, sorted by name.
     pub pointers: Vec<(String, Entry)>,
+    /// The bytes of each skill's `SKILL.md`, by name, read from template release v0.9.0 on.
+    pub texts: std::collections::BTreeMap<String, Vec<u8>>,
+}
+
+/// Whether `SKILL.md` opens with a front matter an agent reads, as the awk of v0.9.1 reads it: a
+/// first line `---`; then, up to a closing `---`, lines that are indented, comments, list items,
+/// or blank, and keys `<key>:`, among them `name:` naming the directory, quotes and trailing space
+/// aside, and `description:`.
+pub fn front_matter(text: &[u8], name: &str) -> bool {
+    let fence = |line: &[u8]| {
+        line.strip_prefix(b"---")
+            .is_some_and(|rest| rest.iter().all(|&b| b == b' ' || b == b'\t'))
+    };
+    let lines = crate::bash::awk_lines(text);
+    let Some((first, rest)) = lines.split_first() else {
+        return false;
+    };
+    if !fence(first) {
+        return false;
+    }
+    let (mut named, mut described) = (false, false);
+    for line in rest {
+        if fence(line) {
+            return named && described;
+        }
+        let skipped = match line.first() {
+            None | Some(b' ' | b'\t' | b'#') => true,
+            Some(b'-') => matches!(line.get(1), None | Some(b' ' | b'\t')),
+            _ => false,
+        };
+        if skipped {
+            continue;
+        }
+        let key = line
+            .iter()
+            .take_while(|b| b.is_ascii_alphanumeric() || **b == b'_' || **b == b'-')
+            .count();
+        let is_key = key > 0
+            && line.get(key) == Some(&b':')
+            && matches!(line.get(key + 1), None | Some(b' ' | b'\t'));
+        if !is_key {
+            return false;
+        }
+        if let Some(value) = line.strip_prefix(b"name:") {
+            let value = &value[value
+                .iter()
+                .take_while(|&&b| b == b' ' || b == b'\t')
+                .count()..];
+            let value = value
+                .strip_prefix(b"\"")
+                .or_else(|| value.strip_prefix(b"'"))
+                .unwrap_or(value);
+            let end = value.len()
+                - value
+                    .iter()
+                    .rev()
+                    .take_while(|&&b| b == b' ' || b == b'\t')
+                    .count();
+            let mut value = &value[..end];
+            if let Some(v) = value
+                .strip_suffix(b"\"")
+                .or_else(|| value.strip_suffix(b"'"))
+            {
+                value = v;
+            }
+            named = value == name.as_bytes();
+        }
+        if line.starts_with(b"description:") {
+            described = true;
+        }
+    }
+    false
 }
 
 /// What stands at a skill's pointer.
@@ -61,8 +142,23 @@ fn finding(reason: &'static str, name: &str, message: String) -> Finding {
 }
 
 fn check(inputs: &Inputs) -> Vec<Finding> {
+    let named = inputs.carries_at_least(super::CATEGORY_IDENTIFIERS);
     let mut found = Vec::new();
     for (name, pointer) in &inputs.skills.skills {
+        let text = inputs.skills.texts.get(name).map_or(&[][..], Vec::as_slice);
+        if named && !front_matter(text, name) {
+            found.push(Finding {
+                rule: RULE_ID,
+                reason: "frontmatter",
+                file: format!(".agents/skills/{name}/SKILL.md"),
+                line: None,
+                message: format!(
+                    "no front matter an agent reads — '---' first, a 'name: {name}' and a \
+                     'description:' line, unindented lines only keys, then '---' \
+                     (NUC-procedures-are-skills §7)"
+                ),
+            });
+        }
         let (reason, message) = match pointer {
             Pointer::Symlink => continue,
             Pointer::Other => (
@@ -83,13 +179,28 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
     for (name, entry) in &inputs.skills.pointers {
         let (reason, message) = match entry {
             Entry::NotSymlink { skill: true } | Entry::Points { at_skill: true, .. } => continue,
-            Entry::NotSymlink { skill: false } => ("stray", "is not a symlink into .agents/skills/ — a skill lives there, where every agent reads it, and is pointed at from here (ADR-0003)".to_owned()),
-            Entry::Dangles => ("dangles", format!(
-                "dangles — its target does not exist; point it at .agents/skills/{name} or delete it"
-            )),
-            Entry::Points { target, .. } => {
-                ("target", format!("points at '{target}', not at the skill .agents/skills/{name}"))
-            }
+            Entry::NotSymlink { skill: false } => (
+                "stray",
+                format!(
+                    "is not a symlink into .agents/skills/ — a skill lives there, where every agent \
+                     reads it, and is pointed at from here {}",
+                    if named {
+                        "(NUC-procedures-are-skills §6)"
+                    } else {
+                        "(ADR-0003)"
+                    }
+                ),
+            ),
+            Entry::Dangles => (
+                "dangles",
+                format!(
+                    "dangles — its target does not exist; point it at .agents/skills/{name} or delete it"
+                ),
+            ),
+            Entry::Points { target, .. } => (
+                "target",
+                format!("points at '{target}', not at the skill .agents/skills/{name}"),
+            ),
         };
         found.push(finding(reason, name, message));
     }
@@ -128,7 +239,9 @@ mod tests {
                         },
                     ),
                 ],
+                ..Skills::default()
             },
+            release: Some(crate::config::Version(0, 8, 1)),
             ..Inputs::default()
         };
         let found: Vec<String> = check(&inputs)
@@ -159,7 +272,9 @@ mod tests {
             skills: Skills {
                 skills: Vec::new(),
                 pointers: vec![("review".to_owned(), Entry::NotSymlink { skill: false })],
+                ..Skills::default()
             },
+            release: Some(crate::config::Version(0, 8, 1)),
             ..Inputs::default()
         };
         let found: Vec<String> = check(&inputs).into_iter().map(|f| f.file).collect();
@@ -175,5 +290,38 @@ mod tests {
     #[test]
     fn a_tree_without_skills_or_pointers_passes() {
         assert_eq!(check(&Inputs::default()), []);
+    }
+
+    #[test]
+    fn the_front_matter_is_read_as_the_awk_of_v0_9_1_reads_it() {
+        let ok = "---\nname: review\n# a comment\n- an item\n  indented: x\n\ndescription: d\n---\n# R\n";
+        assert!(front_matter(ok.as_bytes(), "review"));
+        assert!(front_matter(
+            b"---  \nname: 'review'  \ndescription:\n--- \n",
+            "review"
+        ));
+        assert!(front_matter(
+            b"---\nname: \"review\"\ndescription: d\n---\n",
+            "review"
+        ));
+        for (text, why) in [
+            (
+                "# R\n---\nname: review\ndescription: d\n---\n",
+                "no opening fence",
+            ),
+            ("---\nname: review\ndescription: d\n", "never closed"),
+            ("---\nname: other\ndescription: d\n---\n", "another name"),
+            ("---\nname: review\n---\n", "no description"),
+            (
+                "---\nname: review\nwrapped words\ndescription: d\n---\n",
+                "a line that is no key",
+            ),
+            (
+                "---\nname: review\nmetadata:\n  description: d\n---\n",
+                "a nested description",
+            ),
+        ] {
+            assert!(!front_matter(text.as_bytes(), "review"), "{why}");
+        }
     }
 }

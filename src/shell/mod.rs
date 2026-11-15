@@ -182,7 +182,7 @@ fn check(repo: Option<&Path>, format: Format) -> Result<u8, String> {
         inputs.check_lists = tree.read_check_lists()?;
     }
     if needs(Input::Skills) {
-        inputs.skills = tree.read_skills()?;
+        inputs.skills = tree.read_skills(named_record(carried.as_ref()))?;
     }
     if needs(Input::SetupFile) {
         inputs.setup_file = tree.root.join("TEMPLATE-SETUP.md").is_file();
