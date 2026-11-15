@@ -1,4 +1,6 @@
-//! `nuc hook` and the reference shims, through git. Verifies: API-command-line-with-hook-signal API-hook-contract API-version-coupling-hook-defaults G-2 G-3 G-5 Q-1 Q-4 Q-7 Q-8 Q-9 Q-10 Q-11
+//! `nuc hook` and the reference shims, through git.
+//! Verifies: API-command-line-with-hook-signal API-hook-contract API-version-coupling-hook-defaults
+//! Verifies: G-2 G-3 G-5 Q-1 Q-4 Q-7 Q-8 Q-9 Q-10 Q-11
 //!
 //! Each case builds a fixture repository whose hooks path is the repository's `shims/`, puts a
 //! `nuc` on the `PATH` of the git command, the one cargo built or a stand-in that answers as told,

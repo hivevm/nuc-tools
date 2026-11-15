@@ -1,0 +1,65 @@
+# Cases of scripts/check-comment-width.sh, read by scripts/test-check-comment-width.sh.
+#
+# One case per line, four fields separated by ' | ':
+#
+#   <pass or fail> | <what the output holds, or -> | <name> | <tree>
+#
+# A run exits 0 for pass and 1 for fail. The second field is '<key>', then ' @ <subject>' for each
+# datum the line names, such as the file and line or a count. A line of the output ends in
+# '[<key>]', the rule and a reason word, and holds each subject, in that order and with no ASCII
+# letter, digit, hyphen, or underscore beside it; the rest of its wording is free. A line that
+# starts with '#' is a comment, not a case. A field may start with '!': it then holds where no line
+# that ends in '[<key>]' holds the subjects in their order.
+#
+# The tree is a list of steps separated by '; ', or '-' for none, applied in order to a git
+# repository that passes the check, of four files:
+#
+#   README.md                 '- **Template release:** v0.11.0'
+#   scripts/tpl.sh            a file of the template: a shebang, a comment of 120 columns at
+#                             line 2, and 'echo tpl'
+#   scripts/template.blobs    '# Template release v0.11.0', then '<blob> scripts/tpl.sh', the
+#                             blob of scripts/tpl.sh as written
+#   src/own.rs                a file of the project: '// A short comment.' and 'fn main() {}'
+#
+# The steps:
+#
+#   rm <path>                       the file removed
+#   comment <path> <marker> <n> [i] a comment line of exactly n columns appended to the file:
+#                                   i spaces (0 when not given), the marker, a space, and words
+#   word <path> <marker> <n>        a comment line of n columns whose text is one word
+#   dash <path> <marker> <n>        a comment line of n columns whose text holds em dashes
+#   code <path> <n>                 a code line of exactly n columns, with spaces
+#   write <path> <text>             the file written with exactly the text, each '\n' a line break
+#   blobs <path>...                 scripts/template.blobs written again, release kept, with the
+#                                   blob of each path as it stands
+#   release <version>               the README's Template release line names the version
+
+pass | width/check:passed @ 1 @ 1 | a project file with short comments, a template file left out | -
+fail | width/comment:wide @ src/own.rs:3 @ 101 | a Rust comment of 101 columns | comment src/own.rs // 101
+pass | width/check:passed @ 1 @ 1 | a Rust comment of 100 columns | comment src/own.rs // 100
+fail | width/comment:wide @ src/own.rs:3 @ 101 | a Rust doc comment of 101 columns | comment src/own.rs /// 101
+fail | width/comment:wide @ src/own.rs:3 @ 101 | an inner doc comment of 101 columns, indented | comment src/own.rs //! 101 4
+fail | width/comment:wide @ scripts/own.sh:1 @ 101 | a shell comment of 101 columns | comment scripts/own.sh # 101
+fail | width/comment:wide @ .github/workflows/ci.yml:1 @ 101 | a workflow comment of 101 columns, indented | comment .github/workflows/ci.yml # 101 6
+fail | width/comment:wide @ stack/compose.yaml:1 @ 101 | a YAML comment of 101 columns | comment stack/compose.yaml # 101
+pass | width/check:passed @ 1 @ 1 | a code line of 101 columns | code src/own.rs 101
+pass | width/check:passed @ 1 @ 1 | a comment that cannot break, one word | word src/own.rs // 140
+pass | width/check:passed @ 1 @ 1 | characters are counted, not bytes | dash src/own.rs // 100
+fail | width/comment:wide @ src/own.rs:3 @ 101 | an em dash counts one column | dash src/own.rs // 101
+pass | width/check:passed @ 0 @ 1 | a longer comment in a template file the list names as it stands | rm src/own.rs; comment scripts/tpl.sh # 130; blobs scripts/tpl.sh
+fail | width/comment:wide @ scripts/tpl.sh:2 @ 120 | a template file the project changed is held | comment scripts/tpl.sh # 20
+fail | width/comment:wide @ scripts/tpl.sh:2 @ 120 | without the list, every file is held | rm scripts/template.blobs
+fail | width/blobs:release @ v0.11.0 @ v0.12.0 | a list of another release than the README names | release v0.12.0
+pass | width/check:passed @ 1 @ 1 | a file git ignores is not read | write .gitignore target/\n; comment target/gen.rs // 140
+pass | width/check:passed @ 2 @ 1 | a shebang is no comment | write scripts/run.sh #!/usr/bin/env -S bash -euo pipefail -c 'exec "$0" "$@"' --some-long-option-a --some-long-option-b\necho run\n
+pass | width/check:passed @ 1 @ 1 | a Markdown file is not read | comment docs/notes.md # 140
+# Each finding of one file is reported, not only the first.
+fail | width/comment:wide @ src/own.rs:4 @ 102 | a second finding after a first | comment src/own.rs // 101; comment src/own.rs // 102
+pass | width/check:passed @ 2 @ 1 | the Inputs line of a self-test, which scripts/check-all.sh reads as one line | write scripts/test-own.sh # Inputs: scripts/a-long-name-one.sh scripts/a-long-name-two.sh scripts/a-long-name-three.sh scripts/lib/\n
+fail | width/comment:wide @ scripts/ä.sh:1 @ 101 | a file with a name beyond ASCII is read | comment scripts/ä.sh # 101
+pass | width/check:passed @ 1 @ 1 | the README names the release as a link | write README.md - **Template release:** [v0.11.0](https://example.org/releases/v0.11.0)\n
+fail | width/blobs:release @ v0.11.0 @ none | a README that names no release | write README.md # A project\n
+fail | width/blobs:header @ scripts/template.blobs | a list without its release line first | write scripts/template.blobs # some words\n
+pass | width/check:passed @ 1 @ 1 | an indented link in a doc comment cannot break | write src/own.rs //!     <https://example.org/a/very/long/path/that/does/not/break/anywhere/at/all/because/it/is/one/link/only>\nfn main() {}\n
+pass | width/check:passed @ 1 @ 1 | a README that mentions the release in prose before its label | write README.md See the Template release line below.\n- **Template release:** v0.11.0\n
+fail | width/comment:wide @ scripts/own.sh:1 @ 109 | an indented Inputs line is no Inputs line of a self-test | write scripts/own.sh   # Inputs: aaaaaaa aaaaaaa aaaaaaa aaaaaaa aaaaaaa aaaaaaa aaaaaaa aaaaaaa aaaaaaa aaaaaaa aaaaaaa aaaaaaa a\n

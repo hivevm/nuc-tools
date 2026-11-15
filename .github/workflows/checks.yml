@@ -74,6 +74,10 @@ jobs:
         run: bash scripts/test-check-docs.sh
       - name: Check documentation consistency
         run: bash scripts/check-docs.sh
+      - name: Self-test the comment width check
+        run: bash scripts/test-check-comment-width.sh
+      - name: Check that every comment line of the project's own code is at most 100 columns
+        run: bash scripts/check-comment-width.sh
       - name: Self-test the map script of the normalize skill
         run: bash scripts/test-normalize-remap.sh
       - name: Self-test the readiness script of the pull request into main

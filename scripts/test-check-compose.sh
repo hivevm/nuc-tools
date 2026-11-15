@@ -10,8 +10,7 @@
 # that can land on every interface of the host fails. The table is read twice, the second time
 # against a copy of the check that rewords its messages.
 #
-# Inputs: scripts/check-compose.sh scripts/lib/ scripts/fixtures/check-compose.txt
-#         .devcontainer/compose.yaml
+# Inputs: scripts/check-compose.sh scripts/lib/ scripts/fixtures/check-compose.txt .devcontainer/compose.yaml
 #
 # Usage:
 #     scripts/test-check-compose.sh
