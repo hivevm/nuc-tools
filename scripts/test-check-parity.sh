@@ -296,6 +296,69 @@ expect fail "a script that fails without a finding fails the harness, though the
   "bash: scripts/check-traceability.sh exited 1 without a finding" \
   run "$(corpus "$work/trace-fails.toml" trace-fails)" "$(reactive_nuc)"
 
+# The comparisons run in parallel; a run reads the same whatever the number of jobs, findings and
+# failures in the order of the corpus and the variants.
+source_repo agree-too > /dev/null
+many="$(corpus "$work/many.toml" agree trace-fails agree-too)"
+# jobs_run <n> — the harness on three trees, two of which differ, with n jobs; its output and exit.
+# shellcheck disable=SC2317,SC2329 # run through check
+jobs_run() {
+  PARITY_JOBS="$1" run "$many" "$(stand_in silent)" > "$work/jobs-$1.out" 2>&1
+  echo "exit $?" >> "$work/jobs-$1.out"
+}
+jobs_run 1
+jobs_run 8
+check "one job and eight report the same, in the same order" cmp -s "$work/jobs-1.out" "$work/jobs-8.out"
+check "the run with eight jobs fails as the run with one does" grep -qx 'exit 1' "$work/jobs-8.out"
+check "the run names each tree's difference" \
+  bash -c "grep -q 'agree at .*variant deleted — 2 difference' \"$work/jobs-8.out\" && grep -q 'agree-too at .*variant deleted — 2 difference' \"$work/jobs-8.out\""
+# run_jobs <n> <corpus> <nuc> <variants> — the harness as run does it, with n jobs.
+# shellcheck disable=SC2317,SC2329 # run through expect
+run_jobs() { local n="$1"; shift; PARITY_JOBS="$n" run "$@"; }
+
+# The variants are measured against the tree's own output only once it is whole: a tree whose own
+# run is slow and already reports the finding, and a variant that adds none, which runs fast.
+source_repo slow-bare > /dev/null
+d="$work/src-slow-bare"
+printf '%s\n' '#!/usr/bin/env bash' '[[ -f notes.txt ]] || sleep 2' \
+  "printf 'Documentation checks FAILED:\\n\\n  - %s\\n\\n1 problem(s) found.\\n' \"$MISSING\"" \
+  'exit 1' > "$d/scripts/check-docs.sh"
+git -C "$d" -c user.name=F -c user.email=f@example.invalid -c core.hooksPath=/dev/null commit -qam slow
+git -C "$d" rev-parse HEAD > "$work/src-slow-bare.commit"
+NOTES=$'notes\tdocs/template-release\tnotes.txt\twrite\tx'
+expect fail "a variant is measured against the tree's own output once that is whole" \
+  "variant notes — bash reports no finding of docs/template-release beyond the tree's own" \
+  run_jobs 8 "$(corpus "$work/slow.toml" slow-bare)" \
+    "$(stand_in always "README.md: docs/template-release: $MISSING_TEXT")" "$(variants "$work/notes.tsv" "$NOTES")"
+
+# The outputs follow the corpus and the variants, not the order in which the jobs end: a slow first
+# tree and a fast second, two variants each.
+source_repo slow-first > /dev/null
+d="$work/src-slow-first"
+f="$d/scripts/check-docs.sh"
+sed '2i sleep 2' "$f" > "$f.tmp" && cat "$f.tmp" > "$f" && rm "$f.tmp"
+git -C "$d" -c user.name=F -c user.email=f@example.invalid -c core.hooksPath=/dev/null commit -qam slow
+git -C "$d" rev-parse HEAD > "$work/src-slow-first.commit"
+RENAMED=$'renamed\tdocs/template-release\tREADME.md\tsed\ts/Template release:/Template rel:/'
+two="$(variants "$work/two.tsv" "$DELETE" "$RENAMED")"
+PARITY_JOBS=8 run "$(corpus "$work/order.toml" slow-first agree)" "$(reactive_nuc)" "$two" \
+  | sed -nE 's/^Parity check: ([a-z-]+) at [0-9a-f]+(, variant ([a-z]+))? — .*/\1 \3/p' > "$work/order.out"
+printf '%s\n' 'slow-first ' 'slow-first deleted' 'slow-first renamed' 'agree ' 'agree deleted' \
+  'agree renamed' > "$work/order.want"
+check "the outputs follow the corpus and the variants, not the end of the jobs" \
+  cmp -s "$work/order.want" "$work/order.out"
+expect fail "a repository named twice in the corpus is refused" "the repository 'agree' is named twice" \
+  run "$(corpus "$work/twice.toml" agree agree)" "$(reactive_nuc)"
+expect fail "a number of jobs that is none is refused" "PARITY_JOBS is 'many'" \
+  env PARITY_JOBS=many PARITY_TABLE="$work/one-rule.tsv" bash "$HARNESS" --no-hooks --corpus "$many" \
+    --cache "$work/cache" --nuc "$(reactive_nuc)" --variants "$DEFAULT"
+# exits_two <command...> — whether the command exits 2, as a malformed input does.
+# shellcheck disable=SC2317,SC2329 # run through check
+exits_two() { "$@" > /dev/null 2>&1; (($? == 2)); }
+check "a number of jobs that is none exits 2, as a malformed input does" \
+  exits_two env PARITY_JOBS=many PARITY_TABLE="$work/one-rule.tsv" bash "$HARNESS" --no-hooks \
+    --corpus "$many" --cache "$work/cache" --nuc "$(reactive_nuc)" --variants "$DEFAULT"
+
 source_repo no-trace "" none > /dev/null
 expect fail "a tree without check-traceability.sh fails" "the tree has no scripts/check-traceability.sh" \
   run "$(corpus "$work/no-trace.toml" no-trace)" "$(reactive_nuc)"
@@ -463,6 +526,8 @@ template_repo tpl-same v0.6.0 ': one'
 changed="$(corpus "$work/tpl-changed.toml" tpl-new tpl-old)"
 expect pass "a change the table lists, at the later of two trees of the template, passes" "" \
   run_releases "$changed" "$(releases "$work/r-listed.tsv" v0.6.0)"
+expect pass "a row with the releases its reason covers and the reason is read for its first four fields" "" \
+  run_releases "$changed" "$(releases "$work/r-reasoned.tsv" $'v0.6.0\tv0.6.0\tthe reason')"
 expect fail "a change the table does not list fails and names the rule" \
   "docs/template-release — its bash check changed at v0.6.0 across the template's trees of the corpus" \
   run_releases "$changed" "$(releases "$work/r-unlisted.tsv" -)"

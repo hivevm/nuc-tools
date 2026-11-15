@@ -15,7 +15,10 @@
 # its rule, since agreement on a rule that never fires decides nothing; so does one that names a
 # tree the corpus lacks.
 #
-# For each repository and each variant:
+# The comparisons run in parallel, one job per processor or PARITY_JOBS, and their outputs follow
+# in the order of the corpus and the variants, after what the preparation of the trees reports,
+# such as a refused tree. Every run computes every tree and variant anew. For each repository and
+# each variant:
 #   1. The bash scripts with a ported rule run in the tree, one after the other, with the
 #      environment cleared to PATH, HOME, LC_ALL=C, and that of a pull request into main marked
 #      ready (CI_ENV): scripts/check-docs.sh and scripts/check-traceability.sh (BASH_CHECKS),
@@ -57,11 +60,13 @@
 # PARITY_RELEASES is read from that root, not from the directory it was called in.
 # --nuc runs the given binary instead of building one; --no-hooks leaves the hook scenarios out;
 # --hooks runs them alone, on the trees given; --compare compares one pair of outputs, for
-# scripts/test-check-parity.sh. PARITY_TABLE names another normalization table, and
-# PARITY_RELEASES another table of releases.
+# scripts/test-check-parity.sh. PARITY_TABLE names another normalization table,
+# PARITY_RELEASES another table of releases, and PARITY_JOBS the number of comparisons that run at
+# once.
 # Exit code 0 when every repository and variant agrees, 1 on a difference, a refused tree, a
 # variant that fits no tree or does not fire, or a cache that cannot be filled, 2 on a malformed
-# corpus, table, or variants file, a root that does not exist, or an argument it does not read.
+# corpus, table, or variants file, a PARITY_JOBS that is no number of jobs, a root that does not
+# exist, or an argument it does not read.
 
 set -uo pipefail
 
@@ -277,14 +282,23 @@ mapfile -t repositories < <(awk '
   END { if (n) print name, url, commit }
 ' "$corpus" 2>/dev/null) || die "$corpus: unreadable"
 ((${#repositories[@]})) || die "$corpus: no repository"
+seen_names=()
 for entry in "${repositories[@]}"; do
   read -r name url commit <<< "$entry"
   [[ "$name" =~ ^[a-z0-9-]+$ && -n "$url" && "$commit" =~ ^[0-9a-f]{40}$ ]] \
     || die "$corpus: an entry needs a name of [a-z0-9-], a url, and a 40-hex commit: '$entry'"
+  # A name is the directory of its tree in the cache and the files of its comparisons.
+  _contains "$name" "${seen_names[@]}" && die "$corpus: the repository '$name' is named twice"
+  seen_names+=("$name")
 done
 
-# The table of releases, one 'rule<TAB>script<TAB>function<TAB>releases' entry per row; a reason
-# after them is the reader's, not the harness's.
+# The number of comparisons that run at once: PARITY_JOBS, or one per processor.
+jobs_max="${PARITY_JOBS:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 1)}"
+[[ "$jobs_max" =~ ^[1-9][0-9]*$ ]] || die "PARITY_JOBS is '$jobs_max', not a number of jobs"
+
+# The table of releases, one 'rule<TAB>script<TAB>function<TAB>releases' entry per row; the fields
+# after them, the releases a reason covers and the reason, are tests/releases.rs's, not the
+# harness's.
 release_rows=()
 while IFS= read -r row || [[ -n "$row" ]]; do
   [[ "$row" =~ ^[[:space:]]*(#|$) ]] && continue
@@ -306,7 +320,22 @@ config="minimum = \"0.0.0\"
 rules = [$ported]"
 
 work="$(mktemp -d)"
-trap 'rm -rf "$work"' EXIT
+# kill_tree <pid> — stop the process and every process it started, the deepest first, so that no
+# bash check or nuc of a comparison runs on after the harness: one left running would write into a
+# cached tree or into $work after the trap removed it.
+kill_tree() {
+  local child
+  for child in $(pgrep -P "$1" 2>/dev/null); do kill_tree "$child"; done
+  kill "$1" 2>/dev/null
+}
+# stop_jobs — stop every comparison still running, with what it started, and wait for them.
+stop_jobs() {
+  local job
+  for job in $(jobs -p); do kill_tree "$job"; done
+  wait
+}
+# A run stopped stops its comparisons and what they started.
+trap 'stop_jobs; rm -rf "$work"' EXIT
 cgit() { git -c core.hooksPath=/dev/null -c core.fsmonitor=false -C "$@"; }
 
 # release_of <README> — the release its first Template release line names, read as check 14 of
@@ -488,7 +517,7 @@ for i in "${!variant_names[@]}"; do
     fi
   done
 done
-template_trees=()
+template_trees=() trees=()
 for entry in "${repositories[@]}"; do
   read -r name url commit <<< "$entry"
   dir="$cache/$name"
@@ -516,34 +545,68 @@ for entry in "${repositories[@]}"; do
   printf '%s\n' "$config" > "$dir/nuc.toml"
   grep -qx '/nuc.toml' "$dir/.git/info/exclude" 2>/dev/null || echo '/nuc.toml' >> "$dir/.git/info/exclude"
 
-  run_pair "$name at ${commit:0:12}" "$dir" "$work/$name" || failed=1
+  trees+=("$name $commit $dir")
+done
 
-  # Every variant on this tree, on a copy of it in a directory of its own, never on the cache.
+# run_variant <name> <commit> <dir> <index> — bash and nuc on a copy of the tree with the variant
+# applied, in a directory of its own, never on the cache; fails on a difference, on an edit that
+# does not apply, and on a variant whose rule bash does not report beyond the tree's own.
+run_variant() {
+  local name="$1" commit="$2" dir="$3" i="$4" label vdir out rc=0
+  label="$name, variant ${variant_names[i]}"
+  vdir="$work/variants/$name/${variant_names[i]}"
+  if ! { mkdir -p "$(dirname "$vdir")" && cp -a "$dir" "$vdir"; }; then
+    echo "Parity check: $label — the tree could not be copied" >&2
+    return 1
+  fi
+  if ! apply_variant "$vdir" "${variant_paths[i]}" "${variant_ops[i]}" "${variant_args[i]}"; then
+    echo "Parity check: $label — its edit of ${variant_paths[i]} does not apply to this tree" >&2
+    rm -rf "$vdir"
+    return 1
+  fi
+  out="$work/$name.${variant_names[i]}"
+  run_pair "$name at ${commit:0:12}, variant ${variant_names[i]}" "$vdir" "$out" || rc=1
+  if ! fires "$work/$name.bash" "$out.bash" "${variant_rules[i]}"; then
+    echo "Parity check: $label — bash reports no finding of ${variant_rules[i]} beyond the tree's own; the variant does not make its rule fire" >&2
+    rc=1
+  fi
+  rm -rf "$vdir"
+  return "$rc"
+}
+
+# First each tree as pinned, whose bash output its variants are measured against once it is whole,
+# then every variant of every tree, each a job of its own, writing into files of its own.
+# spawn <unit> <command...> — run the command as a job into the unit's files, once a slot is free.
+spawn() {
+  local unit="$1"
+  shift
+  while (($(jobs -rp | wc -l) >= jobs_max)); do wait -n; done
+  { "$@" > "$work/$unit.log" 2> "$work/$unit.err"; echo "$?" > "$work/$unit.rc"; } &
+}
+# report <unit> — replay the unit's output, and fail the harness where the unit failed.
+report() {
+  cat "$work/$1.log"
+  cat "$work/$1.err" >&2
+  [[ "$(cat "$work/$1.rc" 2>/dev/null)" == 0 ]] || failed=1
+}
+for tree in "${trees[@]}"; do
+  read -r name commit dir <<< "$tree"
+  spawn "unit-$name" run_pair "$name at ${commit:0:12}" "$dir" "$work/$name"
+done
+wait
+units=()
+for tree in "${trees[@]}"; do
+  read -r name commit dir <<< "$tree"
+  units+=("unit-$name")
   for i in "${!variant_names[@]}"; do
     # A variant that names its trees is for those alone.
     [[ -z "${variant_trees[i]}" || ",${variant_trees[i]}," == *",$name,"* ]] || continue
-    label="$name, variant ${variant_names[i]}"
-    vdir="$work/variants/$name/${variant_names[i]}"
-    if ! { mkdir -p "$(dirname "$vdir")" && cp -a "$dir" "$vdir"; }; then
-      echo "Parity check: $label — the tree could not be copied" >&2
-      failed=1
-      continue
-    fi
-    if ! apply_variant "$vdir" "${variant_paths[i]}" "${variant_ops[i]}" "${variant_args[i]}"; then
-      echo "Parity check: $label — its edit of ${variant_paths[i]} does not apply to this tree" >&2
-      failed=1
-      rm -rf "$vdir"
-      continue
-    fi
-    out="$work/$name.${variant_names[i]}"
-    run_pair "$name at ${commit:0:12}, variant ${variant_names[i]}" "$vdir" "$out" || failed=1
-    if ! fires "$work/$name.bash" "$out.bash" "${variant_rules[i]}"; then
-      echo "Parity check: $label — bash reports no finding of ${variant_rules[i]} beyond the tree's own; the variant does not make its rule fire" >&2
-      failed=1
-    fi
-    rm -rf "$vdir"
+    spawn "unit-$name.$i" run_variant "$name" "$commit" "$dir" "$i"
+    units+=("unit-$name.$i")
   done
 done
+wait
+for unit in "${units[@]}"; do report "$unit"; done
 
 # The releases at which each rule's bash check changed, across the template's trees in order.
 if ((${#template_trees[@]} >= 2)); then

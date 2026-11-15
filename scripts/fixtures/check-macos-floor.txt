@@ -1,0 +1,57 @@
+# Cases of scripts/check-macos-floor.sh, read by scripts/test-check-macos-floor.sh.
+#
+# One case per line, four fields separated by ' | ':
+#
+#   <pass or fail> | <what the output holds, or -> | <name> | <tree>
+#
+# A run exits 0 for pass and 1 for fail. The second field is '<key>', then ' @ <subject>' for each
+# datum the line names: the workflow, the job, and the script of a finding, or the workflows
+# read and the steps of macOS jobs among them when the check passes. A line of the output ends in '[<key>]',
+# the rule and a reason word, and holds each subject, in that order and with no ASCII letter,
+# digit, hyphen, or underscore beside it; the rest of its wording is free. A line that starts with
+# '#' is a comment, not a case. A field may start with '!': it then holds where no line that ends
+# in '[<key>]' holds the subjects in their order.
+#
+# The tree is a list of steps separated by '; ', or '-' for none, applied in order to a repository
+# that passes the check:
+#
+#   scripts/lib/bash.sh        the floor, a stub
+#   scripts/lib/selftest.sh    'source "$(dirname "${BASH_SOURCE[0]}")/bash.sh"'
+#   scripts/plain.sh           a script that sources no library
+#   scripts/floored.sh         a script whose second line sources lib/bash.sh
+#   .github/workflows/ci.yml   a job 'mac' on macos-latest that runs scripts/plain.sh, and a job
+#                              'linux' on ubuntu-latest that runs scripts/floored.sh
+#
+# The steps:
+#
+#   rm <path>              the file removed
+#   wf <text>              .github/workflows/ci.yml written with exactly the text, each '\n' a
+#                          line break
+#   write <path> <text>    the file written with exactly the text, each '\n' a line break
+#   copy <path>            the file of this repository copied over the fixture's
+
+pass | macos/check:passed @ 1 @ 1 | a macOS job that runs a script without the floor | -
+fail | macos/step:floor @ .github/workflows/ci.yml @ mac @ scripts/floored.sh | a macOS job that runs a script behind the floor | wf jobs:\n  mac:\n    runs-on: macos-latest\n    steps:\n      - run: bash scripts/floored.sh\n
+pass | macos/check:passed @ 1 @ 1 | the step skipped on macOS by its if | wf jobs:\n  mac:\n    runs-on: macos-latest\n    steps:\n      - name: Floored\n        if: runner.os != 'macOS'\n        run: bash scripts/floored.sh\n
+pass | macos/check:passed @ 1 @ 1 | the step skipped on macOS by an if in an expression | wf jobs:\n  mac:\n    runs-on: macos-latest\n    steps:\n      - if: ${{ runner.os != "macOS" }}\n        run: bash scripts/floored.sh\n
+pass | macos/check:passed @ 1 @ 1 | the step kept to Linux by its if | wf jobs:\n  mac:\n    runs-on: macos-latest\n    steps:\n      - if: runner.os == 'Linux'\n        run: bash scripts/floored.sh\n
+fail | macos/step:floor @ .github/workflows/ci.yml @ mac @ scripts/floored.sh | an if that skips another runner keeps macOS | wf jobs:\n  mac:\n    runs-on: macos-latest\n    steps:\n      - if: runner.os != 'Windows'\n        run: bash scripts/floored.sh\n
+fail | macos/step:floor @ .github/workflows/ci.yml @ build @ scripts/floored.sh | a matrix that names a macOS runner | wf jobs:\n  build:\n    strategy:\n      matrix:\n        os: [ubuntu-latest, macos-latest]\n    runs-on: ${{ matrix.os }}\n    steps:\n      - uses: actions/checkout@v4\n      - name: Floored\n        run: bash scripts/floored.sh\n
+fail | macos/step:floor @ .github/workflows/ci.yml @ build @ scripts/floored.sh | a matrix of include rows, one of them on macOS | wf jobs:\n  build:\n    strategy:\n      matrix:\n        include:\n          - { target: a, os: ubuntu-24.04 }\n          - { target: b, os: macos-latest }\n    runs-on: ${{ matrix.os }}\n    steps:\n      - run: bash scripts/floored.sh\n
+pass | macos/check:passed @ 1 @ 0 | a Linux job runs the floor | wf jobs:\n  linux:\n    runs-on: ubuntu-latest\n    steps:\n      - run: bash scripts/floored.sh\n
+fail | macos/step:floor @ .github/workflows/ci.yml @ mac @ scripts/selftested.sh | a script that sources the self-test library | write scripts/selftested.sh #!/usr/bin/env bash\nsource "$(dirname "${BASH_SOURCE[0]}")/lib/selftest.sh"\n; wf jobs:\n  mac:\n    runs-on: macos-latest\n    steps:\n      - run: bash scripts/selftested.sh\n
+fail | macos/step:floor @ .github/workflows/ci.yml @ mac @ scripts/floored.sh | a run block over several lines | wf jobs:\n  mac:\n    runs-on: macos-latest\n    steps:\n      - name: Two\n        run: |\n          echo first\n          bash scripts/floored.sh --flag\n
+pass | macos/check:passed @ 1 @ 1 | a commented step is no step | wf jobs:\n  mac:\n    runs-on: macos-latest\n    steps:\n      - run: bash scripts/plain.sh\n      # - run: bash scripts/floored.sh\n
+pass | macos/check:passed @ 1 @ 1 | a script that names the floor only in a comment | write scripts/plain.sh #!/usr/bin/env bash\n# Not: source lib/bash.sh\n; wf jobs:\n  mac:\n    runs-on: macos-latest\n    steps:\n      - run: bash scripts/plain.sh\n
+fail | macos/step:floor @ .github/workflows/other.yaml @ mac @ scripts/floored.sh | a second workflow, of the other extension | write .github/workflows/other.yaml jobs:\n  mac:\n    runs-on: macos-14\n    steps:\n      - run: bash scripts/floored.sh\n
+pass | macos/check:passed @ 0 @ 0 | a project without workflows | rm .github/workflows/ci.yml
+fail | macos/step:floor @ .github/workflows/checks.yml @ portability @ scripts/check-build.sh | the build check behind the floor in the portability job | copy .github/workflows/checks.yml; write scripts/check-build.sh #!/usr/bin/env bash\nsource "$(dirname "${BASH_SOURCE[0]}")/lib/bash.sh"\n
+fail | macos/step:floor @ .github/workflows/release-test.yml @ build @ scripts/test-release.sh | the release self-test without its if | copy scripts/test-release.sh; write .github/workflows/release-test.yml jobs:\n  build:\n    strategy:\n      matrix:\n        include:\n          - { target: b, os: macos-latest }\n    runs-on: ${{ matrix.os }}\n    steps:\n      - run: bash scripts/test-release.sh\n
+fail | macos/step:floor @ .github/workflows/ci.yml @ mac @ scripts/floored.sh | an if that skips macOS or runs on another condition keeps macOS | wf jobs:\n  mac:\n    runs-on: macos-latest\n    steps:\n      - if: runner.os != 'macOS' || github.event_name == 'push'\n        run: bash scripts/floored.sh\n
+pass | macos/check:passed @ 1 @ 1 | an if that skips macOS and holds another condition skips macOS | wf jobs:\n  mac:\n    runs-on: macos-latest\n    steps:\n      - if: runner.os != 'macOS' && github.event_name == 'push'\n        run: bash scripts/floored.sh\n
+fail | macos/step:floor @ .github/workflows/ci.yml @ build @ scripts/floored.sh | an if on the matrix is not read as a skip of macOS | wf jobs:\n  build:\n    strategy:\n      matrix:\n        os: [macos-latest, macos-13]\n    runs-on: ${{ matrix.os }}\n    steps:\n      - if: matrix.os != 'macos-13'\n        run: bash scripts/floored.sh\n
+fail | macos/step:floor @ .github/workflows/ci.yml @ mac @ scripts/floored.sh | a script run by a relative path | wf jobs:\n  mac:\n    runs-on: macos-latest\n    steps:\n      - run: bash ./scripts/floored.sh\n
+fail | macos/step:floor @ .github/workflows/ci.yml @ mac @ scripts/floored.sh | a script run in quotes, after an option of bash | wf jobs:\n  mac:\n    runs-on: macos-latest\n    steps:\n      - run: bash -e "scripts/floored.sh"\n
+fail | macos/step:floor @ .github/workflows/ci.yml @ mac @ scripts/floored.sh | a script run by its own shebang | wf jobs:\n  mac:\n    runs-on: macos-latest\n    steps:\n      - shell: bash\n        run: scripts/floored.sh\n
+fail | macos/step:floor @ .github/workflows/ci.yml @ mac @ scripts/sub/deep.sh | a script in a subdirectory of scripts | write scripts/sub/deep.sh #!/usr/bin/env bash\nsource "$(dirname "${BASH_SOURCE[0]}")/../lib/bash.sh"\n; wf jobs:\n  mac:\n    runs-on: macos-latest\n    steps:\n      - run: bash scripts/sub/deep.sh\n
+fail | macos/step:floor @ .github/workflows/ci.yml @ mac @ scripts/chained.sh | a library that sources a library behind the floor | write scripts/lib/middle.sh source "$(dirname "${BASH_SOURCE[0]}")/selftest.sh"\n; write scripts/chained.sh #!/usr/bin/env bash\nsource "$(dirname "${BASH_SOURCE[0]}")/lib/middle.sh"\n; wf jobs:\n  mac:\n    runs-on: macos-latest\n    steps:\n      - run: bash scripts/chained.sh\n

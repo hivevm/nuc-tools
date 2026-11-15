@@ -8,14 +8,14 @@
 # those of the fake archive installs it; the script itself refuses it. The download of the real
 # archive is not tested: it needs the network, and the shell job of CI runs it on every push.
 #
-# Inputs: .devcontainer/install-shellcheck.sh .devcontainer/devcontainer.json
-#         .github/workflows/checks.yml scripts/lib/
+# Inputs: .devcontainer/install-shellcheck.sh .devcontainer/devcontainer.json .github/workflows/checks.yml scripts/lib/
 #
 # Usage:
 #     scripts/test-install-shellcheck.sh
 # Exit code 0 when every case passes, 1 otherwise.
 
-# shellcheck disable=SC2317,SC2329 # the assertions run through check, which ShellCheck cannot follow
+# The assertions run through check, which ShellCheck cannot follow.
+# shellcheck disable=SC2317,SC2329
 set -uo pipefail
 
 # shellcheck source-path=SCRIPTDIR source=lib/selftest.sh
