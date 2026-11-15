@@ -36,14 +36,15 @@
     "repository": "git config core.hooksPath .githooks && git config merge.ff false && git config pull.ff only && git config merge.adr-index.driver '.githooks/merge-adr-index %O %A %B %S %X %Y'"
   },
 
-  // Runs inside the container once it is created. ShellCheck comes from the base image's signed
-  // Debian archive, so the pre-push hook runs the shell lint CI runs; without it the lint skips
-  // itself locally. cargo-deny and cargo-audit are built at the versions the deps job of
+  // Runs inside the container once it is created. ShellCheck is the release
+  // .devcontainer/install-shellcheck.sh pins, checksum and all, the one the shell job of
+  // checks.yml installs, so the pre-push hook runs the shell lint CI runs; without it the lint
+  // skips itself locally. cargo-deny and cargo-audit are built at the versions the deps job of
   // checks.yml installs, so scripts/check-deps.sh runs in the pre-push hook as in CI. The gh
   // wrapper gives gh the host's login; CONTRIBUTING.md -> "GitHub access".
   "postCreateCommand": {
     "gh-host-login": "sudo install -m 0755 .devcontainer/gh-host-login.sh /usr/local/bin/gh",
-    "shellcheck": "sudo apt-get update && sudo apt-get install -y --no-install-recommends shellcheck",
+    "shellcheck": "bash .devcontainer/install-shellcheck.sh /usr/local/bin",
     "cargo-tools": "cargo install --locked cargo-deny@0.20.2 cargo-audit@0.22.2"
   },
 
