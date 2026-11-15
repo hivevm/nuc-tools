@@ -9,7 +9,7 @@
 ## Problem
 
 Every project derived from the NUC template carries its own copy of the template's mechanics:
-about 8,000 lines of bash in checks, sensors, git hooks, the ADR index merge driver, and the
+about 11,000 lines of bash in checks, sensors, git hooks, the ADR index merge driver, and the
 scripts run by hand. Their maintainers and the agents working in them live with four costs
 today:
 
@@ -91,7 +91,7 @@ from the threats below.
   every pull request, and every ignored advisory names its reason.
 - **Q-4** — Portability: the full test suite passes in CI on Linux x64, Linux arm64, macOS, and
   Windows x64, with no bash on the `PATH` of the process under test; a hook git for Windows runs
-  gets the bash git bundles, and only the checks a shim runs on 3 may use it.
+  gets the bash git bundles, and only the checks a shim runs when `nuc hook` answers 3 may use it.
 - **Q-5** — Hook latency: `nuc hook reference-transaction` adds at most 2 ms median per call over
   a no-op hook on Linux x64, measured over 1,000 updates of a branch other than `main`; an update
   of `main` is measured and reported beside it.
@@ -190,8 +190,8 @@ maintained.
 - A git CLI is present wherever `nuc` runs, and its output is stable across the versions in use;
   the minimum git version is not yet fixed.
 - `nuc` reads the template release a project carries from the `Template release` line of its
-  README, and that line keeps the form the template's check 14 holds.
+  README, and that line keeps the form the template's rule `docs/template-release` holds.
 - The template switches its hooks and checks over to `nuc` once parity is reached, and keeps its
   rules in `AGENTS.md`, the ADRs, and the skills.
-- The targets of Q-3 and Q-4 can be built reproducibly with the pinned Rust toolchain; which
-  macOS architectures are released, arm64 or x64 as well, is still open.
+- The targets of Q-3 and Q-4 can be built reproducibly with the pinned Rust toolchain, and an
+  arm64 build serves the macOS users, so no x64 build is released.

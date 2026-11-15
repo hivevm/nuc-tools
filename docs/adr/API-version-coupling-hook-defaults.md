@@ -4,7 +4,6 @@
 - **Date:** 2026-11-06
 - **Deciders:** Markus Brigl
 - **Applies to:** the format of `nuc.toml`, how `nuc` loads it and the README's `Template release` line, every rule's default state, every rule whose bash check differs between template releases, and the trees `tests/parity/corpus.toml` pins for each such release, and how `nuc hook` reads both
-- **Supersedes:** [API-version-coupling](API-version-coupling.md)
 
 ## Context
 
@@ -12,23 +11,26 @@ The template keeps the rules; the tool decides only what is mechanical and state
 (*Non-Goals*). The template and its derived projects are coupled to `nuc` by a minimum version in
 their `nuc.toml` (*Constraints*). A tool update never turns a green project red: a new check ships
 off, and only a template release turns it on (Q-6). A missing or too old binary fails closed with a
-message naming how to install it (G-5), and nothing passes when it could not decide (Q-1). The
-assumptions leave open whether `nuc` learns the template release a project carries from the README
-or from `nuc.toml`. [NUC-releases-are-semver-tags §4](NUC-releases-are-semver-tags.md) already has
-every repository name its release in the `Template release` line of its README, which check 14 of
-the template holds; `nuc upgrade` needs that release as its starting point (G-4).
+message naming how to install it (G-5), and nothing passes when it could not decide (Q-1).
+[NUC-releases-are-semver-tags §4](NUC-releases-are-semver-tags.md) has every repository name its
+release in the `Template release` line of its README, whose form the template's rule
+`docs/template-release` holds (check 14 of the bash of the releases the corpus pins). `nuc upgrade`
+needs that release as its starting point (G-4).
 
 A derived project gets the findings of the bash checks of the template release it carries (G-1).
-Template releases change those checks: v0.6.0 changes check 8 of `scripts/check-docs.sh` so that
-an old ADR flips to superseded only when its successor is accepted, and changes check 9 to name
-a job with a matrix by its check runs; v0.7.0 reads the required checks and the Project Layout
-from `CONTRIBUTING.md`. The projects do not move at once: the parity corpus pins the template at
-v0.5.0, v0.6.0, v0.6.1, and v0.7.0, and derived projects on v0.6.1
+Template releases change those checks. v0.6.0 changes check 8 of `scripts/check-docs.sh`
+(`docs/adr-supersessions`) so that an old ADR flips to superseded only when its successor is
+accepted, and check 9 (`docs/check-lists`) so that it names a job with a matrix by its check runs.
+v0.6.1 ends the template's name in a badge (`docs/template-identity`). v0.7.0 reads the required
+checks and the Project Layout from `CONTRIBUTING.md`. v0.8.0 moves the ADR patterns into
+`scripts/lib/adr.sh` with the same expressions, so no rule checks v0.8.1 otherwise than v0.7.0.
+The projects do not move at once. The parity corpus pins the template at v0.5.0, v0.6.0, v0.6.1,
+v0.7.0, and v0.8.1, three derived projects on v0.6.1, and this repository on v0.7.0
 ([TEST-parity-harness](TEST-parity-harness.md)). A rule that follows only one release reports false
-findings on the trees of another, or passes what that release fails. A rule ID stays stable
-(G-6). The bash hooks read neither `nuc.toml` nor the release line, and the fixtures of the
-template's hook self-test carry neither; the maintainer decided that a hook works without
-`nuc.toml`, on defaults ([API-hook-contract](API-hook-contract.md)).
+findings on the trees of another, or passes what that release fails. A rule ID stays stable (G-6).
+The bash hooks read neither `nuc.toml` nor the release line, and the fixtures of the template's hook
+self-test carry neither. The maintainer decided that a hook works without `nuc.toml`, on defaults
+([API-hook-contract](API-hook-contract.md)).
 
 ## Decision
 
@@ -46,9 +48,9 @@ runs without `nuc.toml` on defaults and takes the newest release it knows where 
   it when `nuc.toml` is missing or unreadable, when its minimum version is above the running one,
   or when it lists a rule ID this `nuc` does not know. A missing binary is reported by the shim
   that hands the hook over.
-- **Template release:** read from the first `Template release` line of `README.md`, as check 14
-  reads it; `nuc.toml` does not repeat it. The value is a `vX.Y.Z` tag at its start, or
-  `unreleased`.
+- **Template release:** read from the first `Template release` line of `README.md`, as the
+  template's check `docs/template-release` reads it; `nuc.toml` does not repeat it. The value is
+  a `vX.Y.Z` tag at its start, or `unreleased`.
 - **The behaviour:** a rule knows the releases at which its bash check changed. It checks a tree
   as the latest of them at or before the release the tree carries. A rule whose bash check never
   changed does not read the release.
@@ -74,13 +76,14 @@ runs without `nuc.toml` on defaults and takes the newest release it knows where 
   - **The release:** *Not decided* does not hold. Where the README or its release line is missing
     or names no release, a hook decides as the newest release `nuc` knows; a release before
     v0.5.0 is decided as v0.5.0, the earliest the hooks port. A hook refuses nothing for the
-    release; check 14 gates the line.
+    release; the rule `docs/template-release` gates the line.
   - The missing binary is reported by the reference shims of
     [API-hook-contract](API-hook-contract.md).
 
-**Out of scope:** the field names and the rest of the format of `nuc.toml`; options a rule may take;
-the shims themselves, which API-hook-contract decides; template releases before v0.5.0, beyond
-the hooks' clause; how `nuc upgrade` moves a project between releases (G-4).
+**Out of scope:** the field names and the rest of the format of `nuc.toml`, which
+API-command-line-with-hook-signal decides; options a rule may take; the shims themselves, which
+API-hook-contract decides; template releases before v0.5.0, beyond the hooks' clause; how
+`nuc upgrade` moves a project between releases (G-4).
 
 ## Alternatives considered
 
@@ -94,8 +97,13 @@ the hooks' clause; how `nuc upgrade` moves a project between releases (G-4).
   the new ID on, and no rule would read the release. But the ID of the same rule would change
   with every release that touches its check, against G-6, and `nuc explain` would have to tell
   the two apart.
-- **The hooks refuse without `nuc.toml` like every command** — one rule, but every project and
-  every fixture without `nuc.toml` would refuse every commit, and hook parity could not hold.
+- **The hooks under the same clauses as every command** — the first coupling of the versions,
+  accepted on 2026-10-31. It had no clause for the hooks: *Fail closed* and *Default* held for
+  `nuc hook` as for `nuc check`, the shim in `.githooks/` reported a missing binary, and the
+  releases before v0.5.0 stood out of scope for every command. One rule for all, but every project
+  and every fixture without `nuc.toml` would refuse every commit, and hook parity could not hold.
+  The hook contract put the shims under `shims/` and let a hook run on defaults, so this ADR
+  replaced it with the *Hooks* clause and kept every other clause.
 - **Only the newest release.** The corpus floor would move to v0.6.0, and a project on v0.5.x
   would get the findings of a release it does not carry until it takes up v0.6.0. That
   contradicts G-1.
@@ -105,8 +113,8 @@ the hooks' clause; how `nuc upgrade` moves a project between releases (G-4).
 - [NUC-releases-are-semver-tags](NUC-releases-are-semver-tags.md): the `Template release` line.
 - [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html): comparing the running version with the
   minimum.
-- The release notes of hivevm/nuc v0.6.0 and the diff of `scripts/check-docs.sh` between v0.5.0
-  and v0.6.0.
+- The release notes of hivevm/nuc v0.6.0 through v0.8.1, and the diff of `scripts/check-docs.sh`
+  between each two releases the corpus pins, as `tests/parity/releases.tsv` records it.
 - ESLint and Clippy, from memory and not checked here: both keep a rule's ID stable and gate
   changed behaviour behind configuration, ESLint through its config's `ecmaVersion`, Clippy
   through `msrv`. Here the carried release plays that part.
@@ -118,34 +126,35 @@ the hooks' clause; how `nuc upgrade` moves a project between releases (G-4).
   `nuc` checks every project of the corpus by the release it carries, and a rule keeps its ID across
   releases.
 - Negative / trade-offs: the hooks and the checks read `nuc.toml` differently, and a hook runs on a
-  tree `nuc check` refuses; `nuc` parses one line of a Markdown file, whose form
-  NUC-releases-are-semver-tags §4 and the template's check hold; a project can edit its own
-  `nuc.toml` and turn a rule off, as it can edit its bash today. A rule that changed carries both
-  behaviours, together with tests and corpus trees for each. Without `docs/template-release` turned
-  on, a tree with no readable release line is not decided by the rules that read it, so it exits 2
-  rather than 1.
-- Follow-ups: the format of `nuc.toml`; how `nuc upgrade` moves the README line and `nuc.toml`
-  together; when no derived project carries an old release any more, the behaviour of that
-  release can go, with its corpus tree.
+  tree `nuc check` refuses. `nuc` parses one line of a Markdown file, whose form
+  NUC-releases-are-semver-tags §4 and the template's rule `docs/template-release` hold. A project
+  can edit its own `nuc.toml` and turn a rule off, as it can edit its bash today. A rule that
+  changed carries both behaviours, together with tests and corpus trees for each. Without
+  `docs/template-release` turned on, a tree with no readable release line is not decided by the
+  rules that read it, so it exits 2 rather than 1.
+- Follow-ups: how `nuc upgrade` moves the README line and `nuc.toml` together; when no derived
+  project carries an old release any more, the behaviour of that release can go, with its corpus
+  tree.
 
 ## Enforcement
 
-Tests cited with `Verifies: API-version-coupling-hook-defaults` run `nuc check` on
-fixtures with `nuc.toml` missing, unreadable, naming a higher minimum, and listing an unknown rule
-ID, and check each exits non-zero with the message; one with a rule known to `nuc` but not listed
-checks that the rule reports nothing. Others run `nuc hook` without `nuc.toml` and without a release
-line and check that it decides as the newest release with every `hook/` rule on; with a
+Tests cited with `Verifies: API-version-coupling-hook-defaults` run `nuc check` on fixtures with
+`nuc.toml` missing, unreadable, naming a higher minimum, and listing an unknown rule ID, and check
+each exits non-zero with the message; one with a rule known to `nuc` but not listed checks that the
+rule reports nothing. Others, in `tests/hooks.rs`, run `nuc hook` without `nuc.toml` and without a
+release line and check that it decides as the newest release with every `hook/` rule on; with a
 `nuc.toml` listing no `hook/` rule that it exits 0; with an unreadable `nuc.toml`, a higher
 minimum, and an unknown rule ID that it exits 2; and with a release before v0.5.0 that it decides
-as v0.5.0. They live in `tests/hooks.rs`, from the tracer of `docs/plan/hooks-port/` on.
+as v0.5.0.
 
 The tests of the rules that read the release, `src/rules/docs_adr_supersessions.rs`,
 `src/rules/docs_check_lists.rs`, `src/rules/docs_project_layout.rs`, and
 `src/rules/docs_template_identity.rs`, and those of `tests/check.rs` and `tests/releases.rs` cite
-this ADR with a `Verifies:` marker: a rule checks a tree on each release at which its bash check
-changed as that bash check does, every rule of `tests/parity/releases.tsv` reads the release where
-its bash check changed, and `nuc` refuses a tree whose release it cannot place. The
-parity harness runs the template at each release at which a ported check changed
-([TEST-parity-harness](TEST-parity-harness.md)). For check 8 a variant edits one file, while
-the behaviour that differs between the releases needs two ADRs, so only the tests above tell the
-two behaviours apart there.
+this ADR with a `Verifies:` marker. They check that a rule checks a tree on each release at which
+its bash check changed as that bash check does, and that `nuc` refuses a tree whose release it
+cannot place. `tests/releases.rs` fails on a rule of `tests/parity/releases.tsv` whose bash check
+changed at a release no reason of its row covers and that does not read the release; a reason
+stands after the field that names the releases it covers. The parity harness runs the template at
+each release at which a ported check changed ([TEST-parity-harness](TEST-parity-harness.md)). For
+check 8 (`docs/adr-supersessions`) a variant edits one file, while the behaviour that differs
+between the releases needs two ADRs, so only the tests above tell the two behaviours apart there.

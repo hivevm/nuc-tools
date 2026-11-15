@@ -4,7 +4,6 @@
 - **Date:** 2026-11-07
 - **Deciders:** Markus Brigl
 - **Applies to:** every test that needs a git repository, the test helpers that build one, the environment the tests run under, and the `HOME` they pass to git and to `nuc`
-- **Supersedes:** [TEST-fixtures-through-real-git](TEST-fixtures-through-real-git.md)
 
 ## Context
 
@@ -62,6 +61,10 @@ fixture, whose git runs as the developer's does, `safe.directory` included.
   the CLI to keep.
 - **The tests' environment inherited** — the leak of `GIT_DIR` from a hook into the template's
   self-tests is the case this decision closes.
+- **The shell's allowlist passed whole, the parent's `HOME` included** — the record's first
+  decision on the tests' environment, which held every other clause above. It did not stand: the
+  parent's `HOME` handed every fixture the global configuration of whoever ran the suite, and a
+  developer's `merge.conflictStyle` or `core.attributesFile` changed what a test saw.
 - **The parent's `HOME`, each key set in the fixture's own configuration** — closes a key only
   after a run has met it, on the machine of whoever met it.
 - **`GIT_CONFIG_GLOBAL` set to the null device for the tests' git** — closes the global
@@ -83,6 +86,8 @@ fixture, whose git runs as the developer's does, `safe.directory` included.
   read from `$HOME/.gitconfig` and `$XDG_CONFIG_HOME/git/config`, the latter defaulting under
   `HOME`, and the system configuration read from the installation's own file.
 - The template's self-tests under `scripts/`, which build their fixture repositories the same way.
+- `tests/support/`, the shared fixture helpers, which build each repository and run git and `nuc`
+  under the cleared environment and the `HOME` of the test run.
 
 ## Consequences
 
@@ -96,14 +101,15 @@ fixture, whose git runs as the developer's does, `safe.directory` included.
 
 ## Enforcement
 
-A test cited with `Verifies: TEST-fixtures-with-own-home` runs the
-fixture helpers with `GIT_DIR`, `GIT_WORK_TREE`, and `GIT_CONFIG_PARAMETERS` set to a decoy and
-checks that the decoy is untouched and the fixture is built where the helper said. Tests cited the
-same way run the helpers in a child whose parent `HOME` holds a global configuration that sets
-`merge.conflictStyle diff3` and a `core.attributesFile` with `* eol=crlf`, and check that a merge
-through the merge driver's shim and the built `nuc` writes no base section and that a file of LF
-lines checks out as committed; each fixture sets nothing of its own for the key under test, no
-conflict style and no attributes, so each fails exactly when the global configuration reaches git or
-`nuc`. Check 10 of [`scripts/check-docs.sh`](../../scripts/check-docs.sh) names every top-level
-entry, so a committed fixture repository would have to be listed; that a test does not mock git is
-review.
+A test cited with `Verifies: TEST-fixtures-with-own-home` runs the fixture helpers with `GIT_DIR`,
+`GIT_WORK_TREE`, and `GIT_CONFIG_PARAMETERS` set to a decoy. It checks that the decoy is untouched
+and the fixture is built where the helper said. Tests cited the same way run the helpers in a child
+whose parent `HOME` holds a global configuration. That configuration sets
+`merge.conflictStyle diff3` and a `core.attributesFile` with `* eol=crlf`. One test checks that a
+merge through the merge driver's shim and the built `nuc` writes no base section. Another checks
+that a file of LF lines checks out as committed. Each fixture sets nothing of its own for the key
+under test, no conflict style and no attributes. So each test fails exactly when the global
+configuration reaches git or `nuc`. In [`scripts/check-docs.sh`](../../scripts/check-docs.sh), the
+rule `docs/project-layout` holds every tracked top-level entry to the Project Layout of
+`CONTRIBUTING.md`. A committed fixture repository would have to be listed there. That a test does
+not mock git is review.

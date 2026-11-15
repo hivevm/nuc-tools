@@ -8,19 +8,20 @@
 
 ## Context
 
-The specification names one maintainer, with agents working the tickets and the maintainer reviewing
-and deciding (*Constraints*). It also names assets worth protecting: the gates of every derived
-project, their repositories, and the tokens in the environments `nuc` runs in (*Threats & Forbidden
-Actions*), and puts the integrity of the gates first (Q-1). The port is planned as a feature spec of
-tickets ([NUC-large-work-is-planned §1](NUC-large-work-is-planned.md)), each done only when the
-parity harness shows no difference (Q-2).
+The specification names one maintainer: agents work the tickets, and the maintainer reviews and
+decides (*Constraints*). It names the assets worth protecting: the gates of every derived project,
+their repositories, and the tokens in the environments `nuc` runs in (*Threats & Forbidden
+Actions*). It puts the integrity of the gates first (Q-1). Work larger than one session is
+planned as a feature spec of tickets
+([NUC-large-work-is-planned §1](NUC-large-work-is-planned.md)), and a ticket that ports a check
+is done only when the parity harness shows no difference (Q-2).
 
 The catalogue entry *Harness* offers three forms. The smallest, one agent with the human
-reviewing every change, fits a one-person tool but leaves the protected parts with a single
-reader. Parallel tickets under a cap fit work that outruns one session at a time; with one
-maintainer, the review is the bottleneck, and parallel agents would produce a backlog of
-reviews, not software. The middle form fits: an implementer and a reviewer apart, the parts the
-threats protect read by the maintainer as well.
+reviewing every change, fits a one-person tool, but it leaves the protected parts with a single
+reader. Parallel tickets under a cap fit work that outruns one session at a time. With one
+maintainer, the review is the bottleneck, and parallel agents would produce a backlog of reviews,
+not software. The middle form fits: an implementer and a reviewer apart, and the parts the threats
+protect read by the maintainer as well.
 
 ## Decision
 
@@ -46,8 +47,9 @@ work open at a time, each session started by the maintainer.
   as the code owner of both in [`.github/CODEOWNERS`](../../.github/CODEOWNERS).
 
 **Out of scope:** the agent's permission mode and tool configuration, which no file of this
-repository enforces ([`AGENTS.md` §6](../../AGENTS.md#6-project-rules)); a second maintainer and
-who would decide which part; parallel tickets.
+repository enforces and on which no rule rests
+([NUC-main-only-via-pr §7](NUC-main-only-via-pr.md)); a second maintainer and who would decide
+which part; parallel tickets.
 
 ## Alternatives considered
 

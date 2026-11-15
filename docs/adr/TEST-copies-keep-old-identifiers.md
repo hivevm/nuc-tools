@@ -1,6 +1,6 @@
 # TEST-copies-keep-old-identifiers: An ADR identifier inside a copy of an older template release is not a citation of this record, and no map moves it
 
-- **Status:** 🟡 proposed
+- **Status:** 🟢 accepted
 - **Date:** 2026-11-14
 - **Deciders:** Markus Brigl
 - **Applies to:** the messages of `nuc` that copy a bash message of a template release, `tests/parity/`, `src/testing.rs`, `tests/support/`, and every map a normalization or a migration applies to this repository
@@ -14,15 +14,20 @@ Its messages copy the bash messages word for word, and those name ADRs as the re
 whose ADR files carry the numbers of their own release. These identifiers name ADRs of another
 record: the template at a given release, or a repository of the corpus.
 
-The inherited ADR-0005 held the project's answer for numbered records. A normalization kept the
-numbers 0001 to 0006, so no map moved a copied number. A test writes a foreign identifier through
-`src/testing.rs` or `tests/support/`, out of the map's reach. Template release v0.9.0 ends the
-numbers. The inherited ADRs become the fixed base of `NUC-` ADRs, and the migration renames every
-ADR of this record. The template's base has no clause for a foreign identifier: in v0.9.1 its clause
-on citations, [NUC-adrs-are-named-by-category §6](NUC-adrs-are-named-by-category.md), requires every
-citation to name a file in `docs/adr/`. Section 8 of the `normalize` skill of v0.9.1 reverts such a
-move by hand after the run. That clause carries the project's addition only if a decision of the
-project says which identifiers are foreign.
+This repository took up template release v0.9.0 and each release after it, up to v0.11.0. The
+inherited ADRs, once numbered 0001 to 0006, became the fixed base of `NUC-` ADRs, and every ADR of
+this record carries an identifier of a category and a slug. The copies did not move with them. A
+message of `nuc` still names "(ADR-0005)" where the bash of its release does, and the trees and
+variants under `tests/parity/` keep the numbers and identifiers of their own releases. A test
+writes such an identifier through `src/testing.rs` or `tests/support/`.
+
+The base has no clause for a foreign identifier. Its clause on citations,
+[NUC-adrs-are-named-by-category §6](NUC-adrs-are-named-by-category.md), requires every citation
+to name a file in `docs/adr/`. The map script of the `normalize` skill, `remap.sh`, moves an
+identifier wherever it stands as a word, and it has no option to exclude a path. A repository of
+the corpus on a later release carries identifiers of the same form as this record's, so a map can
+reach them. That clause carries the project's addition only if a decision of the project says
+which identifiers are foreign.
 
 ## Decision
 
@@ -65,8 +70,8 @@ decides.
 
 ## Consequences
 
-- Positive: the migration and every later normalization keep parity with the releases `nuc`
-  places. A reviewer can tell a kept old identifier from a missed one.
+- Positive: every normalization and every take-up of a template release keeps parity with the
+  releases `nuc` places. A reviewer can tell a kept old identifier from a missed one.
 - Negative / trade-offs: each map run needs a hand revert of the foreign identifiers it moved,
   until the map script can exclude paths.
 - Follow-ups: an exclusion option of the map script, suggested to the template.
