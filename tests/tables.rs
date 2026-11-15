@@ -1020,7 +1020,8 @@ fn every_case_agrees_or_is_listed() {
 #[test]
 fn a_case_is_judged_against_its_line_as_the_decision_asks() {
     let ticket = "docs/plan/x/01-y.md";
-    let exists = |t: &str| t == ticket;
+    // Cargo.toml exists, so that only the prefix refuses it as a ticket.
+    let exists = |t: &str| t == ticket || t == "Cargo.toml";
     let pending = format!("pending {ticket}");
     let case = |rule, agrees| Verdict {
         table: "t",
@@ -1041,7 +1042,8 @@ fn a_case_is_judged_against_its_line_as_the_decision_asks() {
         )
         .is_empty()
     );
-    // The four failures of the decision's Enforcement, and the rest of the list's rules.
+    // Three failures of the decision's Enforcement, and the rest of the list's rules; a line that
+    // names no case is held by the loop over the lines left, a copy's byte by the pin's test.
     let problem = |c: Verdict, e, needle: &str| {
         let found = judge(&c, e, &exists);
         assert!(
