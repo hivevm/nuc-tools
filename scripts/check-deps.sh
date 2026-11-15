@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 #
 # Dependency audit for this repository (OPS-rust-stable-behind-scripts).
+# Verifies: OPS-crates-pass-deny-and-audit
 #
 # Runs 'cargo deny check' against deny.toml — advisories, bans, licenses, and sources — and
 # 'cargo audit' against Cargo.lock. Both fetch the RustSec advisory database, so the check needs
