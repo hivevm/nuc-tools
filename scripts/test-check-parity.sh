@@ -601,7 +601,7 @@ hook_tree() {
 # hook_nuc <name> <shell code> — a stand-in nuc whose 'hook pre-commit' runs the code, printed as
 # its path; HOOK_AGREES is the code that answers as the bash does.
 # shellcheck disable=SC2016 # the stand-in's own expansion
-HOOK_AGREES='[ "$(git symbolic-ref --short -q HEAD)" = main ] || exit 0; echo "refs/heads/main: hook/commit-on-main: on main"; exit 1'
+HOOK_AGREES='[ "$(git symbolic-ref --short -q HEAD)" = main ] || exit 0; echo "refs/heads/main: hook/commit-on-main: on main [hook/commit-on-main:main]"; exit 1'
 hook_nuc() {
   local f="$work/hook-nuc-$1"
   printf '#!/bin/sh\n%s\n' "$2" > "$f"
@@ -633,7 +633,11 @@ expect fail "a nuc whose exit status differs in one scenario fails" "bash exits 
   run_hooks "$(hook_nuc passes 'exit 0')" "$HOOK_SCENARIOS_FILE" "$NO_CASES" "$tree"
 # shellcheck disable=SC2016 # the stand-in's own expansion
 expect fail "a refusal mapped to another rule ID fails" "only nuc: rule hook/merge-checks refs/heads/main" \
-  run_hooks "$(hook_nuc other-rule '[ "$(git symbolic-ref --short -q HEAD)" = main ] || exit 0; echo "refs/heads/main: hook/merge-checks: x"; exit 1')" \
+  run_hooks "$(hook_nuc other-rule '[ "$(git symbolic-ref --short -q HEAD)" = main ] || exit 0; echo "refs/heads/main: hook/merge-checks: x [hook/merge-checks:main]"; exit 1')" \
+  "$HOOK_SCENARIOS_FILE" "$NO_CASES" "$tree"
+# shellcheck disable=SC2016 # the stand-in's own expansion
+expect fail "a refusal without its key fails" "nuc refuses with hook/commit-on-main without its key" \
+  run_hooks "$(hook_nuc unkeyed '[ "$(git symbolic-ref --short -q HEAD)" = main ] || exit 0; echo "refs/heads/main: hook/commit-on-main: on main"; exit 1')" \
   "$HOOK_SCENARIOS_FILE" "$NO_CASES" "$tree"
 expect fail "a nuc that agrees without nuc.toml and differs with it fails" "on-main at v0.7.0, with nuc.toml" \
   run_hooks "$(hook_nuc configured "[ -f nuc.toml ] && exit 0; $HOOK_AGREES")" "$HOOK_SCENARIOS_FILE" "$NO_CASES" "$tree"

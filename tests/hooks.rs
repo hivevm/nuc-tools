@@ -593,6 +593,11 @@ fn a_merge_on_main_is_refused_and_one_elsewhere_passes_the_documentation_check()
         "{}",
         both(&output)
     );
+    assert!(
+        both(&output).contains(" [hook/merge-on-main:main]"),
+        "a refusal ends in its key: {}",
+        both(&output)
+    );
 
     for (code, passes) in [(0, true), (1, false)] {
         let fixture = shimmed(&format!("hooks-merge-docs-{code}"));
@@ -1266,6 +1271,11 @@ fn main_moves_only_to_what_origin_main_has_through_the_shim() {
         both(&output)
             .contains("refs/heads/main: hook/main-moves: main moves only to what origin/main has"),
         "{}",
+        both(&output)
+    );
+    assert!(
+        both(&output).contains(" [hook/main-moves:main]"),
+        "a refusal ends in its key: {}",
         both(&output)
     );
     let output = git_hooked(

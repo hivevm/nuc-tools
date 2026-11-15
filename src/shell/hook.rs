@@ -75,7 +75,7 @@ fn commit_hook(name: &str, args: &[&str], script: &str, decide: Decide) -> Resul
             .as_ref()
             .is_some_and(|root| root.join(script).is_file()),
     };
-    Ok(carry_out(decide(&state, &is_on(&on))))
+    carry_out(decide(&state, &is_on(&on)))
 }
 
 /// The directory git runs the hook in.
@@ -93,15 +93,34 @@ fn is_on<'a>(on: &'a [&HookRule]) -> impl Fn(&HookRule) -> bool + 'a {
     move |rule| on.iter().any(|on| on.id == rule.id)
 }
 
-/// The exit code of an answer, its finding printed on the standard output.
-fn carry_out(answer: Answer) -> u8 {
+/// The exit code of an answer, its finding printed on the standard output; not decided where the
+/// finding's reason is not one its rule declares, whose key no list holds
+/// (API-command-line-keyed-findings, Q-1).
+fn carry_out(answer: Answer) -> Result<u8, String> {
     match answer {
-        Answer::Pass => PASSED,
+        Answer::Pass => Ok(PASSED),
         Answer::Refuse(finding) => {
+            refusal_of(&finding).map_or(Ok(()), Err)?;
             println!("{finding}");
-            FOUND
+            Ok(FOUND)
         }
-        Answer::RunCheck => RUN_CHECK,
+        Answer::RunCheck => Ok(RUN_CHECK),
+    }
+}
+
+/// Why a hook's finding cannot be printed: a rule ID no hook rule holds, or a reason its rule does
+/// not declare.
+fn refusal_of(finding: &crate::finding::Finding) -> Option<String> {
+    match hook::find(finding.rule) {
+        None => Some(format!(
+            "{}: no hook rule holds this ID — not decided",
+            finding.rule
+        )),
+        Some(rule) if !rule.reasons.contains(&finding.reason) => Some(format!(
+            "{}: refuses with the reason '{}', which it does not declare — not decided",
+            finding.rule, finding.reason
+        )),
+        Some(_) => None,
     }
 }
 
@@ -183,7 +202,7 @@ fn pre_push(args: &[&str]) -> Result<u8, String> {
             None => remove(&pending)?,
         }
     }
-    Ok(carry_out(out.answer))
+    carry_out(out.answer)
 }
 
 /// The standard input git hands the hook, which reads no file. A ref name may hold bytes that are
@@ -249,12 +268,12 @@ fn reference_transaction(args: &[&str]) -> Result<u8, String> {
         git::probe(&dir, &["merge-base", "--is-ancestor", commit, &remote])
             .is_ok_and(|answer| answer.is_some())
     };
-    Ok(carry_out(hook::reference_transaction(
+    carry_out(hook::reference_transaction(
         &moves,
         current.as_deref(),
         &has,
         &is_on(&on),
-    )))
+    ))
 }
 
 /// The count of draft ADRs the object carries, as the bash counts the names `git ls-tree` lists:
@@ -506,4 +525,39 @@ fn merge_sides(
 /// The bytes of one side of a merge, at the path git hands the driver, a file git wrote for it.
 fn read_merge_side(path: &Path) -> Result<Vec<u8>, String> {
     fs::read(path).map_err(|e| format!("{}: unreadable — {e} — not decided", path.display()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::finding::Finding;
+
+    fn refusal(rule: &'static str, reason: &'static str) -> Finding {
+        Finding {
+            rule,
+            reason,
+            file: "refs/heads/main".to_owned(),
+            line: None,
+            message: "m".to_owned(),
+        }
+    }
+
+    #[test]
+    fn a_refusal_prints_only_with_a_reason_its_hook_rule_declares() {
+        for rule in hook::ALL {
+            for reason in rule.reasons {
+                assert_eq!(refusal_of(&refusal(rule.id, reason)), None, "{}", rule.id);
+            }
+        }
+        assert_eq!(
+            refusal_of(&refusal("hook/commit-on-main", "branch")).as_deref(),
+            Some(
+                "hook/commit-on-main: refuses with the reason 'branch', which it does not \
+                 declare — not decided"
+            )
+        );
+        assert!(refusal_of(&refusal("hook/merge-checks", "main")).is_some());
+        assert!(refusal_of(&refusal("hook/no-such-rule", "main")).is_some());
+        assert!(carry_out(Answer::Refuse(refusal("hook/commit-on-main", "branch"))).is_err());
+    }
 }

@@ -117,7 +117,7 @@ fn the_exit_codes_are_zero_one_and_two() {
 /// Only `nuc hook` answers 3 or 4, where a shim runs a check; no other command exits 3 or 4, on a
 /// clean tree, a finding, a refusal, an unknown command, or an explanation.
 #[test]
-fn no_command_but_hook_exits_three() {
+fn no_command_but_hook_exits_three_or_four() {
     let clean = Fixture::project("contract-no-three-clean", CONFIG, README);
     let finding = Fixture::project("contract-no-three-finding", CONFIG, "# X\n");
     let refusal = Fixture::project("contract-no-three-refusal", "nonsense\n", README);

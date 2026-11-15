@@ -23,13 +23,6 @@ impl fmt::Display for Finding {
             Some(line) => write!(f, "{}:{line}: {}: {}", self.file, self.rule, self.message)?,
             None => write!(f, "{}: {}: {}", self.file, self.rule, self.message)?,
         }
-        write!(f, " [{}]", self.key())
-    }
-}
-
-impl Finding {
-    /// The key the line ends in: `<rule ID>:<reason>`.
-    pub fn key(&self) -> String {
-        format!("{}:{}", self.rule, self.reason)
+        write!(f, " [{}:{}]", self.rule, self.reason)
     }
 }

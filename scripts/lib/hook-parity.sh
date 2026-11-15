@@ -104,8 +104,13 @@ hp_lines() {
       if [[ -n "$matched" ]]; then printf 'rule\t%s\n' "$matched"; else printf 'unknown\t%s\n' "$line"; fi
     elif [[ "$line" =~ ^([^\ :]+):\ (hook/[a-z0-9-]+):\ (.*)$ ]]; then
       local location="${BASH_REMATCH[1]}" rule="${BASH_REMATCH[2]}" message="${BASH_REMATCH[3]}"
-      # The key the line ends in, '[<rule>:<reason>]', is no part of the bash's wording.
-      message="${message% \["$rule":*\]}"
+      # The key the line ends in, '[<rule>:<reason>]', is no part of the bash's wording; a
+      # finding without it is a difference (API-command-line-keyed-findings).
+      if [[ "$message" =~ \ \["$rule":[a-z]+\]$ ]]; then
+        message="${message% \["$rule":*\]}"
+      else
+        printf 'unknown\tnuc refuses with %s without its key\n' "$rule"
+      fi
       if _contains "$rule" "${hp_ids[@]}"; then
         # A finding worded as the bash words its refusal maps by the same row, so that the fields
         # it carries beyond the ref, as which hint it gives, are compared; else by its ref.

@@ -334,7 +334,8 @@ fn required_checks(
         }
     }
     if names.is_empty() {
-        found.push(finding("unnamed", 
+        found.push(finding(
+            "unnamed",
             guide,
             "no job names between the 'required-checks' markers — the required status checks are unverifiable"
                 .to_owned(),
