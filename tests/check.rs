@@ -877,6 +877,29 @@ fn the_merge_base_is_taken_with_origin_main_first_and_a_base_without_readme_coun
     );
 }
 
+#[test]
+fn a_script_tracked_without_the_executable_bit_fails_as_shell_mode() {
+    let config = "minimum = \"0.0.0\"\nrules = [\"shell/mode\"]\n";
+    let fixture = Fixture::project("shell-mode", config, README);
+    fixture.write("scripts/a.sh", "#!/usr/bin/env bash\n");
+    fixture.write("scripts/lib/b.sh", "# sourced\n");
+    fixture.git(&["add", "-A"]);
+    fixture.git(&["update-index", "--chmod=-x", "--", "scripts/a.sh"]);
+    let readme = "# Fixture\n\n- **Template release:** v0.10.0\n";
+    fixture.write("README.md", readme);
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(
+        stdout(&output),
+        "scripts/a.sh: shell/mode: is tracked with mode 100644, not 100755 \
+         (NUC-checks-are-bash §9), so a direct call is refused — a script is run, and git keeps \
+         its executable bit: git update-index --chmod=+x -- scripts/a.sh [shell/mode:exec]\n",
+        "{}",
+        stderr(&output)
+    );
+    fixture.git(&["update-index", "--chmod=+x", "--", "scripts/a.sh"]);
+    assert_eq!(code(&fixture.nuc(&["check"])), Some(0));
+}
+
 /// A project with only the skill pointer rule on and the skill `review` under `.agents/skills/`.
 fn skills(name: &str) -> Fixture {
     let config = "minimum = \"0.0.0\"\nrules = [\"docs/skill-pointers\"]\n";

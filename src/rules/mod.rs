@@ -24,6 +24,7 @@ pub mod docs_section_refs;
 pub mod docs_skill_pointers;
 pub mod docs_template_identity;
 pub mod docs_template_release;
+pub mod shell_mode;
 pub mod traceability_citations;
 pub mod traceability_coverage;
 pub mod traceability_criteria;
@@ -86,6 +87,8 @@ pub struct Inputs {
     /// The rule keys the header of `scripts/check-docs.sh` lists, with the old keys it names for
     /// them; none where the tree has no such file.
     pub rule_keys: Option<std::collections::BTreeSet<String>>,
+    /// The index entries of the scripts `shell/mode` holds, as `git ls-files -s` lists them.
+    pub index_modes: Vec<shell_mode::IndexEntry>,
 }
 
 pub use crate::bash::read_lines;
@@ -189,6 +192,8 @@ pub enum Input {
     ReleaseBase,
     /// The rule keys of the header of `scripts/check-docs.sh`.
     RuleKeys,
+    /// The modes in git's index of the scripts under `scripts/` and the skills.
+    IndexModes,
 }
 
 /// One rule: its ID, the reason `nuc explain` gives, what it reads, and the check.
@@ -273,6 +278,7 @@ pub const ALL: &[Rule] = &[
     docs_no_draft_on_main::RULE,
     docs_opens_no_issue::RULE,
     docs_template_release::RULE,
+    shell_mode::RULE,
     traceability_criteria::RULE,
     traceability_citations::RULE,
     traceability_coverage::RULE,

@@ -11,11 +11,9 @@ check-docs-record | no README to carry the Template release line | docs/template
 check-docs-record | the first release cut while a NUC- ADR is proposed | docs/template-release | decided by API-version-coupling-hook-defaults — it checks the tree as the v0.1.0 its README names, a release before this check
 check-shell | a project's script that calls no enter_root | shell/root | not ported under ARCH-rules-need-only-git, since it runs the project's scripts
 check-shell | a quoted case label with an alternative reads a value | shell/root | not ported under ARCH-rules-need-only-git, since it runs the project's scripts
-check-shell | a script tracked without the executable bit | shell/mode | pending docs/plan/port-v0-9-to-v0-11/10-shell-mode-and-parity-on-v0-10-and-v0-11.md
 check-shell | a script whose enter_root is its own reads a missing root | shell/root | not ported under ARCH-rules-need-only-git, since it runs the project's scripts
 check-shell | a script without rest_args, which takes --verbose | shell/root | not ported under ARCH-rules-need-only-git, since it runs the project's scripts
 check-shell | a self-test whose floor does not stop it | shell/bash-floor | not ported under ARCH-rules-need-only-git, since it runs the project's scripts
-check-shell | a skill script tracked without the executable bit | shell/mode | pending docs/plan/port-v0-9-to-v0-11/10-shell-mode-and-parity-on-v0-10-and-v0-11.md
 check-shell | a skill script whose floor does not stop it | shell/bash-floor | not ported under ARCH-rules-need-only-git, since it runs the project's scripts
 check-shell | an option a test reads a value after, written without one in the usage | shell/root | not ported under ARCH-rules-need-only-git, since it runs the project's scripts
 check-shell | an option whose branch reads a value, written without one in the usage | shell/root | not ported under ARCH-rules-need-only-git, since it runs the project's scripts

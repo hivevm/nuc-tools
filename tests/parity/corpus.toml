@@ -52,6 +52,28 @@ name = "nuc-v0-9-1"
 url = "https://github.com/hivevm/nuc.git"
 commit = "0a19dabc467be930c838cae7a3b3df24320397e5"
 
+# The template at the commit of its release v0.10.0, whose check-docs.sh holds the release line to
+# the accepted NUC- ADRs and refuses an issue the template opens, and whose check-shell.sh holds
+# the mode of a script: the rules that check by the release check it as v0.10.0.
+[[repository]]
+name = "nuc-v0-10-0"
+url = "https://github.com/hivevm/nuc.git"
+commit = "ba51afe2be37bfa8143de8d289d0cabb7ed8dd9e"
+
+# The template at the commit of its release v0.11.0, whose checks change only in their comments
+# and the root they read: every rule checks it as v0.10.0.
+[[repository]]
+name = "nuc-v0-11-0"
+url = "https://github.com/hivevm/nuc.git"
+commit = "d48b23f90d61c4230a85e2a3c78d5421764f8b56"
+
+# This repository at the commit of its main that merged the first part of the port, on template
+# release v0.11.0: a derived tree of that release.
+[[repository]]
+name = "nuc-tools-v0-11-0"
+url = "https://github.com/hivevm/nuc-tools.git"
+commit = "ec2a93a610523dd2afa895c660f8ba96735d46e2"
+
 # A derived repository on template release v0.6.1, at a fixed commit of its main.
 [[repository]]
 name = "nectar"

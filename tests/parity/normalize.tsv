@@ -14,6 +14,7 @@
 # check-docs.sh, check 14: the template release named.
 ^README\.md: no '\*\*Template release:\*\*' line	docs/template-release	-
 ^README\.md: the Template release line names neither	docs/template-release	-
+^[^ :]+: proposed, and the change moves the Template release line from 	docs/template-release	-
 
 # check-docs.sh, check 1: the ADR index.
 ^ADR index not found: docs/adr/README\.md$	docs/adr-index	-	=docs/adr/README.md
@@ -40,6 +41,7 @@
 
 # check-docs.sh, check 5: the ADR references.
 ^[^:]+:[0-9]+: reference '.*' matches no ADR file in docs/adr/$	docs/adr-refs	line
+^[^ :]+: Applies to names the rule '[^']+' of scripts/check-docs\.sh, which its header does not list$	docs/adr-refs	line
 
 # check-docs.sh, check 6: a link citing an ADR points at its file.
 ^[^:]+: link '.*' cites [A-Z]+-.* but points at '.*'$	docs/adr-link-targets	-
@@ -136,3 +138,16 @@
 ^[^ :]+: the [A-Za-z]+ field names no clause of a NUC- ADR	docs/adr-supersessions	-	+docs/adr/
 ^[^ :]+: [A-Za-z]+ NUC-[^ ]+ §[0-9]+, a clause its Decision does not have$	docs/adr-supersessions	-	+docs/adr/
 ^docs/adr/: ([0-9]+ accepted ADRs fill|no accepted ADR fills) the role 	docs/template-identity	-
+^\.github/ISSUE_TEMPLATE/template-finding\.md: the template's form for findings about itself is still here; 	docs/template-identity	-
+
+# check-docs.sh of v0.10.0 on: no file of the template opens an issue on its own.
+^[^:]+:[0-9]+: opens an issue on its own \((cli|api|graphql|http|script)\) — 	docs/opens-no-issue	line
+
+# check-shell.sh of v0.10.0 on: the mode of a script, the one rule of it nuc ports; the rules that
+# run the project's scripts are left to the bash (ARCH-rules-need-only-git).
+^[^ ].*: is tracked with mode [0-9]+, not 100755 \(NUC-checks-are-bash §9\), so a direct call is refused — 	shell/mode	-
+^[^ ].*: sources the bash floor and does not stop below bash 4\.4 with its name 	-	-
+^[^ ].*: calls no enter_root on a line of its own — 	-	-
+^[^ ].*: reads a value after '[^']+', which its usage does not write as 	-	-
+^[^ ].*: does not refuse --verbose with exit 2 and its name 	-	-
+^[^ ].*: does not refuse a --root that is no directory with exit 2 	-	-

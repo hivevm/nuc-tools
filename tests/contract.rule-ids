@@ -27,6 +27,7 @@ hook/merge-docs
 hook/merge-on-main
 hook/push-checks
 hook/push-to-main
+shell/mode
 traceability/citations
 traceability/coverage
 traceability/criteria

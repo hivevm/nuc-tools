@@ -1,6 +1,6 @@
 # ARCH-rules-need-only-git: `nuc` ports no bash rule whose decision needs a process other than git, such as a script of the project or ShellCheck, and leaves such a rule to the bash
 
-- **Status:** 🟡 proposed
+- **Status:** 🟢 accepted
 - **Date:** 2026-11-15
 - **Deciders:** Markus Brigl
 - **Applies to:** which rules of the template's checks `nuc` ports, the rule IDs it knows, the processes `src/shell/` spawns, and the cases `tests/tables.cases` lists as not ported

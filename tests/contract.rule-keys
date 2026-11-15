@@ -114,6 +114,7 @@ hook/commit-on-main:main
 hook/main-moves:main
 hook/merge-on-main:main
 hook/push-to-main:main
+shell/mode:exec
 traceability/citations:criterion
 traceability/citations:inactive
 traceability/citations:malformed

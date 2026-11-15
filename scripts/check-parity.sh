@@ -22,7 +22,9 @@
 #   1. The bash scripts with a ported rule run in the tree, one after the other, with the
 #      environment cleared to PATH, HOME, LC_ALL=C, and that of a pull request into main marked
 #      ready (CI_ENV): scripts/check-docs.sh and scripts/check-traceability.sh (BASH_CHECKS),
-#      whose findings are their '  - ' lines. Their outputs are read as one, and bash fails when
+#      whose findings are their '  - ' lines; and scripts/check-shell.sh where it has the rule
+#      shell/mode, from v0.10.0 on, whose findings are its lines that end in a key of shell/.
+#      Their outputs are read as one, and bash fails when
 #      either fails; a tree that lacks one of them, or a script that fails without a finding,
 #      fails the harness.
 #   2. nuc runs 'check' on the tree, with a nuc.toml the harness writes beside it, ignored through
@@ -437,8 +439,11 @@ at_least_floor() {
 # that reads where a change lands (check 16) speaks as it does in CI.
 CI_ENV=(GITHUB_BASE_REF=main PULL_REQUEST_DRAFT=false)
 
-# The bash scripts whose rules nuc ports, run in this order.
+# The bash scripts whose rules nuc ports, run in this order; and check-shell.sh, run where it has
+# the one rule of it nuc ports, whose finding lines end in a key of shell/.
 BASH_CHECKS=(scripts/check-docs.sh scripts/check-traceability.sh)
+SHELL_CHECK=scripts/check-shell.sh
+SHELL_FINDING_RE='^[^ ].* \[shell/[a-z-]+:[a-z]+\]$'
 
 # run_pair <label> <tree> <output prefix> — run bash and nuc on the tree and compare them.
 run_pair() {
@@ -459,18 +464,31 @@ run_pair() {
     cat "$out.script" >> "$out.bash"
     ((bash_rc)) || bash_rc=$rc
   done
+  # check-shell.sh of a tree that has the rule shell/mode, from v0.10.0 on: its findings are the
+  # lines that end in a key of shell/, read as findings of the other scripts are; the rest of its
+  # output, ShellCheck's among it, and its exit, which a rule nuc leaves to the bash sets too, are
+  # not compared (ARCH-rules-need-only-git).
+  if [[ -f "$dir/$SHELL_CHECK" ]] && grep -qF '[shell/mode:exec]' "$dir/$SHELL_CHECK"; then
+    (cd "$dir" && env -i PATH="$PATH" HOME="$HOME" LC_ALL=C "${CI_ENV[@]}" bash "$SHELL_CHECK") > "$out.script" 2>&1
+    if grep -E "$SHELL_FINDING_RE" "$out.script" | sed 's/^/  - /' >> "$out.bash"; then
+      ((bash_rc)) || bash_rc=1
+    fi
+  fi
   env -i PATH="$PATH" HOME="$HOME" "${CI_ENV[@]}" "$nuc" check --repo "$dir" > "$out.nuc" 2> "$out.nuc.err"
   nuc_rc=$?
   compare "$label" "$out.bash" "$bash_rc" "$out.nuc" "$nuc_rc"
 }
 
-# apply_variant <copy> <path> <sed|delete|write|chomp> <argument> — apply the edit to the copy of a
-# tree. It fails when the edit does not apply: the file is missing, or for 'write' already there,
-# resolves outside the copy, the sed expression fails or changes nothing, or for 'chomp' the file
-# does not end with a newline. 'write' creates the file with the argument as its one line, its
-# backslash escapes read as printf's %b reads them, as \x3a for a colon, in a directory the copy
-# already has; 'chomp' takes the newline off the file's last line, which sed cannot. sed runs
-# sandboxed, so an expression runs no command and reads or writes no other file.
+# apply_variant <copy> <path> <sed|delete|write|chomp|chmod> <argument> — apply the edit to the
+# copy of a tree. It fails when the edit does not apply: the file is missing, or for 'write'
+# already there, resolves outside the copy, the sed expression fails or changes nothing, for
+# 'chomp' the file does not end with a newline, or for 'chmod' git does not track the file or its
+# mode in the index stays as it was. 'write' creates the file with the argument as its one line,
+# its backslash escapes read as printf's %b reads them, as \x3a for a colon, in a directory the
+# copy already has; 'chomp' takes the newline off the file's last line, which sed cannot; 'chmod'
+# sets or clears the executable bit in the copy's index, +x or -x, where a rule reads the mode git
+# keeps rather than the file's. sed runs sandboxed, so an expression runs no command and reads or
+# writes no other file.
 apply_variant() {
   local copy="$1" file="$1/$2"
   if [[ "$3" == write ]]; then
@@ -496,6 +514,14 @@ apply_variant() {
     chomp)
       [[ "$(tail -c 1 "$file" | od -An -c | tr -d ' ')" == '\n' ]] || return 1
       truncate -s -1 "$file" || return 1
+      ;;
+    chmod)
+      local before after
+      before="$(cgit "$copy" ls-files -s -- ":(literal)$2")"
+      [[ -n "$before" ]] || return 1
+      cgit "$copy" update-index --chmod="$4" -- "$2" 2>/dev/null || return 1
+      after="$(cgit "$copy" ls-files -s -- ":(literal)$2")"
+      [[ "$after" != "$before" ]] || return 1
       ;;
     sed)
       sed --sandbox -E "$4" "$file" > "$file.after" 2>/dev/null || { rm -f "$file.after"; return 1; }
@@ -527,17 +553,18 @@ fires() {
 }
 
 # The variants, one row each: name, rule, path in the tree, 'sed' with an extended expression,
-# 'delete' with '-', 'write' with a line, or 'chomp' with '-', and optionally the names of the
-# corpus trees it is for, separated by commas, all separated by tabs. Without names it is for every
-# tree. The path stays inside the tree and out of its .git; every ported rule brings one at least.
+# 'delete' with '-', 'write' with a line, 'chomp' with '-', or 'chmod' with +x or -x, and
+# optionally the names of the corpus trees it is for, separated by commas, all separated by tabs.
+# Without names it is for every tree. The path stays inside the tree and out of its .git; every
+# ported rule brings one at least.
 variant_names=() variant_rules=() variant_paths=() variant_ops=() variant_args=() variant_trees=()
 [[ -r "$variants" ]] || die "$variants: unreadable"
 while IFS=$'\t' read -r vname vrule vpath vop varg vtrees extra || [[ -n "$vname" ]]; do
   [[ -z "$vname" || "$vname" == \#* ]] && continue
   if ! [[ "$vname" =~ ^[a-z0-9-]+$ && -n "$vpath" && -z "${extra:-}" ]] \
     || ! [[ -z "${vtrees:-}" || "$vtrees" =~ ^[a-z0-9-]+(,[a-z0-9-]+)*$ ]] \
-    || ! [[ ( "$vop" == sed && -n "$varg" ) || ( "$vop" =~ ^(delete|chomp)$ && "$varg" == - ) || ( "$vop" == write && -n "$varg" ) ]]; then
-    die "$variants: the row '$vname' is not 'name<TAB>rule<TAB>path<TAB>sed|delete|write|chomp<TAB>argument[<TAB>tree,…]'"
+    || ! [[ ( "$vop" == sed && -n "$varg" ) || ( "$vop" =~ ^(delete|chomp)$ && "$varg" == - ) || ( "$vop" == write && -n "$varg" ) || ( "$vop" == chmod && "$varg" =~ ^[-+]x$ ) ]]; then
+    die "$variants: the row '$vname' is not 'name<TAB>rule<TAB>path<TAB>sed|delete|write|chomp|chmod<TAB>argument[<TAB>tree,…]'"
   fi
   # The repository's own .git is no part of the tree: an edit there could point git, and so both
   # tools, at another repository.

@@ -449,6 +449,42 @@ fn read_traceability(
     Ok(())
 }
 
+/// The entries of git's index that `shell/mode` reads, as the bash's `git ls-files -s -z` lists
+/// them for `scripts/*.sh` and `.agents/skills/*/*.sh`, whose `*` matches a `/` too: each
+/// `<mode> <object> <stage>\t<path>`. A path that is no UTF-8 is read with U+FFFD in place of
+/// its bytes, which the rule refuses to spell only where it would report the path.
+fn read_index_modes(root: &Path) -> Result<Vec<rules::shell_mode::IndexEntry>, String> {
+    let out = git::run_bytes(
+        root,
+        &[
+            "ls-files",
+            "-s",
+            "-z",
+            "--",
+            "scripts/*.sh",
+            ".agents/skills/*/*.sh",
+        ],
+    )?;
+    let mut entries = Vec::new();
+    for record in out.split(|&b| b == 0).filter(|r| !r.is_empty()) {
+        let Some(tab) = record.iter().position(|&b| b == b'\t') else {
+            return Err("git ls-files -s wrote an entry without a tab — not decided".to_owned());
+        };
+        let meta = String::from_utf8_lossy(&record[..tab]);
+        let path = String::from_utf8_lossy(&record[tab + 1..]);
+        let fields: Vec<&str> = meta.split(' ').collect();
+        let [mode, _, stage] = fields[..] else {
+            return Err(format!("git ls-files -s wrote '{meta}' — not decided"));
+        };
+        entries.push(rules::shell_mode::IndexEntry {
+            path: path.into_owned(),
+            mode: mode.to_owned(),
+            stage: stage.to_owned(),
+        });
+    }
+    Ok(entries)
+}
+
 /// The rule keys a header of `scripts/check-docs.sh` lists, as the bash reads its own from template
 /// release v0.10.0 on: up to the first line that opens with `set `, each line `#   <area>/<name>`,
 /// with the old keys a ` (was: <keys>)` after it names.
@@ -494,6 +530,9 @@ fn read_by_git(
     }
     if needs(Input::ReleaseBase) {
         inputs.release_base = read_release_base(&tree.root)?;
+    }
+    if needs(Input::IndexModes) {
+        inputs.index_modes = read_index_modes(&tree.root)?;
     }
     if needs(Input::RuleKeys) {
         let script = tree.root.join("scripts/check-docs.sh");

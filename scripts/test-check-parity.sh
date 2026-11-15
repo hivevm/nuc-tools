@@ -19,7 +19,11 @@
 # that does not apply to one tree, one that does not make its rule fire beyond the tree's own
 # findings, a ported rule without one, a path outside the tree, a sed expression that runs a
 # command or writes a file, a name used twice, and a malformed or unmapped row; a 'chomp' applies
-# and is compared, does not apply to a file without a last newline, and takes '-' alone. The pin
+# and is compared, does not apply to a file without a last newline, and takes '-' alone; a 'chmod'
+# applies and is compared, does not apply to a mode left as it was or to a file git does not track,
+# and takes +x or -x alone. The shell cases compare the lines of check-shell.sh keyed shell/ alone,
+# map a rule nuc leaves to the bash to none, and run no check-shell.sh without the key of
+# shell/mode. The pin
 # cases pass a pin of a copied fixture table that the tag of a template tree bears out, and fail
 # one the tag does not, one whose tag cannot be read, and one without a template tree, and exit 2
 # on a malformed or missing list of pins. No network
@@ -354,6 +358,45 @@ check "the variant leaves the cached tree as pinned" \
 
 expect fail "a corpus on which they differ" "variant deleted — 2 difference" run "$c" "$(stand_in silent)"
 
+# check-shell.sh of a tree that has the rule shell/mode: only its lines keyed shell/ are findings,
+# a rule nuc leaves to the bash maps to none, and a tree whose script lacks the rule's key is not
+# run. shelled <name> <has key: 1|0> <lines...> — a source repository whose check-shell.sh prints
+# a line of ShellCheck and the lines, and exits 1.
+ROOT_FINDING="scripts/x.sh: calls no enter_root on a line of its own — x [shell/root:unrooted]"
+MODE_FINDING="scripts/x.sh: is tracked with mode 100644, not 100755 (NUC-checks-are-bash §9), so a direct call is refused — x [shell/mode:exec]"
+shelled() {
+  local src key="$2" name="$1"; shift 2
+  src="$(source_repo "$name")"
+  { echo '#!/usr/bin/env bash'
+    ((key)) && echo '# [shell/mode:exec]'
+    echo 'echo "In scripts/x.sh line 1: SC2034"'
+    printf 'echo %q\n' "$@"
+    echo 'exit 1'; } > "$src/scripts/check-shell.sh"
+  git -C "$src" add -A
+  git -C "$src" -c user.name=F -c user.email=f@example.invalid -c core.hooksPath=/dev/null commit -q -m shelled
+  git -C "$src" rev-parse HEAD > "$work/src-$name.commit"
+  corpus "$work/$name.toml" "$name"
+}
+# The table of the run cases holds the rows of the rules nuc leaves to the bash, not shell/mode's,
+# which would bring a variant; the case after them compares a finding of shell/mode by its row.
+grep -E $'^#|\tdocs/template-release\t|^\\^\\[\\^ \\]\\.\\*: .*\t-\t-$' "$ROOT/tests/parity/normalize.tsv" > "$work/shell.tsv"
+# shellcheck disable=SC2317,SC2329 # run through expect
+shell_run() {
+  env PARITY_TABLE="$work/shell.tsv" bash "$HARNESS" --no-hooks --corpus "$1" --cache "$work/cache" --nuc "$2" \
+    --variants "$DEFAULT"
+}
+expect pass "a finding of check-shell.sh of a rule nuc leaves to the bash is no difference, nor its other lines" "" \
+  shell_run "$(shelled shell-root 1 "$ROOT_FINDING")" "$(reactive_nuc)"
+expect fail "a line of check-shell.sh keyed shell/mode is read as a finding" "bash message the table does not know" \
+  shell_run "$(shelled shell-mode 1 "$MODE_FINDING")" "$(reactive_nuc)"
+expect pass "a check-shell.sh without the key of shell/mode is not run" "" \
+  shell_run "$(shelled shell-none 0 "$MODE_FINDING")" "$(reactive_nuc)"
+MODE_TEXT="${MODE_FINDING#scripts/x.sh: }"
+expect pass "a finding of shell/mode maps to the rule by its row" "" \
+  compare "$(bash_out shell-mode "$MODE_FINDING")" 1 "$(raw_nuc_out shell-mode "scripts/x.sh: shell/mode: $MODE_TEXT")" 1
+expect fail "a finding of shell/mode nuc does not report is a difference" "only bash reports: shell/mode scripts/x.sh" \
+  compare "$(bash_out shell-mode-only "$MODE_FINDING")" 1 "$(nuc_out shell-mode-only)" 0
+
 # The pins of the copied fixture tables (TEST-template-table-cases): a tree of the template,
 # TEMPLATE-SETUP.md in it, whose tag v9.9.9 the harness fetches from its source through file://.
 src="$(source_repo tables)"
@@ -555,6 +598,18 @@ expect fail "a chomp of a file without a last newline does not apply" "variant u
 
 v="$(variants "$work/v-chomp-arg.tsv" "$DELETE" $'chomp-arg\tdocs/template-release\tREADME.md\tchomp\tx')"
 expect fail "a chomp with an argument other than '-' is refused" "is not 'name<TAB>rule" run "$c" "$(reactive_nuc)" "$v"
+
+v="$(variants "$work/v-chmod.tsv" "$DELETE" $'chmodded\tdocs/template-release\tREADME.md\tchmod\t+x')"
+expect fail "a variant that sets the executable bit in the index applies, and is compared" "variant chmodded — bash reports no finding" \
+  run "$c" "$(reactive_nuc)" "$v"
+v="$(variants "$work/v-chmod-same.tsv" "$DELETE" $'unchanged\tdocs/template-release\tREADME.md\tchmod\t-x')"
+expect fail "a chmod that leaves the mode in the index as it was does not apply" "variant unchanged — its edit of README.md does not apply" \
+  run "$c" "$(reactive_nuc)" "$v"
+v="$(variants "$work/v-chmod-untracked.tsv" "$DELETE" $'untracked\tdocs/template-release\tNEW.md\tchmod\t+x')"
+expect fail "a chmod of a file git does not track does not apply" "variant untracked — its edit of NEW.md does not apply" \
+  run "$c" "$(reactive_nuc)" "$v"
+v="$(variants "$work/v-chmod-arg.tsv" "$DELETE" $'chmod-arg\tdocs/template-release\tREADME.md\tchmod\t755')"
+expect fail "a chmod with an argument other than +x or -x is refused" "is not 'name<TAB>rule" run "$c" "$(reactive_nuc)" "$v"
 
 v="$(variants "$work/v-git.tsv" "$DELETE" $'git\tdocs/template-release\t.git/commondir\twrite\t/elsewhere')"
 expect fail "a variant that edits the repository's .git is refused" "no path inside the tree" run "$c" "$(reactive_nuc)" "$v"

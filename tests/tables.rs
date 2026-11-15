@@ -21,11 +21,10 @@
 //! reaches it; until then, a case that release changed stands as pending. The scripts the steps of
 //! `check-shell.txt` write are stand-ins with the kind's name, and the copy of the template's
 //! `scripts/lib/` that table's tree holds is left out: `nuc` reads no script's content and no file
-//! below `scripts/lib/` (ARCH-rules-need-only-git). Until `nuc` knows a rule of the area `shell/`,
-//! that table's cases run no rule, and its passing cases decide nothing. Every tree starts on the
-//! branch `main`, which the bash of the traceability and the shell tables leaves to git's default
-//! and no case reads. The trees hold symbolic links, so the cases run on Unix; the pins and the
-//! list are held on every platform.
+//! below `scripts/lib/` (ARCH-rules-need-only-git). In that table `nuc` runs `shell/mode`, the one
+//! rule of the area it ports. Every tree starts on the branch `main`, which the bash of the
+//! traceability and the shell tables leaves to git's default and no case reads. The trees hold
+//! symbolic links, so the cases run on Unix; the pins and the list are held on every platform.
 
 // The runner and its helpers serve the cases alone, which run on Unix only; elsewhere they stand
 // unused, and the pins and the judgement still compile and run.

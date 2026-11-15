@@ -1045,3 +1045,52 @@ fn a_call_into_what_a_rule_decides_is_found() {
         );
     }
 }
+
+/// The paths a source names that start a process: `std::process::Command`, by whatever path or
+/// opening brings it into scope.
+fn spawns(source: &str) -> Vec<String> {
+    violations(source, "std::process::Command\n")
+}
+
+/// Verifies: ARCH-rules-need-only-git
+#[test]
+fn the_one_process_src_starts_is_git_in_its_one_module() {
+    let src = root().join("src");
+    let found: Vec<String> = rust_files(&src, None)
+        .into_iter()
+        .filter(|path| path != &src.join("shell").join("git.rs"))
+        .flat_map(|path| {
+            let source = fs::read_to_string(&path).expect("a source is readable");
+            spawns(&source)
+                .into_iter()
+                .map(move |p| format!("{}: names '{p}'", path.display()))
+        })
+        .collect();
+    assert!(
+        found.is_empty(),
+        "only src/shell/git.rs starts a process, git (ARCH-rules-need-only-git):\n{}",
+        found.join("\n")
+    );
+    let git = fs::read_to_string(src.join("shell").join("git.rs")).expect("readable");
+    assert!(
+        !spawns(&git).is_empty(),
+        "src/shell/git.rs no longer names Command"
+    );
+    let started = git.matches("Command::new(").count();
+    assert!(
+        started > 0 && started == git.matches("Command::new(\"git\")").count(),
+        "src/shell/git.rs starts another program than git"
+    );
+}
+
+#[test]
+fn a_process_started_elsewhere_is_found() {
+    for source in [
+        "use std::process::Command; fn f() { Command::new(\"sh\"); }",
+        "fn f() { std::process::Command::new(\"sh\"); }",
+        "use std::process::*;",
+    ] {
+        assert!(!spawns(source).is_empty(), "not found in: {source}");
+    }
+    assert!(spawns("use std::process::ExitCode;").is_empty());
+}
