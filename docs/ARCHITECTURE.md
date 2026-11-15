@@ -60,9 +60,9 @@ golden path and the test pattern an agent copies from are named here.
   reads the release the tree carries and checks as that release does
   (API-version-coupling-hook-defaults). `tests/parity/releases.tsv` names the releases at which each
   rule's check changed, which the parity harness holds to the template's trees and
-  `tests/releases.rs` holds the rules to; a rule that checks every release alike although its bash
-  changed, as `docs/template-release` does, gives its reason there, for the releases the reason
-  names or for all.
+  `tests/releases.rs` holds the rules to; a rule that checks some or every release alike although
+  its bash changed, as `docs/template-release` does, gives its reason there, after a field that
+  names the releases the reason covers, or `-` for all.
 - **Configuration** — `config` reads `nuc.toml` and selects the rules it turns on, or says why `nuc`
   refuses: missing, unreadable, a minimum above the running version, an unknown rule ID
   ([API-version-coupling-hook-defaults](adr/API-version-coupling-hook-defaults.md)). It holds the

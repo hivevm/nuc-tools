@@ -283,8 +283,9 @@ for entry in "${repositories[@]}"; do
     || die "$corpus: an entry needs a name of [a-z0-9-], a url, and a 40-hex commit: '$entry'"
 done
 
-# The table of releases, one 'rule<TAB>script<TAB>function<TAB>releases' entry per row; a reason
-# after them is the reader's, not the harness's.
+# The table of releases, one 'rule<TAB>script<TAB>function<TAB>releases' entry per row; the fields
+# after them, the releases a reason covers and the reason, are tests/releases.rs's, not the
+# harness's.
 release_rows=()
 while IFS= read -r row || [[ -n "$row" ]]; do
   [[ "$row" =~ ^[[:space:]]*(#|$) ]] && continue

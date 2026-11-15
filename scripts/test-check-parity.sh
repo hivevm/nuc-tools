@@ -463,6 +463,8 @@ template_repo tpl-same v0.6.0 ': one'
 changed="$(corpus "$work/tpl-changed.toml" tpl-new tpl-old)"
 expect pass "a change the table lists, at the later of two trees of the template, passes" "" \
   run_releases "$changed" "$(releases "$work/r-listed.tsv" v0.6.0)"
+expect pass "a row with the releases its reason covers and the reason is read for its first four fields" "" \
+  run_releases "$changed" "$(releases "$work/r-reasoned.tsv" $'v0.6.0\tv0.6.0\tthe reason')"
 expect fail "a change the table does not list fails and names the rule" \
   "docs/template-release — its bash check changed at v0.6.0 across the template's trees of the corpus" \
   run_releases "$changed" "$(releases "$work/r-unlisted.tsv" -)"
