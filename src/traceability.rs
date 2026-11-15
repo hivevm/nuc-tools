@@ -14,8 +14,9 @@ pub const SPECIFICATION: &str = "docs/SPECIFICATION.md";
 pub struct Criteria {
     /// Every identifier, in the order of the specification, each as often as it appears.
     pub ids: Vec<String>,
-    /// Each problem of the list, by its line when it has one, as the bash words it.
-    pub problems: Vec<(Option<usize>, String)>,
+    /// Each problem of the list, by its line when it has one, with its reason and as the bash
+    /// words it.
+    pub problems: Vec<(Option<usize>, &'static str, String)>,
 }
 
 /// The criteria of the specification, read as the bash reads it: line by line, a heading of two
@@ -23,9 +24,11 @@ pub struct Criteria {
 pub fn criteria(specification: Option<&[u8]>) -> Criteria {
     let mut criteria = Criteria::default();
     let Some(text) = specification else {
-        criteria
-            .problems
-            .push((None, "not found — the criteria cannot be read".to_owned()));
+        criteria.problems.push((
+            None,
+            "absent",
+            "not found — the criteria cannot be read".to_owned(),
+        ));
         return criteria;
     };
     let mut section = None;
@@ -52,6 +55,7 @@ pub fn criteria(specification: Option<&[u8]>) -> Criteria {
                 if kind != section {
                     criteria.problems.push((
                         lineno,
+                        "section",
                         format!(
                             "'{id}' is listed under the wrong section — G-n belongs under Goals / \
                              Success Criteria, Q-n under Quality Goals"
@@ -61,6 +65,7 @@ pub fn criteria(specification: Option<&[u8]>) -> Criteria {
                 if criteria.ids.contains(&id) {
                     criteria.problems.push((
                         lineno,
+                        "twice",
                         format!("identifier '{id}' appears twice — identifiers are never reused"),
                     ));
                 }
@@ -71,6 +76,7 @@ pub fn criteria(specification: Option<&[u8]>) -> Criteria {
                 let excerpt = String::from_utf8_lossy(&body[..body.len().min(60)]);
                 criteria.problems.push((
                     lineno,
+                    "unnamed",
                     format!(
                         "list item without a bold {}-n identifier: '{excerpt}'",
                         char::from(section)

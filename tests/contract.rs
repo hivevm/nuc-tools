@@ -1,5 +1,5 @@
 //! The command-line contract of `nuc`, clause by clause, on fixture repositories.
-//! Verifies: API-command-line-with-hook-signal
+//! Verifies: API-command-line-keyed-findings
 
 mod support;
 
@@ -75,6 +75,10 @@ fn a_finding_is_one_line_on_the_standard_output_and_the_summary_is_on_the_standa
     assert_eq!(location, "README.md:3");
     assert!(rest.starts_with("docs/template-release: "), "{rest}");
     assert!(
+        rest.ends_with(" [docs/template-release:version]"),
+        "the line ends in its key: {rest}"
+    );
+    assert!(
         stderr(&output).contains("1 finding(s)"),
         "{}",
         stderr(&output)
@@ -88,6 +92,11 @@ fn a_finding_without_a_line_omits_it() {
     assert_eq!(code(&output), Some(1));
     assert!(
         stdout(&output).starts_with("README.md: docs/template-release: "),
+        "{}",
+        stdout(&output)
+    );
+    assert!(
+        stdout(&output).ends_with(" [docs/template-release:line]\n"),
         "{}",
         stdout(&output)
     );
@@ -105,8 +114,8 @@ fn the_exit_codes_are_zero_one_and_two() {
     assert_eq!(code(&clean.nuc(&["no-such-command"])), Some(2));
 }
 
-/// Only `nuc hook` answers 3, where a shim runs a check; no other command exits 3, on a clean
-/// tree, a finding, a refusal, an unknown command, or an explanation.
+/// Only `nuc hook` answers 3 or 4, where a shim runs a check; no other command exits 3 or 4, on a
+/// clean tree, a finding, a refusal, an unknown command, or an explanation.
 #[test]
 fn no_command_but_hook_exits_three() {
     let clean = Fixture::project("contract-no-three-clean", CONFIG, README);
@@ -124,7 +133,11 @@ fn no_command_but_hook_exits_three() {
         (&clean, &[]),
     ];
     for (fixture, args) in runs {
-        assert_ne!(code(&fixture.nuc(args)), Some(3), "nuc {args:?}");
+        let exit = code(&fixture.nuc(args));
+        assert!(
+            exit != Some(3) && exit != Some(4),
+            "nuc {args:?} exits {exit:?}"
+        );
     }
 }
 
@@ -183,6 +196,55 @@ fn every_rule_keeps_its_id_and_is_explained() {
             "nuc explain {id} gives no reason: {out}"
         );
     }
+}
+
+/// Every key `nuc` has printed, kept beside this test.
+const RULE_KEYS: &str = include_str!("contract.rule-keys");
+
+/// Verifies: API-command-line-keyed-findings, G-6
+#[test]
+fn every_key_stays_once_listed_and_each_reason_is_one_lower_case_word() {
+    let listed: Vec<&str> = RULE_KEYS
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty() && !line.starts_with('#'))
+        .collect();
+    let declared: Vec<String> = nuc::rules::ALL
+        .iter()
+        .flat_map(|rule| rule.reasons.iter().map(move |reason| (rule.id, *reason)))
+        .chain(
+            nuc::hook::ALL
+                .iter()
+                .flat_map(|rule| rule.reasons.iter().map(move |reason| (rule.id, *reason))),
+        )
+        .map(|(id, reason)| {
+            assert!(
+                !reason.is_empty() && reason.bytes().all(|b| b.is_ascii_lowercase()),
+                "{id}: the reason '{reason}' is not one word of lower-case letters"
+            );
+            format!("{id}:{reason}")
+        })
+        .collect();
+    for key in &listed {
+        assert!(
+            declared.iter().any(|d| d == key),
+            "the key '{key}' is gone: a key is stable once listed, since readers branch on it"
+        );
+    }
+    for key in &declared {
+        assert!(
+            listed.contains(&key.as_str()),
+            "the key '{key}' is not in contract.rule-keys: list it, and it stays from then on"
+        );
+    }
+    let mut unique = declared.clone();
+    unique.sort();
+    unique.dedup();
+    assert_eq!(
+        unique.len(),
+        declared.len(),
+        "a rule declares a reason twice"
+    );
 }
 
 /// Verifies: ARCH-rules-outcome-hooks-answer, G-6

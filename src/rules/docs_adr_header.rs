@@ -11,6 +11,7 @@ pub const RULE_ID: &str = "docs/adr-header";
 
 pub const RULE: Rule = Rule {
     id: RULE_ID,
+    reasons: &["field", "emojis", "word", "instruction"],
     explain: "Every ADR's '**Status:**' line carries exactly one legend emoji and the word that \
               belongs to it, every header field is the list item '- **<Name>:** …' of \
               docs/adr/template.md, and no ADR still contains the template's instruction \
@@ -35,8 +36,9 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
     let mut found = Vec::new();
     for (name, header) in adr::headers(&inputs.adr) {
         let path = format!("docs/adr/{name}");
-        let at = |line, message: &str| Finding {
+        let at = |line, reason, message: &str| Finding {
             rule: RULE_ID,
+            reason,
             file: path.clone(),
             line,
             message: message.to_owned(),
@@ -45,7 +47,7 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
             // '<line number>:<line>' as the awk prints it; the bash names the part before ':'.
             let before = stray.split(|&b| b == b':').next().unwrap_or(stray);
             let line = show(before).parse().ok();
-            found.push(at(line, "a header field not written as the list item '- **<Name>:** …' of template.md — every script reads only that form"));
+            found.push(at(line, "field", "a header field not written as the list item '- **<Name>:** …' of template.md — every script reads only that form"));
         }
         let status = header.field("Status").unwrap_or(b"");
         if let (Some(emoji), count) = adr::status_emoji(status) {
@@ -55,6 +57,7 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
             if count > 1 {
                 found.push(at(
                     None,
+                    "emojis",
                     &format!("status line carries {count} status emoji — keep exactly one"),
                 ));
             } else if word != expected.as_bytes() {
@@ -65,6 +68,7 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
                 };
                 found.push(at(
                     None,
+                    "word",
                     &format!("status line reads '{emoji} {word}', but {emoji} means '{expected}'"),
                 ));
             }
@@ -72,6 +76,7 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
         if header.needle {
             found.push(at(
                 None,
+                "instruction",
                 "still carries the instruction paragraph from template.md — delete it",
             ));
         }

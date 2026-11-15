@@ -15,6 +15,7 @@ pub const RULE_ID: &str = "docs/adr-supersessions";
 
 pub const RULE: Rule = Rule {
     id: RULE_ID,
+    reasons: &["unflipped", "unnamed", "unclaimed", "unaccepted"],
     explain: "The '**Supersedes:**' field of a new ADR and the '⚪ superseded by ADR-NNNN' \
               status line of every old one it names, one or several it consolidates, name each \
               other. The two halves stand in two files, and the index check sees neither one \
@@ -59,8 +60,9 @@ fn superseded(header: &Header) -> Vec<String> {
 fn check(inputs: &Inputs) -> Vec<Finding> {
     let headers = adr::headers(&inputs.adr);
     let by_key = adr::by_key(&inputs.adr);
-    let at = |name: &str, message: String| Finding {
+    let at = |name: &str, reason, message: String| Finding {
         rule: RULE_ID,
+        reason,
         file: format!("docs/adr/{name}"),
         line: None,
         message,
@@ -76,7 +78,7 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
             };
             let status = headers[target_name].field("Status").unwrap_or(b"");
             if successor(status).as_deref() != Some(key) {
-                found.push(at(target_name, format!(
+                found.push(at(target_name, "unflipped", format!(
                     "{name} supersedes it, but its status line does not say 'superseded by ADR-{key}'"
                 )));
             }
@@ -86,6 +88,7 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
             None if adr::status_emoji(status).0 == Some("⚪") => {
                 found.push(at(
                     name,
+                    "unnamed",
                     "status is ⚪ but the line names no superseding ADR".to_owned(),
                 ));
             }
@@ -95,12 +98,12 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
                     continue;
                 };
                 if !superseded(&headers[next_name]).iter().any(|k| k == key) {
-                    found.push(at(next_name, format!(
+                    found.push(at(next_name, "unclaimed", format!(
                         "{name} says it supersedes, but it carries no '**Supersedes:**' field naming ADR-{key}"
                     )));
                 }
                 if on_acceptance && !accepted(headers[next_name].field("Status").unwrap_or(b"")) {
-                    found.push(at(name, format!(
+                    found.push(at(name, "unaccepted", format!(
                         "superseded by ADR-{next}, which is not accepted — the status line flips when the human accepts ADR-{next}"
                     )));
                 }

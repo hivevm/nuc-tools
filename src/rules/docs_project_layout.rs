@@ -11,6 +11,14 @@ pub const RULE_ID: &str = "docs/project-layout";
 
 pub const RULE: Rule = Rule {
     id: RULE_ID,
+    reasons: &[
+        "absent",
+        "empty",
+        "unmatched",
+        "notdir",
+        "missing",
+        "unnamed",
+    ],
     explain: "Every path the 'Project Layout' block of CONTRIBUTING.md (README.md before template \
               release v0.7.0) lists exists, a trailing '/' meaning a directory and a '*' a \
               pattern that matches at least one file; docs/plan/ may be absent, since open work \
@@ -43,9 +51,10 @@ pub struct Layout {
 /// The directory open work lives in only while there is some.
 const PLAN: &str = "docs/plan/";
 
-fn finding(file: &str, message: String) -> Finding {
+fn finding(reason: &'static str, file: &str, message: String) -> Finding {
     Finding {
         rule: RULE_ID,
+        reason,
         file: file.to_owned(),
         line: None,
         message,
@@ -97,6 +106,7 @@ fn check(inputs: &Inputs) -> Outcome {
     let (guide, text) = inputs.guide();
     let Some(text) = text else {
         return vec![finding(
+            "absent",
             guide,
             "not found — the Project Layout block cannot be checked".to_owned(),
         )]
@@ -105,6 +115,7 @@ fn check(inputs: &Inputs) -> Outcome {
     let paths = listed(text);
     if paths.is_empty() {
         return vec![finding(
+            "empty",
             guide,
             "no paths found under '## Project Layout' — the inventory is unverifiable".to_owned(),
         )]
@@ -113,18 +124,19 @@ fn check(inputs: &Inputs) -> Outcome {
     let mut found = Vec::new();
     for path in &paths {
         let there = inputs.layout.found.get(path).copied().unwrap_or(false);
-        let message = if is_pattern(path) {
-            "which matches nothing in this repository"
+        let (reason, message) = if is_pattern(path) {
+            ("unmatched", "which matches nothing in this repository")
         } else if path.ends_with('/') {
             if path == PLAN {
                 continue;
             }
-            "which is not a directory of this repository"
+            ("notdir", "which is not a directory of this repository")
         } else {
-            "which does not exist"
+            ("missing", "which does not exist")
         };
         if !there {
             found.push(finding(
+                reason,
                 guide,
                 format!("Project Layout lists '{path}', {message}"),
             ));
@@ -146,7 +158,7 @@ fn check(inputs: &Inputs) -> Outcome {
                     ..Outcome::default()
                 };
             }
-            found.push(finding(guide, message));
+            found.push(finding("unnamed", guide, message));
         }
     }
     found.into()

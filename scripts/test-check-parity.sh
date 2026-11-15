@@ -60,8 +60,24 @@ bash_out() {
   echo "$f"
 }
 
-# nuc_out <name> [lines...] — the standard output of nuc with the lines.
+# keyed — each finding line of the standard input ending in a key of its rule, as nuc writes it
+# (API-command-line-keyed-findings), unless it ends in one already; the rule is the first
+# '<area>/<name>' between ': ' and ': '.
+keyed() {
+  awk '!/ \[[a-z]+\/[a-z0-9-]+:[a-z]+\]$/ && match($0, /: [a-z]+\/[a-z0-9-]+: /) {
+    $0 = $0 " [" substr($0, RSTART + 2, RLENGTH - 4) ":x]"
+  } { print }'
+}
+
+# nuc_out <name> [lines...] — the standard output of nuc with the lines, each keyed.
 nuc_out() {
+  local f="$work/$1.nuc"; shift
+  printf '%s\n' "$@" | sed '/^$/d' | keyed > "$f"
+  echo "$f"
+}
+
+# raw_nuc_out <name> [lines...] — the standard output of nuc with the lines as given.
+raw_nuc_out() {
   local f="$work/$1.nuc"; shift
   printf '%s\n' "$@" | sed '/^$/d' > "$f"
   echo "$f"
@@ -104,6 +120,9 @@ expect pass "both pass" "" compare "$(bash_out pass)" 0 "$(nuc_out pass)" 0
 
 expect pass "the same finding, bash without a line, nuc with one" "" \
   compare "$(bash_out same "$MALFORMED")" 1 "$(nuc_out same "README.md:5: docs/template-release: $MALFORMED_TEXT")" 1
+
+expect fail "a finding of nuc without its key" "without its key" \
+  compare "$(bash_out unkeyed "$MALFORMED")" 1 "$(raw_nuc_out unkeyed "README.md:5: docs/template-release: $MALFORMED_TEXT")" 1
 
 # The table of the repository and a row for a check not ported yet.
 { cat "$ROOT/tests/parity/normalize.tsv"; printf '^docs/x\\.md:[0-9]+: a line of prose\t-\t-\n'; } > "$work/unported.tsv"
@@ -249,7 +268,7 @@ reactive_nuc() {
   # shellcheck disable=SC2016 # the script is the stand-in's
   printf '%s\n' '#!/usr/bin/env bash' \
     'grep -q "^- \*\*Template release:\*\* v" "$3/README.md" && exit 0' \
-    "echo $(printf %q "README.md: docs/template-release: $MISSING_TEXT"); exit 1" > "$f"
+    "echo $(printf %q "README.md: docs/template-release: $MISSING_TEXT [docs/template-release:line]"); exit 1" > "$f"
   chmod +x "$f"
   echo "$f"
 }
@@ -258,7 +277,9 @@ reactive_nuc() {
 # there are any.
 stand_in() {
   local f="$work/nuc-$1"; shift
-  { echo '#!/usr/bin/env bash'; (($#)) && printf 'printf "%%s\\n" %q\n' "$@"; (($#)) && echo 'exit 1'; echo 'exit 0'; } > "$f"
+  local lines=()
+  (($#)) && mapfile -t lines < <(printf '%s\n' "$@" | keyed)
+  { echo '#!/usr/bin/env bash'; ((${#lines[@]})) && printf 'printf "%%s\\n" %q\n' "${lines[@]}"; ((${#lines[@]})) && echo 'exit 1'; echo 'exit 0'; } > "$f"
   chmod +x "$f"
   echo "$f"
 }

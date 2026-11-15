@@ -10,6 +10,7 @@ pub const RULE_ID: &str = "docs/adr-numbering";
 
 pub const RULE: Rule = Rule {
     id: RULE_ID,
+    reasons: &["gap", "heading", "form"],
     explain: "The ADR files run 0001..N without gaps, and each file's '# ADR-NNNN' heading \
               matches its file name. A draft stands outside the count: its slug is lower case \
               letters and digits joined by single hyphens, and its heading reads \
@@ -19,9 +20,10 @@ pub const RULE: Rule = Rule {
     check: |inputs| check(inputs).into(),
 };
 
-fn finding(file: String, message: String) -> Finding {
+fn finding(reason: &'static str, file: String, message: String) -> Finding {
     Finding {
         rule: RULE_ID,
+        reason,
         file,
         line: None,
         message,
@@ -38,7 +40,7 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
         let number = adr::key_of(name);
         let expected = format!("{:04}", n + 1);
         if number != expected {
-            found.push(finding("docs/adr".to_owned(), format!(
+            found.push(finding("gap", "docs/adr".to_owned(), format!(
                 "ADR numbering: expected '{expected}-*.md' at position {}, found '{name}' — numbers must run 0001..N without gaps",
                 n + 1
             )));
@@ -48,6 +50,7 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
         let heading = number_heading(&text).unwrap_or("");
         if heading != format!("# ADR-{number}") {
             found.push(finding(
+                "heading",
                 format!("docs/adr/{name}"),
                 format!(
                     "heading says '{}', but the filename says ADR-{number}",
@@ -67,6 +70,7 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
         let key = adr::key_of(name);
         if !key.strip_prefix("draft-").is_some_and(is_slug) {
             found.push(finding(
+                "form",
                 format!("docs/adr/{name}"),
                 "a draft's slug is lower case letters and digits joined by single hyphens"
                     .to_owned(),
@@ -77,6 +81,7 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
         let heading = reference_heading(&text).unwrap_or("");
         if heading != format!("# ADR-{key}") {
             found.push(finding(
+                "heading",
                 format!("docs/adr/{name}"),
                 format!(
                     "heading says '{}', but the filename says ADR-{key}",

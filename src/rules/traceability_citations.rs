@@ -13,6 +13,7 @@ pub const RULE_ID: &str = "traceability/citations";
 
 pub const RULE: Rule = Rule {
     id: RULE_ID,
+    reasons: &["missing", "inactive", "criterion"],
     explain: "Every identifier a 'Verifies:' marker cites, in a file git does not ignore that is \
               not Markdown, names an ADR that exists in docs/adr/ and is neither superseded nor \
               rejected, or a criterion G-n or Q-n of docs/SPECIFICATION.md. A test that cites \
@@ -28,22 +29,29 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
     traceability::citations(&inputs.markers)
         .into_iter()
         .filter_map(|citation| {
-            let why = if citation.id.starts_with("ADR-") {
+            let (reason, why) = if citation.id.starts_with("ADR-") {
                 if !known.contains(&citation.id) {
-                    "which does not exist in docs/adr/"
+                    ("missing", "which does not exist in docs/adr/")
                 } else if inactive.contains(&citation.id) {
-                    "which is superseded or rejected — a test cannot verify a decision no longer \
-                     in force"
+                    (
+                        "inactive",
+                        "which is superseded or rejected — a test cannot verify a decision no \
+                         longer in force",
+                    )
                 } else {
                     return None;
                 }
             } else if criteria.contains(&citation.id) {
                 return None;
             } else {
-                "which is not a criterion of docs/SPECIFICATION.md"
+                (
+                    "criterion",
+                    "which is not a criterion of docs/SPECIFICATION.md",
+                )
             };
             Some(Finding {
                 rule: RULE_ID,
+                reason,
                 file: citation.file,
                 line: Some(citation.line),
                 message: format!("cites '{}', {why}", citation.id),

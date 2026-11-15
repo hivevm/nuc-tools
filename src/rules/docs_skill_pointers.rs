@@ -9,6 +9,7 @@ pub const RULE_ID: &str = "docs/skill-pointers";
 
 pub const RULE: Rule = Rule {
     id: RULE_ID,
+    reasons: &["copy", "missing", "stray", "dangles", "target"],
     explain: "Every skill under .agents/skills/, a directory with a SKILL.md, has a symlink of \
               the same name under .claude/skills/ that resolves to it, and every entry there is \
               such a symlink. Claude Code reads only the pointer directory, so a skill without \
@@ -49,9 +50,10 @@ pub enum Entry {
     Points { target: String, at_skill: bool },
 }
 
-fn finding(name: &str, message: String) -> Finding {
+fn finding(reason: &'static str, name: &str, message: String) -> Finding {
     Finding {
         rule: RULE_ID,
+        reason,
         file: format!(".claude/skills/{name}"),
         line: None,
         message,
@@ -61,29 +63,35 @@ fn finding(name: &str, message: String) -> Finding {
 fn check(inputs: &Inputs) -> Vec<Finding> {
     let mut found = Vec::new();
     for (name, pointer) in &inputs.skills.skills {
-        let message = match pointer {
+        let (reason, message) = match pointer {
             Pointer::Symlink => continue,
-            Pointer::Other => format!(
-                "is a copy of the skill, not a symlink — a second source drifts; replace it: rm -r .claude/skills/{name} && ln -s ../../.agents/skills/{name} .claude/skills/{name}"
+            Pointer::Other => (
+                "copy",
+                format!(
+                    "is a copy of the skill, not a symlink — a second source drifts; replace it: rm -r .claude/skills/{name} && ln -s ../../.agents/skills/{name} .claude/skills/{name}"
+                ),
             ),
-            Pointer::Missing => format!(
-                "no pointer — the skill .agents/skills/{name} is invisible to Claude Code; add it: ln -s ../../.agents/skills/{name} .claude/skills/{name}"
+            Pointer::Missing => (
+                "missing",
+                format!(
+                    "no pointer — the skill .agents/skills/{name} is invisible to Claude Code; add it: ln -s ../../.agents/skills/{name} .claude/skills/{name}"
+                ),
             ),
         };
-        found.push(finding(name, message));
+        found.push(finding(reason, name, message));
     }
     for (name, entry) in &inputs.skills.pointers {
-        let message = match entry {
+        let (reason, message) = match entry {
             Entry::NotSymlink { skill: true } | Entry::Points { at_skill: true, .. } => continue,
-            Entry::NotSymlink { skill: false } => "is not a symlink into .agents/skills/ — a skill lives there, where every agent reads it, and is pointed at from here (ADR-0003)".to_owned(),
-            Entry::Dangles => format!(
+            Entry::NotSymlink { skill: false } => ("stray", "is not a symlink into .agents/skills/ — a skill lives there, where every agent reads it, and is pointed at from here (ADR-0003)".to_owned()),
+            Entry::Dangles => ("dangles", format!(
                 "dangles — its target does not exist; point it at .agents/skills/{name} or delete it"
-            ),
+            )),
             Entry::Points { target, .. } => {
-                format!("points at '{target}', not at the skill .agents/skills/{name}")
+                ("target", format!("points at '{target}', not at the skill .agents/skills/{name}"))
             }
         };
-        found.push(finding(name, message));
+        found.push(finding(reason, name, message));
     }
     found
 }

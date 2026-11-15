@@ -11,6 +11,7 @@ pub const RULE_ID: &str = "docs/adr-refs";
 
 pub const RULE: Rule = Rule {
     id: RULE_ID,
+    reasons: &["unmatched"],
     explain: "Every 'ADR-NNNN' and 'ADR-draft-<slug>' reference in a text file names an ADR file \
               that exists in docs/adr/. A follow-up that does not exist yet is described by \
               topic, never by a number. The template and superseded or rejected ADRs are not \
@@ -32,6 +33,7 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
                 if !known.contains_key(show(adr::reference_key(reference)).as_str()) {
                     found.push(Finding {
                         rule: RULE_ID,
+                        reason: "unmatched",
                         file: path.clone(),
                         line: Some(n + 1),
                         message: format!(

@@ -1,5 +1,5 @@
 //! `nuc hook` and the reference shims, through git.
-//! Verifies: API-command-line-with-hook-signal API-hook-contract API-version-coupling-hook-defaults
+//! Verifies: API-command-line-keyed-findings API-hook-contract API-version-coupling-hook-defaults
 //! Verifies: G-2 G-3 G-5 Q-1 Q-4 Q-7 Q-8 Q-9 Q-10 Q-11
 //!
 //! Each case builds a fixture repository whose hooks path is the repository's `shims/`, puts a
@@ -325,6 +325,13 @@ fn without_nuc_toml_every_hook_rule_is_on() {
     assert!(
         stdout(&output).starts_with("refs/heads/main: "),
         "{}",
+        stdout(&output)
+    );
+    assert!(
+        stdout(&output)
+            .trim_end()
+            .ends_with(" [hook/commit-on-main:main]"),
+        "a refusal ends in its key: {}",
         stdout(&output)
     );
     fixture.git(&["switch", "-q", "-c", "feature"]);

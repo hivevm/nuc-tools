@@ -157,6 +157,9 @@ pub enum Input {
 /// One rule: its ID, the reason `nuc explain` gives, what it reads, and the check.
 pub struct Rule {
     pub id: &'static str,
+    /// The reasons its findings carry, each with the ID the key `<id>:<reason>` of a line
+    /// (API-command-line-keyed-findings); a finding with another is refused.
+    pub reasons: &'static [&'static str],
     pub explain: &'static str,
     /// The inputs the check reads; the shell reads only those a rule turned on needs.
     pub reads: &'static [Input],
@@ -174,19 +177,31 @@ pub struct Outcome {
 }
 
 impl Outcome {
-    /// Why the outcome of the rule `id` cannot be carried out: its own refusal, or a finding it
-    /// reports under another rule's ID, which every format would name wrongly and the SARIF could
-    /// not place in its list of rules (API-output-formats-short-description). Either ends the run
-    /// not decided (Q-1).
-    pub fn refusal_of(&self, id: &str) -> Option<String> {
+    /// Why the outcome of the rule `id`, whose findings carry one of `reasons`, cannot be carried
+    /// out: its own refusal; a finding it reports under another rule's ID, which every format
+    /// would name wrongly and the SARIF could not place in its list of rules
+    /// (API-output-formats-carry-reason); or a finding with a reason it does not declare, whose key
+    /// no list holds (API-command-line-keyed-findings). Each ends the run not decided (Q-1).
+    pub fn refusal_of(&self, id: &str, reasons: &[&str]) -> Option<String> {
         if let Some(refusal) = &self.refusal {
             return Some(refusal.clone());
         }
-        self.findings.iter().find(|f| f.rule != id).map(|f| {
-            format!(
-                "{id}: reports a finding under the rule ID '{}', which is not its own — not decided",
-                f.rule
-            )
+        self.findings.iter().find_map(|f| {
+            if f.rule != id {
+                Some(format!(
+                    "{id}: reports a finding under the rule ID '{}', which is not its own — not \
+                     decided",
+                    f.rule
+                ))
+            } else if !reasons.contains(&f.reason) {
+                Some(format!(
+                    "{id}: reports a finding with the reason '{}', which it does not declare — not \
+                     decided",
+                    f.reason
+                ))
+            } else {
+                None
+            }
         })
     }
 }
@@ -244,15 +259,22 @@ mod tests {
     fn an_outcome_refuses_a_finding_of_another_rule_and_its_own_refusal_comes_first() {
         let finding = |rule| Finding {
             rule,
+            reason: "r",
             file: "a.md".to_owned(),
             line: None,
             message: "m".to_owned(),
         };
         let own: Outcome = vec![finding("docs/links")].into();
-        assert_eq!(own.refusal_of("docs/links"), None);
+        assert_eq!(own.refusal_of("docs/links", &["r"]), None);
+        assert_eq!(
+            own.refusal_of("docs/links", &["s"]).as_deref(),
+            Some(
+                "docs/links: reports a finding with the reason 'r', which it does not declare — not decided"
+            )
+        );
         let foreign: Outcome = vec![finding("docs/links"), finding("docs/adr-index")].into();
         assert_eq!(
-            foreign.refusal_of("docs/links").as_deref(),
+            foreign.refusal_of("docs/links", &["r"]).as_deref(),
             Some(
                 "docs/links: reports a finding under the rule ID 'docs/adr-index', which is not its \
                  own — not decided"
@@ -262,6 +284,9 @@ mod tests {
             refusal: Some("why".to_owned()),
             ..foreign
         };
-        assert_eq!(refused.refusal_of("docs/links").as_deref(), Some("why"));
+        assert_eq!(
+            refused.refusal_of("docs/links", &["r"]).as_deref(),
+            Some("why")
+        );
     }
 }

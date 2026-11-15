@@ -13,6 +13,19 @@ pub const RULE_ID: &str = "docs/adr-index";
 
 pub const RULE: Rule = Rule {
     id: RULE_ID,
+    reasons: &[
+        "absent",
+        "twice",
+        "unlisted",
+        "link",
+        "above",
+        "below",
+        "missing",
+        "nostatus",
+        "status",
+        "noapplies",
+        "applies",
+    ],
     explain: "Every ADR in docs/adr/ is listed once in the index docs/adr/README.md, with the \
               status and the 'Applies to' its file states, and every row links a file that \
               exists. A superseded or rejected row sits below the 'Superseded and rejected' \
@@ -35,9 +48,10 @@ struct Row {
     archive: bool,
 }
 
-fn finding(file: &str, line: Option<usize>, message: String) -> Finding {
+fn finding(reason: &'static str, file: &str, line: Option<usize>, message: String) -> Finding {
     Finding {
         rule: RULE_ID,
+        reason,
         file: file.to_owned(),
         line,
         message,
@@ -52,6 +66,7 @@ pub fn targets(index: &[u8]) -> Vec<String> {
 fn check(inputs: &Inputs) -> Vec<Finding> {
     let Some(index) = inputs.adr.get("README.md") else {
         return vec![finding(
+            "absent",
             INDEX,
             None,
             "ADR index not found: docs/adr/README.md".to_owned(),
@@ -62,7 +77,7 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
     let mut seen = BTreeSet::new();
     for row in &rows {
         if !seen.insert(row.file.as_str()) {
-            found.push(finding(INDEX, Some(row.line), format!(
+            found.push(finding("twice", INDEX, Some(row.line), format!(
                 "ADR index: lists '{}' twice — keep the row that matches the file, delete the other",
                 row.file
             )));
@@ -71,6 +86,7 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
     for name in adr::adr_names(&inputs.adr) {
         if !seen.contains(name) {
             found.push(finding(
+                "unlisted",
                 INDEX,
                 None,
                 format!("ADR index: file '{name}' exists but is not listed in the index"),
@@ -148,6 +164,7 @@ fn row_findings(row: &Row) -> Vec<Finding> {
     if key.starts_with("draft-") {
         if row.file != format!("{key}.md") {
             found.push(finding(
+                "link",
                 INDEX,
                 line,
                 format!(
@@ -158,6 +175,7 @@ fn row_findings(row: &Row) -> Vec<Finding> {
         }
     } else if !row.file.starts_with(&format!("{key}-")) {
         found.push(finding(
+            "link",
             INDEX,
             line,
             format!(
@@ -167,10 +185,10 @@ fn row_findings(row: &Row) -> Vec<Finding> {
         ));
     }
     match row.status {
-        Some(e @ ("⚪" | "🔴")) if !row.archive => found.push(finding(INDEX, line, format!(
+        Some(e @ ("⚪" | "🔴")) if !row.archive => found.push(finding("above", INDEX, line, format!(
             "ADR index: row for {key} is {e} but sits above the 'Superseded and rejected' heading — move it there, a session reads the first table as binding"
         ))),
-        Some(e @ ("🟢" | "🟡")) if row.archive => found.push(finding(INDEX, line, format!(
+        Some(e @ ("🟢" | "🟡")) if row.archive => found.push(finding("below", INDEX, line, format!(
             "ADR index: row for {key} is {e} but sits below the 'Superseded and rejected' heading — move it up, a binding decision there is never read"
         ))),
         _ => {}
@@ -183,6 +201,7 @@ fn row_findings(row: &Row) -> Vec<Finding> {
 fn file_findings(file: Option<&[u8]>, row: &Row) -> Vec<Finding> {
     let Some(text) = file else {
         return vec![finding(
+            "missing",
             INDEX,
             Some(row.line),
             format!(
@@ -200,11 +219,13 @@ fn file_findings(file: Option<&[u8]>, row: &Row) -> Vec<Finding> {
     let mut found = Vec::new();
     match adr::status_emoji(header.field("Status").unwrap_or(b"")).0 {
         None => found.push(finding(
+            "nostatus",
             &path,
             None,
             "no '**Status:**' line with a status emoji found".to_owned(),
         )),
         Some(e) if Some(e) != row.status => found.push(finding(
+            "status",
             INDEX,
             Some(row.line),
             format!(
@@ -218,6 +239,7 @@ fn file_findings(file: Option<&[u8]>, row: &Row) -> Vec<Finding> {
     let applies = bash::trim(after_last_label(header.field("Applies to").unwrap_or(b"")));
     if applies.is_empty() {
         found.push(finding(
+            "noapplies",
             &path,
             None,
             "no '**Applies to:**' line naming what the decision constrains".to_owned(),
@@ -229,6 +251,7 @@ fn file_findings(file: Option<&[u8]>, row: &Row) -> Vec<Finding> {
             show(&row.applies)
         };
         found.push(finding(
+            "applies",
             INDEX,
             Some(row.line),
             format!(

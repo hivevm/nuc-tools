@@ -8,12 +8,15 @@ use crate::finding::Finding;
 /// alone; `nuc check` knows its ID, so that one `nuc.toml` lists both, and runs it never.
 pub struct HookRule {
     pub id: &'static str,
+    /// The reasons of the findings it refuses with, as a rule's (API-command-line-keyed-findings).
+    pub reasons: &'static [&'static str],
     pub explain: &'static str,
 }
 
 /// The refusal of a commit on `main`.
 pub const COMMIT_ON_MAIN: HookRule = HookRule {
     id: "hook/commit-on-main",
+    reasons: &["main"],
     explain: "a commit lands on a branch, never on main, and changes reach main through a pull \
               request (AGENTS.md, section 6); the pre-commit hook refuses a commit while the \
               checkout is on main",
@@ -22,6 +25,7 @@ pub const COMMIT_ON_MAIN: HookRule = HookRule {
 /// The full check, with `--changed`, on the commit that concludes a conflicted merge.
 pub const MERGE_CHECKS: HookRule = HookRule {
     id: "hook/merge-checks",
+    reasons: &[],
     explain: "the resolution of a conflicted merge is the one part of a merge written by hand, so \
               the pre-commit hook has scripts/check-all.sh --changed run on the commit that \
               concludes it, and refuses it while the checks are red",
@@ -30,6 +34,7 @@ pub const MERGE_CHECKS: HookRule = HookRule {
 /// The refusal of a merge on `main`.
 pub const MERGE_ON_MAIN: HookRule = HookRule {
     id: "hook/merge-on-main",
+    reasons: &["main"],
     explain: "changes reach main through a pull request, and the local main only takes up the \
               remote's by a fast-forward (AGENTS.md, section 6); the pre-merge-commit hook \
               refuses a merge while the checkout is on main",
@@ -38,6 +43,7 @@ pub const MERGE_ON_MAIN: HookRule = HookRule {
 /// The documentation check on the tree of a merge into any other branch.
 pub const MERGE_DOCS: HookRule = HookRule {
     id: "hook/merge-docs",
+    reasons: &[],
     explain: "two branches green on their own collide at a merge mostly in the record, which \
               scripts/check-docs.sh decides in about a second, so the pre-merge-commit hook has \
               it run on the merged tree and refuses the merge while it is red",
@@ -46,6 +52,7 @@ pub const MERGE_DOCS: HookRule = HookRule {
 /// The refusal of a push to the remote's `main`, its deletion included.
 pub const PUSH_TO_MAIN: HookRule = HookRule {
     id: "hook/push-to-main",
+    reasons: &["main"],
     explain: "changes reach main through a pull request, not a push (AGENTS.md, section 6); the \
               pre-push hook refuses any push to the remote's main, its deletion included",
 };
@@ -53,6 +60,7 @@ pub const PUSH_TO_MAIN: HookRule = HookRule {
 /// The full check, with `--changed`, before a push.
 pub const PUSH_CHECKS: HookRule = HookRule {
     id: "hook/push-checks",
+    reasons: &[],
     explain: "the checks pass before anything is pushed (AGENTS.md, section 5), so the pre-push \
               hook has scripts/check-all.sh --changed run before a push that sends a ref, unless \
               they passed before on the clean tree it pushes, and refuses the push while they \
@@ -62,6 +70,7 @@ pub const PUSH_CHECKS: HookRule = HookRule {
 /// The refusal of a move of the local `main` to a commit `origin/main` lacks.
 pub const MAIN_MOVES: HookRule = HookRule {
     id: "hook/main-moves",
+    reasons: &["main"],
     explain: "changes reach main through a pull request, and the local main only takes up the \
               remote's (AGENTS.md, section 6); the reference-transaction hook refuses any update \
               of main to a commit origin/main lacks, as a fast-forward to a local branch, a \
@@ -116,6 +125,7 @@ pub fn pre_merge_commit(state: &Commit, on: &dyn Fn(&HookRule) -> bool) -> Answe
     if state.branch.as_deref() == Some("main") && on(&MERGE_ON_MAIN) {
         return Answer::Refuse(Finding {
             rule: MERGE_ON_MAIN.id,
+            reason: "main",
             file: "refs/heads/main".to_owned(),
             line: None,
             message: "the checkout is on 'main', and changes reach main through a pull request \
@@ -137,6 +147,7 @@ pub fn pre_commit(state: &Commit, on: &dyn Fn(&HookRule) -> bool) -> Answer {
     if state.branch.as_deref() == Some("main") && on(&COMMIT_ON_MAIN) {
         return Answer::Refuse(Finding {
             rule: COMMIT_ON_MAIN.id,
+            reason: "main",
             file: "refs/heads/main".to_owned(),
             line: None,
             message: "the checkout is on 'main', and changes reach main through a pull request \
@@ -221,6 +232,7 @@ pub fn pre_push(state: &Push, on: &dyn Fn(&HookRule) -> bool) -> PushAnswer {
         if remote_ref == "refs/heads/main" && on(&PUSH_TO_MAIN) {
             let answer = Answer::Refuse(Finding {
                 rule: PUSH_TO_MAIN.id,
+                reason: "main",
                 file: "refs/heads/main".to_owned(),
                 line: None,
                 message: "changes reach main through a pull request, not a push (AGENTS.md, \
@@ -349,6 +361,7 @@ pub fn reference_transaction(
     };
     Answer::Refuse(Finding {
         rule: MAIN_MOVES.id,
+        reason: "main",
         file: "refs/heads/main".to_owned(),
         line: None,
         message: format!(

@@ -13,6 +13,7 @@ pub const RULE_ID: &str = "traceability/coverage";
 
 pub const RULE: Rule = Rule {
     id: RULE_ID,
+    reasons: &["unreasoned", "uncited"],
     explain: "Every accepted ADR is cited by at least one 'Verifies:' marker in a file git does \
               not ignore that is not Markdown, unless its Enforcement section carries a paragraph \
               starting '**Not mechanically decidable:**' followed by the reason. A decision no test \
@@ -64,6 +65,7 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
             }
             Exemption::Unreasoned => findings.push(Finding {
                 rule: RULE_ID,
+                reason: "unreasoned",
                 file: format!("docs/adr/{name}"),
                 line: None,
                 message: "'Not mechanically decidable' declared without a reason — the \
@@ -78,6 +80,7 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
         if !exempt.contains(&id) && !cited.contains(&id) {
             findings.push(Finding {
                 rule: RULE_ID,
+                reason: "uncited",
                 file: format!("docs/adr/{name}"),
                 line: None,
                 message: format!(

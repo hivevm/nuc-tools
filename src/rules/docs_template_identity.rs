@@ -20,6 +20,26 @@ pub const RULE_ID: &str = "docs/template-identity";
 
 pub const RULE: Rule = Rule {
     id: RULE_ID,
+    reasons: &[
+        "title",
+        "intro",
+        "why",
+        "overview",
+        "usage",
+        "badge",
+        "container",
+        "copyright",
+        "security",
+        "conduct",
+        "instruction",
+        "codeowners",
+        "projectname",
+        "criterion",
+        "part",
+        "term",
+        "convention",
+        "command",
+    ],
     explain: "Once TEMPLATE-SETUP.md is gone, none of the template's placeholders is left: the \
               name NUC in the README's title, intro, Why NUC section, and the Dev Container, the \
               template's repository in a README badge, the placeholder copyright holder, \
@@ -49,60 +69,71 @@ pub const FILES: &[&str] = &[
 /// The message of a badge that points at the template's repository.
 const BADGE: &str = "a badge still points at the template's repository; repoint or delete it";
 
-/// A placeholder: the file, whether a line of it shows the placeholder, and the message.
-type Placeholder = (&'static str, fn(&[u8]) -> bool, &'static str);
+/// A placeholder: the file, whether a line of it shows the placeholder, the message, and the
+/// reason of its key, as the bash names it.
+type Placeholder = (&'static str, fn(&[u8]) -> bool, &'static str, &'static str);
 
 const PLACEHOLDERS: &[Placeholder] = &[
     (
         "README.md",
         |l| l.starts_with("# NUC — an Agentic".as_bytes()),
         "the title is still the template's; give the project its name",
+        "title",
     ),
     (
         "README.md",
         |l| l.starts_with(b"**NUC** is named after"),
         "the intro still explains the template's name; say what the project is",
+        "intro",
     ),
     (
         "README.md",
         |l| l == b"## Why NUC",
         "the Why NUC section still presents the template; delete it",
+        "why",
     ),
     (
         "README.md",
         |l| l.starts_with(b"Describe what this project does"),
         "the Overview is still the scaffold's sentence; describe the project",
+        "overview",
     ),
     (
         "README.md",
         |l| l.starts_with("TODO — show a minimal example".as_bytes()),
         "the Usage section is still TODO; show how the project is used, or say there is nothing to use yet",
+        "usage",
     ),
-    ("README.md", |l| template_badge(l, true), BADGE),
+    ("README.md", |l| template_badge(l, true), BADGE, "badge"),
     (
         ".devcontainer/devcontainer.json",
         |l| contains(l, b"\"name\": \"NUC DevContainer\""),
         "the Dev Container still carries the template's name",
+        "container",
     ),
     (
         "LICENSE",
         copyright_placeholder,
         "the copyright holder is still the placeholder; name the maintainer",
+        "copyright",
     ),
     (
         "SECURITY.md",
         |l| contains(l, b"TODO: add a security contact"),
         "the security contact is still the placeholder",
+        "security",
     ),
     (
         "CODE_OF_CONDUCT.md",
         |l| contains(l, b"TODO: add a contact address"),
         "the reporting contact is still the placeholder",
+        "conduct",
     ),
     (
         ".github/CODEOWNERS",
         |l| l.starts_with(b"# TODO: add a code owner"),
         "the instruction to add a code owner is still there; remove it once the rules are active",
+        "instruction",
     ),
 ];
 
@@ -113,26 +144,31 @@ const SCAFFOLD: &[Placeholder] = &[
         "docs/SPECIFICATION.md",
         scaffold_criterion,
         "a criterion is still the scaffold's placeholder; write it, or delete the item",
+        "criterion",
     ),
     (
         "docs/ARCHITECTURE.md",
         |l| l.starts_with(b"- **<Part>**"),
         "the scaffold's building block is still listed; describe the parts, or delete the entry",
+        "part",
     ),
     (
         "docs/GLOSSARY.md",
         |l| l.starts_with(b"- **<Term>**"),
         "the scaffold's entry is still listed; write the first term, or delete the entry",
+        "term",
     ),
     (
         "docs/CONVENTIONS.md",
         |l| l.starts_with(b"- **<Convention>**"),
         "the scaffold's entry is still listed; write the first convention, or delete the entry",
+        "convention",
     ),
     (
         "README.md",
         todo_command,
         "a Build, Test, Lint, or Run command is still TODO; name the command the toolchain ADR chose",
+        "command",
     ),
 ];
 
@@ -141,9 +177,10 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
         return Vec::new();
     }
     let mut found = Vec::new();
-    let mut report = |file: &str, message: &str| {
+    let mut report = |file: &str, reason: &'static str, message: &str| {
         found.push(Finding {
             rule: RULE_ID,
+            reason,
             file: file.to_owned(),
             line: None,
             message: message.to_owned(),
@@ -156,13 +193,13 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
             .is_some_and(|text| awk_lines(text).into_iter().any(matches))
     };
     let corrected = inputs.carries_at_least(BADGE_NAME_ENDS);
-    for &(file, matches, message) in PLACEHOLDERS {
+    for &(file, matches, message, reason) in PLACEHOLDERS {
         let matches: fn(&[u8]) -> bool = match (message == BADGE, corrected) {
             (true, false) => |l| template_badge(l, false),
             _ => matches,
         };
         if any_line(file, matches) {
-            report(file, message);
+            report(file, reason, message);
         }
     }
     let codeowners = ".github/CODEOWNERS";
@@ -173,6 +210,7 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
     {
         report(
             codeowners,
+            "codeowners",
             "no active rule; name the code owner and uncomment the two rules",
         );
     }
@@ -181,12 +219,12 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
         if any_line(&file, |l| {
             l.starts_with(b"# ") && contains(l, b"<Project Name>")
         }) {
-            report(&file, TITLE);
+            report(&file, "projectname", TITLE);
         }
     }
-    for &(file, matches, message) in SCAFFOLD {
+    for &(file, matches, message, reason) in SCAFFOLD {
         if any_line(file, matches) {
-            report(file, message);
+            report(file, reason, message);
         }
     }
     found

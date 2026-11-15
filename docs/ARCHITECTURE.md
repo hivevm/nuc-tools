@@ -69,9 +69,9 @@ golden path and the test pattern an agent copies from are named here.
   one answer to which IDs `nuc.toml` may name, those of `rules::ALL` and of `hook::ALL`, and the
   reason `nuc explain` gives for each, so `nuc check`, `nuc hook`, and `nuc explain` ask it alike.
 - **Formats** — `src/format.rs` turns what a run of `nuc check` decided into its standard output:
-  the lines of API-command-line-with-hook-signal, one JSON document, or one SARIF 2.1.0 log, without
+  the lines of API-command-line-keyed-findings, one JSON document, or one SARIF 2.1.0 log, without
   a crate and byte for byte the same for the same findings
-  ([API-output-formats-short-description](adr/API-output-formats-short-description.md)).
+  ([API-output-formats-carry-reason](adr/API-output-formats-carry-reason.md)).
 - **Hooks** — `src/hook.rs` decides what each git hook of the template decides, from the git state
   the shell reads in `shell::hook`, which finds each hook in its one table `HOOKS`, and holds the
   `hook/` rules, `hook::ALL`, which `nuc check` knows and runs never. The reference shims under

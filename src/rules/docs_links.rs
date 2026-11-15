@@ -12,6 +12,7 @@ pub const RULE_ID: &str = "docs/links";
 
 pub const RULE: Rule = Rule {
     id: RULE_ID,
+    reasons: &["broken", "anchor"],
     explain: "Every relative Markdown link in a tracked Markdown file resolves to a file or \
               directory that exists, and its '#anchor' to a heading of a Markdown file, or to \
               its lines as 'Lnn' or 'Lnn-Lmm' in any file. Links in fenced code are \
@@ -45,8 +46,9 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
 
 /// The finding of one link, if its path does not exist or its anchor names nothing there.
 fn target_finding(inputs: &Inputs, file: &str, text: &[u8], target: &Target) -> Option<Finding> {
-    let finding = |message: String| Finding {
+    let finding = |reason, message: String| Finding {
         rule: RULE_ID,
+        reason,
         file: file.to_owned(),
         line: Some(target.line),
         message,
@@ -56,10 +58,10 @@ fn target_finding(inputs: &Inputs, file: &str, text: &[u8], target: &Target) -> 
         Some(path) => {
             let resolved = inputs.link_targets.get(path)?;
             if !resolved.exists {
-                return Some(finding(format!(
-                    "broken relative link -> '{}'",
-                    show(&target.target)
-                )));
+                return Some(finding(
+                    "broken",
+                    format!("broken relative link -> '{}'", show(&target.target)),
+                ));
             }
             (path.clone(), resolved.file.as_deref())
         }
@@ -73,11 +75,14 @@ fn target_finding(inputs: &Inputs, file: &str, text: &[u8], target: &Target) -> 
                 .any(|slug| slug == fragment)
     });
     (!resolves).then(|| {
-        finding(format!(
-            "link '{}' has no matching anchor '#{}' in {path}",
-            show(&target.target),
-            show(fragment)
-        ))
+        finding(
+            "anchor",
+            format!(
+                "link '{}' has no matching anchor '#{}' in {path}",
+                show(&target.target),
+                show(fragment)
+            ),
+        )
     })
 }
 

@@ -28,7 +28,7 @@ const FOUND: u8 = 1;
 /// Exit code of a run that could not decide, whatever the cause: it never passes (Q-1).
 const UNDECIDED: u8 = 2;
 /// Exit code of `nuc hook` alone: the hook passed so far, and its shim runs the check now
-/// (API-command-line-with-hook-signal).
+/// (API-command-line-keyed-findings).
 const RUN_CHECK: u8 = 3;
 
 const USAGE: &str = "usage: nuc check [--repo <path>] [--format text|json|sarif] | nuc hook <name> | nuc \
@@ -36,7 +36,7 @@ const USAGE: &str = "usage: nuc check [--repo <path>] [--format text|json|sarif]
 
 /// The entry point of the binary: runs the command named on the command line and returns the exit
 /// code the process ends with. A panic is an internal error: it names its cause and where it arose,
-/// and ends the process with exit 101, never a pass (API-command-line-with-hook-signal, Q-1).
+/// and ends the process with exit 101, never a pass (API-command-line-keyed-findings, Q-1).
 pub fn main() -> ExitCode {
     panic::set_hook(Box::new(|info| {
         let at = info
@@ -246,7 +246,7 @@ fn run_rules(
     if let Some(refusal) = selected
         .iter()
         .zip(&outcomes)
-        .find_map(|(rule, outcome)| outcome.refusal_of(rule.id))
+        .find_map(|(rule, outcome)| outcome.refusal_of(rule.id, rule.reasons))
     {
         return Err(refusal);
     }
@@ -405,11 +405,13 @@ mod tests {
     fn a_rule_that_reports_under_another_id_ends_the_run_not_decided() {
         let foreign = rules::Rule {
             id: "x/a",
+            reasons: &["r"],
             explain: "",
             reads: &[],
             check: |_| {
                 vec![Finding {
                     rule: "x/b",
+                    reason: "r",
                     file: "a.md".to_owned(),
                     line: None,
                     message: "m".to_owned(),

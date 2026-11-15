@@ -115,7 +115,7 @@ impl Named for HookRule {
 
 /// The configuration in `text` for a `nuc` of version `running`. The minimum is read before
 /// anything else, so that a newer file, with a key this `nuc` does not know, refuses it as too
-/// old rather than as unreadable (API-command-line-with-hook-signal).
+/// old rather than as unreadable (API-command-line-keyed-findings).
 fn load(text: &str, running: Version) -> Result<Config, Refusal> {
     if let Some(minimum) = minimum_first(text).filter(|&minimum| minimum > running) {
         return Err(Refusal::TooOld { minimum, running });
@@ -338,6 +338,7 @@ mod tests {
     fn one_call_turns_on_the_listed_rules_and_hook_rules_and_refuses_as_before() {
         let rule = |id| Rule {
             id,
+            reasons: &[],
             explain: "",
             reads: &[],
             check: |_| Vec::new().into(),

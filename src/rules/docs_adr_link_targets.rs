@@ -11,6 +11,7 @@ pub const RULE_ID: &str = "docs/adr-link-targets";
 
 pub const RULE: Rule = Rule {
     id: RULE_ID,
+    reasons: &["other"],
     explain: "A Markdown link whose text cites an ADR points at that ADR's own file: the \
               identifier and the file it links name the same decision. Both halves resolve on \
               their own, so a renumbering, a copied line, or a consolidated decision set can leave \
@@ -48,6 +49,7 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
             if !agrees {
                 found.push(Finding {
                     rule: RULE_ID,
+                    reason: "other",
                     file: path.clone(),
                     line: Some(line),
                     message: format!(

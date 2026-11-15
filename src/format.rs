@@ -1,5 +1,5 @@
 //! What `nuc check` writes on the standard output, in the format `--format` names
-//! (API-output-formats-short-description): the lines of API-command-line-with-hook-signal, one JSON
+//! (API-output-formats-carry-reason): the lines of API-command-line-keyed-findings, one JSON
 //! document, or one SARIF 2.1.0 log. Built here, without a crate, so that the same findings give
 //! the same bytes; the shell only writes the result.
 
@@ -8,8 +8,8 @@ use crate::finding::Finding;
 /// A format `nuc check --format` takes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Format {
-    /// One line per finding, `<file>[:<line>]: <rule ID>: <message>`
-    /// (API-command-line-with-hook-signal); the default.
+    /// One line per finding, `<file>[:<line>]: <rule ID>: <message> [<rule ID>:<reason>]`
+    /// (API-command-line-keyed-findings); the default.
     Text,
     /// One JSON document that names its format and version.
     Json,
@@ -86,6 +86,8 @@ fn sarif(report: &Report) -> String {
             r#","ruleIndex":{index},"level":"error","message":{{"text":"#
         ));
         string(out, &finding.message);
+        out.push_str(r#"},"properties":{"reason":"#);
+        string(out, finding.reason);
         out.push_str(r#"},"locations":[{"physicalLocation":{"artifactLocation":{"uri":"#);
         string(out, &uri(&finding.file));
         out.push_str(&format!(
@@ -99,7 +101,7 @@ fn sarif(report: &Report) -> String {
 
 /// The first sentence of `reason`, up to and including the period of the first `. ` that a capital
 /// letter follows, or the whole reason where no such period stands
-/// (API-output-formats-short-description).
+/// (API-output-formats-carry-reason).
 fn first_sentence(reason: &str) -> &str {
     reason
         .match_indices(". ")
@@ -128,6 +130,8 @@ fn json(findings: &[Finding], notes: &[String]) -> String {
     array(&mut out, findings, |out, finding| {
         out.push_str(r#"{"rule":"#);
         string(out, finding.rule);
+        out.push_str(r#","reason":"#);
+        string(out, finding.reason);
         out.push_str(r#","file":"#);
         string(out, &finding.file);
         out.push_str(r#","line":"#);
@@ -217,6 +221,7 @@ mod tests {
     fn the_json_document_holds_each_finding_and_note_in_order() {
         let finding = |file: &str, line, message: &str| Finding {
             rule: "docs/links",
+            reason: "broken",
             file: file.to_owned(),
             line,
             message: message.to_owned(),
@@ -226,8 +231,8 @@ mod tests {
         assert_eq!(
             document(Format::Json, &report(&findings, &notes)),
             "{\"format\":\"nuc-findings\",\"version\":1,\"findings\":[\
-             {\"rule\":\"docs/links\",\"file\":\"a.md\",\"line\":3,\"message\":\"x\"},\
-             {\"rule\":\"docs/links\",\"file\":\"b.md\",\"line\":null,\"message\":\"y\"}],\
+             {\"rule\":\"docs/links\",\"reason\":\"broken\",\"file\":\"a.md\",\"line\":3,\"message\":\"x\"},\
+             {\"rule\":\"docs/links\",\"reason\":\"broken\",\"file\":\"b.md\",\"line\":null,\"message\":\"y\"}],\
              \"notes\":[\"n\"]}\n"
         );
         assert_eq!(
@@ -236,7 +241,7 @@ mod tests {
         );
         assert_eq!(
             document(Format::Text, &report(&findings, &[])),
-            "a.md:3: docs/links: x\nb.md: docs/links: y\n"
+            "a.md:3: docs/links: x [docs/links:broken]\nb.md: docs/links: y [docs/links:broken]\n"
         );
     }
 
@@ -264,6 +269,7 @@ mod tests {
     fn the_sarif_log_lists_the_rules_and_one_located_result_per_finding() {
         let finding = |file: &str, line, message: &str| Finding {
             rule: "docs/links",
+            reason: "anchor",
             file: file.to_owned(),
             line,
             message: message.to_owned(),
@@ -276,7 +282,7 @@ mod tests {
         };
         let result = |uri: &str, line: usize, message: &str| {
             format!(
-                "{{\"ruleId\":\"docs/links\",\"ruleIndex\":1,\"level\":\"error\",\"message\":{{\"text\":\"{message}\"}},\"locations\":[{{\"physicalLocation\":{{\"artifactLocation\":{{\"uri\":\"{uri}\"}},\"region\":{{\"startLine\":{line}}}}}}}]}}"
+                "{{\"ruleId\":\"docs/links\",\"ruleIndex\":1,\"level\":\"error\",\"message\":{{\"text\":\"{message}\"}},\"properties\":{{\"reason\":\"anchor\"}},\"locations\":[{{\"physicalLocation\":{{\"artifactLocation\":{{\"uri\":\"{uri}\"}},\"region\":{{\"startLine\":{line}}}}}}}]}}"
             )
         };
         assert_eq!(
@@ -299,7 +305,7 @@ mod tests {
     /// <https://docs.github.com/en/code-security/code-scanning/integrating-with-code-scanning/sarif-support-for-code-scanning>.
     const DESCRIPTION_LIMIT: usize = 1024;
 
-    /// Verifies: API-output-formats-short-description
+    /// Verifies: API-output-formats-carry-reason
     #[test]
     fn every_reason_fits_the_descriptions_github_takes() {
         for rule in crate::rules::ALL {
@@ -312,7 +318,7 @@ mod tests {
         }
     }
 
-    /// Verifies: API-output-formats-short-description
+    /// Verifies: API-output-formats-carry-reason
     #[test]
     fn the_short_description_is_the_first_sentence_of_the_reason() {
         assert_eq!(first_sentence("One rule. Two notes."), "One rule.");

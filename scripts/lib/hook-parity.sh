@@ -11,7 +11,7 @@
 # Compared per scenario and tree: the exit status of the git command; the hook's lines, those that
 # start with the hook's name and a colon, each mapped by tests/parity/hooks.tsv to a hook/ rule ID
 # and the ref it guards, or to a notice/ ID and the fields it carries, and the findings nuc writes
-# in the line form of API-command-line-with-hook-signal, as sets; the lines of the stand-in checks,
+# in the line form of API-command-line-keyed-findings, as sets; the lines of the stand-in checks,
 # verbatim; and the record of green trees the run leaves in the git directory, as a set of its
 # lines; and the ADR index the run leaves, byte for byte, for the merge driver, which runs through
 # the configuration 'merge.adr-index.driver' rather than the hooks path. Git's own lines are not
@@ -104,6 +104,8 @@ hp_lines() {
       if [[ -n "$matched" ]]; then printf 'rule\t%s\n' "$matched"; else printf 'unknown\t%s\n' "$line"; fi
     elif [[ "$line" =~ ^([^\ :]+):\ (hook/[a-z0-9-]+):\ (.*)$ ]]; then
       local location="${BASH_REMATCH[1]}" rule="${BASH_REMATCH[2]}" message="${BASH_REMATCH[3]}"
+      # The key the line ends in, '[<rule>:<reason>]', is no part of the bash's wording.
+      message="${message% \["$rule":*\]}"
       if _contains "$rule" "${hp_ids[@]}"; then
         # A finding worded as the bash words its refusal maps by the same row, so that the fields
         # it carries beyond the ref, as which hint it gives, are compared; else by its ref.

@@ -12,6 +12,7 @@ pub const RULE_ID: &str = "docs/inherited-adrs";
 
 pub const RULE: Rule = Rule {
     id: RULE_ID,
+    reasons: &["undecided", "proposed"],
     explain: "Once TEMPLATE-SETUP.md is gone, every ADR in force whose '**Deciders:**' field \
               names the NUC maintainer also names a decider of this project and is not \
               proposed. An inherited ADR binds a derived project once its own maintainer has \
@@ -38,15 +39,22 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
         if matches!(status, Some("⚪" | "🔴")) {
             continue;
         }
-        let message = if others(&header.deciders).is_empty() {
-            "inherited from the template and not decided by this project — add your name to Deciders and accept it, or supersede it (docs/adr/README.md)"
+        let (reason, message) = if others(&header.deciders).is_empty() {
+            (
+                "undecided",
+                "inherited from the template and not decided by this project — add your name to Deciders and accept it, or supersede it (docs/adr/README.md)",
+            )
         } else if status == Some("🟡") {
-            "inherited from the template and still proposed after setup — flip the status to accepted, or supersede it (docs/adr/README.md)"
+            (
+                "proposed",
+                "inherited from the template and still proposed after setup — flip the status to accepted, or supersede it (docs/adr/README.md)",
+            )
         } else {
             continue;
         };
         found.push(Finding {
             rule: RULE_ID,
+            reason,
             file: format!("docs/adr/{name}"),
             line: None,
             message: message.to_owned(),

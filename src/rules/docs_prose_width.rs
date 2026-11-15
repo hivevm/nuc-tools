@@ -12,6 +12,7 @@ pub const RULE_ID: &str = "docs/prose-width";
 
 pub const RULE: Rule = Rule {
     id: RULE_ID,
+    reasons: &["wide"],
     explain: "A line of Markdown prose is at most 100 columns, so a diff shows the sentence that \
               changed. Fenced code, front matter, table rows, headings, and ADR header fields \
               are exempt, and so is a line that cannot break, such as a link standing on a line \
@@ -179,6 +180,7 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
             if can_break(line) {
                 found.push(Finding {
                     rule: RULE_ID,
+                    reason: "wide",
                     file: file.clone(),
                     line: Some(n),
                     message: format!(

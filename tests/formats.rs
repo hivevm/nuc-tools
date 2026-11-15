@@ -1,10 +1,10 @@
 //! `nuc check --format`, end to end on fixture repositories.
-//! Verifies: API-output-formats-short-description G-7
+//! Verifies: API-output-formats-carry-reason G-7
 //!
 //! The JSON document and the SARIF log carry the findings of the text output, field for field and
 //! in order; the exit code and the standard error do not depend on the format; a run that cannot
 //! decide writes nothing on the standard output; `--format text` and no option write the lines of
-//! API-command-line-with-hook-signal.
+//! API-command-line-keyed-findings.
 
 mod support;
 
@@ -36,20 +36,23 @@ fn json_carries_the_findings_of_the_text_in_order_with_the_same_exit_and_summary
     assert_eq!(code(&text), Some(1), "{}", stderr(&text));
     assert_eq!(
         stdout(&text),
-        "doc.md:1: docs/links: link 'x.md#é\"\\b\tc' has no matching anchor '#é\"\\b\tc' in x.md\n\
-         doc.md:1: docs/links: link 'x.md#q\"r' has no matching anchor '#q\"r' in x.md\n\
+        "doc.md:1: docs/links: link 'x.md#é\"\\b\tc' has no matching anchor '#é\"\\b\tc' in x.md \
+         [docs/links:anchor]\n\
+         doc.md:1: docs/links: link 'x.md#q\"r' has no matching anchor '#q\"r' in x.md \
+         [docs/links:anchor]\n\
          README.md: docs/template-release: no '**Template release:**' line — the Template section \
-         names the release of the template this repository carries, or 'unreleased' (ADR-0005)\n"
+         names the release of the template this repository carries, or 'unreleased' (ADR-0005) \
+         [docs/template-release:line]\n"
     );
     assert_eq!(code(&json), Some(1), "{}", stderr(&json));
     assert_eq!(
         stdout(&json),
         "{\"format\":\"nuc-findings\",\"version\":1,\"findings\":[\
-         {\"rule\":\"docs/links\",\"file\":\"doc.md\",\"line\":1,\
+         {\"rule\":\"docs/links\",\"reason\":\"anchor\",\"file\":\"doc.md\",\"line\":1,\
          \"message\":\"link 'x.md#é\\\"\\\\b\\tc' has no matching anchor '#é\\\"\\\\b\\tc' in x.md\"},\
-         {\"rule\":\"docs/links\",\"file\":\"doc.md\",\"line\":1,\
+         {\"rule\":\"docs/links\",\"reason\":\"anchor\",\"file\":\"doc.md\",\"line\":1,\
          \"message\":\"link 'x.md#q\\\"r' has no matching anchor '#q\\\"r' in x.md\"},\
-         {\"rule\":\"docs/template-release\",\"file\":\"README.md\",\"line\":null,\
+         {\"rule\":\"docs/template-release\",\"reason\":\"line\",\"file\":\"README.md\",\"line\":null,\
          \"message\":\"no '**Template release:**' line — the Template section names the release \
          of the template this repository carries, or 'unreleased' (ADR-0005)\"}],\
          \"notes\":[]}\n"
@@ -140,21 +143,28 @@ fn escaped(text: &str) -> String {
 
 /// A line of the text output split into its file, line, rule ID, and message, at the first
 /// `: <rule ID>: ` of a rule the fixture turns on.
-fn split(line: &str) -> (String, Option<usize>, &'static str, String) {
+fn split(line: &str) -> (String, Option<usize>, &'static str, String, String) {
     let (at, rule) = RULES
         .iter()
         .filter_map(|rule| line.find(&format!(": {rule}: ")).map(|at| (at, *rule)))
         .min()
         .expect("a finding names a rule the fixture turns on");
     let place = &line[..at];
-    let message = line[at + rule.len() + 4..].to_owned();
+    let rest = &line[at + rule.len() + 4..];
+    let key = format!(" [{rule}:");
+    let cut = rest.rfind(&key).expect("a finding ends in its key");
+    let message = rest[..cut].to_owned();
+    let reason = rest[cut + key.len()..]
+        .strip_suffix(']')
+        .expect("the key closes the line")
+        .to_owned();
     match place.rsplit_once(':') {
         Some((file, number))
             if !number.is_empty() && number.bytes().all(|b| b.is_ascii_digit()) =>
         {
-            (file.to_owned(), number.parse().ok(), rule, message)
+            (file.to_owned(), number.parse().ok(), rule, message, reason)
         }
-        _ => (place.to_owned(), None, rule, message),
+        _ => (place.to_owned(), None, rule, message, reason),
     }
 }
 
@@ -248,9 +258,9 @@ fn each_format_carries_the_findings_of_the_text_output_field_for_field_and_in_or
         let json = fixture.nuc(&["check", "--format", "json"]);
         let objects: Vec<String> = findings
             .iter()
-            .map(|(file, line, rule, message)| {
+            .map(|(file, line, rule, message, reason)| {
                 format!(
-                    "{{\"rule\":\"{rule}\",\"file\":\"{}\",\"line\":{},\"message\":\"{}\"}}",
+                    "{{\"rule\":\"{rule}\",\"reason\":\"{reason}\",\"file\":\"{}\",\"line\":{},\"message\":\"{}\"}}",
                     escaped(file),
                     line.map_or("null".to_owned(), |n| n.to_string()),
                     escaped(message)
@@ -269,7 +279,7 @@ fn each_format_carries_the_findings_of_the_text_output_field_for_field_and_in_or
         let rules: Vec<String> = turned_on.iter().map(|r| sarif_rule(fixture, r)).collect();
         let results: Vec<String> = findings
             .iter()
-            .map(|(file, line, rule, message)| {
+            .map(|(file, line, rule, message, reason)| {
                 let index = turned_on.iter().position(|r| r == rule).expect("a rule turned on");
                 let uri = uris
                     .iter()
@@ -277,7 +287,7 @@ fn each_format_carries_the_findings_of_the_text_output_field_for_field_and_in_or
                     .map_or(file.as_str(), |(_, uri)| uri);
                 format!(
                     "{{\"ruleId\":\"{rule}\",\"ruleIndex\":{index},\"level\":\"error\",\
-                     \"message\":{{\"text\":\"{}\"}},\"locations\":[{{\"physicalLocation\":\
+                     \"message\":{{\"text\":\"{}\"}},\"properties\":{{\"reason\":\"{reason}\"}},\"locations\":[{{\"physicalLocation\":\
                      {{\"artifactLocation\":{{\"uri\":\"{uri}\"}},\"region\":{{\"startLine\":{}}}}}}}]}}",
                     escaped(message),
                     line.unwrap_or(1)

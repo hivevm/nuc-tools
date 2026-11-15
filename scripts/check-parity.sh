@@ -159,6 +159,13 @@ compare() {
     fi
     if [[ -n "$rule" ]]; then
       n="" text="${line#"$file: $rule: "}"
+      # The line ends in its key, '[<rule>:<reason>]' (API-command-line-keyed-findings), which
+      # is no part of the bash's wording before v0.9.1; a finding without it is a difference.
+      if [[ "$text" =~ \ \["$rule":[a-z]+\]$ ]]; then
+        text="${text% \["$rule":*\]}"
+      else
+        diffs+=("nuc reports a finding of '$rule' without its key: $line")
+      fi
       [[ "$(mode_of "$rule")" == "unknown" ]] && diffs+=("nuc reports '$rule', which the table maps no message to")
       if [[ "$file" =~ ^(.*):([0-9]+)$ ]]; then file="${BASH_REMATCH[1]}" n="${BASH_REMATCH[2]}"; fi
       nuc_files+=("$file")

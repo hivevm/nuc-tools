@@ -12,6 +12,15 @@ pub const RULE_ID: &str = "docs/section-refs";
 
 pub const RULE: Rule = Rule {
     id: RULE_ID,
+    reasons: &[
+        "absent",
+        "unnumbered",
+        "order",
+        "unmatched",
+        "anchorless",
+        "anchor",
+        "unlinked",
+    ],
     explain: "Every section reference names a numbered '## N.' heading of AGENTS.md, whose \
               headings run 1..N in order: the section sign and a number in Markdown, YAML, \
               shell scripts, and the git hooks, and 'AGENTS.md, section N' in every text file \
@@ -23,9 +32,10 @@ pub const RULE: Rule = Rule {
 
 const SECTION: &str = "§";
 
-fn finding(file: &str, line: Option<usize>, message: String) -> Finding {
+fn finding(reason: &'static str, file: &str, line: Option<usize>, message: String) -> Finding {
     Finding {
         rule: RULE_ID,
+        reason,
         file: file.to_owned(),
         line,
         message,
@@ -64,6 +74,7 @@ fn section_slugs(agents: &[u8], valid: &[String]) -> Vec<(String, String)> {
 fn check(inputs: &Inputs) -> Vec<Finding> {
     let Some(agents) = &inputs.agents else {
         return vec![finding(
+            "absent",
             "AGENTS.md",
             None,
             "AGENTS.md not found in the repository root".to_owned(),
@@ -72,6 +83,7 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
     let valid = sections(agents);
     if valid.is_empty() {
         return vec![finding(
+            "unnumbered",
             "AGENTS.md",
             None,
             "AGENTS.md: no numbered '## N.' section headings found".to_owned(),
@@ -83,7 +95,7 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
         .enumerate()
         .find(|(i, n)| **n != (i + 1).to_string())
     {
-        found.push(finding("AGENTS.md", None, format!(
+        found.push(finding("order", "AGENTS.md", None, format!(
             "AGENTS.md: numbered sections must run 1..N in order — expected '## {}.' at position {}, found '## {n}.'",
             i + 1,
             i + 1
@@ -139,7 +151,7 @@ fn word_form(file: &str, text: &[u8], valid: &[String]) -> Vec<Finding> {
                 Some((r, digits)) if digits > 0 => {
                     let n = show(&r[..digits]);
                     if !valid.contains(&n) {
-                        found.push(finding(file, Some(i + 1), format!(
+                        found.push(finding("unmatched", file, Some(i + 1), format!(
                             "reference 'AGENTS.md, section {n}' matches no numbered section in AGENTS.md"
                         )));
                     }
@@ -178,6 +190,7 @@ fn sign_refs(file: &str, text: &[u8], valid: &[String]) -> Vec<Finding> {
         for n in signs(line) {
             if !valid.contains(&n) {
                 found.push(finding(
+                    "unmatched",
                     file,
                     Some(i + 1),
                     format!("reference '§{n}' matches no numbered section in AGENTS.md"),
@@ -227,15 +240,16 @@ fn markdown_refs(
             rest = &rest[start + length..];
         }
         clean.extend_from_slice(rest);
-        let at = |message: String| finding(file, Some(n), message);
+        let at = |reason, message: String| finding(reason, file, Some(n), message);
         for link in links {
             let Some(s) = signs(link).into_iter().next() else {
                 continue;
             };
             if !valid.contains(&s) {
-                found.push(at(format!(
-                    "reference '§{s}' matches no numbered section in AGENTS.md"
-                )));
+                found.push(at(
+                    "unmatched",
+                    format!("reference '§{s}' matches no numbered section in AGENTS.md"),
+                ));
                 continue;
             }
             let target = markdown::link_target(link);
@@ -245,11 +259,11 @@ fn markdown_refs(
                 .map(|i| show(&target[i + 1..]))
                 .filter(|f| !f.is_empty());
             match fragment {
-                None => found.push(at(format!(
+                None => found.push(at("anchorless", format!(
                     "'§{s}' is cited without an anchor — point the link at '#{}'",
                     slug_of(&s)
                 ))),
-                Some(f) if f != slug_of(&s) => found.push(at(format!(
+                Some(f) if f != slug_of(&s) => found.push(at("anchor", format!(
                     "'§{s}' links to anchor '#{f}', but section {s} of AGENTS.md anchors as '#{}'",
                     slug_of(&s)
                 ))),
@@ -257,11 +271,11 @@ fn markdown_refs(
             }
         }
         for s in signs(&clean) {
-            found.push(at(if valid.contains(&s) {
-                format!("'§{s}' stands outside a link — cite a section as a link to its anchor, e.g. [`AGENTS.md` §{s}](AGENTS.md#{})", slug_of(&s))
+            found.push(if valid.contains(&s) {
+                at("unlinked", format!("'§{s}' stands outside a link — cite a section as a link to its anchor, e.g. [`AGENTS.md` §{s}](AGENTS.md#{})", slug_of(&s)))
             } else {
-                format!("reference '§{s}' matches no numbered section in AGENTS.md")
-            }));
+                at("unmatched", format!("reference '§{s}' matches no numbered section in AGENTS.md"))
+            });
         }
     }
     found

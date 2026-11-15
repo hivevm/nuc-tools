@@ -194,7 +194,7 @@ fn without_git_on_the_path_it_refuses_and_names_how_to_install_it() {
 fn a_panic_is_an_internal_error_that_names_its_cause_and_never_passes() {
     let fixture = Fixture::project("panic", CONFIG, README);
     let output = fixture.nuc_with(&[("NUC_TEST_PANIC", "1")], &["check"]);
-    // API-command-line-with-hook-signal: a panic exits 101, non-zero as the refusals are.
+    // API-command-line-keyed-findings: a panic exits 101, non-zero as the refusals are.
     assert_eq!(code(&output), Some(101), "{}", stderr(&output));
     assert_eq!(stdout(&output), "");
     let err = stderr(&output);
@@ -526,8 +526,8 @@ fn links_into_a_submodule_a_directory_and_with_a_title_resolve_as_for_the_bash()
     assert_eq!(
         lines,
         [
-            "docs/links.md:3: docs/links: link '../vendor/module/guide.md#nope' has no matching anchor '#nope' in docs/../vendor/module/guide.md",
-            "docs/links.md:3: docs/links: broken relative link -> 'missing/'",
+            "docs/links.md:3: docs/links: link '../vendor/module/guide.md#nope' has no matching anchor '#nope' in docs/../vendor/module/guide.md [docs/links:anchor]",
+            "docs/links.md:3: docs/links: broken relative link -> 'missing/' [docs/links:broken]",
         ],
         "{}",
         stderr(&output)
@@ -771,8 +771,8 @@ fn a_skill_pointer_that_is_a_copy_or_missing_fails_as_for_the_bash() {
     assert_eq!(
         out.lines().collect::<Vec<_>>(),
         [
-            ".claude/skills/review: docs/skill-pointers: is a copy of the skill, not a symlink — a second source drifts; replace it: rm -r .claude/skills/review && ln -s ../../.agents/skills/review .claude/skills/review",
-            ".claude/skills/stray: docs/skill-pointers: is not a symlink into .agents/skills/ — a skill lives there, where every agent reads it, and is pointed at from here (ADR-0003)",
+            ".claude/skills/review: docs/skill-pointers: is a copy of the skill, not a symlink — a second source drifts; replace it: rm -r .claude/skills/review && ln -s ../../.agents/skills/review .claude/skills/review [docs/skill-pointers:copy]",
+            ".claude/skills/stray: docs/skill-pointers: is not a symlink into .agents/skills/ — a skill lives there, where every agent reads it, and is pointed at from here (ADR-0003) [docs/skill-pointers:stray]",
         ]
     );
 }
@@ -792,8 +792,8 @@ fn a_skill_pointer_that_resolves_passes_and_one_that_dangles_or_strays_fails() {
     assert_eq!(
         stdout(&output).lines().collect::<Vec<_>>(),
         [
-            ".claude/skills/gone: docs/skill-pointers: dangles — its target does not exist; point it at .agents/skills/gone or delete it",
-            ".claude/skills/other: docs/skill-pointers: points at '.agents/skills/review', not at the skill .agents/skills/other",
+            ".claude/skills/gone: docs/skill-pointers: dangles — its target does not exist; point it at .agents/skills/gone or delete it [docs/skill-pointers:dangles]",
+            ".claude/skills/other: docs/skill-pointers: points at '.agents/skills/review', not at the skill .agents/skills/other [docs/skill-pointers:target]",
         ],
         "{}",
         stderr(&output)
@@ -814,9 +814,9 @@ fn the_project_layout_is_checked_against_the_tree_and_what_git_tracks() {
     assert_eq!(
         stdout(&output).lines().collect::<Vec<_>>(),
         [
-            "README.md: docs/project-layout: Project Layout lists 'docs/*.txt', which matches nothing in this repository",
-            "README.md: docs/project-layout: Project Layout lists 'gone/', which is not a directory of this repository",
-            "README.md: docs/project-layout: Project Layout does not name 'extra.txt', a top-level part of this repository",
+            "README.md: docs/project-layout: Project Layout lists 'docs/*.txt', which matches nothing in this repository [docs/project-layout:unmatched]",
+            "README.md: docs/project-layout: Project Layout lists 'gone/', which is not a directory of this repository [docs/project-layout:notdir]",
+            "README.md: docs/project-layout: Project Layout does not name 'extra.txt', a top-level part of this repository [docs/project-layout:unnamed]",
         ],
         "{}",
         stderr(&output)
@@ -855,9 +855,9 @@ fn the_check_lists_are_read_as_the_bash_globs_and_find_list_them() {
     assert_eq!(
         stdout(&output).lines().collect::<Vec<_>>(),
         [
-            ".github/workflows/b.yml: docs/check-lists: job 'publish' runs no script under scripts/ — the local gate cannot run what it does",
-            ".github/workflows/a.yaml: docs/check-lists: job 'publish' runs no script under scripts/ — the local gate cannot run what it does",
-            "scripts/.dot.sh: docs/check-lists: no workflow and not scripts/check-all.sh runs it — add it to both lists, or name it on an '# On instruction:' line of scripts/check-all.sh",
+            ".github/workflows/b.yml: docs/check-lists: job 'publish' runs no script under scripts/ — the local gate cannot run what it does [docs/check-lists:inline]",
+            ".github/workflows/a.yaml: docs/check-lists: job 'publish' runs no script under scripts/ — the local gate cannot run what it does [docs/check-lists:inline]",
+            "scripts/.dot.sh: docs/check-lists: no workflow and not scripts/check-all.sh runs it — add it to both lists, or name it on an '# On instruction:' line of scripts/check-all.sh [docs/check-lists:orphan]",
         ],
         "{}",
         stderr(&output)
@@ -873,8 +873,8 @@ fn an_absolute_layout_path_names_a_path_under_the_root_as_for_the_bash() {
     assert_eq!(
         stdout(&output).lines().collect::<Vec<_>>(),
         [
-            "README.md: docs/project-layout: Project Layout lists '/etc/', which is not a directory of this repository",
-            "README.md: docs/project-layout: Project Layout lists '/etc/hostname', which does not exist",
+            "README.md: docs/project-layout: Project Layout lists '/etc/', which is not a directory of this repository [docs/project-layout:notdir]",
+            "README.md: docs/project-layout: Project Layout lists '/etc/hostname', which does not exist [docs/project-layout:missing]",
         ],
         "{}",
         stderr(&output)
@@ -959,8 +959,8 @@ fn from_v0_7_0_the_lists_stand_in_the_contributing_guide() {
     assert_eq!(
         stdout(&output).lines().collect::<Vec<_>>(),
         [
-            "CONTRIBUTING.md: docs/check-lists: not found — the check lists cannot be compared",
-            "CONTRIBUTING.md: docs/project-layout: not found — the Project Layout block cannot be checked",
+            "CONTRIBUTING.md: docs/check-lists: not found — the check lists cannot be compared [docs/check-lists:absent]",
+            "CONTRIBUTING.md: docs/project-layout: not found — the Project Layout block cannot be checked [docs/project-layout:absent]",
         ],
         "{}",
         stderr(&output)
@@ -973,8 +973,8 @@ fn from_v0_7_0_the_lists_stand_in_the_contributing_guide() {
     assert_eq!(
         stdout(&output).lines().collect::<Vec<_>>(),
         [
-            "CONTRIBUTING.md: docs/check-lists: required check 'lint' is not a job of .github/workflows/checks.yml — a ruleset would wait for a check that never reports",
-            "CONTRIBUTING.md: docs/project-layout: Project Layout lists 'gone/', which is not a directory of this repository",
+            "CONTRIBUTING.md: docs/check-lists: required check 'lint' is not a job of .github/workflows/checks.yml — a ruleset would wait for a check that never reports [docs/check-lists:unreported]",
+            "CONTRIBUTING.md: docs/project-layout: Project Layout lists 'gone/', which is not a directory of this repository [docs/project-layout:notdir]",
         ],
         "{}",
         stderr(&output)
@@ -1025,8 +1025,8 @@ fn an_unplaced_tree_keeps_only_the_check_list_findings_every_release_reports() {
     assert_eq!(
         stdout(&output).lines().collect::<Vec<_>>(),
         [
-            "scripts/extra.sh: docs/check-lists: no workflow and not scripts/check-all.sh runs it — add it to both lists, or name it on an '# On instruction:' line of scripts/check-all.sh",
-            "README.md: docs/template-release: no '**Template release:**' line — the Template section names the release of the template this repository carries, or 'unreleased' (ADR-0005)",
+            "scripts/extra.sh: docs/check-lists: no workflow and not scripts/check-all.sh runs it — add it to both lists, or name it on an '# On instruction:' line of scripts/check-all.sh [docs/check-lists:orphan]",
+            "README.md: docs/template-release: no '**Template release:**' line — the Template section names the release of the template this repository carries, or 'unreleased' (ADR-0005) [docs/template-release:line]",
         ],
         "{}",
         stderr(&output)
@@ -1063,7 +1063,7 @@ fn a_repository_without_skills_passes_and_one_with_pointers_only_fails() {
     pointers.write(".claude/skills/lonely/SKILL.md", "# Lonely\n");
     assert_eq!(
         stdout(&pointers.nuc(&["check"])).trim_end(),
-        ".claude/skills/lonely: docs/skill-pointers: is not a symlink into .agents/skills/ — a skill lives there, where every agent reads it, and is pointed at from here (ADR-0003)"
+        ".claude/skills/lonely: docs/skill-pointers: is not a symlink into .agents/skills/ — a skill lives there, where every agent reads it, and is pointed at from here (ADR-0003) [docs/skill-pointers:stray]"
     );
 }
 
@@ -1131,8 +1131,8 @@ fn the_inherited_adrs_and_the_identity_are_checked_once_the_setup_file_is_gone()
     assert_eq!(
         stdout(&output).lines().collect::<Vec<_>>(),
         [
-            "docs/adr/0001-a.md: docs/inherited-adrs: inherited from the template and not decided by this project — add your name to Deciders and accept it, or supersede it (docs/adr/README.md)",
-            "README.md: docs/template-identity: the title is still the template's; give the project its name",
+            "docs/adr/0001-a.md: docs/inherited-adrs: inherited from the template and not decided by this project — add your name to Deciders and accept it, or supersede it (docs/adr/README.md) [docs/inherited-adrs:undecided]",
+            "README.md: docs/template-identity: the title is still the template's; give the project its name [docs/template-identity:title]",
         ],
         "{}",
         stderr(&output)
@@ -1160,7 +1160,7 @@ fn a_derived_badge_is_the_template_s_on_a_tree_before_v0_6_1() {
         (
             "v0.6.0",
             vec![
-                "README.md: docs/template-identity: a badge still points at the template's repository; repoint or delete it",
+                "README.md: docs/template-identity: a badge still points at the template's repository; repoint or delete it [docs/template-identity:badge]",
             ],
         ),
         ("v0.6.1", vec![]),
@@ -1303,7 +1303,7 @@ fn a_draft_fails_where_ci_says_a_ready_change_lands_on_main() {
     let output = fixture.nuc_with(&ready, &["check"]);
     assert_eq!(
         stdout(&output).trim_end(),
-        "docs/adr/draft-next.md: docs/no-draft-on-main: a draft lands on main — give it its number first with scripts/number-adrs.sh (ADR-0002)",
+        "docs/adr/draft-next.md: docs/no-draft-on-main: a draft lands on main — give it its number first with scripts/number-adrs.sh (ADR-0002) [docs/no-draft-on-main:draft]",
         "{}",
         stderr(&output)
     );
@@ -1341,7 +1341,8 @@ fn the_criteria_of_the_specification_are_checked_where_the_bash_finds_them() {
     assert_eq!(code(&output), Some(1), "{}", stderr(&output));
     assert_eq!(
         stdout(&output),
-        "docs/SPECIFICATION.md: traceability/criteria: not found — the criteria cannot be read\n"
+        "docs/SPECIFICATION.md: traceability/criteria: not found — the criteria cannot be read \
+         [traceability/criteria:absent]\n"
     );
     // A directory in its place is no file, as `-f` finds it.
     std::fs::create_dir_all(fixture.root().join("docs/SPECIFICATION.md")).unwrap();
@@ -1357,7 +1358,7 @@ fn the_criteria_of_the_specification_are_checked_where_the_bash_finds_them() {
     assert_eq!(
         stdout(&output),
         "docs/SPECIFICATION.md:4: traceability/criteria: identifier 'G-1' appears twice — \
-         identifiers are never reused\n"
+         identifiers are never reused [traceability/criteria:twice]\n"
     );
     fixture.write(
         "docs/SPECIFICATION.md",
@@ -1413,9 +1414,9 @@ fn citations_are_read_from_the_files_the_bash_reads_them_from() {
     assert_eq!(
         stdout(&output),
         "new.txt:2: traceability/citations: cites 'G-8', which is not a criterion of \
-         docs/SPECIFICATION.md\n\
+         docs/SPECIFICATION.md [traceability/citations:criterion]\n\
          tests/é.txt:1: traceability/citations: cites 'Q-3', which is not a criterion of \
-         docs/SPECIFICATION.md\n"
+         docs/SPECIFICATION.md [traceability/citations:criterion]\n"
     );
 }
 

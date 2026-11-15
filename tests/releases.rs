@@ -185,6 +185,7 @@ fn every_rule_whose_check_changed_reads_the_release() {
 fn two_rules() -> ([rules::Rule; 2], [Version; 1]) {
     let ignores_release = rules::Rule {
         id: "docs/x",
+        reasons: &[],
         explain: "",
         reads: &[Input::Readme],
         check: |_| rules::Outcome::default(),

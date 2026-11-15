@@ -10,6 +10,7 @@ pub const RULE_ID: &str = "docs/no-draft-on-main";
 
 pub const RULE: Rule = Rule {
     id: RULE_ID,
+    reasons: &["draft"],
     explain: "A change that lands on main carries no draft ADR: a draft takes its number on the \
               branch whose pull request brings it there, by scripts/number-adrs.sh. The branch a \
               change lands on is the one CI names: the base of a pull request, else the branch a \
@@ -76,6 +77,7 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
         .iter()
         .map(|name| Finding {
             rule: RULE_ID,
+            reason: "draft",
             file: format!("docs/adr/{name}"),
             line: None,
             message: "a draft lands on main — give it its number first with scripts/number-adrs.sh (ADR-0002)"
