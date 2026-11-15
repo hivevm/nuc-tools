@@ -625,8 +625,6 @@ fn a_link_path_that_is_no_utf8_is_not_decided() {
     );
 }
 
-/// A project on the template release given, with only the supersession rule turned on, and ADR
-/// 0001 flipped for 0002, which is only proposed.
 /// A record named by category, its old ADR flipped while its successor is only proposed, which
 /// every release from v0.9.0 on reports. The identifiers are assembled, so that the gate's bash
 /// checks read no reference here.
@@ -648,6 +646,8 @@ fn named_flipped_early(name: &str, release_line: &str) -> Fixture {
     fixture
 }
 
+/// A project on the template release given, with only the supersession rule turned on, and ADR
+/// 0001 flipped for 0002, which is only proposed.
 fn flipped_early(name: &str, release_line: &str) -> Fixture {
     let config = "minimum = \"0.0.0\"\nrules = [\"docs/adr-supersessions\"]\n";
     let fixture = Fixture::project(name, config, &format!("# Fixture\n\n{release_line}\n"));

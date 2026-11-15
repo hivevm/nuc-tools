@@ -16,9 +16,9 @@ pub const RULE: Rule = Rule {
     explain: "Every relative Markdown link in a tracked Markdown file resolves to a file or \
               directory that exists, and its '#anchor' to a heading of a Markdown file, or to \
               its lines as 'Lnn' or 'Lnn-Lmm' in any file. Links in fenced code are \
-              illustrations, a target with the template's 'NNNN', from template release v0.9.0 on '<CAT>', is a \
-              placeholder, and \
-              superseded and rejected ADRs describe a tree that no longer exists.",
+              illustrations, a target with the template's 'NNNN', from template release v0.9.0 \
+              on '<CAT>', is a placeholder, and superseded and rejected ADRs describe a tree that \
+              no longer exists.",
     reads: &[
         Input::Adr,
         Input::TextFiles,
