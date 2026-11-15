@@ -29,19 +29,13 @@ pub const RULE: Rule = Rule {
     check: |inputs| check(inputs).into(),
 };
 
-/// What a word of the form `<CAT>-<slug>` must be, as the bash of v0.9.1 words it.
-fn malformed() -> String {
-    format!(
-        "which is no identifier: <{}>-<slug> of two to five words, G-n, or Q-n",
-        "CAT"
-    )
-}
+/// What a cited word must be, as the bash of v0.9.1 words it.
+const MALFORMED: &str = "which is no identifier: <CAT>-<slug> of two to five words, G-n, or Q-n";
 
 fn check(inputs: &Inputs) -> Vec<Finding> {
     let named = inputs.carries_at_least(super::CATEGORY_IDENTIFIERS);
     let criteria = traceability::criteria(inputs.specification.as_deref()).ids;
     let (known, inactive) = record(&inputs.adr, named);
-    let malformed = malformed();
     traceability::citations(&inputs.markers, named)
         .into_iter()
         .filter_map(|citation| {
@@ -50,7 +44,7 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
                     .strip_prefix('-')
                     .is_some_and(|n| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()));
             let (reason, why) = if named && !criterion && !adr::is_identifier(&citation.id) {
-                ("malformed", malformed.as_str())
+                ("malformed", MALFORMED)
             } else if named && !criterion || !named && citation.id.starts_with("ADR-") {
                 if !known.contains(&citation.id) {
                     ("missing", "which does not exist in docs/adr/")
@@ -85,7 +79,7 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
 /// The identifiers of the ADR files, and those of the files whose status line carries 🔴 or ⚪
 /// but not 🟢, as the bash's `case` sorts them; from template release v0.9.0 on, `named`, the
 /// files named by category, each identified by its name.
-pub(super) fn record(dir: &adr::Dir, named: bool) -> (BTreeSet<String>, BTreeSet<String>) {
+fn record(dir: &adr::Dir, named: bool) -> (BTreeSet<String>, BTreeSet<String>) {
     let mut known = BTreeSet::new();
     let mut inactive = BTreeSet::new();
     let headers = if named {
@@ -315,7 +309,7 @@ mod tests {
             .into_iter()
             .map(|f| (f.reason, f.message))
             .collect();
-        let why = malformed();
+        let why = "which is no identifier: <CAT>-<slug> of two to five words, G-n, or Q-n";
         assert_eq!(
             found,
             [

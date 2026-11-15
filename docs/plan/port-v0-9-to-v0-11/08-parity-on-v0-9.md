@@ -26,6 +26,12 @@ trees show, and variants are added for each rule of v0.9 that fires on no pinned
   `docs/adr`; and it names the file of an unlisted or differing blob bare, `NUC-a.md:` or
   `AGENTS.md:`, where nuc names `docs/adr/NUC-a.md` and `AGENTS.md`, so a row places `docs/adr/`
   before a `NUC-` name only.
+- From ticket 07, for the traceability rules: their rows in `tests/parity/releases.tsv` compare the
+  whole `check-traceability.sh` and name v0.9.0 only, while v0.9.1 (the keys, `lib/bash.sh`
+  sourced) and v0.11.0 (`--root`) change the script too; a pin of v0.9.1 adds them. The
+  normalization lacks rows for `malformed`, the three messages of `traceability/sensor-tests`,
+  which the bash words without a file, and coverage of a `<CAT>-` identifier, where line 115
+  matches `^ADR-` only.
 
 ## Read first
 
