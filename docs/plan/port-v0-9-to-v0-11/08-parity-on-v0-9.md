@@ -19,6 +19,14 @@ trees show, and variants are added for each rule of v0.9 that fires on no pinned
 - [ ] Given the pending list of the table runner, when this lands, then it holds only cases that
       v0.10.0 added and the `shell/` cases.
 
+## Notes
+
+- From ticket 05, for the normalization of `docs/base-blobs`: the bash names the compute failure
+  `adr_blobs: git hash-object failed in <root>/docs/adr`, with the root's own path, where nuc names
+  `docs/adr`; and it names the file of an unlisted or differing blob bare, `NUC-a.md:` or
+  `AGENTS.md:`, where nuc names `docs/adr/NUC-a.md` and `AGENTS.md`, so a row places `docs/adr/`
+  before a `NUC-` name only.
+
 ## Read first
 
 - Touches: `tests/parity/corpus.toml`, `tests/parity/releases.tsv`, `tests/parity/variants.tsv`,
