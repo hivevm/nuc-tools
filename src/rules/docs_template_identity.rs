@@ -41,6 +41,7 @@ pub const RULE: Rule = Rule {
         "command",
         "unfilled",
         "several",
+        "finding",
     ],
     explain: "Once TEMPLATE-SETUP.md is gone, none of the template's placeholders is left: the \
               name NUC in the README's title, intro, Why NUC section, and the Dev Container, the \
@@ -71,7 +72,13 @@ pub const FILES: &[&str] = &[
     "docs/ARCHITECTURE.md",
     "docs/GLOSSARY.md",
     "docs/CONVENTIONS.md",
+    FINDING_FORM,
 ];
+
+/// The template's issue template for findings about itself, which a derived project deletes from
+/// template release v0.10.0 on (NUC-template-learns-from-projects §6); the shell tests it as `-f`
+/// does and reads none of it.
+pub const FINDING_FORM: &str = ".github/ISSUE_TEMPLATE/template-finding.md";
 
 /// The message of a badge that points at the template's repository.
 const BADGE: &str = "a badge still points at the template's repository; repoint or delete it";
@@ -233,6 +240,16 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
         if any_line(file, matches) {
             report(file, reason, message);
         }
+    }
+    if inputs.carries_at_least(super::TEMPLATE_FINDINGS)
+        && inputs.identity.contains_key(FINDING_FORM)
+    {
+        report(
+            FINDING_FORM,
+            "finding",
+            "the template's form for findings about itself is still here; delete it, since a \
+             finding goes to the template's repository (NUC-template-learns-from-projects §6)",
+        );
     }
     if inputs.carries_at_least(super::CATEGORY_IDENTIFIERS) {
         found.extend(roles(&inputs.adr));

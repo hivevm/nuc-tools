@@ -259,3 +259,22 @@ fn no_rule_id_is_held_twice_by_the_rules_and_the_hooks() {
         assert!(seen.insert(id), "the rule ID '{id}' is held twice");
     }
 }
+
+/// Verifies: ARCH-rules-need-only-git
+#[test]
+fn a_rule_left_to_the_bash_is_refused_as_one_this_nuc_does_not_know() {
+    for rule in ["shell/bash-floor", "shell/root"] {
+        let config = format!("minimum = \"0.0.0\"\nrules = [\"{rule}\"]\n");
+        let fixture =
+            Fixture::project(&format!("left-{}", rule.replace('/', "-")), &config, README);
+        let output = fixture.nuc(&["check"]);
+        assert_eq!(code(&output), Some(2), "{rule}: {}", stdout(&output));
+        assert!(
+            stderr(&output).contains(&format!(
+                "turns on the rule '{rule}', which this nuc does not know"
+            )),
+            "{rule}: {}",
+            stderr(&output)
+        );
+    }
+}

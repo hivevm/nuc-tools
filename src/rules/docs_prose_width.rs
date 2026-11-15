@@ -257,6 +257,18 @@ mod tests {
         assert_eq!(found("README.md", &format!("See [x]({url})\n")).len(), 1);
     }
 
+    /// v0.9.1 counts a line's bytes that start a character, where earlier releases count its
+    /// characters in C.UTF-8: for valid UTF-8 the two agree, so a line of 100 code points beyond
+    /// ASCII passes on every release, and the rule reads none.
+    #[test]
+    fn a_line_of_100_code_points_beyond_ascii_passes_as_v0_9_1_counts_it() {
+        let line = format!("{}é\n", "é ".repeat(49) + "é");
+        let continuation = line.bytes().filter(|b| (0x80..0xc0).contains(b)).count();
+        assert_eq!(line.trim_end().len() - continuation, 100);
+        assert_eq!(columns(line.trim_end().as_bytes()), 100);
+        assert_eq!(found("README.md", &line), Vec::<String>::new());
+    }
+
     #[test]
     fn columns_count_characters_as_bash_does_in_c_utf8() {
         assert_eq!(columns("—".repeat(101).as_bytes()), 101);

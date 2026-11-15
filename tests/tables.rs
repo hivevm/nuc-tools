@@ -1,5 +1,5 @@
 //! The rules held to the cases of the template's fixture tables.
-//! Verifies: TEST-cases-from-template-tables
+//! Verifies: TEST-template-table-cases
 //!
 //! `tests/tables/` holds the tables of the template's checks `nuc` ports, copied byte for byte
 //! from the newest release it ports, and `tests/tables.blobs` the blob of each at that release's
@@ -12,18 +12,19 @@
 //! Beside what the tables describe, a case's tree gets what `nuc` needs and the bash does not: a
 //! `nuc.toml`, which `.git/info/exclude` keeps from git's list of files as the parity harness does,
 //! and, in the tables whose tree has no README, one naming the release `unreleased`, staged where
-//! the table stages its files. `nuc.toml` turns on the case's rule, or, for a case of every check
-//! and in the tables that name no rule, every rule of the table's area `nuc` knows; a rule `nuc`
-//! does not know is refused, and the case does not agree. The rules run as `unreleased`, the newest
-//! release `nuc` knows, which is the release of the copies once the port reaches it; until then, a
-//! case that release changed stands as pending. The scripts the steps of `check-shell.txt` write
-//! are stand-ins with the kind's name, and the copy of the template's `scripts/lib/` that table's
-//! tree holds is left out: `nuc` reads no script's content and no file below `scripts/lib/`
-//! (ARCH-rules-need-only-git). Until `nuc` knows a rule of the area `shell/`, that table's cases
-//! run no rule, and its passing cases decide nothing. Every tree starts on the branch `main`, which
-//! the bash of the traceability and the shell tables leaves to git's default and no case reads. The
-//! trees hold symbolic links, so the cases run on Unix; the pins and the list are held on every
-//! platform.
+//! the table stages its files; and, in the record table's tree, a stand-in `scripts/check-docs.sh`
+//! that holds only the rule keys of the header of the copies' release, which the bash reads from
+//! its own script and `docs/adr-refs` from the tree's. `nuc.toml` turns on the case's rule, or, for
+//! a case of every check and in the tables that name no rule, every rule of the table's area `nuc`
+//! knows; a rule `nuc` does not know is refused, and the case does not agree. The rules run as
+//! `unreleased`, the newest release `nuc` knows, which is the release of the copies once the port
+//! reaches it; until then, a case that release changed stands as pending. The scripts the steps of
+//! `check-shell.txt` write are stand-ins with the kind's name, and the copy of the template's
+//! `scripts/lib/` that table's tree holds is left out: `nuc` reads no script's content and no file
+//! below `scripts/lib/` (ARCH-rules-need-only-git). In that table `nuc` runs `shell/mode`, the one
+//! rule of the area it ports. Every tree starts on the branch `main`, which the bash of the
+//! traceability and the shell tables leaves to git's default and no case reads. The trees hold
+//! symbolic links, so the cases run on Unix; the pins and the list are held on every platform.
 
 // The runner and its helpers serve the cases alone, which run on Unix only; elsewhere they stand
 // unused, and the pins and the judgement still compile and run.
@@ -366,6 +367,7 @@ fn record_base(fixture: &Fixture) {
         )
         .write(".github/workflows/checks.yml", "jobs:\n  docs:\n    steps:\n      - run: bash scripts/check-docs.sh\n")
         .write("scripts/check-all.sh", "run \"Documentation consistency\" scripts/check-docs.sh\n")
+        .write("scripts/check-docs.sh", STAND_IN_HEADER)
         .write(
             "docs/adr/template.md",
             "# <CAT>-<slug>: title\n\n- **Status:** 🟡 proposed\n\n*Complete the header and delete this paragraph.*\n",
@@ -803,6 +805,16 @@ fn rules_of(case: &Case) -> Vec<String> {
 /// The README of the tables whose tree has none, which `nuc` needs to run at all.
 const STAND_IN_README: &str = "# Fixture\n\n- **Template release:** unreleased\n";
 
+/// The rule keys of the header of the template's `scripts/check-docs.sh` at the release of the
+/// copies, v0.11.0, which the bash reads from its own script and `docs/adr-refs` reads from the
+/// tree's: the record table's tree holds them as a stand-in script.
+const STAND_IN_HEADER: &str = "#!/usr/bin/env bash\n\
+#   docs/adr-index\n#   docs/adr-identifiers (was: docs/adr-numbering)\n#   docs/links\n\
+#   docs/section-refs\n#   docs/adr-refs\n#   docs/adr-link-targets\n#   docs/adr-header\n\
+#   docs/adr-supersessions\n#   docs/check-lists\n#   docs/project-layout\n\
+#   docs/skill-pointers\n#   docs/base-blobs\n#   docs/template-identity\n\
+#   docs/opens-no-issue\n#   docs/template-release\n#   docs/prose-width\nset -uo pipefail\n";
+
 /// Build the case's tree, run `nuc check` on it, and decide whether it agrees.
 fn run(case: &Case, n: usize) -> Run {
     let fixture = Fixture::new(&format!("table-{n}"));
@@ -885,6 +897,7 @@ fn judge(
     case: &Verdict,
     entry: Option<(String, String)>,
     exists: &dyn Fn(&str) -> bool,
+    in_force: &dyn Fn(&str) -> bool,
 ) -> Vec<String> {
     let Verdict {
         table,
@@ -924,9 +937,26 @@ fn judge(
         if !unported_rule {
             problems.push(format!("{at}: not ported, but {rule} is a rule nuc ports"));
         }
+    } else if let Some(decided) = status.strip_prefix("decided by ") {
+        let (adr, reason) = decided.split_once(' ').unwrap_or((decided, ""));
+        if agrees {
+            problems.push(format!(
+                "{at}: agrees now — take it out of tests/tables.cases"
+            ));
+        }
+        if !reason.chars().any(char::is_alphanumeric) {
+            problems.push(format!(
+                "{at}: decided by {adr}, but the line gives no reason"
+            ));
+        }
+        if !in_force(adr) {
+            problems.push(format!(
+                "{at}: decided by {adr}, which is no accepted ADR of docs/adr/ — the case is pending again, or another ADR decides it"
+            ));
+        }
     } else {
         problems.push(format!(
-            "{at}: '{status}' is neither 'pending <ticket>' nor 'not ported <reason>'"
+            "{at}: '{status}' is neither 'pending <ticket>', 'not ported <reason>', nor 'decided by <ADR> <reason>'"
         ));
     }
     if must_be_unported && !status.starts_with("not ported ") {
@@ -982,6 +1012,15 @@ fn every_case_agrees_or_is_listed() {
             .collect()
     });
     let root = support::sources::root();
+    // An ADR in force for a decided case: its file under docs/adr/, its status line accepted.
+    let accepted = |adr: &str| {
+        !adr.contains('/')
+            && fs::read_to_string(root.join(format!("docs/adr/{adr}.md"))).is_ok_and(|text| {
+                text.lines()
+                    .find(|l| l.starts_with("- **Status:**"))
+                    .is_some_and(|l| l.contains("🟢"))
+            })
+    };
     let mut problems = Vec::new();
     for (case, run) in &runs {
         let table = case.table.trim_end_matches(".txt");
@@ -995,7 +1034,7 @@ fn every_case_agrees_or_is_listed() {
             agrees: run.agrees,
         };
         let exists = |ticket: &str| root.join(ticket).is_file();
-        for problem in judge(&verdict, entry, &exists) {
+        for problem in judge(&verdict, entry, &exists, &accepted) {
             problems.push(if problem.ends_with("does not agree") {
                 format!(
                     "{problem}: exit {:?}\n      stdout: {}\n      stderr: {}",
@@ -1026,6 +1065,8 @@ fn a_case_is_judged_against_its_line_as_the_decision_asks() {
     let ticket = "docs/plan/x/01-y.md";
     // Cargo.toml exists, so that only the prefix refuses it as a ticket.
     let exists = |t: &str| t == ticket || t == "Cargo.toml";
+    let adr = format!("{}-{}", "API", "x-y");
+    let in_force = |a: &str| a == adr;
     let pending = format!("pending {ticket}");
     let case = |rule, agrees| Verdict {
         table: "t",
@@ -1036,20 +1077,29 @@ fn a_case_is_judged_against_its_line_as_the_decision_asks() {
     };
     let line = |rule: &str, status: &str| Some((rule.to_owned(), status.to_owned()));
     // Agreeing and unlisted, not agreeing and pending on a ticket that exists, or not ported: none.
-    assert!(judge(&case("docs/a", true), None, &exists).is_empty());
-    assert!(judge(&case("docs/a", false), line("docs/a", &pending), &exists).is_empty());
+    assert!(judge(&case("docs/a", true), None, &exists, &in_force).is_empty());
+    assert!(
+        judge(
+            &case("docs/a", false),
+            line("docs/a", &pending),
+            &exists,
+            &in_force
+        )
+        .is_empty()
+    );
     assert!(
         judge(
             &case("shell/root", false),
             line("shell/root", "not ported r"),
-            &exists
+            &exists,
+            &in_force
         )
         .is_empty()
     );
     // Three failures of the decision's Enforcement, and the rest of the list's rules; a line that
     // names no case is held by the loop over the lines left, a copy's byte by the pin's test.
     let problem = |c: Verdict, e, needle: &str| {
-        let found = judge(&c, e, &exists);
+        let found = judge(&c, e, &exists, &in_force);
         assert!(
             found.iter().any(|p| p.contains(needle)),
             "{needle}: {found:?}"
@@ -1084,6 +1134,29 @@ fn a_case_is_judged_against_its_line_as_the_decision_asks() {
         "stands only as not ported",
     );
     problem(case("docs/a", false), line("docs/a", "later"), "neither");
+    // A case an ADR in force decides otherwise: listed with that ADR and why, while it does not
+    // agree and the ADR is accepted.
+    let decided = format!("decided by {adr} it says so");
+    assert!(
+        judge(
+            &case("docs/a", false),
+            line("docs/a", &decided),
+            &exists,
+            &in_force
+        )
+        .is_empty()
+    );
+    problem(case("docs/a", true), line("docs/a", &decided), "agrees now");
+    problem(
+        case("docs/a", false),
+        line("docs/a", &format!("decided by {adr}")),
+        "gives no reason",
+    );
+    problem(
+        case("docs/a", false),
+        line("docs/a", &format!("decided by {}-{} r", "API", "gone-away")),
+        "no accepted ADR",
+    );
 }
 
 #[test]

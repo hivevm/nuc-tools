@@ -22,7 +22,9 @@
 #   1. The bash scripts with a ported rule run in the tree, one after the other, with the
 #      environment cleared to PATH, HOME, LC_ALL=C, and that of a pull request into main marked
 #      ready (CI_ENV): scripts/check-docs.sh and scripts/check-traceability.sh (BASH_CHECKS),
-#      whose findings are their '  - ' lines. Their outputs are read as one, and bash fails when
+#      whose findings are their '  - ' lines; and scripts/check-shell.sh where it has the rule
+#      shell/mode, from v0.10.0 on, whose findings are its lines that end in a key of shell/.
+#      Their outputs are read as one, and bash fails when
 #      either fails; a tree that lacks one of them, or a script that fails without a finding,
 #      fails the harness.
 #   2. nuc runs 'check' on the tree, with a nuc.toml the harness writes beside it, ignored through
@@ -46,7 +48,7 @@
 # Before the comparisons, each blob of tests/tables.blobs, the pins of the copies of the
 # template's fixture tables under tests/tables/, is held to the blob the template's tag of its
 # release has at scripts/fixtures/, fetched from the corpus's template into the cache
-# (TEST-cases-from-template-tables).
+# (TEST-template-table-cases).
 #
 # Then the hook scenarios run on the template's trees of the corpus, through
 # scripts/lib/hook-parity.sh (TEST-hook-scenario-parity): each scenario of
@@ -117,8 +119,9 @@ load_table() {
   while IFS=$'\t' read -r pattern rule mode place extra; do
     [[ -z "$pattern" || "$pattern" == \#* ]] && continue
     if ! [[ -n "$rule" && ( "$mode" == "line" || "$mode" == "-" ) && -z "${extra:-}" ]] \
-      || ! [[ -z "${place:-}" || "$place" == =?* || "$place" == +?* || "$place" == "@adr" ]]; then
-      die "$TABLE: the row '$pattern' is not 'pattern<TAB>rule ID<TAB>line|-[<TAB>=path|+prefix|@adr]'"
+      || ! [[ -z "${place:-}" || "$place" == =?* || "$place" == +?* || "$place" == "@adr" \
+              || "$place" == "@word" ]]; then
+      die "$TABLE: the row '$pattern' is not 'pattern<TAB>rule ID<TAB>line|-[<TAB>=path|+prefix|@adr|@word]'"
     fi
     patterns+=("$pattern") rules+=("$rule") modes+=("$mode") places+=("${place:-}")
   done < "$TABLE" || die "$TABLE: unreadable"
@@ -147,12 +150,26 @@ canonical() {
   printf '%s' "${text//$'\xef\xbf\xbd'/}"
 }
 
+# The key that ends a bash message from v0.9.1 on, '[<rule>:<reason>]', as nuc's lines end.
+BASH_KEY_RE=' \[[a-z0-9]+/[a-z0-9-]+:([a-z]+)\]$'
+
+# unkeyed <message> — the bash message without its key: the table matches the wording before it.
+unkeyed() {
+  local msg="$1"
+  [[ "$msg" =~ $BASH_KEY_RE ]] && msg="${msg% \[*\]}"
+  printf '%s' "$msg"
+}
+
 # compare <label> <bash output> <bash exit> <nuc output> <nuc exit> — print the differences of
 # one pair and return 1 when there are any.
 compare() {
   local label="$1" bash_out="$2" bash_rc="$3" nuc_out="$4" nuc_rc="$5"
   local -a diffs=() bash_keys=() nuc_keys=() nuc_files=()
-  local line msg i f best rule file n text bash_any=0
+  local line msg i f best rule file n text reason bash_any=0 k
+  # The reason of each finding nuc reports, by its key; and of each the bash reports with a key,
+  # from v0.9.1 on, whose reason is compared with nuc's. The key's rule ID is not compared, since
+  # it is the one of the bash's release.
+  local -A nuc_reasons=() bash_reasons=()
   while IFS= read -r line; do
     # The location ends before the leftmost ': <rule ID>: ' of a rule the table knows, so that a
     # path holding ': ' stays whole and a message quoting such a pair keeps it; a line without
@@ -171,7 +188,9 @@ compare() {
       n="" text="${line#"$file: $rule: "}"
       # The line ends in its key, '[<rule>:<reason>]' (API-command-line-keyed-findings), which
       # is no part of the bash's wording before v0.9.1; a finding without it is a difference.
-      if [[ "$text" =~ \ \["$rule":[a-z]+\]$ ]]; then
+      reason=""
+      if [[ "$text" =~ \ \["$rule":([a-z]+)\]$ ]]; then
+        reason="${BASH_REMATCH[1]}"
         text="${text% \["$rule":*\]}"
       else
         diffs+=("nuc reports a finding of '$rule' without its key: $line")
@@ -182,13 +201,16 @@ compare() {
       # Where the table places the message by its ADR, nuc's file is cut to that ADR's key.
       for i in "${!patterns[@]}"; do
         if [[ "${rules[i]}" == "$rule" && "${places[i]}" == "@adr" && "$text" =~ ${patterns[i]} ]]; then
-          if [[ "$file" =~ ^docs/adr/([0-9]{4})-[^/]*\.md$ || "$file" =~ ^docs/adr/(draft-[^/]+)\.md$ ]]; then
+          if [[ "$file" =~ ^docs/adr/([0-9]{4})-[^/]*\.md$ || "$file" =~ ^docs/adr/(draft-[^/]+)\.md$ \
+                || "$file" =~ ^docs/adr/([A-Za-z]+-[^/]+)\.md$ ]]; then
             file="docs/adr/${BASH_REMATCH[1]}"
           fi
           break
         fi
       done
-      nuc_keys+=("$(key "$rule" "$file" "$n" "$text")")
+      k="$(key "$rule" "$file" "$n" "$text")"
+      nuc_keys+=("$k")
+      nuc_reasons["$k"]="$reason"
     else
       diffs+=("nuc output not understood: $line")
     fi
@@ -196,7 +218,8 @@ compare() {
   while IFS= read -r line; do
     case "$line" in
       "  - "*)
-        bash_any=1 msg="${line#  - }" rule=""
+        bash_any=1 msg="$(unkeyed "${line#  - }")" rule="" reason=""
+        [[ "$line" =~ $BASH_KEY_RE ]] && reason="${BASH_REMATCH[1]}"
         for i in "${!patterns[@]}"; do
           [[ "$msg" =~ ${patterns[i]} ]] && { rule="${rules[i]}"; break; }
         done
@@ -226,8 +249,11 @@ compare() {
             =*) file="${places[i]#=}" text="$msg" ;;
             +*) file="${places[i]#+}$file" ;;
             @adr) file="${msg%% *}" file="docs/adr/${file#ADR-}" text="$msg" ;;
+            @word) file="${msg%% *}" text="${msg#* }" ;;
           esac
-          bash_keys+=("$(key "$rule" "$file" "$n" "$text")")
+          k="$(key "$rule" "$file" "$n" "$text")"
+          bash_keys+=("$k")
+          [[ -n "$reason" ]] && bash_reasons["$k"]="$reason"
         fi
         ;;
       "" | "Documentation checks FAILED:" | "Documentation checks passed." \
@@ -241,6 +267,10 @@ compare() {
   only_nuc="$(comm -13 <(printf '%s\n' "${bash_keys[@]}" | sort -u) <(printf '%s\n' "${nuc_keys[@]}" | sort -u))"
   while IFS= read -r line; do [[ -n "$line" ]] && diffs+=("only bash reports: ${line//$'\t'/ }"); done <<< "$only_bash"
   while IFS= read -r line; do [[ -n "$line" ]] && diffs+=("only nuc reports: ${line//$'\t'/ }"); done <<< "$only_nuc"
+  for k in "${!bash_reasons[@]}"; do
+    [[ -v nuc_reasons["$k"] && "${nuc_reasons["$k"]}" != "${bash_reasons["$k"]}" ]] \
+      && diffs+=("nuc gives the reason '${nuc_reasons["$k"]}' where bash gives '${bash_reasons["$k"]}': ${k//$'\t'/ }")
+  done
 
   ((bash_any || bash_rc == 0)) || diffs+=("bash exited $bash_rc without a finding")
   local expected=0
@@ -380,7 +410,8 @@ fi
 
 # check_body <script> <function> — the function's lines, from its 'name() {' line to the first
 # '}' alone on a line, or the whole script for '-', comment lines left out; fails when the script
-# or the function is missing.
+# or the function is missing. From v0.9.0 on the template ends the head in a comment that names
+# its check, '# check 15' or '# docs/prose-width', which is left out with it.
 check_body() {
   [[ -f "$1" ]] || return 1
   if [[ "$2" == - ]]; then
@@ -388,7 +419,11 @@ check_body() {
     return 0
   fi
   awk -v head="$2() {" '
-    $0 == head { on = 1 }
+    !on && ($0 == head || (index($0, head) == 1 && substr($0, length(head) + 1) ~ /^[ \t]+#/)) {
+      on = 1
+      print head
+      next
+    }
     on && !/^[[:space:]]*#/ { print }
     on && $0 == "}" { done = 1; exit }
     END { exit !done }
@@ -404,8 +439,11 @@ at_least_floor() {
 # that reads where a change lands (check 16) speaks as it does in CI.
 CI_ENV=(GITHUB_BASE_REF=main PULL_REQUEST_DRAFT=false)
 
-# The bash scripts whose rules nuc ports, run in this order.
+# The bash scripts whose rules nuc ports, run in this order; and check-shell.sh, run where it has
+# the one rule of it nuc ports, whose finding lines end in a key of shell/.
 BASH_CHECKS=(scripts/check-docs.sh scripts/check-traceability.sh)
+SHELL_CHECK=scripts/check-shell.sh
+SHELL_FINDING_RE='^[^ ].* \[shell/[a-z-]+:[a-z]+\]$'
 
 # run_pair <label> <tree> <output prefix> — run bash and nuc on the tree and compare them.
 run_pair() {
@@ -426,18 +464,31 @@ run_pair() {
     cat "$out.script" >> "$out.bash"
     ((bash_rc)) || bash_rc=$rc
   done
+  # check-shell.sh of a tree that has the rule shell/mode, from v0.10.0 on: its findings are the
+  # lines that end in a key of shell/, read as findings of the other scripts are; the rest of its
+  # output, ShellCheck's among it, and its exit, which a rule nuc leaves to the bash sets too, are
+  # not compared (ARCH-rules-need-only-git).
+  if [[ -f "$dir/$SHELL_CHECK" ]] && grep -qF '[shell/mode:exec]' "$dir/$SHELL_CHECK"; then
+    (cd "$dir" && env -i PATH="$PATH" HOME="$HOME" LC_ALL=C "${CI_ENV[@]}" bash "$SHELL_CHECK") > "$out.script" 2>&1
+    if grep -E "$SHELL_FINDING_RE" "$out.script" | sed 's/^/  - /' >> "$out.bash"; then
+      ((bash_rc)) || bash_rc=1
+    fi
+  fi
   env -i PATH="$PATH" HOME="$HOME" "${CI_ENV[@]}" "$nuc" check --repo "$dir" > "$out.nuc" 2> "$out.nuc.err"
   nuc_rc=$?
   compare "$label" "$out.bash" "$bash_rc" "$out.nuc" "$nuc_rc"
 }
 
-# apply_variant <copy> <path> <sed|delete|write|chomp> <argument> — apply the edit to the copy of a
-# tree. It fails when the edit does not apply: the file is missing, or for 'write' already there,
-# resolves outside the copy, the sed expression fails or changes nothing, or for 'chomp' the file
-# does not end with a newline. 'write' creates the file with the argument as its one line, its
-# backslash escapes read as printf's %b reads them, as \x3a for a colon, in a directory the copy
-# already has; 'chomp' takes the newline off the file's last line, which sed cannot. sed runs
-# sandboxed, so an expression runs no command and reads or writes no other file.
+# apply_variant <copy> <path> <sed|delete|write|chomp|chmod> <argument> — apply the edit to the
+# copy of a tree. It fails when the edit does not apply: the file is missing, or for 'write'
+# already there, resolves outside the copy, the sed expression fails or changes nothing, for
+# 'chomp' the file does not end with a newline, or for 'chmod' git does not track the file or its
+# mode in the index stays as it was. 'write' creates the file with the argument as its one line,
+# its backslash escapes read as printf's %b reads them, as \x3a for a colon, in a directory the
+# copy already has; 'chomp' takes the newline off the file's last line, which sed cannot; 'chmod'
+# sets or clears the executable bit in the copy's index, +x or -x, where a rule reads the mode git
+# keeps rather than the file's. sed runs sandboxed, so an expression runs no command and reads or
+# writes no other file.
 apply_variant() {
   local copy="$1" file="$1/$2"
   if [[ "$3" == write ]]; then
@@ -464,6 +515,14 @@ apply_variant() {
       [[ "$(tail -c 1 "$file" | od -An -c | tr -d ' ')" == '\n' ]] || return 1
       truncate -s -1 "$file" || return 1
       ;;
+    chmod)
+      local before after
+      before="$(cgit "$copy" ls-files -s -- ":(literal)$2")"
+      [[ -n "$before" ]] || return 1
+      cgit "$copy" update-index --chmod="$4" -- "$2" 2>/dev/null || return 1
+      after="$(cgit "$copy" ls-files -s -- ":(literal)$2")"
+      [[ "$after" != "$before" ]] || return 1
+      ;;
     sed)
       sed --sandbox -E "$4" "$file" > "$file.after" 2>/dev/null || { rm -f "$file.after"; return 1; }
       if cmp -s "$file" "$file.after"; then rm -f "$file.after"; return 1; fi
@@ -477,7 +536,7 @@ rule_messages() {
   local line msg i
   while IFS= read -r line; do
     [[ "$line" == "  - "* ]] || continue
-    msg="${line#  - }"
+    msg="$(unkeyed "${line#  - }")"
     for i in "${!patterns[@]}"; do
       if [[ "$msg" =~ ${patterns[i]} ]]; then
         [[ "${rules[i]}" == "$2" ]] && printf '%s\n' "$msg"
@@ -494,17 +553,18 @@ fires() {
 }
 
 # The variants, one row each: name, rule, path in the tree, 'sed' with an extended expression,
-# 'delete' with '-', 'write' with a line, or 'chomp' with '-', and optionally the names of the
-# corpus trees it is for, separated by commas, all separated by tabs. Without names it is for every
-# tree. The path stays inside the tree and out of its .git; every ported rule brings one at least.
+# 'delete' with '-', 'write' with a line, 'chomp' with '-', or 'chmod' with +x or -x, and
+# optionally the names of the corpus trees it is for, separated by commas, all separated by tabs.
+# Without names it is for every tree. The path stays inside the tree and out of its .git; every
+# ported rule brings one at least.
 variant_names=() variant_rules=() variant_paths=() variant_ops=() variant_args=() variant_trees=()
 [[ -r "$variants" ]] || die "$variants: unreadable"
 while IFS=$'\t' read -r vname vrule vpath vop varg vtrees extra || [[ -n "$vname" ]]; do
   [[ -z "$vname" || "$vname" == \#* ]] && continue
   if ! [[ "$vname" =~ ^[a-z0-9-]+$ && -n "$vpath" && -z "${extra:-}" ]] \
     || ! [[ -z "${vtrees:-}" || "$vtrees" =~ ^[a-z0-9-]+(,[a-z0-9-]+)*$ ]] \
-    || ! [[ ( "$vop" == sed && -n "$varg" ) || ( "$vop" =~ ^(delete|chomp)$ && "$varg" == - ) || ( "$vop" == write && -n "$varg" ) ]]; then
-    die "$variants: the row '$vname' is not 'name<TAB>rule<TAB>path<TAB>sed|delete|write|chomp<TAB>argument[<TAB>tree,…]'"
+    || ! [[ ( "$vop" == sed && -n "$varg" ) || ( "$vop" =~ ^(delete|chomp)$ && "$varg" == - ) || ( "$vop" == write && -n "$varg" ) || ( "$vop" == chmod && "$varg" =~ ^[-+]x$ ) ]]; then
+    die "$variants: the row '$vname' is not 'name<TAB>rule<TAB>path<TAB>sed|delete|write|chomp|chmod<TAB>argument[<TAB>tree,…]'"
   fi
   # The repository's own .git is no part of the tree: an edit there could point git, and so both
   # tools, at another repository.
@@ -566,7 +626,7 @@ for entry in "${repositories[@]}"; do
 done
 
 # check_table_blobs — the pins of the copies of the template's fixture tables
-# (TEST-cases-from-template-tables): each line '<release> <blob> <file>' of TABLE_BLOBS names the
+# (TEST-template-table-cases): each line '<release> <blob> <file>' of TABLE_BLOBS names the
 # blob of scripts/fixtures/<file> at the release's tag of the template, which a repository of its
 # own in the cache fetches from the corpus's template where it lacks the tag. A tag it cannot read
 # fails, and so does a blob the tag does not hold; no tree of that release need be pinned.

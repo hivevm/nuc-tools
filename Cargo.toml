@@ -28,3 +28,6 @@ cognitive_complexity = "deny"
 [profile.release]
 codegen-units = 1
 lto = true
+
+[dependencies]
+regex = { version = "1.13.1", default-features = false, features = ["std"] }

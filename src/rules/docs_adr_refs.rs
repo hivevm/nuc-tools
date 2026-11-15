@@ -11,14 +11,22 @@ pub const RULE_ID: &str = "docs/adr-refs";
 
 pub const RULE: Rule = Rule {
     id: RULE_ID,
-    reasons: &["unmatched"],
+    reasons: &["unmatched", "unlisted"],
     explain: "Every 'ADR-NNNN' and 'ADR-draft-<slug>' reference in a text file names an ADR file \
               that exists in docs/adr/. A follow-up that does not exist yet is described by \
               topic, never by a number. The template and superseded or rejected ADRs are not \
               read: they describe a state of the repository that does not exist. From template \
               release v0.9.0 on, a reference is '<CAT>-<slug>' of a category of the record, with \
-              no letter, digit, '-', or '_' beside it, and a code span of Markdown is not read.",
-    reads: &[Input::Adr, Input::TextFiles, Input::Release],
+              no letter, digit, '-', or '_' beside it, and a code span of Markdown is not read. \
+              From v0.10.0 on, each rule key of scripts/check-docs.sh the Applies to of an ADR \
+              in force names is one the script's header lists, an old key included; a tree \
+              without the script has no header to hold it to.",
+    reads: &[
+        Input::Adr,
+        Input::TextFiles,
+        Input::Release,
+        Input::RuleKeys,
+    ],
     check: |inputs| check(inputs).into(),
 };
 
@@ -47,6 +55,47 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
                         ),
                     });
                 }
+            }
+        }
+    }
+    found
+}
+
+/// The rule keys of `scripts/check-docs.sh` that the *Applies to* of an ADR in force names and the
+/// script's header does not list, from template release v0.10.0 on; a tree without the script has
+/// no header, as the bash, which reads its own, has one wherever it runs, and none is reported.
+fn unlisted_keys(inputs: &Inputs) -> Vec<Finding> {
+    let Some(keys) = &inputs.rule_keys else {
+        return Vec::new();
+    };
+    let listed = |key: &str| keys.contains(key);
+    let mut found = Vec::new();
+    for (name, header) in adr::named_headers(&inputs.adr) {
+        let applies = header.field("Applies to").unwrap_or(b"");
+        let status = header.field("Status").unwrap_or(b"");
+        if !bash::contains(applies, b"the rule")
+            || bash::contains(status, "⚪".as_bytes())
+            || bash::contains(status, "🔴".as_bytes())
+        {
+            continue;
+        }
+        for (path, keys) in adr::rule_paths(applies) {
+            if path != "scripts/check-docs.sh" {
+                continue;
+            }
+            // The bash splits the keys at spaces, as an unquoted `$keys` splits.
+            let words = keys.iter().flat_map(|key| key.split([' ', '\t', '\n']));
+            for key in words.filter(|key| !key.is_empty() && !listed(key)) {
+                found.push(Finding {
+                    rule: RULE_ID,
+                    reason: "unlisted",
+                    file: format!("docs/adr/{name}"),
+                    line: None,
+                    message: format!(
+                        "Applies to names the rule '{key}' of scripts/check-docs.sh, which its \
+                         header does not list"
+                    ),
+                });
             }
         }
     }
@@ -92,6 +141,9 @@ fn named(inputs: &Inputs) -> Vec<Finding> {
                 }
             }
         }
+    }
+    if inputs.carries_at_least(super::TEMPLATE_FINDINGS) {
+        found.extend(unlisted_keys(inputs));
     }
     found
 }
@@ -207,5 +259,46 @@ mod tests {
             &[],
         );
         assert_eq!(found(&inputs), []);
+    }
+
+    #[test]
+    fn from_v0_10_0_a_rule_key_of_check_docs_is_one_its_header_lists() {
+        use crate::testing::cat_id;
+        let adr = |status: &str, applies: &str| {
+            format!("# x\n\n- **Status:** {status}\n- **Applies to:** {applies}\n").into_bytes()
+        };
+        let keyed = "the rules `docs/links` and `docs/no-such-key` of `scripts/check-docs.sh`, \
+                     the rule `build/x` of `scripts/check-build.sh`";
+        let run = |keys: Option<&[&str]>, release| -> Vec<String> {
+            let inputs = Inputs {
+                adr: [
+                    (
+                        format!("{}.md", cat_id("SEC", "a-rule")),
+                        adr("🟢 accepted", keyed),
+                    ),
+                    (
+                        format!("{}.md", cat_id("SEC", "b-rule")),
+                        adr("🔴 rejected", keyed),
+                    ),
+                ]
+                .into(),
+                rule_keys: keys.map(|k| k.iter().map(|k| (*k).to_owned()).collect()),
+                release,
+                ..Inputs::default()
+            };
+            check(&inputs)
+                .into_iter()
+                .map(|f| format!("{} {}: {}", f.reason, f.file, f.message))
+                .collect()
+        };
+        let missing = format!(
+            "unlisted docs/adr/{}.md: Applies to names the rule 'docs/no-such-key' of \
+             scripts/check-docs.sh, which its header does not list",
+            cat_id("SEC", "a-rule")
+        );
+        assert!(run(None, None).is_empty());
+        assert_eq!(run(Some(&["docs/links"]), None), [missing.as_str()]);
+        assert!(run(Some(&["docs/links", "docs/no-such-key"]), None).is_empty());
+        assert!(run(None, Some(crate::config::Version(0, 9, 1))).is_empty());
     }
 }

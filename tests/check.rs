@@ -805,6 +805,101 @@ fn without_a_release_line_a_finding_every_release_reports_stays_though_its_citat
     );
 }
 
+/// Verifies: NUC-releases-are-semver-tags
+#[test]
+fn from_v0_10_0_a_branch_that_moves_the_release_line_over_a_proposed_nuc_adr_fails() {
+    let config = "minimum = \"0.0.0\"\nrules = [\"docs/template-release\"]\n";
+    let line = |release: &str| format!("# Fixture\n\n- **Template release:** {release}\n");
+    for (base, now, expected) in [
+        (
+            "v0.9.1",
+            "v0.10.0",
+            "docs/adr/NUC-releases-are-semver-tags.md: docs/template-release: proposed, and the \
+             change moves the Template release line from v0.9.1 to v0.10.0 — a release carries \
+             only accepted NUC- ADRs (NUC-releases-are-semver-tags §8) \
+             [docs/template-release:proposed]\n",
+        ),
+        ("v0.9.0", "v0.9.1", ""),
+    ] {
+        let fixture = Fixture::project(&format!("release-moved-{now}"), config, &line(base));
+        fixture.write(
+            "docs/adr/NUC-releases-are-semver-tags.md",
+            "# NUC-releases-are-semver-tags: x\n\n- **Status:** 🟡 proposed\n",
+        );
+        fixture.commit("base");
+        fixture.git(&["switch", "-q", "-c", "work"]);
+        fixture.write("README.md", &line(now));
+        let output = fixture.nuc(&["check"]);
+        assert_eq!(stdout(&output), expected, "{now}: {}", stderr(&output));
+    }
+}
+
+/// Verifies: NUC-releases-are-semver-tags
+#[test]
+fn the_merge_base_is_taken_with_origin_main_first_and_a_base_without_readme_counts_as_none() {
+    let config = "minimum = \"0.0.0\"\nrules = [\"docs/template-release\"]\n";
+    let line = |release: &str| format!("# Fixture\n\n- **Template release:** {release}\n");
+    let moved = |name: &str| {
+        let fixture = Fixture::project(name, config, &line("v0.9.1"));
+        fixture.write(
+            "docs/adr/NUC-releases-are-semver-tags.md",
+            "# NUC-releases-are-semver-tags: x\n\n- **Status:** 🟡 proposed\n",
+        );
+        fixture
+    };
+    // origin/main, which already carries the moved line, is asked before main, which does not.
+    let remote = moved("release-base-origin");
+    remote.commit("base");
+    remote.git(&["switch", "-q", "-c", "work"]);
+    remote.write("README.md", &line("v0.10.0"));
+    remote.commit("move");
+    remote.git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+    let output = remote.nuc(&["check"]);
+    assert_eq!(stdout(&output), "", "{}", stderr(&output));
+    // Without origin/main or main there is no merge base, and the line is read alone.
+    let alone = moved("release-base-none");
+    alone.commit("base");
+    alone.git(&["branch", "-q", "-m", "other"]);
+    alone.write("README.md", &line("v0.10.0"));
+    let output = alone.nuc(&["check"]);
+    assert_eq!(stdout(&output), "", "{}", stderr(&output));
+    // A merge base without README.md names no release.
+    let bare = moved("release-base-bare");
+    std::fs::remove_file(bare.root().join("README.md")).expect("removed");
+    bare.commit("base");
+    bare.git(&["switch", "-q", "-c", "work"]);
+    bare.write("README.md", &line("v0.10.0"));
+    let output = bare.nuc(&["check"]);
+    assert!(
+        stdout(&output).contains("moves the Template release line from none to v0.10.0"),
+        "{}",
+        stdout(&output)
+    );
+}
+
+#[test]
+fn a_script_tracked_without_the_executable_bit_fails_as_shell_mode() {
+    let config = "minimum = \"0.0.0\"\nrules = [\"shell/mode\"]\n";
+    let fixture = Fixture::project("shell-mode", config, README);
+    fixture.write("scripts/a.sh", "#!/usr/bin/env bash\n");
+    fixture.write("scripts/lib/b.sh", "# sourced\n");
+    fixture.git(&["add", "-A"]);
+    fixture.git(&["update-index", "--chmod=-x", "--", "scripts/a.sh"]);
+    let readme = "# Fixture\n\n- **Template release:** v0.10.0\n";
+    fixture.write("README.md", readme);
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(
+        stdout(&output),
+        "scripts/a.sh: shell/mode: is tracked with mode 100644, not 100755 \
+         (NUC-checks-are-bash §9), so a direct call is refused — a script is run, and git keeps \
+         its executable bit: git update-index --chmod=+x -- scripts/a.sh [shell/mode:exec]\n",
+        "{}",
+        stderr(&output)
+    );
+    fixture.git(&["update-index", "--chmod=+x", "--", "scripts/a.sh"]);
+    assert_eq!(code(&fixture.nuc(&["check"])), Some(0));
+}
+
 /// A project with only the skill pointer rule on and the skill `review` under `.agents/skills/`.
 fn skills(name: &str) -> Fixture {
     let config = "minimum = \"0.0.0\"\nrules = [\"docs/skill-pointers\"]\n";
@@ -1083,7 +1178,7 @@ fn an_unplaced_tree_keeps_only_the_check_list_findings_every_release_reports() {
         stdout(&output).lines().collect::<Vec<_>>(),
         [
             "scripts/extra.sh: docs/check-lists: no workflow and not scripts/check-all.sh runs it — add it to both lists, or name it on an '# On instruction:' line of scripts/check-all.sh [docs/check-lists:orphan]",
-            "README.md: docs/template-release: no '**Template release:**' line — the Template section names the release of the template this repository carries, or 'unreleased' (ADR-0005) [docs/template-release:line]",
+            "README.md: docs/template-release: no '**Template release:**' line — the Template section names the release of the template this repository carries, or 'unreleased' (NUC-releases-are-semver-tags §4) [docs/template-release:line]",
         ],
         "{}",
         stderr(&output)

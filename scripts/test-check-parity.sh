@@ -19,7 +19,11 @@
 # that does not apply to one tree, one that does not make its rule fire beyond the tree's own
 # findings, a ported rule without one, a path outside the tree, a sed expression that runs a
 # command or writes a file, a name used twice, and a malformed or unmapped row; a 'chomp' applies
-# and is compared, does not apply to a file without a last newline, and takes '-' alone. The pin
+# and is compared, does not apply to a file without a last newline, and takes '-' alone; a 'chmod'
+# applies and is compared, does not apply to a mode left as it was or to a file git does not track,
+# and takes +x or -x alone. The shell cases compare the lines of check-shell.sh keyed shell/ alone,
+# map a rule nuc leaves to the bash to none, and run no check-shell.sh without the key of
+# shell/mode. The pin
 # cases pass a pin of a copied fixture table that the tag of a template tree bears out, and fail
 # one the tag does not, one whose tag cannot be read, and one without a template tree, and exit 2
 # on a malformed or missing list of pins. No network
@@ -209,6 +213,41 @@ printf '%s\n' "Traceability check FAILED:" "  - $EXEMPT" > "$work/exempt.bash"
 expect pass "a finding the '@adr' row does not match keeps its file" "" \
   compare "$work/exempt.bash" 1 "$(nuc_out adr-exempt "docs/adr/${UNCITED_KEY}-a.md: traceability/coverage: ${EXEMPT#*: }")" 1
 
+# From v0.9.1 on the bash ends a message in its key too, whose rule ID is the one of its release.
+# Its reason is compared with nuc's; its rule ID, which an earlier release names otherwise, is not.
+expect pass "a bash message's own key is no part of its wording" "" \
+  compare "$(bash_out keyed-bash "$MALFORMED [docs/template-release:version]")" 1 \
+  "$(nuc_out keyed-bash "README.md:5: docs/template-release: $MALFORMED_TEXT [docs/template-release:version]")" 1
+expect pass "a bash key of another rule ID, as an earlier release names it, is left out as well" "" \
+  compare "$(bash_out keyed-old "$MALFORMED [docs/template-version:version]")" 1 \
+  "$(nuc_out keyed-old "README.md:5: docs/template-release: $MALFORMED_TEXT [docs/template-release:version]")" 1
+# A message the bash writes without its key, as v0.9.1 writes one of the traceability, has no
+# reason to compare.
+expect pass "a bash message without a key among keyed ones compares no reason" "" \
+  compare "$(bash_out keyed-some "$MALFORMED [docs/template-release:version]" "$MISSING")" 1 \
+  "$(nuc_out keyed-some "README.md:5: docs/template-release: $MALFORMED_TEXT [docs/template-release:version]" \
+    "README.md: docs/template-release: $MISSING_TEXT [docs/template-release:line]")" 1
+expect fail "a reason of nuc other than the bash's is a difference" "nuc gives the reason 'line' where bash gives 'version'" \
+  compare "$(bash_out keyed-other "$MALFORMED [docs/template-release:version]")" 1 \
+  "$(nuc_out keyed-other "README.md:5: docs/template-release: $MALFORMED_TEXT [docs/template-release:line]")" 1
+
+# A record named by category: the ADR's file is its identifier.
+NAMED="$(printf '%s-%s' SEC a-b)"
+printf '%s\n' "Traceability check FAILED:" "  - ${UNCITED/"$UNCITED_ID"/$NAMED}" > "$work/named.bash"
+expect pass "an ADR named by category is placed at its file" "" \
+  compare "$work/named.bash" 1 "$(nuc_out adr-named "docs/adr/$NAMED.md: traceability/coverage: ${UNCITED/"$UNCITED_ID"/$NAMED}")" 1
+expect fail "an ADR named by category at another file is a difference" "only bash reports: traceability/coverage docs/adr/$NAMED" \
+  compare "$work/named.bash" 1 "$(nuc_out adr-named-other "docs/adr/$NAMED-c.md: traceability/coverage: ${UNCITED/"$UNCITED_ID"/$NAMED}")" 1
+
+# A place '@word' names the path the message opens with before its first space.
+CHECKS="$(printf '%s-%s' NUC checks-are-bash)"
+SENSOR="has no self-test scripts/test-sensor-x.sh — each sensor runs after one that cites $CHECKS"
+printf '%s\n' "Traceability check FAILED:" "  - scripts/sensor-x.sh $SENSOR" > "$work/word.bash"
+expect pass "a message that opens with its path and a space is placed at that path" "" \
+  compare "$work/word.bash" 1 "$(nuc_out word "scripts/sensor-x.sh: traceability/sensor-tests: $SENSOR")" 1
+expect fail "a finding of such a message at another path is a difference" "only bash reports: traceability/sensor-tests scripts/sensor-x.sh" \
+  compare "$work/word.bash" 1 "$(nuc_out word-other "scripts/sensor-y.sh: traceability/sensor-tests: $SENSOR")" 1
+
 # A path holding ': ' is placed whole on both sides, at the file nuc names.
 COLON="docs/a: b.md: broken relative link -> 'x.md'"
 expect pass "a path holding ': ' is placed at the same file" "" \
@@ -319,7 +358,46 @@ check "the variant leaves the cached tree as pinned" \
 
 expect fail "a corpus on which they differ" "variant deleted — 2 difference" run "$c" "$(stand_in silent)"
 
-# The pins of the copied fixture tables (TEST-cases-from-template-tables): a tree of the template,
+# check-shell.sh of a tree that has the rule shell/mode: only its lines keyed shell/ are findings,
+# a rule nuc leaves to the bash maps to none, and a tree whose script lacks the rule's key is not
+# run. shelled <name> <has key: 1|0> <lines...> — a source repository whose check-shell.sh prints
+# a line of ShellCheck and the lines, and exits 1.
+ROOT_FINDING="scripts/x.sh: calls no enter_root on a line of its own — x [shell/root:unrooted]"
+MODE_FINDING="scripts/x.sh: is tracked with mode 100644, not 100755 (NUC-checks-are-bash §9), so a direct call is refused — x [shell/mode:exec]"
+shelled() {
+  local src key="$2" name="$1"; shift 2
+  src="$(source_repo "$name")"
+  { echo '#!/usr/bin/env bash'
+    ((key)) && echo '# [shell/mode:exec]'
+    echo 'echo "In scripts/x.sh line 1: SC2034"'
+    printf 'echo %q\n' "$@"
+    echo 'exit 1'; } > "$src/scripts/check-shell.sh"
+  git -C "$src" add -A
+  git -C "$src" -c user.name=F -c user.email=f@example.invalid -c core.hooksPath=/dev/null commit -q -m shelled
+  git -C "$src" rev-parse HEAD > "$work/src-$name.commit"
+  corpus "$work/$name.toml" "$name"
+}
+# The table of the run cases holds the rows of the rules nuc leaves to the bash, not shell/mode's,
+# which would bring a variant; the case after them compares a finding of shell/mode by its row.
+grep -E $'^#|\tdocs/template-release\t|^\\^\\[\\^ \\]\\.\\*: .*\t-\t-$' "$ROOT/tests/parity/normalize.tsv" > "$work/shell.tsv"
+# shellcheck disable=SC2317,SC2329 # run through expect
+shell_run() {
+  env PARITY_TABLE="$work/shell.tsv" bash "$HARNESS" --no-hooks --corpus "$1" --cache "$work/cache" --nuc "$2" \
+    --variants "$DEFAULT"
+}
+expect pass "a finding of check-shell.sh of a rule nuc leaves to the bash is no difference, nor its other lines" "" \
+  shell_run "$(shelled shell-root 1 "$ROOT_FINDING")" "$(reactive_nuc)"
+expect fail "a line of check-shell.sh keyed shell/mode is read as a finding" "bash message the table does not know" \
+  shell_run "$(shelled shell-mode 1 "$MODE_FINDING")" "$(reactive_nuc)"
+expect pass "a check-shell.sh without the key of shell/mode is not run" "" \
+  shell_run "$(shelled shell-none 0 "$MODE_FINDING")" "$(reactive_nuc)"
+MODE_TEXT="${MODE_FINDING#scripts/x.sh: }"
+expect pass "a finding of shell/mode maps to the rule by its row" "" \
+  compare "$(bash_out shell-mode "$MODE_FINDING")" 1 "$(raw_nuc_out shell-mode "scripts/x.sh: shell/mode: $MODE_TEXT")" 1
+expect fail "a finding of shell/mode nuc does not report is a difference" "only bash reports: shell/mode scripts/x.sh" \
+  compare "$(bash_out shell-mode-only "$MODE_FINDING")" 1 "$(nuc_out shell-mode-only)" 0
+
+# The pins of the copied fixture tables (TEST-template-table-cases): a tree of the template,
 # TEMPLATE-SETUP.md in it, whose tag v9.9.9 the harness fetches from its source through file://.
 src="$(source_repo tables)"
 mkdir -p "$src/scripts/fixtures" && echo "a case" > "$src/scripts/fixtures/t.txt"
@@ -521,6 +599,18 @@ expect fail "a chomp of a file without a last newline does not apply" "variant u
 v="$(variants "$work/v-chomp-arg.tsv" "$DELETE" $'chomp-arg\tdocs/template-release\tREADME.md\tchomp\tx')"
 expect fail "a chomp with an argument other than '-' is refused" "is not 'name<TAB>rule" run "$c" "$(reactive_nuc)" "$v"
 
+v="$(variants "$work/v-chmod.tsv" "$DELETE" $'chmodded\tdocs/template-release\tREADME.md\tchmod\t+x')"
+expect fail "a variant that sets the executable bit in the index applies, and is compared" "variant chmodded — bash reports no finding" \
+  run "$c" "$(reactive_nuc)" "$v"
+v="$(variants "$work/v-chmod-same.tsv" "$DELETE" $'unchanged\tdocs/template-release\tREADME.md\tchmod\t-x')"
+expect fail "a chmod that leaves the mode in the index as it was does not apply" "variant unchanged — its edit of README.md does not apply" \
+  run "$c" "$(reactive_nuc)" "$v"
+v="$(variants "$work/v-chmod-untracked.tsv" "$DELETE" $'untracked\tdocs/template-release\tNEW.md\tchmod\t+x')"
+expect fail "a chmod of a file git does not track does not apply" "variant untracked — its edit of NEW.md does not apply" \
+  run "$c" "$(reactive_nuc)" "$v"
+v="$(variants "$work/v-chmod-arg.tsv" "$DELETE" $'chmod-arg\tdocs/template-release\tREADME.md\tchmod\t755')"
+expect fail "a chmod with an argument other than +x or -x is refused" "is not 'name<TAB>rule" run "$c" "$(reactive_nuc)" "$v"
+
 v="$(variants "$work/v-git.tsv" "$DELETE" $'git\tdocs/template-release\t.git/commondir\twrite\t/elsewhere')"
 expect fail "a variant that edits the repository's .git is refused" "no path inside the tree" run "$c" "$(reactive_nuc)" "$v"
 v="$(variants "$work/v-no-parent.tsv" "$DELETE" $'orphan\tdocs/template-release\tno-such-dir/NEW.md\twrite\tx')"
@@ -593,6 +683,23 @@ git -C "$work/src-tpl-same" -c user.name=F -c user.email=f@example.invalid -c co
 git -C "$work/src-tpl-same" rev-parse HEAD > "$work/src-tpl-same.commit"
 expect pass "a change of its comments alone is no change" "" \
   run_releases "$(corpus "$work/tpl-reworded.toml" tpl-old tpl-same)" "$(releases "$work/r-reworded.tsv" -)"
+# From v0.9.0 on the head of a function ends in a comment that names its check.
+source_repo tpl-headed "- **Template release:** v0.6.0" > /dev/null
+printf '# Setup\n' > "$work/src-tpl-headed/TEMPLATE-SETUP.md"
+printf '%s\n' 'check_template_release() {  # check 14' '  : one' '}' >> "$work/src-tpl-headed/scripts/check-docs.sh"
+git -C "$work/src-tpl-headed" add -A
+git -C "$work/src-tpl-headed" -c user.name=F -c user.email=f@example.invalid -c core.hooksPath=/dev/null commit -qm headed
+git -C "$work/src-tpl-headed" rev-parse HEAD > "$work/src-tpl-headed.commit"
+expect pass "a comment after the head of a function is no change" "" \
+  run_releases "$(corpus "$work/tpl-headed.toml" tpl-old tpl-headed)" "$(releases "$work/r-headed.tsv" -)"
+source_repo tpl-headed-two "- **Template release:** v0.6.0" > /dev/null
+printf '# Setup\n' > "$work/src-tpl-headed-two/TEMPLATE-SETUP.md"
+printf '%s\n' 'check_template_release() {  # check 14' '  : two' '}' >> "$work/src-tpl-headed-two/scripts/check-docs.sh"
+git -C "$work/src-tpl-headed-two" add -A
+git -C "$work/src-tpl-headed-two" -c user.name=F -c user.email=f@example.invalid -c core.hooksPath=/dev/null commit -qm headed
+git -C "$work/src-tpl-headed-two" rev-parse HEAD > "$work/src-tpl-headed-two.commit"
+expect fail "the body after a commented head is compared" "changed at v0.6.0 across" \
+  run_releases "$(corpus "$work/tpl-headed-two.toml" tpl-old tpl-headed-two)" "$(releases "$work/r-headed-two.tsv" -)"
 expect pass "a corpus with one tree of the template compares nothing" "" \
   run_releases "$(corpus "$work/tpl-one.toml" tpl-old)" "$(releases "$work/r-one.tsv" v0.6.0)"
 source_repo tpl-bare "- **Template release:** v0.6.0" > /dev/null
@@ -674,6 +781,21 @@ expect pass "hook scenarios that agree pass" "" \
   run_hooks "$(hook_nuc agrees "$HOOK_AGREES")" "$HOOK_SCENARIOS_FILE" "$NO_CASES" "$tree"
 expect fail "a nuc whose exit status differs in one scenario fails" "bash exits 1, nuc exits 0" \
   run_hooks "$(hook_nuc passes 'exit 0')" "$HOOK_SCENARIOS_FILE" "$NO_CASES" "$tree"
+# A tree later than the release whose hooks nuc ports is left out, its difference not compared;
+# with no tree left, nothing is, which fails.
+out="$(env PARITY_HOOKS_PORTED=v0.6.0 PARITY_HOOK_SCENARIOS="$HOOK_SCENARIOS_FILE" PARITY_HOOK_CASES="$NO_CASES" \
+  bash "$HARNESS" --nuc "$(hook_nuc passes 'exit 0')" --hooks "$tree" 2>&1)"; rc=$?
+if ((rc == 1)) && [[ "$out" == *"the tree at v0.7.0 is later than v0.6.0, whose hooks nuc ports"* \
+  && "$out" == *"every tree of the template is later than v0.6.0"* && "$out" != *"nuc exits"* ]]; then
+  passed=$((passed + 1))
+else
+  failed=$((failed + 1))
+  echo "FAIL: a tree later than the hooks nuc ports is left out (exit $rc)" >&2
+  while IFS= read -r l; do printf '    %s\n' "$l"; done <<< "$out" >&2
+fi
+expect pass "a tree at the bound of the hooks nuc ports is compared" "" \
+  env PARITY_HOOKS_PORTED=v0.7.0 PARITY_HOOK_SCENARIOS="$HOOK_SCENARIOS_FILE" PARITY_HOOK_CASES="$NO_CASES" \
+  bash "$HARNESS" --nuc "$(hook_nuc agrees "$HOOK_AGREES")" --hooks "$tree"
 # shellcheck disable=SC2016 # the stand-in's own expansion
 expect fail "a refusal mapped to another rule ID fails" "only nuc: rule hook/merge-checks refs/heads/main" \
   run_hooks "$(hook_nuc other-rule '[ "$(git symbolic-ref --short -q HEAD)" = main ] || exit 0; echo "refs/heads/main: hook/merge-checks: x [hook/merge-checks:main]"; exit 1')" \

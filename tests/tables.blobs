@@ -1,5 +1,5 @@
 # The blob of each copy under tests/tables/ at the tag of the template release it was copied
-# from, read by tests/tables.rs and scripts/check-parity.sh (TEST-cases-from-template-tables):
+# from, read by tests/tables.rs and scripts/check-parity.sh (TEST-template-table-cases):
 # '<release> <blob> <file>' a line, the file named as in the template's scripts/fixtures/.
 
 v0.11.0 b19025b63f6f931f100c35f16e75a9c0ac4cdd89 check-docs-record.txt

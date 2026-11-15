@@ -64,7 +64,7 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
         return vec![finding(
             "adr",
             format!("docs/adr/{CHECKS_ADR}.md"),
-            "not found — the self-test of each sensor cites it".to_owned(),
+            format!("{CHECKS_ADR}, which the self-test of each sensor cites, is not in docs/adr/"),
         )];
     }
     let citations = traceability::citations(&inputs.markers, true);

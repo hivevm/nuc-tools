@@ -82,6 +82,12 @@ impl Tree {
         let mut identity = BTreeMap::new();
         for &file in rules::docs_template_identity::FILES {
             let path = self.root.join(file);
+            if file == rules::docs_template_identity::FINDING_FORM {
+                if path.is_file() {
+                    identity.insert(file.to_owned(), Vec::new());
+                }
+                continue;
+            }
             if path.is_file()
                 && let Some(bytes) = self.read_record_file(&path)?
             {

@@ -112,8 +112,8 @@ golden path and the test pattern an agent copies from are named here.
   tables, copied under `tests/tables/` from the newest release `nuc` ports and pinned by their
   blobs in `tests/tables.blobs`, runs `nuc check` on it, and compares the exit and the keys and
   subjects each case expects; a case that does not agree stands in `tests/tables.cases`, pending on
-  the ticket that ports it or not ported
-  ([TEST-cases-from-template-tables](adr/TEST-cases-from-template-tables.md)).
+  the ticket that ports it, not ported, or decided by an ADR in force
+  ([TEST-template-table-cases](adr/TEST-template-table-cases.md)).
 - **Release tooling** — `release/` builds a binary per target, writes `SHA256SUMS`, checks the
   tag against the crate's version, writes the release commit, and moves the major tag;
   `release/install-nuc.sh` is the installer the Action runs, of which `hivevm/features` carries a

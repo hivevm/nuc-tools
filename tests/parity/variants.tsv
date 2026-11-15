@@ -5,7 +5,8 @@
 # "sed" with an extended sed expression, "delete" with "-", which deletes a file or a symbolic link
 # itself, "write" with a line, which creates the file the path names and must not find it, its
 # backslash escapes read as printf's %b reads them (\x3a, \n; a backslash of its own is \\), or
-# "chomp" with "-", which takes the newline off the file's last line, and
+# "chomp" with "-", which takes the newline off the file's last line, or "chmod" with "+x" or "-x",
+# which sets or clears the executable bit of a tracked file in the index, and
 # optionally the corpus trees it is for, by name and separated by commas; a
 # variant without them is for every tree. A variant fails the harness on a tree it is for where
 # its edit changes nothing or bash reports no finding of its rule, and when it names a tree the
@@ -16,22 +17,22 @@ template-release-deleted	docs/template-release	README.md	sed	/^[[:space:]]*([-*]
 template-release-latest	docs/template-release	README.md	sed	s/^([[:space:]]*([-*] )?\*\*Template release:\*\*).*/\1 latest/
 
 # docs/adr-index, docs/adr-numbering, docs/adr-header: checks 1, 2, and 7 of check-docs.sh.
-adr-index-row-deleted	docs/adr-index	docs/adr/README.md	sed	/^\| \[0001\]/d
-adr-numbering-heading	docs/adr-numbering	docs/adr/0002-decisions-verified-by-tests.md	sed	s/^# ADR-0002:/# ADR:/
-adr-header-two-emoji	docs/adr-header	docs/adr/0001-agent-governance-model.md	sed	s/^(- \*\*Status:\*\* 🟢 accepted)$/\1 | 🟡 proposed/
-adr-index-applies-changed	docs/adr-index	docs/adr/0001-agent-governance-model.md	sed	s/^(- \*\*Applies to:\*\*) /\1 changed: /
-adr-header-wrong-word	docs/adr-header	docs/adr/0001-agent-governance-model.md	sed	s/^(- \*\*Status:\*\* 🟢) accepted$/\1 proposed/
-adr-header-stray-field	docs/adr-header	docs/adr/0002-decisions-verified-by-tests.md	sed	s/^- (\*\*Date:\*\*)/\1/
+adr-index-row-deleted	docs/adr-index	docs/adr/README.md	sed	/^\| \[0001\]/d	nuc,nuc-v0-6-0,nuc-v0-6-1,nuc-v0-7-0,nuc-v0-8-1,nectar,nuc-tools,ocelli,opamp-fleet
+adr-numbering-heading	docs/adr-numbering	docs/adr/0002-decisions-verified-by-tests.md	sed	s/^# ADR-0002:/# ADR:/	nuc,nuc-v0-6-0,nuc-v0-6-1,nuc-v0-7-0,nuc-v0-8-1,nectar,nuc-tools,ocelli,opamp-fleet
+adr-header-two-emoji	docs/adr-header	docs/adr/0001-agent-governance-model.md	sed	s/^(- \*\*Status:\*\* 🟢 accepted)$/\1 | 🟡 proposed/	nuc,nuc-v0-6-0,nuc-v0-6-1,nuc-v0-7-0,nuc-v0-8-1,nectar,nuc-tools,ocelli,opamp-fleet
+adr-index-applies-changed	docs/adr-index	docs/adr/0001-agent-governance-model.md	sed	s/^(- \*\*Applies to:\*\*) /\1 changed: /	nuc,nuc-v0-6-0,nuc-v0-6-1,nuc-v0-7-0,nuc-v0-8-1,nectar,nuc-tools,ocelli,opamp-fleet
+adr-header-wrong-word	docs/adr-header	docs/adr/0001-agent-governance-model.md	sed	s/^(- \*\*Status:\*\* 🟢) accepted$/\1 proposed/	nuc,nuc-v0-6-0,nuc-v0-6-1,nuc-v0-7-0,nuc-v0-8-1,nectar,nuc-tools,ocelli,opamp-fleet
+adr-header-stray-field	docs/adr-header	docs/adr/0002-decisions-verified-by-tests.md	sed	s/^- (\*\*Date:\*\*)/\1/	nuc,nuc-v0-6-0,nuc-v0-6-1,nuc-v0-7-0,nuc-v0-8-1,nectar,nuc-tools,ocelli,opamp-fleet
 
 # docs/adr-refs, docs/adr-link-targets, docs/adr-supersessions: checks 5, 6, and 8 of check-docs.sh.
-adr-refs-missing	docs/adr-refs	README.md	sed	1s/$/ ADR-09\x399/
+adr-refs-missing	docs/adr-refs	README.md	sed	1s/$/ ADR-09\x399/	nuc,nuc-v0-6-0,nuc-v0-6-1,nuc-v0-7-0,nuc-v0-8-1,nectar,nuc-tools,ocelli,opamp-fleet
 # The byte 0x1F outside the record, and a byte of no valid UTF-8 on a line no rule refuses it on,
 # which nuc reads as the bash does, each beside a reference.
-adr-refs-unit-separator	docs/adr-refs	README.md	sed	1s/$/ \x1fADR-09\x398/
-adr-refs-invalid-utf8	docs/adr-refs	README.md	sed	1s/$/ \xffADR-09\x397/
-adr-link-targets-other	docs/adr-link-targets	docs/adr/0001-agent-governance-model.md	sed	$s/$/\n\nSee [ADR-0002](0003-procedures-as-skills.md)./
-adr-supersessions-no-successor	docs/adr-supersessions	docs/adr/0001-agent-governance-model.md	sed	s/^(- \*\*Status:\*\*) 🟢 accepted$/\1 ⚪ superseded/
-adr-supersessions-unflipped	docs/adr-supersessions	docs/adr/0002-decisions-verified-by-tests.md	sed	s/^(- \*\*Applies to:\*\*)/- **Supersedes:** ADR-0001\n\1/
+adr-refs-unit-separator	docs/adr-refs	README.md	sed	1s/$/ \x1fADR-09\x398/	nuc,nuc-v0-6-0,nuc-v0-6-1,nuc-v0-7-0,nuc-v0-8-1,nectar,nuc-tools,ocelli,opamp-fleet
+adr-refs-invalid-utf8	docs/adr-refs	README.md	sed	1s/$/ \xffADR-09\x397/	nuc,nuc-v0-6-0,nuc-v0-6-1,nuc-v0-7-0,nuc-v0-8-1,nectar,nuc-tools,ocelli,opamp-fleet
+adr-link-targets-other	docs/adr-link-targets	docs/adr/0001-agent-governance-model.md	sed	$s/$/\n\nSee [ADR-0002](0003-procedures-as-skills.md)./	nuc,nuc-v0-6-0,nuc-v0-6-1,nuc-v0-7-0,nuc-v0-8-1,nectar,nuc-tools,ocelli,opamp-fleet
+adr-supersessions-no-successor	docs/adr-supersessions	docs/adr/0001-agent-governance-model.md	sed	s/^(- \*\*Status:\*\*) 🟢 accepted$/\1 ⚪ superseded/	nuc,nuc-v0-6-0,nuc-v0-6-1,nuc-v0-7-0,nuc-v0-8-1,nectar,nuc-tools,ocelli,opamp-fleet
+adr-supersessions-unflipped	docs/adr-supersessions	docs/adr/0002-decisions-verified-by-tests.md	sed	s/^(- \*\*Applies to:\*\*)/- **Supersedes:** ADR-0001\n\1/	nuc,nuc-v0-6-0,nuc-v0-6-1,nuc-v0-7-0,nuc-v0-8-1,nectar,nuc-tools,ocelli,opamp-fleet
 
 # docs/links, docs/section-refs: checks 3 and 4 of check-docs.sh; and the gap in the numbering,
 # which fires checks 1, 2, 3, and 5.
@@ -42,7 +43,7 @@ links-anchor	docs/links	README.md	sed	$s/$/\n\nSee [the rules](AGENTS.md#no-such
 # would be broken. The line is wide, so docs/prose-width fires on it as well.
 links-line-anchor-arithmetic	docs/links	README.md	sed	$s/$/\n\nSee [the missing file](missing-variant.md), [a](README.md#L011-L10), and [b](README.md#L1-L18446744073709551617)./
 section-refs-bare	docs/section-refs	README.md	sed	$s/$/\n\nSee §3 of the agents file./
-adr-numbering-gap	docs/adr-numbering	docs/adr/0003-procedures-as-skills.md	delete	-
+adr-numbering-gap	docs/adr-numbering	docs/adr/0003-procedures-as-skills.md	delete	-	nuc,nuc-v0-6-0,nuc-v0-6-1,nuc-v0-7-0,nuc-v0-8-1,nectar,nuc-tools,ocelli,opamp-fleet
 
 # docs/check-lists, docs/project-layout, docs/skill-pointers: checks 9, 10, and 11 of check-docs.sh.
 check-lists-job-unnamed	docs/check-lists	.github/workflows/checks.yml	sed	$s/$/\n  variant:\n    steps:\n      - run: bash scripts\/check-docs.sh/
@@ -58,7 +59,7 @@ template-identity-badge	docs/template-identity	README.md	sed	0,/^\[!\[/s/^\[!\[/
 prose-width-101	docs/prose-width	README.md	sed	$s/$/\n\nword word word word word word word word word word word word word word word word word word word word w/
 
 # docs/no-draft-on-main: check 16 of check-docs.sh, run as a pull request into main marked ready.
-no-draft-on-main-draft	docs/no-draft-on-main	docs/adr/draft-parity-variant.md	write	# A draft the variant writes
+no-draft-on-main-draft	docs/no-draft-on-main	docs/adr/draft-parity-variant.md	write	# A draft the variant writes	nuc,nuc-v0-6-0,nuc-v0-6-1,nuc-v0-7-0,nuc-v0-8-1,nectar,nuc-tools,ocelli,opamp-fleet
 
 # traceability/criteria: part 1 of check-traceability.sh.
 criteria-no-identifier	traceability/criteria	docs/SPECIFICATION.md	sed	s/^([0-9]+\.|[-*+]) \*\*G-1\*\*/\1 G-1/
@@ -66,13 +67,13 @@ criteria-no-identifier	traceability/criteria	docs/SPECIFICATION.md	sed	s/^([0-9]
 # traceability/citations: part 3 of check-traceability.sh. The markers are written with \x3a for
 # the colon and \x2d for the hyphen of ADR-, so that this file carries no marker or reference the
 # checks would read.
-citations-missing-adr	traceability/citations	scripts/check-all.sh	sed	$s/$/\n# Verifies\x3a ADR\x2d9999/
+citations-missing-adr	traceability/citations	scripts/check-all.sh	sed	$s/$/\n# Verifies\x3a ADR\x2d9999/	nuc,nuc-v0-6-0,nuc-v0-6-1,nuc-v0-7-0,nuc-v0-8-1,nectar,nuc-tools,ocelli,opamp-fleet
 citations-unknown-criterion	traceability/citations	scripts/check-all.sh	sed	$s/$/\n# Verifies\x3a Q-999/
-citations-superseded	traceability/citations	docs/adr/0001-agent-governance-model.md	sed	s/^- \*\*Status:\*\* .*/- **Status:** ⚪ superseded by ADR-0002/
+citations-superseded	traceability/citations	docs/adr/0001-agent-governance-model.md	sed	s/^- \*\*Status:\*\* .*/- **Status:** ⚪ superseded by ADR-0002/	nuc,nuc-v0-6-0,nuc-v0-6-1,nuc-v0-7-0,nuc-v0-8-1,nectar,nuc-tools,ocelli,opamp-fleet
 
 # traceability/coverage: parts 2 and 4 of check-traceability.sh.
-coverage-uncited	traceability/coverage	docs/adr/0999-parity-variant.md	write	- **Status:** 🟢 accepted
-coverage-no-reason	traceability/coverage	docs/adr/0001-agent-governance-model.md	sed	$s/$/\n\n**Not mechanically decidable:**/
+coverage-uncited	traceability/coverage	docs/adr/0999-parity-variant.md	write	- **Status:** 🟢 accepted	nuc,nuc-v0-6-0,nuc-v0-6-1,nuc-v0-7-0,nuc-v0-8-1,nectar,nuc-tools,ocelli,opamp-fleet
+coverage-no-reason	traceability/coverage	docs/adr/0001-agent-governance-model.md	sed	$s/$/\n\n**Not mechanically decidable:**/	nuc,nuc-v0-6-0,nuc-v0-6-1,nuc-v0-7-0,nuc-v0-8-1,nectar,nuc-tools,ocelli,opamp-fleet
 
 # A last line without a newline, which `read` drops: the last row of the index, where the index
 # ends with one.
@@ -86,7 +87,45 @@ adr-index-last-row-unterminated	docs/adr-index	docs/adr/README.md	chomp	-	nuc-to
 links-path-space	docs/links	docs/parity variant.md	write	See [the missing file](missing-variant.md).
 links-path-colon	docs/links	docs/parity: variant.md	write	See [the missing file](missing-variant.md).
 citations-path-space	traceability/citations	parity variant.txt	write	Verifies\x3a Q-999
-coverage-draft-capitals	traceability/coverage	docs/adr/draft-Parity_Variant.md	write	- **Status:** 🟢 accepted
+coverage-draft-capitals	traceability/coverage	docs/adr/draft-Parity_Variant.md	write	- **Status:** 🟢 accepted	nuc,nuc-v0-6-0,nuc-v0-6-1,nuc-v0-7-0,nuc-v0-8-1,nectar,nuc-tools,ocelli,opamp-fleet
 citations-path-colon	traceability/citations	parity: variant.txt	write	Verifies\x3a Q-999
-coverage-no-reason-path-space	traceability/coverage	docs/adr/0998-parity variant.md	write	# ADR\x2d0998: X\n\n- **Status:** 🟢 accepted\n- **Applies to:** x\n\n## Enforcement\n\n**Not mechanically decidable:**
-coverage-uncited-path-colon	traceability/coverage	docs/adr/0997-parity:variant.md	write	- **Status:** 🟢 accepted
+coverage-no-reason-path-space	traceability/coverage	docs/adr/0998-parity variant.md	write	# ADR\x2d0998: X\n\n- **Status:** 🟢 accepted\n- **Applies to:** x\n\n## Enforcement\n\n**Not mechanically decidable:**	nuc,nuc-v0-6-0,nuc-v0-6-1,nuc-v0-7-0,nuc-v0-8-1,nectar,nuc-tools,ocelli,opamp-fleet
+coverage-uncited-path-colon	traceability/coverage	docs/adr/0997-parity:variant.md	write	- **Status:** 🟢 accepted	nuc,nuc-v0-6-0,nuc-v0-6-1,nuc-v0-7-0,nuc-v0-8-1,nectar,nuc-tools,ocelli,opamp-fleet
+
+# The record of v0.9.0 on, named by category, on the template's trees of v0.9: the rules of the
+# record, the fixed base, and the traceability of that release. An edit of a NUC- file makes
+# docs/base-blobs fire beside its rule. References are written with \x2d for the hyphen, so that
+# this file carries none the checks would read.
+adr-identifiers-heading-v9	docs/adr-identifiers	docs/adr/NUC-design-is-revised.md	sed	s/^# NUC-design-is-revised:/# NUC\x2ddesign\x2drevised:/	nuc-v0-9-0,nuc-v0-9-1,nuc-v0-10-0,nuc-v0-11-0
+adr-identifiers-form-v9	docs/adr-identifiers	docs/adr/draft-parity-variant.md	write	# A draft the variant writes	nuc-v0-9-0,nuc-v0-9-1,nuc-v0-10-0,nuc-v0-11-0
+adr-identifiers-numbered-v9	docs/adr-identifiers	docs/adr/0999-parity-variant.md	write	- **Status:** 🟢 accepted	nuc-v0-9-0,nuc-v0-9-1,nuc-v0-10-0,nuc-v0-11-0
+adr-index-unlisted-v9	docs/adr-index	docs/adr/VAR-parity-variant.md	write	# VAR\x2dparity\x2dvariant: X\n\n- **Status:** 🟡 proposed\n- **Date:** 2026-01-01\n- **Deciders:** x\n- **Applies to:** x	nuc-v0-9-0,nuc-v0-9-1,nuc-v0-10-0,nuc-v0-11-0
+adr-header-wrong-word-v9	docs/adr-header	docs/adr/NUC-design-is-revised.md	sed	s/^(- \*\*Status:\*\* 🟢) accepted$/\1 proposed/	nuc-v0-9-0,nuc-v0-9-1,nuc-v0-10-0,nuc-v0-11-0
+adr-refs-missing-v9	docs/adr-refs	README.md	sed	1s/$/ SEC\x2dgone\x2daway/	nuc-v0-9-0,nuc-v0-9-1,nuc-v0-10-0,nuc-v0-11-0
+adr-refs-unit-separator-v9	docs/adr-refs	README.md	sed	1s/$/ \x1fSEC\x2dgone\x2dthere/	nuc-v0-9-0,nuc-v0-9-1,nuc-v0-10-0,nuc-v0-11-0
+adr-refs-invalid-utf8-v9	docs/adr-refs	README.md	sed	1s/$/ \xffSEC\x2dgone\x2delsewhere/	nuc-v0-9-0,nuc-v0-9-1,nuc-v0-10-0,nuc-v0-11-0
+adr-link-targets-other-v9	docs/adr-link-targets	docs/adr/NUC-design-is-revised.md	sed	$s/$/\n\nSee [NUC\x2dbase\x2dis\x2dfixed](NUC-checks-are-bash.md)./	nuc-v0-9-0,nuc-v0-9-1,nuc-v0-10-0,nuc-v0-11-0
+adr-supersessions-no-successor-v9	docs/adr-supersessions	docs/adr/NUC-design-is-revised.md	sed	s/^(- \*\*Status:\*\*) 🟢 accepted$/\1 ⚪ superseded/	nuc-v0-9-0,nuc-v0-9-1,nuc-v0-10-0,nuc-v0-11-0
+adr-supersessions-clause-v9	docs/adr-supersessions	docs/adr/VAR-parity-clause.md	write	# VAR\x2dparity\x2dclause: X\n\n- **Status:** 🟡 proposed\n- **Date:** 2026-01-01\n- **Deciders:** x\n- **Applies to:** x\n- **Extends:** NUC\x2dbase\x2dis\x2dfixed §99	nuc-v0-9-0,nuc-v0-9-1,nuc-v0-10-0,nuc-v0-11-0
+adr-supersessions-field-v9	docs/adr-supersessions	docs/adr/VAR-parity-field.md	write	# VAR\x2dparity\x2dfield: X\n\n- **Status:** 🟡 proposed\n- **Date:** 2026-01-01\n- **Deciders:** x\n- **Applies to:** x\n- **Narrows:** the base	nuc-v0-9-0,nuc-v0-9-1,nuc-v0-10-0,nuc-v0-11-0
+adr-supersessions-base-v9	docs/adr-supersessions	docs/adr/VAR-parity-base.md	write	# VAR\x2dparity\x2dbase: X\n\n- **Status:** 🟡 proposed\n- **Date:** 2026-01-01\n- **Deciders:** x\n- **Applies to:** x\n- **Supersedes:** NUC\x2dbase\x2dis\x2dfixed	nuc-v0-9-0,nuc-v0-9-1,nuc-v0-10-0,nuc-v0-11-0
+adr-index-base-v9	docs/adr-index	docs/adr/README.md	sed	s/^### Binding$/&\n\n| [NUC\x2dbase\x2dis\x2dfixed](NUC\x2dbase\x2dis\x2dfixed.md) | x | x | 🟢 accepted |/	nuc-v0-9-0,nuc-v0-9-1,nuc-v0-10-0,nuc-v0-11-0
+sensor-tests-uncited-v9	traceability/sensor-tests	scripts/test-sensor-backlog.sh	sed	/^# Verifies\x3a NUC\x2dchecks\x2dare\x2dbash$/d	nuc-v0-9-0,nuc-v0-9-1,nuc-v0-10-0,nuc-v0-11-0
+base-blobs-absent-v9	docs/base-blobs	docs/adr/NUC.blobs	delete	-	nuc-v0-9-0,nuc-v0-9-1,nuc-v0-10-0,nuc-v0-11-0
+skill-pointers-front-matter-v9	docs/skill-pointers	.agents/skills/review/SKILL.md	sed	1d	nuc-v0-9-0,nuc-v0-9-1,nuc-v0-10-0,nuc-v0-11-0
+sensor-tests-absent-v9	traceability/sensor-tests	scripts/test-sensor-backlog.sh	delete	-	nuc-v0-9-0,nuc-v0-9-1,nuc-v0-10-0,nuc-v0-11-0
+citations-missing-adr-v9	traceability/citations	scripts/check-all.sh	sed	$s/$/\n# Verifies\x3a SEC\x2dgone\x2daway/	nuc-v0-9-0,nuc-v0-9-1,nuc-v0-10-0,nuc-v0-11-0
+citations-malformed-v9	traceability/citations	scripts/check-all.sh	sed	$s/$/\n# Verifies\x3a SEC\x2dgone/	nuc-v0-9-0,nuc-v0-9-1,nuc-v0-10-0,nuc-v0-11-0
+citations-superseded-v9	traceability/citations	docs/adr/NUC-checks-are-bash.md	sed	s/^(- \*\*Status:\*\*) 🟢 accepted$/\1 ⚪ superseded/	nuc-v0-9-0,nuc-v0-9-1,nuc-v0-10-0,nuc-v0-11-0
+coverage-uncited-v9	traceability/coverage	docs/adr/VAR-parity-uncited.md	write	# VAR\x2dparity\x2duncited: X\n\n- **Status:** 🟢 accepted\n- **Date:** 2026-01-01\n- **Deciders:** x\n- **Applies to:** x	nuc-v0-9-0,nuc-v0-9-1,nuc-v0-10-0,nuc-v0-11-0
+coverage-no-reason-v9	traceability/coverage	docs/adr/VAR-parity-reason.md	write	# VAR\x2dparity\x2dreason: X\n\n- **Status:** 🟢 accepted\n- **Date:** 2026-01-01\n- **Deciders:** x\n- **Applies to:** x\n\n## Enforcement\n\n**Not mechanically decidable:**	nuc-v0-9-0,nuc-v0-9-1,nuc-v0-10-0,nuc-v0-11-0
+template-identity-setup-done-v9	docs/template-identity	TEMPLATE-SETUP.md	delete	-	nuc-v0-9-0,nuc-v0-9-1,nuc-v0-10-0,nuc-v0-11-0
+
+# shell/mode: the one check of check-shell.sh nuc ports, on the trees whose check-shell.sh has it.
+shell-mode-exec-v10	shell/mode	scripts/check-docs.sh	chmod	-x	nuc-v0-10-0,nuc-v0-11-0,nuc-tools-v0-11-0
+
+# The checks of v0.10.0: an issue opened by a script while the setup runs, in two of its forms, the
+# second a command continued over lines; and a rule an ADR names that the header does not list.
+opens-no-issue-cli-v10	docs/opens-no-issue	scripts/parity-variant.sh	write	#!/usr/bin/env bash\ngh issue create --title x	nuc-v0-10-0,nuc-v0-11-0
+opens-no-issue-api-v10	docs/opens-no-issue	.github/parity-variant.yml	write	run: gh api \\\n  repos/o/r/issues -f title=x	nuc-v0-10-0,nuc-v0-11-0
+adr-refs-unlisted-v10	docs/adr-refs	docs/adr/NUC-base-is-fixed.md	sed	s/^(- \*\*Applies to:\*\*.*)`docs\/base-blobs`/\1`docs\/parity-none`/	nuc-v0-10-0,nuc-v0-11-0,nuc-tools-v0-11-0

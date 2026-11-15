@@ -89,9 +89,14 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
             finding(
                 "numbered",
                 name,
-                "a numbered ADR, a form no check reads — migrate the record with the \
+                if inputs.carries_at_least(super::TEMPLATE_FINDINGS) {
+                    "a numbered ADR, a form no check reads — migrate the record with the \
                      normalize skill of a v0.9 release, which maps it to '<CAT>-<slug>'"
-                    .to_string(),
+                } else {
+                    "a numbered ADR, a form no check reads — map it to '<CAT>-<slug>' with \
+                     .agents/skills/normalize/remap.sh, as the normalize skill's migration says"
+                }
+                .to_string(),
             )
         })
         .collect();

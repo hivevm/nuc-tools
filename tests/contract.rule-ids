@@ -13,6 +13,7 @@ docs/check-lists
 docs/inherited-adrs
 docs/links
 docs/no-draft-on-main
+docs/opens-no-issue
 docs/project-layout
 docs/prose-width
 docs/section-refs
@@ -26,6 +27,7 @@ hook/merge-docs
 hook/merge-on-main
 hook/push-checks
 hook/push-to-main
+shell/mode
 traceability/citations
 traceability/coverage
 traceability/criteria

@@ -740,6 +740,44 @@ pub fn clauses_out(line: &[u8], categories: &[String]) -> Vec<u8> {
     }
 }
 
+/// The paths an *Applies to* names, each with the rule keys it names of that path, as the bash's
+/// `adr_rule_paths` reads them from template release v0.10.0 on: each code span, alone or after
+/// "the rule" and one key in code, or "the rules" and keys joined by ", ", ", and", or " and",
+/// then " of ", as `grep -oE` takes them leftmost; a path with a space is left out, and a trailing
+/// `/` is cut.
+pub fn rule_paths(applies: &[u8]) -> Vec<(String, Vec<String>)> {
+    static TOKEN: std::sync::OnceLock<regex::bytes::Regex> = std::sync::OnceLock::new();
+    static KEY: std::sync::OnceLock<regex::bytes::Regex> = std::sync::OnceLock::new();
+    let token = TOKEN.get_or_init(|| {
+        regex::bytes::Regex::new(r"(?-u)(the rules? `[^`]+`((,|, and| and) `[^`]+`)* of )?`[^`]+`")
+            .expect("a valid pattern")
+    });
+    let key =
+        KEY.get_or_init(|| regex::bytes::Regex::new(r"(?-u)`([^`]+)`").expect("a valid pattern"));
+    let mut found = Vec::new();
+    for m in token.find_iter(applies) {
+        let text = m.as_bytes();
+        let open = text[..text.len() - 1]
+            .iter()
+            .rposition(|&b| b == b'`')
+            .expect("a code span closes the token");
+        let path = &text[open + 1..text.len() - 1];
+        let rules = if text.starts_with(b"the rule") {
+            let of = text.len() - path.len() - 2 - b" of ".len();
+            key.captures_iter(&text[..of])
+                .map(|c| String::from_utf8_lossy(&c[1]).into_owned())
+                .collect()
+        } else {
+            Vec::new()
+        };
+        if !path.is_empty() && !path.iter().any(|&b| is_space(b)) {
+            let path = path.strip_suffix(b"/").unwrap_or(path);
+            found.push((String::from_utf8_lossy(path).into_owned(), rules));
+        }
+    }
+    found
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -915,5 +953,27 @@ mod tests {
         );
         let unknown = format!("{} §4", id("UX", "dark-mode"));
         assert_eq!(show(&clauses_out(unknown.as_bytes(), &cats)), unknown);
+    }
+
+    #[test]
+    fn the_paths_an_applies_to_names_are_read_with_their_rule_keys() {
+        assert_eq!(
+            rule_paths(
+                b"- **Applies to:** the rules `docs/a`, `docs/b`, and `docs/c` of \
+                  `scripts/check-docs.sh`, `src/`, `two words`, and the rule `x/y` of `z.sh`"
+            ),
+            [
+                (
+                    "scripts/check-docs.sh".to_owned(),
+                    vec![
+                        "docs/a".to_owned(),
+                        "docs/b".to_owned(),
+                        "docs/c".to_owned()
+                    ]
+                ),
+                ("src".to_owned(), vec![]),
+                ("z.sh".to_owned(), vec!["x/y".to_owned()]),
+            ]
+        );
     }
 }
