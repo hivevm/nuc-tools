@@ -35,6 +35,12 @@ decided as v0.11.0, the newest release `nuc` then knows.
 - The human agreed on 2026-11-15 to change Q-4 of `docs/SPECIFICATION.md` to "when `nuc hook`
   answers 3 or 4" in the change that makes `nuc` answer 4.
 
+## Notes
+
+- From ticket 08: the hook scenarios run on the template's trees up to `HOOKS_PORTED` of
+  `scripts/lib/hook-parity.sh`, v0.8.1, so that the pins of v0.9.0 and v0.9.1 compare their checks
+  before their hooks are ported; this ticket lifts the bound to the newest release it ports.
+
 ## Read first
 
 - Touches: `src/hook.rs`, `src/shell/hook.rs`, `shims/pre-commit`, `shims/pre-merge-commit`,

@@ -117,8 +117,9 @@ load_table() {
   while IFS=$'\t' read -r pattern rule mode place extra; do
     [[ -z "$pattern" || "$pattern" == \#* ]] && continue
     if ! [[ -n "$rule" && ( "$mode" == "line" || "$mode" == "-" ) && -z "${extra:-}" ]] \
-      || ! [[ -z "${place:-}" || "$place" == =?* || "$place" == +?* || "$place" == "@adr" ]]; then
-      die "$TABLE: the row '$pattern' is not 'pattern<TAB>rule ID<TAB>line|-[<TAB>=path|+prefix|@adr]'"
+      || ! [[ -z "${place:-}" || "$place" == =?* || "$place" == +?* || "$place" == "@adr" \
+              || "$place" == "@word" ]]; then
+      die "$TABLE: the row '$pattern' is not 'pattern<TAB>rule ID<TAB>line|-[<TAB>=path|+prefix|@adr|@word]'"
     fi
     patterns+=("$pattern") rules+=("$rule") modes+=("$mode") places+=("${place:-}")
   done < "$TABLE" || die "$TABLE: unreadable"
@@ -147,12 +148,26 @@ canonical() {
   printf '%s' "${text//$'\xef\xbf\xbd'/}"
 }
 
+# The key that ends a bash message from v0.9.1 on, '[<rule>:<reason>]', as nuc's lines end.
+BASH_KEY_RE=' \[[a-z0-9]+/[a-z0-9-]+:([a-z]+)\]$'
+
+# unkeyed <message> — the bash message without its key: the table matches the wording before it.
+unkeyed() {
+  local msg="$1"
+  [[ "$msg" =~ $BASH_KEY_RE ]] && msg="${msg% \[*\]}"
+  printf '%s' "$msg"
+}
+
 # compare <label> <bash output> <bash exit> <nuc output> <nuc exit> — print the differences of
 # one pair and return 1 when there are any.
 compare() {
   local label="$1" bash_out="$2" bash_rc="$3" nuc_out="$4" nuc_rc="$5"
   local -a diffs=() bash_keys=() nuc_keys=() nuc_files=()
-  local line msg i f best rule file n text bash_any=0
+  local line msg i f best rule file n text reason bash_any=0 k
+  # The reason of each finding nuc reports, by its key; and of each the bash reports with a key,
+  # from v0.9.1 on, whose reason is compared with nuc's. The key's rule ID is not compared, since
+  # it is the one of the bash's release.
+  local -A nuc_reasons=() bash_reasons=()
   while IFS= read -r line; do
     # The location ends before the leftmost ': <rule ID>: ' of a rule the table knows, so that a
     # path holding ': ' stays whole and a message quoting such a pair keeps it; a line without
@@ -171,7 +186,9 @@ compare() {
       n="" text="${line#"$file: $rule: "}"
       # The line ends in its key, '[<rule>:<reason>]' (API-command-line-keyed-findings), which
       # is no part of the bash's wording before v0.9.1; a finding without it is a difference.
-      if [[ "$text" =~ \ \["$rule":[a-z]+\]$ ]]; then
+      reason=""
+      if [[ "$text" =~ \ \["$rule":([a-z]+)\]$ ]]; then
+        reason="${BASH_REMATCH[1]}"
         text="${text% \["$rule":*\]}"
       else
         diffs+=("nuc reports a finding of '$rule' without its key: $line")
@@ -182,13 +199,16 @@ compare() {
       # Where the table places the message by its ADR, nuc's file is cut to that ADR's key.
       for i in "${!patterns[@]}"; do
         if [[ "${rules[i]}" == "$rule" && "${places[i]}" == "@adr" && "$text" =~ ${patterns[i]} ]]; then
-          if [[ "$file" =~ ^docs/adr/([0-9]{4})-[^/]*\.md$ || "$file" =~ ^docs/adr/(draft-[^/]+)\.md$ ]]; then
+          if [[ "$file" =~ ^docs/adr/([0-9]{4})-[^/]*\.md$ || "$file" =~ ^docs/adr/(draft-[^/]+)\.md$ \
+                || "$file" =~ ^docs/adr/([A-Za-z]+-[^/]+)\.md$ ]]; then
             file="docs/adr/${BASH_REMATCH[1]}"
           fi
           break
         fi
       done
-      nuc_keys+=("$(key "$rule" "$file" "$n" "$text")")
+      k="$(key "$rule" "$file" "$n" "$text")"
+      nuc_keys+=("$k")
+      nuc_reasons["$k"]="$reason"
     else
       diffs+=("nuc output not understood: $line")
     fi
@@ -196,7 +216,8 @@ compare() {
   while IFS= read -r line; do
     case "$line" in
       "  - "*)
-        bash_any=1 msg="${line#  - }" rule=""
+        bash_any=1 msg="$(unkeyed "${line#  - }")" rule="" reason=""
+        [[ "$line" =~ $BASH_KEY_RE ]] && reason="${BASH_REMATCH[1]}"
         for i in "${!patterns[@]}"; do
           [[ "$msg" =~ ${patterns[i]} ]] && { rule="${rules[i]}"; break; }
         done
@@ -226,8 +247,11 @@ compare() {
             =*) file="${places[i]#=}" text="$msg" ;;
             +*) file="${places[i]#+}$file" ;;
             @adr) file="${msg%% *}" file="docs/adr/${file#ADR-}" text="$msg" ;;
+            @word) file="${msg%% *}" text="${msg#* }" ;;
           esac
-          bash_keys+=("$(key "$rule" "$file" "$n" "$text")")
+          k="$(key "$rule" "$file" "$n" "$text")"
+          bash_keys+=("$k")
+          [[ -n "$reason" ]] && bash_reasons["$k"]="$reason"
         fi
         ;;
       "" | "Documentation checks FAILED:" | "Documentation checks passed." \
@@ -241,6 +265,10 @@ compare() {
   only_nuc="$(comm -13 <(printf '%s\n' "${bash_keys[@]}" | sort -u) <(printf '%s\n' "${nuc_keys[@]}" | sort -u))"
   while IFS= read -r line; do [[ -n "$line" ]] && diffs+=("only bash reports: ${line//$'\t'/ }"); done <<< "$only_bash"
   while IFS= read -r line; do [[ -n "$line" ]] && diffs+=("only nuc reports: ${line//$'\t'/ }"); done <<< "$only_nuc"
+  for k in "${!bash_reasons[@]}"; do
+    [[ -v nuc_reasons["$k"] && "${nuc_reasons["$k"]}" != "${bash_reasons["$k"]}" ]] \
+      && diffs+=("nuc gives the reason '${nuc_reasons["$k"]}' where bash gives '${bash_reasons["$k"]}': ${k//$'\t'/ }")
+  done
 
   ((bash_any || bash_rc == 0)) || diffs+=("bash exited $bash_rc without a finding")
   local expected=0
@@ -380,7 +408,8 @@ fi
 
 # check_body <script> <function> — the function's lines, from its 'name() {' line to the first
 # '}' alone on a line, or the whole script for '-', comment lines left out; fails when the script
-# or the function is missing.
+# or the function is missing. From v0.9.0 on the template ends the head in a comment that names
+# its check, '# check 15' or '# docs/prose-width', which is left out with it.
 check_body() {
   [[ -f "$1" ]] || return 1
   if [[ "$2" == - ]]; then
@@ -388,7 +417,11 @@ check_body() {
     return 0
   fi
   awk -v head="$2() {" '
-    $0 == head { on = 1 }
+    !on && ($0 == head || (index($0, head) == 1 && substr($0, length(head) + 1) ~ /^[ \t]+#/)) {
+      on = 1
+      print head
+      next
+    }
     on && !/^[[:space:]]*#/ { print }
     on && $0 == "}" { done = 1; exit }
     END { exit !done }
@@ -477,7 +510,7 @@ rule_messages() {
   local line msg i
   while IFS= read -r line; do
     [[ "$line" == "  - "* ]] || continue
-    msg="${line#  - }"
+    msg="$(unkeyed "${line#  - }")"
     for i in "${!patterns[@]}"; do
       if [[ "$msg" =~ ${patterns[i]} ]]; then
         [[ "${rules[i]}" == "$2" ]] && printf '%s\n' "$msg"

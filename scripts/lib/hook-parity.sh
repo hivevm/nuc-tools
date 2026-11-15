@@ -24,8 +24,13 @@
 # scenario or listed in tests/parity/hook-cases.tsv with a reason; an uncovered name, a listed
 # name no tree has, a scenario that names a case no tree has, and no tree at all fail.
 #
-# PARITY_HOOK_SCENARIOS, PARITY_HOOK_TABLE, and PARITY_HOOK_CASES name other files, for
-# scripts/test-check-parity.sh.
+# The hooks nuc ports reach HOOKS_PORTED: a tree of a later release is left out, named on standard
+# output, until the port of its hooks lifts the bound, as the plan's ticket on the hooks of v0.9.0
+# and v0.11.0 does (docs/plan/port-v0-9-to-v0-11/). Its checks are compared as any tree's. A tree
+# whose README names no release is compared, and fails where its hooks are not ported.
+#
+# PARITY_HOOK_SCENARIOS, PARITY_HOOK_TABLE, PARITY_HOOK_CASES, and PARITY_HOOKS_PORTED name other
+# files and another bound, for scripts/test-check-parity.sh.
 #
 # Usage: hook_parity <nuc> <work dir> <tree>... — returns 1 on any difference, 2 on a malformed
 # table, case list, or scenario file.
@@ -34,6 +39,7 @@ HOOK_SCENARIOS="${PARITY_HOOK_SCENARIOS:-$ROOT/tests/parity/hook-scenarios.sh}"
 HOOK_TABLE="${PARITY_HOOK_TABLE:-$ROOT/tests/parity/hooks.tsv}"
 HOOK_CASES="${PARITY_HOOK_CASES:-$ROOT/tests/parity/hook-cases.tsv}"
 SHIMS="$ROOT/shims"
+HOOKS_PORTED="${PARITY_HOOKS_PORTED:-v0.8.1}"
 
 # The scenarios, filled by hook_scenario as the scenario file is sourced.
 hs_names=() hs_hooks=() hs_cases=() hs_setups=() hs_args=() hs_bare=()
@@ -216,8 +222,21 @@ hp_compare() {
 # hook_parity <nuc> <work dir> <tree>...
 hook_parity() {
   local nuc="$1" hw="$2/hooks"; shift 2
-  local -a trees=("$@")
+  local -a trees=()
+  local given release
   local failed=0 pattern id field extra name reason
+  for given in "$@"; do
+    release="$(release_of "$given/README.md")"
+    if [[ -n "$release" && "$(printf '%s\n%s\n' "$HOOKS_PORTED" "$release" | sort -V | tail -1)" != "$HOOKS_PORTED" ]]; then
+      echo "Parity check: hooks — the tree at $release is later than $HOOKS_PORTED, whose hooks nuc ports; its hooks are not compared"
+      continue
+    fi
+    trees+=("$given")
+  done
+  if (($# && ${#trees[@]} == 0)); then
+    echo "Parity check: hooks — every tree of the template is later than $HOOKS_PORTED, whose hooks nuc ports, so no hook is compared" >&2
+    return 1
+  fi
 
   hp_patterns=() hp_ids=() hp_fields=()
   while IFS=$'\t' read -r pattern id field extra || [[ -n "$pattern" ]]; do
