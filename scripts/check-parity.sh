@@ -70,7 +70,7 @@
 # copied fixture tables, and PARITY_JOBS the number of comparisons that run at once.
 # Exit code 0 when every repository and variant agrees, 1 on a difference, a refused tree, a
 # variant that fits no tree or does not fire, a cache that cannot be filled, or a pin of a copied
-# table the template's tag does not bear out, 2 on a malformed
+# table the template's tag does not bear out, 2 on a missing or malformed list of pins, a malformed
 # corpus, table, or variants file, a PARITY_JOBS that is no number of jobs, a root that does not
 # exist, or an argument it does not read.
 
@@ -568,10 +568,16 @@ done
 # own in the cache fetches from the corpus's template where it lacks the tag. A tag it cannot read
 # fails, and so does a blob the tag does not hold; no tree of that release need be pinned.
 check_table_blobs() {
-  local line release blob file at tags="$cache/.tables"
+  local line release blob file extra at tags="$cache/.tables"
+  [[ -f "$TABLE_BLOBS" ]] || { echo "Parity check: $TABLE_BLOBS — not found" >&2; exit 2; }
   while IFS= read -r line || [[ -n "$line" ]]; do
     [[ -z "$line" || "$line" == "#"* ]] && continue
-    read -r release blob file <<< "$line"
+    read -r release blob file extra <<< "$line"
+    if ! [[ "$release" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ && "$blob" =~ ^[0-9a-f]{40}$ \
+      && "$file" =~ ^[A-Za-z0-9._-]+$ && -z "$extra" ]]; then
+      echo "Parity check: $TABLE_BLOBS — the line '$line' is not '<release> <blob> <file>'" >&2
+      exit 2
+    fi
     if [[ -z "$template_url" ]]; then
       echo "Parity check: $TABLE_BLOBS — no tree of the template in the corpus to read $release from" >&2
       failed=1

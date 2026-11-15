@@ -11,14 +11,19 @@
 //!
 //! Beside what the tables describe, a case's tree gets what `nuc` needs and the bash does not: a
 //! `nuc.toml`, which `.git/info/exclude` keeps from git's list of files as the parity harness does,
-//! and, in the tables whose tree has no README, one naming the release `unreleased`, which `nuc`
-//! checks as the newest release it knows; the record table's tree has its own. `nuc.toml` turns on
-//! the case's rule, or, for a case of every check and in the tables that name no rule, every rule
-//! of the table's area `nuc` knows; a rule `nuc` does not know is refused, and the case does not
-//! agree. The scripts the steps of `check-shell.txt` write are stand-ins with the kind's name, and
-//! the copy of the template's `scripts/lib/` that table's tree holds is left out: `nuc` reads no
-//! script's content and no file below `scripts/lib/` (ARCH-rules-need-only-git). The trees hold
-//! symbolic links, so the cases run on Unix; the pins and the list are held on every platform.
+//! and, in the tables whose tree has no README, one naming the release `unreleased`, staged where
+//! the table stages its files. `nuc.toml` turns on the case's rule, or, for a case of every check
+//! and in the tables that name no rule, every rule of the table's area `nuc` knows; a rule `nuc`
+//! does not know is refused, and the case does not agree. The rules run as `unreleased`, the newest
+//! release `nuc` knows, which is the release of the copies once the port reaches it; until then, a
+//! case that release changed stands as pending. The scripts the steps of `check-shell.txt` write
+//! are stand-ins with the kind's name, and the copy of the template's `scripts/lib/` that table's
+//! tree holds is left out: `nuc` reads no script's content and no file below `scripts/lib/`
+//! (ARCH-rules-need-only-git). Until `nuc` knows a rule of the area `shell/`, that table's cases
+//! run no rule, and its passing cases decide nothing. Every tree starts on the branch `main`, which
+//! the bash of the traceability and the shell tables leaves to git's default and no case reads. The
+//! trees hold symbolic links, so the cases run on Unix; the pins and the list are held on every
+//! platform.
 
 mod support;
 
@@ -224,7 +229,7 @@ fn holds(output: &str, field: &str) -> bool {
         !s.is_empty()
             && ((s.starts_with('"')
                 && s.ends_with('"')
-                && s.len() > 1
+                && s.len() > 2
                 && !s[1..s.len() - 1].contains('"'))
                 || (!s.contains(' ') && !s.contains('"')))
     });
@@ -289,6 +294,10 @@ fn read(fixture: &Fixture, path: &str) -> String {
 /// The file with its lines edited by `edit`, which gets each line and returns its replacement,
 /// each line ended by a line break as awk writes it.
 fn rewrite(fixture: &Fixture, path: &str, edit: impl FnMut(&str) -> Vec<String>) {
+    assert!(
+        fixture.root().join(path).is_file(),
+        "fixture table: no file {path} to edit"
+    );
     let text = read(fixture, path);
     let mut out: Vec<String> = text.lines().flat_map(edit).collect();
     if !text.is_empty() {
@@ -372,7 +381,7 @@ fn record_base(fixture: &Fixture) {
     fixture.write(
         "docs/adr/README.md",
         &format!(
-            "# ADRs\n\n### Categories\n\n- **NUC** — the template.\n\n### Binding\n\n{table}{rows}\n\
+            "# ADRs\n\n### Categories\n\n- **NUC** — the template.\n\n### Binding\n\n{table}{rows}\
              ### Superseded and rejected\n\n{table}"
         ),
     );
@@ -787,6 +796,9 @@ fn rules_of(case: &Case) -> Vec<String> {
     }
 }
 
+/// The README of the tables whose tree has none, which `nuc` needs to run at all.
+const STAND_IN_README: &str = "# Fixture\n\n- **Template release:** unreleased\n";
+
 /// Build the case's tree, run `nuc check` on it, and decide whether it agrees.
 fn run(case: &Case, n: usize) -> Run {
     let fixture = Fixture::new(&format!("table-{n}"));
@@ -805,20 +817,18 @@ fn run(case: &Case, n: usize) -> Run {
             for step in &case.steps {
                 traceability_step(&fixture, step);
             }
+            fixture.write("README.md", STAND_IN_README);
             git(&fixture, &["add", "-A"]);
         }
         _ => {
+            fixture.write(".gitignore", "build/\n");
             fixture.write(".shellcheckrc", "disable=SC1091,SC2154\n");
             for step in &case.steps {
                 shell_step(&fixture, step);
             }
+            // The bash stages nothing in this table, so neither is the README.
+            fixture.write("README.md", STAND_IN_README);
         }
-    }
-    if case.table != "check-docs-record.txt" {
-        fixture.write(
-            "README.md",
-            "# Fixture\n\n- **Template release:** unreleased\n",
-        );
     }
     let rules: Vec<String> = rules_of(case).iter().map(|r| format!("\"{r}\"")).collect();
     fixture.write(
@@ -851,6 +861,76 @@ fn listed_rule(case: &Case) -> String {
             str::to_owned,
         )
     })
+}
+
+/// What a run of a case decided, for `judge`.
+struct Verdict<'a> {
+    table: &'a str,
+    name: &'a str,
+    rule: &'a str,
+    pass: bool,
+    agrees: bool,
+}
+
+/// The problems of one case against its line of `tests/tables.cases`, if it has one: a case that
+/// does not agree and is not listed; a listed pending case that agrees; a line under another rule;
+/// a pending case whose ticket is not a file under `docs/plan/`; a case not ported of a rule `nuc`
+/// ports; a failing case of a rule `nuc` leaves to the bash that does not stand as not ported; and
+/// a status of neither form.
+fn judge(
+    case: &Verdict,
+    entry: Option<(String, String)>,
+    exists: &dyn Fn(&str) -> bool,
+) -> Vec<String> {
+    let Verdict {
+        table,
+        name,
+        rule,
+        pass,
+        agrees,
+    } = *case;
+    let at = format!("{table} | {name}");
+    let unported_rule = NOT_PORTED.contains(&rule);
+    let must_be_unported = !pass && unported_rule;
+    let Some((listed, status)) = entry else {
+        return if agrees && !must_be_unported {
+            Vec::new()
+        } else {
+            vec![format!(
+                "{at} | {rule} | pending <ticket>  — does not agree"
+            )]
+        };
+    };
+    let mut problems = Vec::new();
+    if listed != rule {
+        problems.push(format!("{at}: listed under {listed}, its rule is {rule}"));
+    }
+    if let Some(ticket) = status.strip_prefix("pending ") {
+        if agrees {
+            problems.push(format!(
+                "{at}: agrees now — take it out of tests/tables.cases"
+            ));
+        }
+        if !ticket.starts_with("docs/plan/") || !exists(ticket) {
+            problems.push(format!(
+                "{at}: pending on {ticket}, which is no ticket under docs/plan/ — its port has landed, so the case agrees or the port is not done"
+            ));
+        }
+    } else if status.starts_with("not ported ") {
+        if !unported_rule {
+            problems.push(format!("{at}: not ported, but {rule} is a rule nuc ports"));
+        }
+    } else {
+        problems.push(format!(
+            "{at}: '{status}' is neither 'pending <ticket>' nor 'not ported <reason>'"
+        ));
+    }
+    if must_be_unported && !status.starts_with("not ported ") {
+        problems.push(format!(
+            "{at}: a case of {rule}, which nuc leaves to the bash, stands only as not ported"
+        ));
+    }
+    problems
 }
 
 /// The rules `nuc` leaves to the bash (ARCH-rules-need-only-git).
@@ -900,48 +980,28 @@ fn every_case_agrees_or_is_listed() {
     let root = support::sources::root();
     let mut problems = Vec::new();
     for (case, run) in &runs {
+        let table = case.table.trim_end_matches(".txt");
+        let entry = listed.remove(&(table.to_owned(), case.name.clone()));
         let rule = listed_rule(case);
-        let key = (
-            case.table.trim_end_matches(".txt").to_owned(),
-            case.name.clone(),
-        );
-        let must_be_unported = !case.pass && NOT_PORTED.contains(&rule.as_str());
-        match (listed.remove(&key), run.agrees) {
-            (None, true) if !must_be_unported => {}
-            (None, _) => problems.push(format!(
-                "{} | {} | {rule} | pending <ticket>  — does not agree: exit {:?}\n      stdout: {}\n      stderr: {}",
-                key.0,
-                case.name,
-                run.output.status.code(),
-                stdout(&run.output).trim().replace('\n', "\n              "),
-                stderr(&run.output).trim().lines().last().unwrap_or("")
-            )),
-            (Some((_, status)), true) if status.starts_with("pending ") => problems.push(format!(
-                "{} | {}: agrees now — take it out of tests/tables.cases",
-                key.0, case.name
-            )),
-            (Some((listed, status)), _) => {
-                if listed != rule {
-                    problems.push(format!("{} | {}: listed under {listed}, its rule is {rule}", key.0, case.name));
-                }
-                if let Some(ticket) = status.strip_prefix("pending ") {
-                    if !root.join(ticket).is_file() {
-                        problems.push(format!(
-                            "{} | {}: pending on {ticket}, which is gone — its port has landed, so the case agrees or the port is not done",
-                            key.0, case.name
-                        ));
-                    }
-                } else if status.starts_with("not ported ") {
-                    if !NOT_PORTED.contains(&rule.as_str()) {
-                        problems.push(format!("{} | {}: not ported, but {rule} is a rule nuc ports", key.0, case.name));
-                    }
-                } else {
-                    problems.push(format!("{} | {}: '{status}' is neither 'pending <ticket>' nor 'not ported <reason>'", key.0, case.name));
-                }
-                if must_be_unported && !status.starts_with("not ported ") {
-                    problems.push(format!("{} | {}: a case of {rule}, which nuc leaves to the bash, stands only as not ported", key.0, case.name));
-                }
-            }
+        let verdict = Verdict {
+            table,
+            name: &case.name,
+            rule: &rule,
+            pass: case.pass,
+            agrees: run.agrees,
+        };
+        let exists = |ticket: &str| root.join(ticket).is_file();
+        for problem in judge(&verdict, entry, &exists) {
+            problems.push(if problem.ends_with("does not agree") {
+                format!(
+                    "{problem}: exit {:?}\n      stdout: {}\n      stderr: {}",
+                    run.output.status.code(),
+                    stdout(&run.output).trim().replace('\n', "\n              "),
+                    stderr(&run.output).trim().lines().last().unwrap_or("")
+                )
+            } else {
+                problem
+            });
         }
     }
     for ((table, name), _) in listed {
@@ -955,6 +1015,69 @@ fn every_case_agrees_or_is_listed() {
         problems.len(),
         problems.join("\n  ")
     );
+}
+
+#[test]
+fn a_case_is_judged_against_its_line_as_the_decision_asks() {
+    let ticket = "docs/plan/x/01-y.md";
+    let exists = |t: &str| t == ticket;
+    let pending = format!("pending {ticket}");
+    let case = |rule, agrees| Verdict {
+        table: "t",
+        name: "n",
+        rule,
+        pass: false,
+        agrees,
+    };
+    let line = |rule: &str, status: &str| Some((rule.to_owned(), status.to_owned()));
+    // Agreeing and unlisted, not agreeing and pending on a ticket that exists, or not ported: none.
+    assert!(judge(&case("docs/a", true), None, &exists).is_empty());
+    assert!(judge(&case("docs/a", false), line("docs/a", &pending), &exists).is_empty());
+    assert!(
+        judge(
+            &case("shell/root", false),
+            line("shell/root", "not ported r"),
+            &exists
+        )
+        .is_empty()
+    );
+    // The four failures of the decision's Enforcement, and the rest of the list's rules.
+    let problem = |c: Verdict, e, needle: &str| {
+        let found = judge(&c, e, &exists);
+        assert!(
+            found.iter().any(|p| p.contains(needle)),
+            "{needle}: {found:?}"
+        );
+    };
+    problem(case("docs/a", false), None, "does not agree");
+    problem(case("docs/a", true), line("docs/a", &pending), "agrees now");
+    problem(
+        case("docs/a", false),
+        line("docs/a", "pending docs/plan/x/02-gone.md"),
+        "no ticket under docs/plan/",
+    );
+    problem(
+        case("docs/a", false),
+        line("docs/a", "pending Cargo.toml"),
+        "no ticket under docs/plan/",
+    );
+    problem(
+        case("docs/a", false),
+        line("docs/b", &pending),
+        "listed under docs/b",
+    );
+    problem(
+        case("docs/a", false),
+        line("docs/a", "not ported r"),
+        "is a rule nuc ports",
+    );
+    problem(case("shell/root", false), None, "does not agree");
+    problem(
+        case("shell/root", false),
+        line("shell/root", &pending),
+        "stands only as not ported",
+    );
+    problem(case("docs/a", false), line("docs/a", "later"), "neither");
 }
 
 #[test]

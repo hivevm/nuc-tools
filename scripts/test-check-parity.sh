@@ -21,7 +21,8 @@
 # command or writes a file, a name used twice, and a malformed or unmapped row; a 'chomp' applies
 # and is compared, does not apply to a file without a last newline, and takes '-' alone. The pin
 # cases pass a pin of a copied fixture table that the tag of a template tree bears out, and fail
-# one the tag does not, one whose tag cannot be read, and one without a template tree. No network
+# one the tag does not, one whose tag cannot be read, and one without a template tree, and exit 2
+# on a malformed or missing list of pins. No network
 # and no build.
 #
 # The hook cases run the scenarios alone, through '--hooks', on a tree of the template whose bash
@@ -408,6 +409,9 @@ exits_two() { "$@" > /dev/null 2>&1; (($? == 2)); }
 check "a number of jobs that is none exits 2, as a malformed input does" \
   exits_two env PARITY_JOBS=many PARITY_TABLE="$work/one-rule.tsv" bash "$HARNESS" --no-hooks \
     --corpus "$many" --cache "$work/cache" --nuc "$(reactive_nuc)" --variants "$DEFAULT"
+printf 'v9.9.9 nohash t.txt\n' > "$work/blobs-malformed"
+check "a malformed list of pins exits 2" exits_two pinned "$work/blobs-malformed" "$tables"
+check "a missing list of pins exits 2" exits_two pinned "$work/no-such-blobs" "$tables"
 
 source_repo no-trace "" none > /dev/null
 expect fail "a tree without check-traceability.sh fails" "the tree has no scripts/check-traceability.sh" \
