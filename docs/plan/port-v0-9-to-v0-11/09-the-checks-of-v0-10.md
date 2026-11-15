@@ -1,0 +1,48 @@
+# Ticket: The checks of v0.10.0
+
+## What to build
+
+On a tree of v0.10.0 or later, the rules check as the bash of v0.10.0:
+
+- `docs/adr-identifiers` names its findings by its own key and accepts `docs/adr-numbering` as an
+  older name of a rule key;
+- `docs/adr-refs` reports a rule key that the *Applies to* of an ADR in force names for
+  `scripts/check-docs.sh` and that the script's header list lacks, old keys included;
+- `docs/template-release` reports a change that moves the release line, against the merge base
+  with `origin/main` or else `main`, while a `proposed` `NUC-` ADR stands; the shell reads the
+  merge base;
+- `docs/template-identity` reports the issue template for template findings still present after
+  the setup;
+- `docs/opens-no-issue`, a new rule, while `TEMPLATE-SETUP.md` exists, reports a script of
+  `scripts/`, `.githooks/`, `.github/`, or `.agents/`, outside `scripts/fixtures/`, that opens an
+  issue by the CLI, the API, GraphQL, HTTP, or a script, as the bash's five reasons.
+
+v0.10.0 joins the releases at which a ported check changed.
+
+## Acceptance criteria
+
+- [ ] Given the cases of the copied tables for these rules, when the runner runs, then they agree,
+      and the pending list holds only the `shell/` cases.
+- [ ] Given a branch that moves the release line while a `proposed` `NUC-` ADR stands, when
+      `nuc check` runs on a tree of v0.10.0, then `docs/template-release` reports it; on v0.9.1 it
+      does not.
+- [ ] Given `docs/opens-no-issue`, when the contract test runs, then the ID is listed and ships
+      off.
+
+## Read first
+
+- Touches: `src/rules/docs_adr_refs.rs`, `src/rules/docs_template_release.rs`,
+  `src/rules/docs_template_identity.rs`, the module of `docs/adr-identifiers`, a new rule module,
+  `src/rules/mod.rs`, `src/shell/mod.rs`, `src/shell/git.rs`, `tests/contract.rule-ids`,
+  `tests/parity/releases.tsv`, `tests/git_cli.neutralized`
+- The template's `scripts/check-docs.sh`, diffed v0.9.1 to v0.10.0, and the v0.10.0 tag message.
+- Seam: the table runner.
+
+## Blocked by
+
+- docs/plan/port-v0-9-to-v0-11/08-parity-on-v0-9.md
+
+## Mode
+
+with the human: parsers of repository content and a new git command, protected under
+DEV-one-agent-one-ticket.
