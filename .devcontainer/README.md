@@ -60,6 +60,11 @@ OBSERVABILITY_BIND=172.17.0.1 docker compose -f .devcontainer/compose.yaml up -d
 Check with the `curl` under [Checking that data arrives](#checking-that-data-arrives) from inside
 the container.
 
+[`scripts/check-compose.sh`](../scripts/check-compose.sh) holds every Compose file under
+`.devcontainer/` to the binding: it fails on a published port without a host address, with one
+that can be empty or names every interface of the host, such as a variable without a default, or
+in a form it cannot read, and on `network_mode: host`.
+
 ### Reaching it from the Dev Container
 
 The Dev Container reaches the Collector **through the host**, over the ports published above; it

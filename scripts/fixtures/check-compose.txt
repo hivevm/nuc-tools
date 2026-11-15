@@ -1,0 +1,83 @@
+# Cases of scripts/check-compose.sh, read by scripts/test-check-compose.sh.
+#
+# One case per line, four fields separated by ' | ':
+#
+#   <pass or fail> | <what the output holds, or -> | <name> | <tree>
+#
+# A run exits 0 for pass and 1 for fail. The second field is '<key>', then ' @ <subject>' for each
+# datum the line names, such as the file and line or the entry in double quotes. A line of the
+# output ends in '[<key>]', the rule and a reason word, and holds each subject, in that order and
+# with no ASCII letter, digit, hyphen, or underscore beside it; the rest of its wording is free.
+#
+# A line that starts with '#' is a comment, not a case. A field may start with '!': it then holds
+# where no line that ends in '[<key>]' holds the subjects in their order.
+#
+# The tree is a list of steps separated by '; ', or '-' for none, applied in order to a repository
+# that passes the check, not under git, of one file, .devcontainer/compose.yaml:
+#
+#   services:
+#     collector:
+#       image: example
+#       ports:
+#         - "${OBSERVABILITY_BIND:-127.0.0.1}:4318:4318" # OTLP/HTTP
+#
+# The steps:
+#
+#   rm <path>              the file or directory removed
+#   port [entry]           the entry as one more line '      - [entry]' at the end of compose.yaml
+#   line <text>            the text as one more line '        <text>', a key of the long syntax
+#   copy <path>            the file of this repository copied over the fixture's
+#   write <path> <text>    the file written with exactly the text, each '\n' in it a line break
+#                          and each '\r' a carriage return;
+#                          the text is all of the step after the path and the one space that
+#                          follows it, leading spaces kept
+
+pass | compose/check:passed @ 1 @ 1 | a port on a variable with a loopback default | -
+pass | compose/check:passed @ 1 @ 4 | the telemetry stack as it stands | copy .devcontainer/compose.yaml
+pass | compose/check:passed @ 0 @ 0 | a project without a Compose file under .devcontainer/ | rm .devcontainer/compose.yaml
+pass | compose/check:passed @ 0 @ 0 | a project without .devcontainer/ | rm .devcontainer
+pass | compose/check:passed @ 1 @ 2 | a literal loopback address | port "127.0.0.1:3001:3001"
+pass | compose/check:passed @ 1 @ 2 | the IPv6 loopback, with a protocol | port "[::1]:4317:4317/tcp"
+pass | compose/check:passed @ 1 @ 2 | an unquoted entry with a comment | port 172.17.0.1:8123:8123 # the bridge
+pass | compose/check:passed @ 1 @ 2 | the long syntax with host_ip | port target: 3001; line published: 3001; line host_ip: 127.0.0.1
+pass | compose/check:passed @ 1 @ 2 | a flow list of named addresses | write .devcontainer/compose.yaml services:\n  a:\n    ports: ["127.0.0.1:1:1", '127.0.0.1:2:2']\n
+pass | compose/check:passed @ 1 @ 1 | a Compose file of another name | rm .devcontainer/compose.yaml; write .devcontainer/stack/docker-compose.yml services:\n  a:\n    ports:\n    - "127.0.0.1:1:1"\n
+pass | compose/check:passed @ 0 @ 0 | a YAML file that is no Compose file is not read | rm .devcontainer/compose.yaml; write .devcontainer/otel-collector.yaml ports:\n  - "4318:4318"\n
+fail | compose/port:unbound @ .devcontainer/compose.yaml:6 @ "4318:4318" | a port without a host address | port "4318:4318"
+fail | compose/port:unbound @ .devcontainer/compose.yaml:6 @ "3000" | a container port alone | port "3000"
+fail | compose/port:every @ .devcontainer/compose.yaml:6 @ "0.0.0.0:4318:4318" | a port on every interface | port "0.0.0.0:4318:4318"
+fail | compose/port:every @ .devcontainer/compose.yaml:6 @ "[::]:4318:4318" | a port on every IPv6 interface | port "[::]:4318:4318"
+fail | compose/port:every @ .devcontainer/compose.yaml:6 @ ":4318:4318" | an empty host address | port ":4318:4318"
+fail | compose/port:unset @ .devcontainer/compose.yaml:6 @ "${OBSERVABILITY_BIND}:4318:4318" | a variable without a default, which an unset variable empties | port "${OBSERVABILITY_BIND}:4318:4318"
+fail | compose/port:unset @ .devcontainer/compose.yaml:6 @ "$OBSERVABILITY_BIND:4318:4318" | a bare variable | port "$OBSERVABILITY_BIND:4318:4318"
+fail | compose/port:unset @ .devcontainer/compose.yaml:6 @ "${OBSERVABILITY_BIND-127.0.0.1}:4318:4318" | a default that a variable set to nothing skips | port "${OBSERVABILITY_BIND-127.0.0.1}:4318:4318"
+fail | compose/port:unset @ .devcontainer/compose.yaml:6 @ "${OBSERVABILITY_BIND:?unset}:4318:4318" | a required variable, which writes no address | port "${OBSERVABILITY_BIND:?unset}:4318:4318"
+fail | compose/port:every @ .devcontainer/compose.yaml:6 @ "${OBSERVABILITY_BIND:-}:4318:4318" | an empty default | port "${OBSERVABILITY_BIND:-}:4318:4318"
+fail | compose/port:every @ .devcontainer/compose.yaml:6 @ "${OBSERVABILITY_BIND:-0.0.0.0}:4318:4318" | a default on every interface | port "${OBSERVABILITY_BIND:-0.0.0.0}:4318:4318"
+fail | compose/port:unread @ .devcontainer/compose.yaml:6 @ "10.0.${NET}.1:4318:4318" | an address that joins a variable to more text | port "10.0.${NET}.1:4318:4318"
+fail | compose/port:unbound @ .devcontainer/compose.yaml:6 | the long syntax without host_ip | port target: 3001; line published: 3001
+fail | compose/port:every @ .devcontainer/compose.yaml:6 | the long syntax on every interface | port target: 3001; line host_ip: 0.0.0.0
+fail | compose/port:unbound @ .devcontainer/compose.yaml:3 @ "1:1" | an entry of a flow list | write .devcontainer/compose.yaml services:\n  a:\n    ports: ["127.0.0.1:2:2", "1:1"]\n
+fail | compose/port:unbound @ .devcontainer/stack/compose.override.yaml:4 @ "9:9" | a Compose file in a subdirectory, of a further name | write .devcontainer/stack/compose.override.yaml services:\n  a:\n    ports:\n    - "9:9"\n
+fail | compose/network:host @ .devcontainer/compose.yaml:3 | a service on the host's network | write .devcontainer/compose.yaml services:\n  a:\n    network_mode: host\n
+# Each finding of one file is reported, not only the first.
+fail | compose/port:every @ .devcontainer/compose.yaml:7 | a second finding after a first | port "4318:4318"; port "0.0.0.0:1:1"
+# What the check cannot read fails, rather than passing with no port counted.
+fail | compose/port:unread @ .devcontainer/compose.yaml:5 | a ports list taken from an alias | write .devcontainer/compose.yaml x-ports: &ports\n  - "4318:4318"\nservices:\n  a:\n    ports: *ports\n
+fail | compose/port:unread @ .devcontainer/compose.yaml:3 | a flow list over several lines | write .devcontainer/compose.yaml services:\n  a:\n    ports: [\n      "4318:4318",\n    ]\n
+fail | compose/port:unbound @ .devcontainer/compose.yaml:3 @ "4318:4318" | a flow list in a file with CRLF line ends | write .devcontainer/compose.yaml services:\r\n  a:\r\n    ports: ["4318:4318"]\r\n
+fail | compose/port:unread @ .devcontainer/compose.yaml:6 | the long syntax as a flow mapping | port {target: 3001, published: 3001}
+fail | compose/port:every @ .devcontainer/compose.yaml:6 @ "[::0]:1:1" | the unspecified IPv6 address, written short | port "[::0]:1:1"
+fail | compose/port:every @ .devcontainer/compose.yaml:6 @ "[0:0:0:0:0:0:0:0]:1:1" | the unspecified IPv6 address, written out | port "[0:0:0:0:0:0:0:0]:1:1"
+fail | compose/port:unread @ .devcontainer/compose.yaml:6 @ "localhost:1:1" | a host name, which is no address | port "localhost:1:1"
+pass | compose/check:passed @ 1 @ 2 | the long syntax under an item of its own | port; line target: 3001; line host_ip: 127.0.0.1
+pass | compose/check:passed @ 1 @ 2 | an anchor on a ports list read in place | write .devcontainer/compose.yaml services:\n  a:\n    ports: &ports\n      - "127.0.0.1:1:1"\n      - "127.0.0.1:2:2"\n
+fail | compose/port:unbound @ .devcontainer/compose.yaml:3 @ "1:1" | a quoted ports key | write .devcontainer/compose.yaml services:\n  a:\n    "ports": ["1:1"]\n
+fail | compose/network:unread @ .devcontainer/compose.yaml:3 | a network mode from a variable | write .devcontainer/compose.yaml services:\n  a:\n    network_mode: ${NET:-host}\n
+fail | compose/port:unbound @ .devcontainer/.stack/compose.yaml:4 @ "9:9" | a Compose file in a hidden subdirectory | write .devcontainer/.stack/compose.yaml services:\n  a:\n    ports:\n    - "9:9"\n
+pass | compose/check:passed @ 1 @ 0 | an override that resets the ports of its base | rm .devcontainer/compose.yaml; write .devcontainer/compose.override.yaml services:\n  a:\n    ports: !reset []\n
+pass | compose/check:passed @ 1 @ 1 | an override that replaces the ports of its base | write .devcontainer/compose.yaml services:\n  a:\n    ports: !override\n      - "127.0.0.1:1:1"\n
+pass | compose/check:passed @ 1 @ 1 | an anchor before a flow list | write .devcontainer/compose.yaml services:\n  a:\n    ports: &p ["127.0.0.1:1:1"]\n
+fail | compose/port:unread @ .devcontainer/compose.yaml:7 @ "4318:4318" | a line of a list that is no entry | port >-; line 4318:4318
+fail | compose/port:unread @ .devcontainer/compose.yaml:3 | the long syntax as a flow mapping in a flow list | write .devcontainer/compose.yaml services:\n  a:\n    ports: [{target: 1, published: 1}]\n
+fail | compose/port:every @ .devcontainer/compose.yaml:6 @ "[::ffff:0.0.0.0]:1:1" | the unspecified address mapped into IPv6 | port "[::ffff:0.0.0.0]:1:1"

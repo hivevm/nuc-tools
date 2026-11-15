@@ -116,6 +116,10 @@ jobs:
         run: bash scripts/test-check-dashboards.sh
       - name: Check that every dashboard panel filters by project and session on the whole name
         run: bash scripts/check-dashboards.sh
+      - name: Self-test the Compose check
+        run: bash scripts/test-check-compose.sh
+      - name: Check that every port of a development stack is published on a named host address
+        run: bash scripts/check-compose.sh
 
   sensors:
     runs-on: ubuntu-latest

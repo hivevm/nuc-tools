@@ -175,6 +175,8 @@ run "Dev Container" scripts/check-devcontainer.sh
 run "gh host login self-test" scripts/test-gh-host-login.sh
 run "Dashboard self-test" scripts/test-check-dashboards.sh
 run "Dashboard" scripts/check-dashboards.sh
+run "Compose self-test" scripts/test-check-compose.sh
+run "Compose" scripts/check-compose.sh
 run "Tests-kept sensor self-test" scripts/test-sensor-tests-kept.sh
 run "Tests-kept sensor" scripts/sensor-tests-kept.sh
 run "Binding ADRs sensor self-test" scripts/test-sensor-binding-adrs.sh
