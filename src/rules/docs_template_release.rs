@@ -2,6 +2,7 @@
 //! `**Template release:**` line naming a `vX.Y.Z` tag or `unreleased` (ADR-0005 of the template).
 
 use super::{Carried, Input, Inputs, Rule};
+use crate::adr;
 use crate::bash;
 use crate::config::Version;
 use crate::finding::Finding;
@@ -10,14 +11,17 @@ pub const RULE_ID: &str = "docs/template-release";
 
 pub const RULE: Rule = Rule {
     id: RULE_ID,
-    reasons: &["line", "version"],
+    reasons: &["line", "version", "proposed"],
     explain: "README.md names the release of the template the repository carries on a \
               '**Template release:**' line: a 'vX.Y.Z' tag, or 'unreleased'. Tags do not travel \
               with GitHub's template mechanism, so the line is the one thing that tells a derived \
               project which release it carries; a release moves it, and a project that takes a \
-              release up moves it. Each finding cites the ADR on releases the tree's record holds: \
-              NUC-releases-are-semver-tags from template release v0.9.0 on, ADR-0005 before.",
-    reads: &[Input::Readme, Input::Adr],
+              release up moves it. A finding cites NUC-releases-are-semver-tags, or ADR-0005 where \
+              the record still holds that numbered file of the releases before v0.9.0. From \
+              v0.10.0 on, a change that moves the line, against the merge base with origin/main \
+              or else main, fails while a NUC- ADR is proposed: a release carries only accepted \
+              NUC- ADRs.",
+    reads: &[Input::Readme, Input::Adr, Input::ReleaseBase],
     check: |inputs| check(inputs).into(),
 };
 
@@ -28,18 +32,19 @@ const LABEL: &str = "**Template release:**";
 const RELEASES_ADR: &str = "NUC-releases-are-semver-tags";
 
 /// The citation of a finding, `line` or `version`, as the bash of the tree's release words it. A
-/// line that names no release does not tell which release that is, so the citation follows the
-/// ADR on releases the record holds: its file of v0.9.0 on, or else the `ADR-0005` of before.
+/// line that names no release does not tell which release that is: the citation is the newest
+/// release's, NUC-releases-are-semver-tags, unless the record still holds the numbered ADR on
+/// releases, `0005-*.md`, which releases before v0.9.0 cite as `ADR-0005`.
 fn citation(inputs: &Inputs, reason: &str) -> String {
-    if inputs.adr.contains_key(&format!("{RELEASES_ADR}.md")) {
+    if inputs.adr.keys().any(|name| name.starts_with("0005-")) {
+        format!("({}-0005)", "ADR")
+    } else {
         let clauses = if reason == "version" {
             "§1, §4"
         } else {
             "§4"
         };
         format!("({RELEASES_ADR} {clauses})")
-    } else {
-        format!("({}-0005)", "ADR")
     }
 }
 
@@ -60,7 +65,7 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
             "no '**Template release:**' line — the Template section names the release of the \
              template this repository carries, or 'unreleased'",
         ),
-        Some((_, text)) if names_release(after_label(text)) => return Vec::new(),
+        Some((_, text)) if names_release(after_label(text)) => return moved(inputs, readme),
         Some((i, _)) => (
             Some(i + 1),
             "version",
@@ -75,6 +80,67 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
         line,
         message: format!("{message} {}", citation(inputs, reason)),
     }]
+}
+
+/// The findings of a change that moves the release line while a `NUC-` ADR is proposed, from
+/// template release v0.10.0 on: one at each proposed `NUC-` ADR, where the README at the merge base
+/// with `main` names another release than the README now, or none. The release is the one the line
+/// names now, read here rather than by the shell, which refuses a release before the earliest
+/// ported one: this rule checks a line of any release, and only this part waits for v0.10.0.
+fn moved(inputs: &Inputs, readme: &str) -> Vec<Finding> {
+    let from_v0_10 = match carried(readme) {
+        Some(Carried::Unreleased) => true,
+        Some(Carried::Release(release)) => release >= super::TEMPLATE_FINDINGS,
+        None => false,
+    };
+    if !from_v0_10 {
+        return Vec::new();
+    }
+    let (Some(now), Some(base)) = (release_of(readme), inputs.release_base.as_deref()) else {
+        return Vec::new();
+    };
+    let was = release_of(&String::from_utf8_lossy(base));
+    if was.as_deref() == Some(now.as_str()) {
+        return Vec::new();
+    }
+    let was = was
+        .filter(|w| w != "-")
+        .unwrap_or_else(|| "none".to_owned());
+    adr::named_headers(&inputs.adr)
+        .into_iter()
+        .filter(|(name, header)| {
+            name.starts_with("NUC-")
+                && header
+                    .field("Status")
+                    .is_some_and(|status| bash::contains(status, "🟡".as_bytes()))
+        })
+        .map(|(name, _)| Finding {
+            rule: RULE_ID,
+            reason: "proposed",
+            file: format!("docs/adr/{name}"),
+            line: None,
+            message: format!(
+                "proposed, and the change moves the Template release line from {was} to {now} — \
+                 a release carries only accepted NUC- ADRs (NUC-releases-are-semver-tags §8)"
+            ),
+        })
+        .collect()
+}
+
+/// The release the first Template release line names, as the bash's `release_of` reads it: the
+/// tag or `unreleased` as written, `-` for a line that names neither, none without a line.
+fn release_of(readme: &str) -> Option<String> {
+    let line = readme.split('\n').find(|line| is_release_line(line))?;
+    let value = after_label(line);
+    if !names_release(value) {
+        return Some("-".to_owned());
+    }
+    let value = value.strip_prefix(['[', '`']).unwrap_or(value);
+    let rest = value
+        .strip_prefix("unreleased")
+        .or_else(|| tag(value))
+        .unwrap_or(value);
+    Some(value[..value.len() - rest.len()].to_owned())
 }
 
 /// Whether the line is the label, after leading space and at most one list marker.
@@ -284,5 +350,51 @@ mod tests {
         assert_eq!(carried("# Project\n"), None);
         let two = readme("- **Template release:** v0.5.0\n- **Template release:** v0.6.0");
         assert_eq!(carried(&two), v(0, 5, 0));
+    }
+
+    #[test]
+    fn from_v0_10_0_a_moved_line_fails_at_each_proposed_nuc_adr() {
+        let nuc =
+            |status: &str| format!("# {RELEASES_ADR}: x\n\n- **Status:** {status}\n").into_bytes();
+        let moved = |now: &str, base: Option<&str>, status: &str| -> Vec<String> {
+            check(&Inputs {
+                readme: Some(readme(&format!("- **Template release:** {now}"))),
+                release_base: base.map(|b| readme(b).into_bytes()),
+                adr: [
+                    (format!("{RELEASES_ADR}.md"), nuc(status)),
+                    (
+                        format!("{}.md", crate::testing::cat_id("SEC", "x-rule")),
+                        nuc("🟡 proposed"),
+                    ),
+                ]
+                .into(),
+                ..Inputs::default()
+            })
+            .into_iter()
+            .map(|f| format!("{}: {}", f.file, f.message))
+            .collect()
+        };
+        let base = Some("- **Template release:** v0.9.1");
+        assert_eq!(
+            moved("v0.10.0", base, "🟡 proposed"),
+            [format!(
+                "docs/adr/{RELEASES_ADR}.md: proposed, and the change moves the Template release \
+                 line from v0.9.1 to v0.10.0 — a release carries only accepted NUC- ADRs \
+                 ({RELEASES_ADR} §8)"
+            )]
+        );
+        assert_eq!(
+            moved("unreleased", Some("No line."), "🟡 proposed").len(),
+            1
+        );
+        assert!(
+            moved("unreleased", Some("No line."), "🟡 proposed")[0]
+                .contains("from none to unreleased")
+        );
+        // The line as it was, an accepted base, no merge base, and a release before v0.10.0.
+        assert!(moved("v0.9.1", base, "🟡 proposed").is_empty());
+        assert!(moved("v0.10.0", base, "🟢 accepted").is_empty());
+        assert!(moved("v0.10.0", None, "🟡 proposed").is_empty());
+        assert!(moved("v0.9.2", base, "🟡 proposed").is_empty());
     }
 }

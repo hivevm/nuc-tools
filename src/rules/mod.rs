@@ -17,6 +17,7 @@ pub mod docs_check_lists;
 pub mod docs_inherited_adrs;
 pub mod docs_links;
 pub mod docs_no_draft_on_main;
+pub mod docs_opens_no_issue;
 pub mod docs_project_layout;
 pub mod docs_prose_width;
 pub mod docs_section_refs;
@@ -79,6 +80,12 @@ pub struct Inputs {
     pub markers: std::collections::BTreeMap<String, Vec<u8>>,
     /// The sensors and their self-tests, as `traceability/sensor-tests` reads them.
     pub sensors: traceability_sensor_tests::Sensors,
+    /// `README.md` at the merge base of `HEAD` with `origin/main`, else with `main`, empty where
+    /// that commit has none; none where neither has a merge base with `HEAD`.
+    pub release_base: Option<Vec<u8>>,
+    /// The rule keys the header of `scripts/check-docs.sh` lists, with the old keys it names for
+    /// them; none where the tree has no such file.
+    pub rule_keys: Option<std::collections::BTreeSet<String>>,
 }
 
 pub use crate::bash::read_lines;
@@ -108,7 +115,13 @@ pub const RELEASES: &[Version] = &[
     Version(0, 6, 1),
     Version(0, 7, 0),
     CATEGORY_IDENTIFIERS,
+    TEMPLATE_FINDINGS,
 ];
+
+/// The release from which a derived project sends its findings about the template by hand, the
+/// release line moves only over accepted `NUC-` ADRs, and each rule key of `scripts/check-docs.sh`
+/// an ADR names is one its header lists.
+pub const TEMPLATE_FINDINGS: Version = Version(0, 10, 0);
 
 /// The release from which an ADR is named `<CAT>-<slug>` by category, its file name its
 /// identifier, and the record no longer knows numbers, drafts, or inherited ADRs.
@@ -172,6 +185,10 @@ pub enum Input {
     Markers,
     /// The sensors of `scripts/`, their self-tests, and the ADR that decides the checks.
     Sensors,
+    /// `README.md` at the merge base with `main`.
+    ReleaseBase,
+    /// The rule keys of the header of `scripts/check-docs.sh`.
+    RuleKeys,
 }
 
 /// One rule: its ID, the reason `nuc explain` gives, what it reads, and the check.
@@ -254,6 +271,7 @@ pub const ALL: &[Rule] = &[
     docs_template_identity::RULE,
     docs_prose_width::RULE,
     docs_no_draft_on_main::RULE,
+    docs_opens_no_issue::RULE,
     docs_template_release::RULE,
     traceability_criteria::RULE,
     traceability_citations::RULE,

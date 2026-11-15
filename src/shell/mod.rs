@@ -449,8 +449,37 @@ fn read_traceability(
     Ok(())
 }
 
-/// What the rules of a record named by category read through git: the blobs of the base and the
-/// history of the deleted ADRs, each where a rule turned on needs it.
+/// The rule keys a header of `scripts/check-docs.sh` lists, as the bash reads its own from template
+/// release v0.10.0 on: up to the first line that opens with `set `, each line `#   <area>/<name>`,
+/// with the old keys a ` (was: <keys>)` after it names.
+fn rule_keys(text: &[u8]) -> std::collections::BTreeSet<String> {
+    static ITEM: std::sync::OnceLock<regex::bytes::Regex> = std::sync::OnceLock::new();
+    let item = ITEM.get_or_init(|| {
+        regex::bytes::Regex::new(r"(?-u)^#   ([a-z]+/[a-z0-9-]+)( \(was: ([^)]+)\))?$")
+            .expect("a valid pattern")
+    });
+    let mut keys = std::collections::BTreeSet::new();
+    for line in crate::bash::awk_lines(text) {
+        if line.starts_with(b"set ") {
+            break;
+        }
+        if let Some(c) = item.captures(line) {
+            let words = [c.get(1), c.get(3)].into_iter().flatten();
+            for word in words.flat_map(|w| {
+                w.as_bytes()
+                    .split(|&b| b == b',' || crate::bash::is_space(b))
+                    .filter(|w| !w.is_empty())
+            }) {
+                keys.insert(String::from_utf8_lossy(word).into_owned());
+            }
+        }
+    }
+    keys
+}
+
+/// What the rules read through git, and the header of `scripts/check-docs.sh`, each where a rule
+/// turned on needs it: the blobs of the base, the history of the deleted ADRs, `README.md` at the
+/// merge base with `main`, and the rule keys the header lists, none without the script.
 fn read_by_git(
     tree: &Tree,
     inputs: &mut Inputs,
@@ -463,7 +492,40 @@ fn read_by_git(
     if needs(Input::History) {
         inputs.history = read_history(&tree.root, carried)?;
     }
+    if needs(Input::ReleaseBase) {
+        inputs.release_base = read_release_base(&tree.root)?;
+    }
+    if needs(Input::RuleKeys) {
+        let script = tree.root.join("scripts/check-docs.sh");
+        inputs.rule_keys = if script.is_file() {
+            tree.read_bytes(&script)?.map(|text| rule_keys(&text))
+        } else {
+            None
+        };
+    }
     Ok(())
+}
+
+/// `README.md` at the merge base of `HEAD` with `origin/main`, else with `main`, as the bash's
+/// `main_merge_base` and `git show` read it from template release v0.10.0 on: a candidate that is
+/// no commit, or that has no merge base with `HEAD`, is passed over; a merge base without the file
+/// gives it empty. `git cat-file` reads the blob, which runs no textconv driver.
+fn read_release_base(root: &Path) -> Result<Option<Vec<u8>>, String> {
+    for candidate in ["origin/main", "main"] {
+        let commit = format!("{candidate}^{{commit}}");
+        if git::status_and_output(root, &["rev-parse", "-q", "--verify", &commit])?.0 != 0 {
+            continue;
+        }
+        let (code, out) = git::status_and_output(root, &["merge-base", candidate, "HEAD"])?;
+        if code != 0 {
+            continue;
+        }
+        let base = String::from_utf8_lossy(&out).trim().to_owned();
+        let (code, blob) =
+            git::status_and_output(root, &["cat-file", "blob", &format!("{base}:README.md")])?;
+        return Ok(Some(if code == 0 { blob } else { Vec::new() }));
+    }
+    Ok(None)
 }
 
 /// Whether the record is named by category: from template release v0.9.0 on, and for
@@ -532,6 +594,22 @@ fn explain(id: &str) -> Result<u8, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_rule_keys_of_the_header_are_read_with_their_old_keys_up_to_set() {
+        let text =
+            b"#!/usr/bin/env bash\n#   docs/adr-index\n#      prose\n#   docs/adr-identifiers \
+                     (was: docs/adr-numbering, docs/old)\nset -uo pipefail\n#   docs/after\n";
+        assert_eq!(
+            rule_keys(text).into_iter().collect::<Vec<_>>(),
+            [
+                "docs/adr-identifiers",
+                "docs/adr-index",
+                "docs/adr-numbering",
+                "docs/old"
+            ]
+        );
+    }
 
     #[test]
     fn a_finding_is_kept_without_a_release_line_only_when_every_release_reports_it() {

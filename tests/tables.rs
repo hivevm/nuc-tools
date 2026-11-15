@@ -12,18 +12,20 @@
 //! Beside what the tables describe, a case's tree gets what `nuc` needs and the bash does not: a
 //! `nuc.toml`, which `.git/info/exclude` keeps from git's list of files as the parity harness does,
 //! and, in the tables whose tree has no README, one naming the release `unreleased`, staged where
-//! the table stages its files. `nuc.toml` turns on the case's rule, or, for a case of every check
-//! and in the tables that name no rule, every rule of the table's area `nuc` knows; a rule `nuc`
-//! does not know is refused, and the case does not agree. The rules run as `unreleased`, the newest
-//! release `nuc` knows, which is the release of the copies once the port reaches it; until then, a
-//! case that release changed stands as pending. The scripts the steps of `check-shell.txt` write
-//! are stand-ins with the kind's name, and the copy of the template's `scripts/lib/` that table's
-//! tree holds is left out: `nuc` reads no script's content and no file below `scripts/lib/`
-//! (ARCH-rules-need-only-git). Until `nuc` knows a rule of the area `shell/`, that table's cases
-//! run no rule, and its passing cases decide nothing. Every tree starts on the branch `main`, which
-//! the bash of the traceability and the shell tables leaves to git's default and no case reads. The
-//! trees hold symbolic links, so the cases run on Unix; the pins and the list are held on every
-//! platform.
+//! the table stages its files; and, in the record table's tree, a stand-in `scripts/check-docs.sh`
+//! that holds only the rule keys of the header of the copies' release, which the bash reads from
+//! its own script and `docs/adr-refs` from the tree's. `nuc.toml` turns on the case's rule, or, for
+//! a case of every check and in the tables that name no rule, every rule of the table's area `nuc`
+//! knows; a rule `nuc` does not know is refused, and the case does not agree. The rules run as
+//! `unreleased`, the newest release `nuc` knows, which is the release of the copies once the port
+//! reaches it; until then, a case that release changed stands as pending. The scripts the steps of
+//! `check-shell.txt` write are stand-ins with the kind's name, and the copy of the template's
+//! `scripts/lib/` that table's tree holds is left out: `nuc` reads no script's content and no file
+//! below `scripts/lib/` (ARCH-rules-need-only-git). Until `nuc` knows a rule of the area `shell/`,
+//! that table's cases run no rule, and its passing cases decide nothing. Every tree starts on the
+//! branch `main`, which the bash of the traceability and the shell tables leaves to git's default
+//! and no case reads. The trees hold symbolic links, so the cases run on Unix; the pins and the
+//! list are held on every platform.
 
 // The runner and its helpers serve the cases alone, which run on Unix only; elsewhere they stand
 // unused, and the pins and the judgement still compile and run.
@@ -366,6 +368,7 @@ fn record_base(fixture: &Fixture) {
         )
         .write(".github/workflows/checks.yml", "jobs:\n  docs:\n    steps:\n      - run: bash scripts/check-docs.sh\n")
         .write("scripts/check-all.sh", "run \"Documentation consistency\" scripts/check-docs.sh\n")
+        .write("scripts/check-docs.sh", STAND_IN_HEADER)
         .write(
             "docs/adr/template.md",
             "# <CAT>-<slug>: title\n\n- **Status:** 🟡 proposed\n\n*Complete the header and delete this paragraph.*\n",
@@ -803,6 +806,16 @@ fn rules_of(case: &Case) -> Vec<String> {
 /// The README of the tables whose tree has none, which `nuc` needs to run at all.
 const STAND_IN_README: &str = "# Fixture\n\n- **Template release:** unreleased\n";
 
+/// The rule keys of the header of the template's `scripts/check-docs.sh` at the release of the
+/// copies, v0.11.0, which the bash reads from its own script and `docs/adr-refs` reads from the
+/// tree's: the record table's tree holds them as a stand-in script.
+const STAND_IN_HEADER: &str = "#!/usr/bin/env bash\n\
+#   docs/adr-index\n#   docs/adr-identifiers (was: docs/adr-numbering)\n#   docs/links\n\
+#   docs/section-refs\n#   docs/adr-refs\n#   docs/adr-link-targets\n#   docs/adr-header\n\
+#   docs/adr-supersessions\n#   docs/check-lists\n#   docs/project-layout\n\
+#   docs/skill-pointers\n#   docs/base-blobs\n#   docs/template-identity\n\
+#   docs/opens-no-issue\n#   docs/template-release\n#   docs/prose-width\nset -uo pipefail\n";
+
 /// Build the case's tree, run `nuc check` on it, and decide whether it agrees.
 fn run(case: &Case, n: usize) -> Run {
     let fixture = Fixture::new(&format!("table-{n}"));
@@ -932,7 +945,7 @@ fn judge(
                 "{at}: agrees now — take it out of tests/tables.cases"
             ));
         }
-        if reason.trim().is_empty() {
+        if !reason.chars().any(char::is_alphanumeric) {
             problems.push(format!(
                 "{at}: decided by {adr}, but the line gives no reason"
             ));

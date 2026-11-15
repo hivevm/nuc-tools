@@ -28,6 +28,7 @@ docs/adr-link-targets:other
 docs/adr-numbering:form
 docs/adr-numbering:gap
 docs/adr-numbering:heading
+docs/adr-refs:unlisted
 docs/adr-refs:unmatched
 docs/adr-supersessions:base
 docs/adr-supersessions:clause
@@ -60,6 +61,11 @@ docs/inherited-adrs:undecided
 docs/links:anchor
 docs/links:broken
 docs/no-draft-on-main:draft
+docs/opens-no-issue:api
+docs/opens-no-issue:cli
+docs/opens-no-issue:graphql
+docs/opens-no-issue:http
+docs/opens-no-issue:script
 docs/project-layout:absent
 docs/project-layout:empty
 docs/project-layout:missing
@@ -88,6 +94,7 @@ docs/template-identity:container
 docs/template-identity:convention
 docs/template-identity:copyright
 docs/template-identity:criterion
+docs/template-identity:finding
 docs/template-identity:instruction
 docs/template-identity:intro
 docs/template-identity:overview
@@ -101,6 +108,7 @@ docs/template-identity:unfilled
 docs/template-identity:usage
 docs/template-identity:why
 docs/template-release:line
+docs/template-release:proposed
 docs/template-release:version
 hook/commit-on-main:main
 hook/main-moves:main

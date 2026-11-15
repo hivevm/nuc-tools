@@ -41,8 +41,8 @@ fn json_carries_the_findings_of_the_text_in_order_with_the_same_exit_and_summary
          doc.md:1: docs/links: link 'x.md#q\"r' has no matching anchor '#q\"r' in x.md \
          [docs/links:anchor]\n\
          README.md: docs/template-release: no '**Template release:**' line — the Template section \
-         names the release of the template this repository carries, or 'unreleased' (ADR-0005) \
-         [docs/template-release:line]\n"
+         names the release of the template this repository carries, or 'unreleased' \
+         (NUC-releases-are-semver-tags §4) [docs/template-release:line]\n"
     );
     assert_eq!(code(&json), Some(1), "{}", stderr(&json));
     assert_eq!(
@@ -54,7 +54,8 @@ fn json_carries_the_findings_of_the_text_in_order_with_the_same_exit_and_summary
          \"message\":\"link 'x.md#q\\\"r' has no matching anchor '#q\\\"r' in x.md\"},\
          {\"rule\":\"docs/template-release\",\"reason\":\"line\",\"file\":\"README.md\",\"line\":null,\
          \"message\":\"no '**Template release:**' line — the Template section names the release \
-         of the template this repository carries, or 'unreleased' (ADR-0005)\"}],\
+         of the template this repository carries, or 'unreleased' (NUC-releases-are-semver-tags \
+         §4)\"}],\
          \"notes\":[]}\n"
     );
     assert_eq!(stderr(&json), stderr(&text));
