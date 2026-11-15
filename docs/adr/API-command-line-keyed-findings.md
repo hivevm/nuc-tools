@@ -34,7 +34,7 @@ only by their wording. `nuc` ports the releases that print the key.
 
 We will have `nuc` read `nuc.toml` as a strict subset of TOML holding `minimum` and `rules`,
 write each finding as one line `<file>[:<line>]: <rule ID>: <message> [<rule ID>:<reason>]` on the
-standard output, and exit 0 without a finding, 1 with findings, and 2 when it could not decide, and
+standard output, and exit 0 without a finding, 1 with findings, and 2 when it cannot decide, and
 have `nuc hook` alone also exit 3 or 4 where the hook passes so far and its shim runs a check.
 
 - **`nuc.toml`:** comments, blank lines, and two keys: `minimum`, a string `"X.Y.Z"`, and
@@ -45,7 +45,7 @@ have `nuc hook` alone also exit 3 or 4 where the hook passes so far and its shim
 - **Output:** findings on the standard output and nothing else there; the location of a finding of
   `nuc hook` is the ref the hook guards, such as `refs/heads/main`, where it guards no file; the
   summary, every refusal, and its message on the standard error, the message of a refusal a newer
-  `nuc` could resolve naming how to install or update it. The line is omitted where the rule names
+  `nuc` resolves naming how to install or update it. The line is omitted where the rule names
   none, as for a missing file.
 - **The key:** every finding, of `nuc check` and of `nuc hook` alike, carries a reason, one word
   of lower-case ASCII letters, and its line ends in a space and `[<rule ID>:<reason>]`, the key.

@@ -40,7 +40,7 @@ Windows runs hooks with the sh it bundles, and Q-4 tests with no bash on the `PA
 
 We will have a reference shim in POSIX sh hand each hook to `nuc hook <name>` with git's arguments
 and standard input. `nuc` decides everything the git state decides and answers with exit 0 (pass),
-1 (refuse), 2 (could not decide), 3 (pass so far, the hook's check runs now), or 4 (pass so far,
+1 (refuse), 2 (cannot decide), 3 (pass so far, the hook's check runs now), or 4 (pass so far,
 the documentation check runs now). The shim runs the hook's check on 3 and the documentation check
 on 4, and refuses on every code it does not name.
 
@@ -72,7 +72,7 @@ on 4, and refuses on every code it does not name.
   missing or for any other reason, is red.
 - **Exit codes of `nuc hook`:** 0, 1, and 2 as for every command; 3 only from a hook whose bash runs
   a check, and 4 only from `pre-commit`. A panic exits 101. The shim treats every code other than 0,
-  3, and 4 as a refusal, 101 and codes a later `nuc` might add included (Q-1). A shim of an earlier
+  3, and 4 as a refusal, 101 and codes a later `nuc` adds included (Q-1). A shim of an earlier
   contract, which knows no 4, refuses where a newer `nuc` answers it, so a commit is never let
   through unchecked.
 - **The green tree:**
@@ -84,8 +84,8 @@ on 4, and refuses on every code it does not name.
   - Once the checks pass, the shim calls `nuc hook pre-push --record` with git's variables as git
     handed them. That call moves the pending tree into `checks-green-trees` of the common git
     directory, the file and the limit of 50 the bash keeps, and computes no tree of its own.
-  - `--record` exits 0 when it recorded and when there was no pending tree, and 2 when it could
-    not write. The shim ignores its exit status and lets the push pass, as the bash ignores a
+  - `--record` exits 0 when it recorded and when there was no pending tree, and 2 when it cannot
+    write. The shim ignores its exit status and lets the push pass, as the bash ignores a
     failed write of the record: a lost record costs only a second run of the checks.
 - **Findings:** a refusal is a finding in the line form of API-command-line-keyed-findings, its
   key included,
@@ -100,7 +100,7 @@ on 4, and refuses on every code it does not name.
 - **Merge driver:** `.gitattributes` names the driver `adr-index` for `docs/adr/README.md`, and
   the git configuration `merge.adr-index.driver` names its shim. Git calls the shim with the base,
   ours, theirs, and the three labels, and `nuc` writes the merged file into ours. It exits 0 on a
-  merge, 1 on a conflict, and 2 when it could not decide; the shim passes the code through, and
+  merge, 1 on a conflict, and 2 when it cannot decide; the shim passes the code through, and
   git takes every non-zero code as a conflict.
 - **The shims:** one per hook of the template and one for the merge driver, under `shims/`, in
   POSIX sh. Each finds `nuc` on the `PATH`. Without it, the shim exits 1 with a message naming how
