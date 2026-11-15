@@ -4,23 +4,23 @@
 - **Date:** 2026-11-06
 - **Deciders:** Markus Brigl
 - **Applies to:** the keys and the syntax of `nuc.toml` and how `src/config.rs` reads them, the text output of every `nuc` command, and its exit codes
-- **Supersedes:** [API-command-line-contract](API-command-line-contract.md)
 
 ## Context
 
-`nuc` runs in the hooks and the CI of every derived project, and three things it shares with them
-outlive any release: the `nuc.toml` the template release ships
-([API-version-coupling](API-version-coupling.md), which leaves its format out of scope),
-the lines a finding is printed as, which editors, scripts, and the parity harness read
-([TEST-parity-harness](TEST-parity-harness.md)), and the exit codes the hooks and CI branch
-on. G-6 asks a finding to name its rule ID and `file:line`; G-5 and Q-1 ask every run that could
-not decide to fail closed with a message naming how to install `nuc`; Q-6 asks that an update of
-`nuc` never turn a green project red; Q-3 counts every dependency against the supply chain. A
-newer template release may add a key that an older `nuc` does not know, and that `nuc` must then
-say it is too old rather than guess. G-7 adds JSON and SARIF later. A hook whose bash runs the
-project's checks needs to tell its shim that they run now, and the standard output is taken by
-findings, and a hook's refusal guards a ref rather than a file
-([API-hook-contract](API-hook-contract.md)).
+`nuc` runs in the hooks and the CI of every derived project. Three things it shares with them
+outlive any release. The first is the `nuc.toml` the template release ships
+([API-version-coupling-hook-defaults](API-version-coupling-hook-defaults.md), which leaves its
+format out of scope). The second is the line a finding is printed as, which editors, scripts, and
+the parity harness read ([TEST-parity-harness](TEST-parity-harness.md)). The third is the exit codes
+the hooks and CI branch on. G-6 asks a finding to name its rule ID and `file:line`. G-5 and Q-1 ask
+every run that could not decide to fail closed with a message naming how to install `nuc`. Q-6 asks
+that an update of `nuc` never turn a green project red. Q-3 counts every dependency against the
+supply chain, and `nuc` depends on no crate. A newer template release may add a key that an older
+`nuc` does not know; that `nuc` then says it is too old and does not guess. The JSON and SARIF of
+G-7 stand beside the text
+([API-output-formats-short-description](API-output-formats-short-description.md)). A hook whose
+bash runs the project's checks tells its shim that they run now. The standard output is taken by
+findings, and a hook's refusal guards a ref, not a file ([API-hook-contract](API-hook-contract.md)).
 
 ## Decision
 
@@ -41,14 +41,17 @@ and exit 0 without a finding, 1 with findings, and 2 when it could not decide, a
   none, as for a missing file.
 - **Exit codes:** 0, 1, and 2 as above, for every command; every cause that keeps `nuc` from
   deciding exits 2, one code for all of them. A panic exits 101, non-zero as well. `nuc hook`
-  exits 3 where API-hook-contract says, and no other command does; its `--record` exits 0
-  or 2.
+  exits 3 where API-hook-contract says, and no other command does; its `--record` exits 0 or 2.
 
 **Out of scope:** the JSON and SARIF formats of G-7; options a rule may take; the wording of the
 messages, which may change in any release; the output of `nuc explain`, which is prose.
 
 ## Alternatives considered
 
+- **The codes 0, 1, and 2 for every command, `nuc hook` included, and a file as every location**
+  — the first contract of the command line, accepted on 2026-10-31. It left a hook no way to tell
+  its shim that the checks run now, and gave a refusal that guards a ref no location. The hook
+  contract needed both, so this ADR replaced it and kept every other clause.
 - **Ignoring an unknown key** — forward compatible without a version bump, but a key a newer
   template adds would be dropped silently by an older `nuc`, against Q-1.
 - **Refusing an unknown key before reading `minimum`** — the simplest parser, but an older `nuc`
@@ -61,8 +64,8 @@ messages, which may change in any release; the output of `nuc explain`, which is
   contract weighs both.
 - **One exit code per cause** — callers could branch on the cause, but every new cause would
   widen the contract, and the hooks and CI only ask whether to stop.
-- **JSON as the only output** — what G-7 adds; the line form is what a terminal, an editor's
-  `file:line` jump, and the bash checks' own users read today.
+- **JSON as the only output** — the line form is what a terminal, an editor's `file:line` jump,
+  and the bash checks' own users read; JSON and SARIF stand beside it under `--format`.
 
 ## Sources / Prior art
 
@@ -71,27 +74,26 @@ messages, which may change in any release; the output of `nuc explain`, which is
   found and output, above 1 when an error occurred; `nuc` reads a finding as a difference —
   <https://pubs.opengroup.org/onlinepubs/9799919799/utilities/diff.html>.
 - GNU Coding Standards, *Formatting Error Messages*, the form `file:line: message` that editors
-  parse —
-  <https://www.gnu.org/prep/standards/html_node/Errors.html>.
+  parse — <https://www.gnu.org/prep/standards/html_node/Errors.html>.
 
 ## Consequences
 
-- Positive: every run that could not decide fails closed with a cause (Q-1, G-5); an older `nuc`
-  meeting a newer template says it is too old; the parity harness and editors read one stable
-  line form (G-6, Q-2); no dependency is added (Q-3).
-- Negative / trade-offs: one command has a code the others lack and a location that is no file, and
-  a caller of `nuc hook` must refuse every code it does not name; a template release that adds a key
-  has to raise `minimum` with it; callers cannot tell the causes of exit 2 apart without reading the
+- Positive: every run that could not decide fails closed with a cause (Q-1, G-5). An older `nuc`
+  meeting a newer template says it is too old. The parity harness and editors read one stable line
+  form (G-6, Q-2). No dependency is added (Q-3).
+- Negative / trade-offs: one command has a code the others lack and a location that is no file,
+  and a caller of `nuc hook` refuses every code it does not name. A template release that adds a
+  key raises `minimum` with it. Callers cannot tell the causes of exit 2 apart without reading the
   message.
-- Follow-ups: the JSON and SARIF formats of G-7.
+- Follow-ups: none.
 
 ## Enforcement
 
-Tests cited with `Verifies: API-command-line-with-hook-signal` run `nuc` on fixture
-repositories and check each clause: a `nuc.toml` with an unknown key and a higher `minimum` refuses
-as too old; an unknown key, a key set twice, and another syntax refuse as unreadable, with exit 2
-and the install hint; a finding is the line form on the standard output and the summary is on the
-standard error; and the exit codes are 0, 1, and 2 for a clean tree, a finding, and a refusal. Tests
-cited with `Verifies: API-command-line-with-hook-signal` check that `nuc hook` exits
-3 only where a shim runs a check, that no other command exits 3, and that a refusal of `nuc hook`
-names the ref it guards as its location.
+Tests cited with `Verifies: API-command-line-with-hook-signal` run `nuc` on fixture repositories
+and check each clause. `tests/contract.rs` checks that a `nuc.toml` with an unknown key and a
+higher `minimum` refuses as too old; that an unknown key, a key set twice, and another syntax
+refuse as unreadable, with exit 2 and the install hint; that a finding is the line form on the
+standard output and the summary is on the standard error; and that the exit codes are 0, 1, and 2
+for a clean tree, a finding, and a refusal, and that no command but `nuc hook` exits 3.
+`tests/hooks.rs` checks that `nuc hook` exits 3 only where a shim runs a check, and that a refusal
+of `nuc hook` names the ref it guards as its location.

@@ -10,15 +10,16 @@
 
 The specification fixes the language: Rust stable with the toolchain pinned (*Constraints*).
 The supply chain asks for dependencies audited by `cargo deny` and `cargo audit` on every pull
-request, every ignored advisory with its reason (Q-3); the integrity of the gates asks that
-nothing passes when it could not decide (Q-1); hook latency is measured over 1,000 calls (Q-5).
-The project is small: one maintainer, agents working the tickets
+request, every ignored advisory with its reason (Q-3). The integrity of the gates asks that nothing
+passes when it could not decide (Q-1). Hook latency is measured over 1,000 calls (Q-5). The
+project is small: one maintainer, agents working the tickets
 ([DEV-one-agent-one-ticket](DEV-one-agent-one-ticket.md)).
 
 The catalogue entry *Toolchain* offers three forms. *The linter's own rules first* fits a
 one-person tool, and the design revision adds what the mistakes call for. *One tool per kind*
 adds a tool for each column of its table. *Mutation testing on a schedule* fits a quality goal
-that asks for tests that decide, as Q-1 does, but there is no code to mutate yet.
+that asks for tests that decide, as Q-1 does. The design revisions so far have called for neither
+mutation testing nor a duplication tool.
 
 `cargo deny check` and `cargo audit` both fetch the RustSec advisory database, so the script
 that runs them needs the network. [NUC-checks-are-bash §5](NUC-checks-are-bash.md) has every check
@@ -28,11 +29,11 @@ the pre-push hook runs it too.
 Q-4 asks that the full test suite pass in CI on Linux x64, Linux arm64, macOS, and Windows x64.
 A platform job outside the required checks lets a red platform through whenever nobody waits for
 it, although [`AGENTS.md` §5](../../AGENTS.md#5-quality-bar--definition-of-done) forbids merging
-red in CI. A job with a matrix reports one check run per entry, `<job> (<values>)`, which the
-required checks of `CONTRIBUTING.md` name that way (check 9 of `scripts/check-docs.sh`). The
-runners are not the bottleneck: the three platform runs take under a minute each, while the
-required `parity` job takes ten to fifteen. The repository is public, and GitHub's billing states
-that standard GitHub-hosted runners are free there.
+red in CI. A job with a matrix reports one check run per entry, `<job> (<values>)`. The required
+checks of `CONTRIBUTING.md` name it that way, which the rule `docs/check-lists` of
+`scripts/check-docs.sh` holds. The runners are not the bottleneck: the three platform runs take
+under a minute each, while the required `parity` job takes ten to fifteen. The repository is
+public, and GitHub's billing states that standard GitHub-hosted runners are free there.
 
 ## Decision
 
@@ -62,10 +63,9 @@ a job of `checks.yml` among the required checks and a `run` line of `scripts/che
     rustc's `dead_code` through `-D warnings`; `scripts/sensor-tests-kept.sh`, which knows
     `#[ignore]`; duplication: none yet.
   - *Architecture fitness:* `cargo deny`'s `bans`, and the structural test of the shape of the
-    code, which the decision on the shape names.
+    code, which [ARCH-rules-outcome-hooks-answer](ARCH-rules-outcome-hooks-answer.md) names.
 - **Benchmark:** the measure of Q-5 runs in a workflow of its own on a schedule, not in
-  `checks.yml`. It lands with the port of the hooks, in the change that adds
-  `nuc hook reference-transaction`, the command it measures.
+  `checks.yml`: `.github/workflows/benchmark.yml`, which measures `nuc hook reference-transaction`.
 
 **Out of scope:** which platforms Q-4 names, a decision of the specification; a platform beyond
 the runner images GitHub hosts; mutation testing, which a design revision adds when the mistakes
@@ -73,13 +73,13 @@ call for it; a duplication tool; the test layout and harness, a decision of its 
 
 ## Alternatives considered
 
-- **`check-deps.sh` in CI only, and weekly** — keeps the network out of the pre-push hook, but a job
-  outside `scripts/check-all.sh` breaks the three lists NUC-checks-are-bash §5 holds together, and a
-  push would reach CI unaudited.
+- **`check-deps.sh` in CI only, and weekly** — keeps the network out of the pre-push hook. But a
+  job outside `scripts/check-all.sh` breaks the three lists NUC-checks-are-bash §5 holds together,
+  and a push would reach CI unaudited.
 - **Skip the audit when the network is down** — a pass on a database never fetched is the silent
   pass Q-1 forbids.
-- **Mutation testing with `cargo-mutants` on a schedule now** — there is no code to mutate; the
-  design revision adds it once there is.
+- **Mutation testing with `cargo-mutants` on a schedule now** — chosen when there was no code to
+  mutate. The design revision adds it once the mistakes call for it, and none has yet.
 - **A duplication tool (jscpd)** — none yet; the design revision adds it if duplication shows up.
 - **The Q-5 benchmark in `checks.yml`** — the runners' timing noise would gate every push on a
   number that moves without a change.
@@ -89,8 +89,9 @@ call for it; a duplication tool; the test layout and harness, a decision of its 
   template lists each platform's result for the human who merges. It reminds rather than
   decides, and a reminder is read or skipped like the result it repeats.
 - **Required, the workflow kept apart** — a workflow of its own whose three check runs are
-  required. Check 9 compares the required checks with the jobs of `checks.yml` alone, so the list
-  would have to stand outside its markers, unchecked, or the template's check would have to change.
+  required. The rule `docs/check-lists` compares the required checks with the jobs of `checks.yml`
+  alone, so the list would have to stand outside its markers, unchecked, or the template's check
+  would have to change.
 
 ## Sources / Prior art
 
@@ -114,31 +115,32 @@ call for it; a duplication tool; the test layout and harness, a decision of its 
 
 ## Consequences
 
-- Positive: one script per concern, run alike by the pre-push hook and CI; the toolchain is the
-  same on every machine; the audit cannot pass unseen (Q-1, Q-3); Q-4 gates every merge into
+- Positive: one script per concern, run alike by the pre-push hook and CI. The toolchain is the
+  same on every machine. The audit cannot pass unseen (Q-1, Q-3). Q-4 gates every merge into
   `main`, whoever waits for the platforms or does not.
 - Negative / trade-offs: a push without the network fails until it has one, or is pushed with
-  `--no-verify`, visibly; `cargo deny` and `cargo audit` overlap on advisories, which Q-3 accepts.
+  `--no-verify`, visibly. `cargo deny` and `cargo audit` overlap on advisories, which Q-3 accepts.
   A pull request waits for three more runners, though not longer than for `parity`. An outage of
-  one runner image blocks every merge until it recovers, or until a maintainer
-  bypasses the ruleset. No check compares the names of the check runs with the values of the
-  matrix: a label renamed in the matrix but not in `CONTRIBUTING.md` leaves the ruleset waiting
-  for a check run that never reports, and an entry dropped from the list runs unrequired.
-- Follow-ups: the benchmark workflow and its runner; mutation testing and a duplication tool, when
-  a design revision calls for them; whether a runner image that moves under its label, as
-  `macos-latest` does, should be pinned to a version; whether check 9 should read the values of a
-  matrix, a change of the template's check.
+  one runner image blocks every merge until it recovers, or until a maintainer bypasses the
+  ruleset. No check compares the names of the check runs with the values of the matrix. A label
+  renamed in the matrix but not in `CONTRIBUTING.md` leaves the ruleset waiting for a check run
+  that never reports, and an entry dropped from the list runs unrequired.
+- Follow-ups: mutation testing and a duplication tool, when a design revision calls for them;
+  whether a runner image that moves under its label, as `macos-latest` does, should be pinned to a
+  version; whether the rule `docs/check-lists` should read the values of a matrix, a change of the
+  template's check.
 
 ## Enforcement
 
-The golden path's tests cite this ADR with a `Verifies:` marker, and it flips to accepted with
-them. Check 9 of [`scripts/check-docs.sh`](../../scripts/check-docs.sh) fails while the build and
-deps jobs, the `run` lines of `scripts/check-all.sh`, and the required checks of `CONTRIBUTING.md`
-disagree, and when the list names the `portability` job, which has a matrix, by its bare name
-instead of its check runs. `scripts/sensor-repo-settings.sh`, run on a maintainer's instruction,
-reports a ruleset on `main` that differs from the list.
+The golden path's tests in `tests/check.rs` cite this ADR with
+`Verifies: OPS-rust-stable-behind-scripts`. The rule `docs/check-lists` of
+[`scripts/check-docs.sh`](../../scripts/check-docs.sh) fails while the build and deps jobs, the
+`run` lines of `scripts/check-all.sh`, and the required checks of `CONTRIBUTING.md` disagree. It
+also fails when the list names the `portability` job, which has a matrix, by its bare name instead
+of its check runs. `scripts/sensor-repo-settings.sh`, run on a maintainer's instruction, reports a
+ruleset on `main` that differs from the list.
 
 **Not mechanically decidable:** that the values and the number of the check runs the list names
-match the matrix of the job, which check 9 leaves to the workflow; and that the ruleset on GitHub
-requires them, which the settings sensor reports only when a maintainer runs it, since no test of
-this repository can reach the ruleset.
+match the matrix of the job, which the rule `docs/check-lists` leaves to the workflow; and that the
+ruleset on GitHub requires them, which the settings sensor reports only when a maintainer runs it,
+since no test of this repository can reach the ruleset.

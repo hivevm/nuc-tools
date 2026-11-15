@@ -18,12 +18,13 @@ hooks do run repository content, and they must:
 
 So the work is split. `nuc` decides from the git state, and something else runs the scripts.
 
-API-command-line-contract gives every command the exit codes 0, 1, and 2 and keeps the standard
-output for findings, so `nuc` has no way left to say "the checks run now". Git hands a hook its
-standard input once, so a second call cannot read the refs again. The bash hook decides the green
-tree before it clears git's variables and runs the checks, and records that same tree afterwards. A
-tree computed after the checks could differ, because a check may touch the working tree, or could be
-missing, because the variables of a linked worktree are already cleared.
+The command line gives every command the exit codes 0, 1, and 2 and keeps the standard output for
+findings, so "the checks run now" needs a code of its own, which
+[API-command-line-with-hook-signal](API-command-line-with-hook-signal.md) gives `nuc hook` alone.
+Git hands a hook its standard input once, so a second call cannot read the refs again. The bash
+hook decides the green tree before it clears git's variables and runs the checks, and records that
+same tree afterwards. A tree computed after the checks could differ, because a check may touch the
+working tree, or could be missing, because the variables of a linked worktree are already cleared.
 
 The bash hooks never read `nuc.toml` or the release line, and the fixtures of the template's hook
 self-test carry neither. The maintainer decided that a hook works without `nuc.toml`, on defaults.
@@ -75,16 +76,15 @@ project's check for that hook only on 3 and refuses on every code it does not na
   - `--record` exits 0 when it recorded and when there was no pending tree, and 2 when it could
     not write. The shim ignores its exit status and lets the push pass, as the bash ignores a
     failed write of the record: a lost record costs only a second run of the checks.
-- **Findings:** a refusal is a finding in the line form of API-command-line-contract, whose location for a hook is
-  the ref it guards, such as `refs/heads/main`, as the restatement of API-command-line-contract
-  admits. Its rule ID is in the area `hook/`. The check a hook runs is a `hook/` rule as well, so a
+- **Findings:** a refusal is a finding in the line form of API-command-line-with-hook-signal,
+  whose location for a hook is the ref it guards, such as `refs/heads/main`. Its rule ID is in
+  the area `hook/`. The check a hook runs is a `hook/` rule as well, so a
   `nuc.toml` that turns it off keeps the shim from running the check. Notices go to the standard
   error and decide nothing; they are no rule and are written whatever `nuc.toml` lists.
 - **`nuc.toml` and the release:** how `nuc hook` reads them, with and without `nuc.toml`, is the
-  *Hooks* clause of the restatement of API-version-coupling,
-  [API-version-coupling-hook-defaults](API-version-coupling-hook-defaults.md), and stated there
-  only. The exit code 3 and the ref as location are the restatement of API-command-line-contract,
-  [API-command-line-with-hook-signal](API-command-line-with-hook-signal.md).
+  *Hooks* clause of [API-version-coupling-hook-defaults](API-version-coupling-hook-defaults.md),
+  and stated there only. The exit code 3 and the ref as location are stated in
+  API-command-line-with-hook-signal.
 - **Merge driver:** `.gitattributes` names the driver `adr-index` for `docs/adr/README.md`, and
   the git configuration `merge.adr-index.driver` names its shim. Git calls the shim with the base,
   ours, theirs, and the three labels, and `nuc` writes the merged file into ours. It exits 0 on a
@@ -93,11 +93,11 @@ project's check for that hook only on 3 and refuses on every code it does not na
 - **The shims:** one per hook of the template and one for the merge driver, under `shims/`, in
   POSIX sh. Each finds `nuc` on the `PATH`. Without it, the shim exits 1 with a message naming how
   to install `nuc` from its releases
-  ([OPS-ships-binaries-feature-action](OPS-ships-binaries-feature-action.md)). A too old `nuc` is
+  ([OPS-feature-in-hivevm-features](OPS-feature-in-hivevm-features.md)). A too old `nuc` is
   reported by `nuc` itself from `nuc.toml`.
 
 **Out of scope:**
-- the names of the `hook/` rules, set by the ticket that ports each hook;
+- the names of the `hook/` rules, set where each hook was ported;
 - the wording of the messages, beyond what the scenario harness compares;
 - this repository's and the template's switch-over to the shims;
 - the installation of `nuc`.
@@ -107,8 +107,8 @@ project's check for that hook only on 3 and refuses on every code it does not na
 - **Two calls, no new exit code.** `nuc hook pre-push` refuses or passes, and a second call,
   `--needs-checks`, answers 0 or 1. The shim would have to buffer standard input, which git hands
   over once, and 1 would mean "no" here but "finding" everywhere else.
-- **A verdict on the standard output.** No new code would be needed, but API-command-line-contract
-  keeps the standard output for findings, and a shim would have to parse text.
+- **A verdict on the standard output.** No new code would be needed, but the command line keeps
+  the standard output for findings, and a shim would have to parse text.
 - **`nuc` runs the checks itself.** The shim would be the simplest, but `nuc` would execute
   repository content, against Q-7.
 - **The green-tree record left in the shim.** It is not ported and gets no parity, and the shim
@@ -132,8 +132,9 @@ project's check for that hook only on 3 and refuses on every code it does not na
   <https://git-scm.com/docs/gitattributes#_defining_a_custom_merge_driver>.
 - POSIX, *Shell Command Language*, the language of the shims:
   <https://pubs.opengroup.org/onlinepubs/9799919799/utilities/V3_chap02.html>.
-- The template's `.githooks/` and `scripts/test-git-hooks.sh` at v0.5.0 through v0.7.0, the
-  oracle: identical in behaviour, except the wording of the draft notice at v0.7.0.
+- The template's `.githooks/` and `scripts/test-git-hooks.sh` at v0.5.0 through v0.7.0 and at
+  v0.8.1, the releases the corpus pins, the oracle: identical in behaviour, except the wording of
+  the draft notice from v0.7.0 on; the hooks of v0.8.1 are those of v0.7.0.
 - pre-commit and lefthook, from memory and not checked here: both put a thin generated script in
   the hooks directory that hands over to an installed binary and fails when it is missing.
 
@@ -146,30 +147,27 @@ project's check for that hook only on 3 and refuses on every code it does not na
   - an unknown or crashing answer stops the hook (Q-1);
   - a commit, merge, or move of `main` that runs no check needs no bash.
 - Negative / trade-offs:
-  - `nuc hook` has one exit code more than every other command, so API-command-line-contract is
-    restated;
-  - the hooks read `nuc.toml` differently from `nuc check`, so API-version-coupling is restated;
+  - `nuc hook` has one exit code more than every other command, as
+    API-command-line-with-hook-signal states;
+  - the hooks read `nuc.toml` differently from `nuc check`, as API-version-coupling-hook-defaults
+    states;
   - the checks a hook runs stay bash until they are ported;
   - a second file in the git directory carries state between two calls, and a push the user
     aborts leaves it behind, which only a later push overwrites.
-- Follow-ups:
-  - the switch-over of the template's hooks to the shims;
-  - the wording of the glossary's *shim*, which places it in `.githooks/`.
+- Follow-ups: the switch-over of the template's hooks to the shims.
 
 ## Enforcement
 
-The scenario harness of
-[TEST-hook-scenario-parity](TEST-hook-scenario-parity.md) runs every hook through its shim,
-from the tracer of `docs/plan/hooks-port/` on.
+The scenario harness of [TEST-hook-scenario-parity](TEST-hook-scenario-parity.md) runs every hook
+through its shim.
 
-Tests in `tests/hooks.rs`, cited with `Verifies: API-hook-contract`, check, from the tracer
-for `pre-commit` and from the ticket of each further hook on:
+Tests in `tests/hooks.rs`, cited with `Verifies: API-hook-contract`, check:
 - that each shim exits non-zero on exit 1, 2, 101, and an unnamed code from a stand-in `nuc`, and
-  on a missing `nuc`, with the install message (the ticket that makes every shim fail closed);
+  on a missing `nuc`, with the install message;
 - that a shim runs its check only on 3, and that a red or unrunnable check refuses;
 - that a canary script stays unrun when `nuc hook <name>` is called directly;
 - that `--record` records the pending tree, not one computed after a check changed the working
-  tree, and that a failed `--record` lets the push pass (the ticket of `pre-push`);
+  tree, and that a failed `--record` lets the push pass;
 - that `nuc hook pre-commit` without `nuc.toml` refuses a commit on `main` and exits 0 on a
   branch, and with a `nuc.toml` that lists no `hook/` rule exits 0 on `main` and on a conflicted
   merge, without running the check.

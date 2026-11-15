@@ -17,10 +17,11 @@ so their output has to be mapped onto the IDs of `nuc` before it can be compared
 required checks one list.
 
 The trees of the corpus as pinned pass every check, so agreement there shows only that both pass a
-clean tree: a ported rule that never fires would agree as well. The port of `check-docs.sh` needs
-each check compared where it fires. The maintainer also limits the corpus to repositories on
-template release v0.5.0 or later, the release the rules are ported from; earlier releases are out of
-the port's scope.
+clean tree: a ported rule that never fires would agree as well. Each rule is therefore compared
+where it fires. The maintainer limits the corpus to repositories on template release v0.5.0 or
+later, the release the rules are ported from; earlier releases are out of the port's scope. Today
+the corpus pins the template at v0.5.0, v0.6.0, v0.6.1, v0.7.0, and v0.8.1, and derived
+repositories at fixed commits.
 
 Not every variant fits every tree of the corpus. Some checks are silent on some trees by design:
 checks 12 and 13 of `check-docs.sh` report nothing while `TEMPLATE-SETUP.md` exists, and the
@@ -75,7 +76,7 @@ retired, once the bash leaves the template.
 - **No variants, the pinned trees only** — the cheapest, but a rule that never fires agrees with
   the bash on a clean tree.
 - **Committed failing repositories in the corpus** — real trees, but each needs a repository kept
-  red on purpose; [TEST-fixtures-through-real-git](TEST-fixtures-through-real-git.md) keeps
+  red on purpose; [TEST-fixtures-with-own-home](TEST-fixtures-with-own-home.md) keeps committed
   repositories out of this one.
 - **Corpus repositories on any release** — wider, but each earlier release's checks would need
   rule IDs of their own for behaviour the maintainer leaves out of scope.
@@ -90,6 +91,8 @@ retired, once the bash leaves the template.
 ## Sources / Prior art
 
 - The template's checks, sensors, and hooks at its release tags, the oracle.
+- `scripts/check-parity.sh` and its tables beside the corpus: `tests/parity/corpus.toml`, the
+  variants of `tests/parity/variants.tsv`, and the map of `tests/parity/normalize.tsv`.
 - Mutation testing, which changes code to show a test fails on it; the variants change the input
   to show a check fires on it.
 
@@ -98,21 +101,25 @@ retired, once the bash leaves the template.
 - Positive: parity is a fact a check decides, on trees where each rule fires as well as where it
   passes (Q-2); the pins and the committed edits make a red run reproducible.
 - Negative / trade-offs: the pre-push hook needs the network until the cache is filled, and is
-  slower by the corpus and its variants; the harness runs on Linux only, where the bash runs; the
-  normalization table and the edits are code to maintain, and a mistake in either can hide a
-  difference both sides share.
-- Follow-ups: the format of the variants, set by the first ticket that uses them; moving the pins
-  with each template release; retiring the harness after the switch-over.
+  slower by the corpus and its variants. The harness runs its comparisons in parallel, one job per
+  processor or as many as `PARITY_JOBS` names, and replays their outputs in the order of the corpus
+  and the variants; every run computes every tree and variant anew, so nothing is skipped by a
+  cache of results. The harness runs on Linux only, where the bash runs. The normalization table
+  and the edits are code to maintain, and a mistake in either can hide a difference both sides
+  share.
+- Follow-ups: moving the pins with each template release; retiring the harness after the
+  switch-over.
 
 ## Enforcement
 
-The harness's own self-test, cited with a `Verifies:` marker of this ADR, feeds it a pair of
-outputs that differ in one finding, one exit status, and one unknown bash message, and checks
-that each fails, and a pair that agrees, and checks that it passes. It runs it on a corpus entry
-of a release before v0.5.0 and checks that it fails. It runs it on a variant that applies, and on
-one that names only the trees it applies to, and checks that both are compared. It runs it on a
-variant that does not apply to one of the trees, one that does not apply to a tree it names, one
-that names a tree the corpus lacks, one that does not make its rule fire, a ported rule without a
-variant, and a variant that reaches outside its copy, and checks that each fails.
-Check 9 of [`scripts/check-docs.sh`](../../scripts/check-docs.sh) holds the `parity` job, its
-`run` line, and the required checks of `CONTRIBUTING.md` together.
+The harness's own self-test, `scripts/test-check-parity.sh`, cited with a `Verifies:` marker of this
+ADR, feeds the harness pairs of outputs that differ in one finding, one exit status, and one unknown
+bash message, and checks that each fails. It feeds it a pair that agrees and checks that it passes.
+It runs the harness on a corpus entry of a release before v0.5.0 and checks that it fails. It runs
+it on a variant that applies, and on one that names only the trees it applies to, and checks that
+both are compared. It checks that each of the following fails: a variant that does not apply to one
+of the trees, one that does not apply to a tree it names, one that names a tree the corpus lacks,
+one that does not make its rule fire, a ported rule without a variant, and a variant that reaches
+outside its copy. In [`scripts/check-docs.sh`](../../scripts/check-docs.sh), the rule
+`docs/check-lists` holds the `parity` job, its `run` line in `scripts/check-all.sh`, and the
+required checks of `CONTRIBUTING.md` together.

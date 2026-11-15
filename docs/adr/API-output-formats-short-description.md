@@ -4,7 +4,6 @@
 - **Date:** 2026-11-08
 - **Deciders:** Markus Brigl
 - **Applies to:** the `--format` option of `nuc check`, the JSON and SARIF it writes and the code that writes them, and the tests that compare them with the text output
-- **Supersedes:** [API-output-formats](API-output-formats.md)
 
 ## Context
 
@@ -19,10 +18,8 @@ those lines, and a message may hold a colon. GitHub code scanning and other serv
 dependency against the supply chain, and `nuc` depends on no crate. A finding never names a path
 that is not UTF-8, since such a path is refused where a finding would name it, so every finding can
 be written as a JSON string. The rules return their findings to a functional core, and every effect
-is in the shell ([ARCH-rules-outcome-hooks-answer](ARCH-rules-outcome-hooks-answer.md)). This
-restates [API-output-formats](API-output-formats.md) with one clause changed: a rule's short
-description in the SARIF is the first sentence of its reason, as GitHub shows it in a list of
-alerts.
+is in the shell ([ARCH-rules-outcome-hooks-answer](ARCH-rules-outcome-hooks-answer.md)). GitHub
+shows a rule's short description in its list of alerts, where a reader scans for a concise line.
 
 ## Decision
 
@@ -89,9 +86,10 @@ the run as any failed write does.
   working tree, so that the log differs from machine to machine and shows a local path.
 - **No region where a finding names no line** — what SARIF allows, but GitHub's code scanning
   lists the start line as required and may not show such a result.
-- **The whole reason as the short description** — what API-output-formats decided; GitHub shows the
-  short description where a reader scans the list of alerts and calls it a concise description, and
-  the whole reason there repeats the full description word for word.
+- **The whole reason as the short description** — what the first ADR on the formats decided,
+  accepted on 2026-11-08 with every other clause of this one. GitHub shows the short description
+  where a reader scans the list of alerts and calls it a concise description, and the whole reason
+  there repeats the full description word for word, so this ADR replaced that clause.
 - **`--format` for every command** — `nuc hook` writes for its shim and `nuc explain` prose; no
   reader needs either as a document.
 
@@ -123,17 +121,17 @@ the run as any failed write does.
 
 ## Enforcement
 
-A test cited with `Verifies: API-output-formats-short-description` runs `nuc
-check` with each format on fixtures with findings, without a line, with messages of quotes,
-backslashes, control characters, and non-ASCII text, on a path with a space, a colon where the
-platform allows one, `#`, and `%`, and on one with a letter beyond ASCII, and without findings, and
-checks that the JSON and the SARIF carry the findings of the text output field for field and in
-order, that the exit code and the standard error are those of the text, and that an unreadable
-`nuc.toml` leaves the standard output empty. For the SARIF it checks `$schema`, `version`, the URI
-with no base, each rule the run turned on listed once with the first sentence of its reason as its
-short description and the whole reason as its full description and help, each `ruleIndex` pointing
-at its rule, the percent-encoded URI, and start line 1 where a finding names no line. Tests cited
-the same way run `--format` before and after `--repo`, with an unknown name, and twice. Unit tests
-of the writer check its escaping against RFC 8259, the first sentence of a reason with and without a
-second one and with a `. ` that a lower-case letter follows, and of the URI encoding against RFC
-3986. `tests/contract.rs` and the parity check hold the text output unchanged.
+A test cited with `Verifies: API-output-formats-short-description` runs `nuc check` with each
+format on fixtures with findings, without a line, with messages of quotes, backslashes, control
+characters, and non-ASCII text, on a path with a space, a colon where the platform allows one, `#`,
+and `%`, and on one with a letter beyond ASCII, and without findings. It checks that the JSON and
+the SARIF carry the findings of the text output field for field and in order, that the exit code and
+the standard error are those of the text, and that an unreadable `nuc.toml` leaves the standard
+output empty. For the SARIF it checks `$schema`, `version`, the URI with no base, each rule the run
+turned on listed once with the first sentence of its reason as its short description and the whole
+reason as its full description and help, each `ruleIndex` pointing at its rule, the
+percent-encoded URI, and start line 1 where a finding names no line. Tests cited the same way run
+`--format` before and after `--repo`, with an unknown name, and twice. Unit tests of the writer in
+`src/format.rs` check its escaping against RFC 8259, the first sentence of a reason with and
+without a second one and with a `. ` that a lower-case letter follows, and the URI encoding against
+RFC 3986. `tests/contract.rs` and the parity check hold the text output unchanged.

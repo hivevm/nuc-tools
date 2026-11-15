@@ -23,15 +23,16 @@ None of these is a tree's content, so TEST-parity-harness cannot compare a hook.
 The template pins what each hook refuses and passes in its hook self-test,
 `scripts/test-git-hooks.sh`:
 - 58 cases;
-- the same names at v0.5.0 through v0.7.0;
+- the same names at every release the corpus pins, v0.5.0 through v0.8.1, the hooks of v0.8.1
+  being those of v0.7.0;
 - each building a fixture repository, running one git command, and asserting the exit code and a
   substring of the message.
 
-The substrings are the bash wording. API-command-line-contract leaves the wording of `nuc` free, and
-G-6 asks for rule IDs, so a comparison has to map messages, as the tree harness does. Some `expect`
-cases assert no hook decision but its aftermath, such as that a refused fast-forward leaves `main`
-where it was. A hook's standard error mixes its own lines with git's and with the output of the
-check it ran, which the self-test asserts as well.
+The substrings are the bash wording. G-6 asks for rule IDs, and the wording of `nuc` is left free by
+[API-command-line-with-hook-signal](API-command-line-with-hook-signal.md), so a comparison maps
+messages, as the tree harness does. Some `expect` cases assert no hook decision but its aftermath,
+such as that a refused fast-forward leaves `main` where it was. A hook's standard error mixes its
+own lines with git's and with the output of the check it ran, which the self-test asserts as well.
 
 How a hook through `nuc` behaves is decided in [API-hook-contract](API-hook-contract.md):
 the shim, the exit codes, the green tree, and the defaults without `nuc.toml`.
@@ -47,7 +48,7 @@ any difference and on any case of a pinned release's hook self-test that no scen
 - **Scenarios:**
   - each names the cases of the hook self-test it covers, by the name its `expect` line gives;
   - it builds its fixture through the real git CLI, as
-    [TEST-fixtures-through-real-git](TEST-fixtures-through-real-git.md) has the tests build theirs;
+    [TEST-fixtures-with-own-home](TEST-fixtures-with-own-home.md) has the tests build theirs;
   - stand-in check scripts that exit as the scenario says decide what a hook finds, as the
     self-test's do.
 - **The release:**
@@ -76,7 +77,8 @@ any difference and on any case of a pinned release's hook self-test that no scen
 - **Run:**
   - from `scripts/check-parity.sh`, after the tree comparison, on Linux, in its job and from
     `scripts/check-all.sh`;
-  - with the built `nuc`, which SEC-gates-never-run-build allows the parity harness;
+  - with the built `nuc`, which [SEC-gates-never-run-build](SEC-gates-never-run-build.md) allows
+    the parity harness;
   - its fixtures live under a temporary directory of its own and never touch the cache.
 
 **Out of scope:**
@@ -88,8 +90,8 @@ any difference and on any case of a pinned release's hook self-test that no scen
 
 - **The template's self-test reused, with the shims in place of `.githooks/`.** The cheapest, and
   the cases are the oracle verbatim. But `nuc` would have to match the bash's substrings word for
-  word, which API-command-line-contract leaves free. The rule IDs would never be compared. A message
-  the self-test does not assert could differ unseen.
+  word, which API-command-line-with-hook-signal leaves free. The rule IDs would never be compared. A
+  message the self-test does not assert could differ unseen.
 - **Rust tests only, no bash side.** No harness to maintain, but nothing compares, and Q-2 asks
   for a comparison of every ported hook.
 - **Scenarios on every tree of the corpus.** A hook reads the git state, not the tree, and the
@@ -102,8 +104,12 @@ any difference and on any case of a pinned release's hook self-test that no scen
 
 - [TEST-parity-harness](TEST-parity-harness.md): the tree harness, its normalization table, and its
   rule that a pin cannot silently drop a comparison.
-- The template's `scripts/test-git-hooks.sh` at v0.5.0 through v0.7.0: 58 `expect` cases, the same
-  names in each, and the oracle the scenarios are named after.
+- The template's `scripts/test-git-hooks.sh` at v0.5.0 through v0.8.1: 58 `expect` cases, the same
+  names in each, and the oracle the scenarios are named after; the template's `.githooks/` at
+  v0.8.1, the same as at v0.7.0.
+- `tests/parity/hook-scenarios.sh`, the scenarios; `tests/parity/hooks.tsv`, the map of the hooks'
+  lines; `tests/parity/hook-cases.tsv`, the cases that are no case of a hook, each with its reason;
+  `scripts/lib/hook-parity.sh`, which runs them.
 - [githooks(5)](https://git-scm.com/docs/githooks): which git commands run which hook.
 
 ## Consequences
@@ -115,17 +121,17 @@ any difference and on any case of a pinned release's hook self-test that no scen
 - Negative / trade-offs:
   - the scenarios restate the self-test's setups in this repository, and both have to be kept
     together;
-  - each scenario runs git twice per pinned release, which makes the parity job slower;
+  - each scenario runs git three times per pinned release, once with the bash and twice with
+    `nuc`, which makes the parity job slower;
   - the harness runs on Linux only, where the bash runs.
 - Follow-ups:
   - retiring the harness after the switch-over;
-  - folding the two harnesses into one at a normalization, if they grow alike.
+  - folding the two harnesses into one at a later normalization, if they grow alike.
 
 ## Enforcement
 
 The harness's own self-test, `scripts/test-check-parity.sh`, cited with
-`Verifies: TEST-hook-scenario-parity` and extended by the tracer of `docs/plan/hooks-port/`,
-checks that each of the following fails:
+`Verifies: TEST-hook-scenario-parity`, checks that each of the following fails:
 - a stand-in `nuc` whose exit status differs from the bash in one scenario;
 - one whose refusal maps to another rule ID;
 - one that agrees without `nuc.toml` and differs with it;

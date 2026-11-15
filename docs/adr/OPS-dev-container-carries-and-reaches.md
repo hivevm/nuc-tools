@@ -4,47 +4,41 @@
 - **Date:** 2026-11-15
 - **Deciders:** Markus Brigl
 - **Applies to:** `.devcontainer/devcontainer.json`, `.devcontainer/devcontainer-lock.json`, `.devcontainer/install-shellcheck.sh`, `.devcontainer/compose.yaml`, every Compose file of a development tool run on the host, every tool the container installs, and the steps of `.github/workflows/checks.yml` that install the same tools
-- **Supersedes:** [OPS-dev-container-adds-rust](OPS-dev-container-adds-rust.md)
 
 ## Context
 
 The work runs in the Dev Container the template ships, under
-[NUC-container-hides-host-daemon](NUC-container-hides-host-daemon.md), which keeps the host's
+[NUC-container-hides-host-daemon](NUC-container-hides-host-daemon.md). That ADR keeps the host's
 socket out of reach and leaves the base image, the Features, and the way to any container to the
 project. The toolchain is Rust, pinned in `rust-toolchain.toml`
-([OPS-rust-stable-behind-scripts](OPS-rust-stable-behind-scripts.md)); the parity harness needs
+([OPS-rust-stable-behind-scripts](OPS-rust-stable-behind-scripts.md)). The parity harness needs
 bash 4.4 or later and the GNU tools, which the Debian base image carries
-([TEST-parity-harness](TEST-parity-harness.md)); the tests need git and no other container
-([TEST-fixtures-through-real-git](TEST-fixtures-through-real-git.md)).
+([TEST-parity-harness](TEST-parity-harness.md)). The tests need git and no other container
+([TEST-fixtures-with-own-home](TEST-fixtures-with-own-home.md)).
 
-[OPS-dev-container-adds-rust](OPS-dev-container-adds-rust.md) decided the base image and the Rust
-Feature, and "no container engine and no Compose services", and left the cargo tools out of scope.
-Three things have moved since:
+The local gate and CI decide the same way only where they run the same tools (Q-1 of
+[`docs/SPECIFICATION.md`](../SPECIFICATION.md)). Two kinds of tool the checks run come from
+neither the base image nor a Feature:
 
-- **A stack on the host.** Since pull request #82 the repository carries
-  `.devcontainer/compose.yaml`, a telemetry stack (an OpenTelemetry Collector, ClickHouse, and
-  Grafana) that a developer starts on the host, apart from the container. The container reaches
-  the Collector through the host's network, over a port the stack publishes. The container still
-  has no engine, no socket, and no `dockerComposeFile`, and the old ADR's test passes; its title
-  ("reaches no containers") no longer says what holds. The review of #82 found the conflict, and
-  the maintainer left it as follow-up work.
-- **ShellCheck.** The container installed ShellCheck from the base image's Debian archive and the
-  shell job of CI used the runner image's, and the two reported a warning under different codes:
-  the shell job failed on a script that was clean in the container (e81aead), which the pre-push
-  hook cannot catch. Both now install one release, pinned by version and by the SHA-256 of its
-  archives in `.devcontainer/install-shellcheck.sh`. That moves
-  the source from a signed distribution archive to a release binary of the upstream project.
-- **The cargo tools.** The container builds cargo-deny and cargo-audit with
-  `cargo install --locked` at the versions the deps job of CI installs, so that
-  `scripts/check-deps.sh` runs in the pre-push hook as it does in CI. No ADR decided it.
+- **ShellCheck.** `scripts/check-shell.sh` lints with it. The container once took it from the
+  base image's Debian archive and the shell job of CI from the runner image. The two reported one
+  warning under different codes, and the shell job failed on a script that was clean in the
+  container (e81aead). The pre-push hook cannot catch that. Both now install one release, pinned
+  by version and by the SHA-256 of its archives in `.devcontainer/install-shellcheck.sh`. The
+  source is a release binary of the upstream project, not a signed distribution archive.
+- **The cargo tools.** `scripts/check-deps.sh` runs cargo-deny and cargo-audit in the pre-push
+  hook and in the deps job of CI. The container builds both with `cargo install --locked`, at the
+  versions the deps job installs.
 
-The force behind the last two is Q-1 of [`docs/SPECIFICATION.md`](../SPECIFICATION.md): the local
-gate and CI decide the same way only where they run the same tools.
+Beside the container, `.devcontainer/compose.yaml` holds a telemetry stack: an OpenTelemetry
+Collector, ClickHouse, and Grafana. A developer starts it on the host, apart from the container
+(pull request #82). The container reaches the Collector through the host's network, over a port
+the stack publishes. The container has no engine, no socket, and no `dockerComposeFile`.
 
-The three are one decision because they share one boundary: what the Dev Container carries
-itself, and what it reaches outside itself. A tool the checks run is carried, at CI's version; a
-tool that needs containers is reached, on the host. Each clause below places a tool on one side
-of that boundary, and one *Applies to* routes every change of it here.
+These are one decision because they share one boundary: what the Dev Container carries itself,
+and what it reaches outside itself. A tool the checks run is carried, at CI's version. A tool
+that needs containers is reached, on the host. Each clause below places a tool on one side of
+that boundary, and one *Applies to* routes every change of it here.
 
 ## Decision
 
@@ -83,6 +77,13 @@ CI's version, start no container, and reach a tool that needs containers only on
 
 ## Alternatives considered
 
+- **The base image and the Rust Feature alone, reaching no containers, the check tools out of
+  scope** — the record of 2026-10-31. It decided the base, the Feature, and "no container engine
+  and no Compose services", and left the cargo tools to the toolchain's job. It did not stand:
+  the base image and the runner image each brought their own ShellCheck, and the two drifted apart
+  (e81aead); the container built cargo-deny and cargo-audit at CI's versions with no decision
+  behind it; and once the telemetry stack ran on the host (#82), its title, "reaches no
+  containers", no longer said what holds.
 - **A `Dockerfile` with Rust and the tools preinstalled** — one more file to maintain and update,
   where a Feature pinned by the lock and a pinned install on creation do the same.
 - **ShellCheck from the Debian archive, as before** — a signed source, but its version follows the
@@ -129,20 +130,15 @@ CI's version, start no container, and reach a tool that needs containers only on
 - Negative / trade-offs: ShellCheck's source is trusted on first use, not signed; the pins age
   until someone moves them; a container built before a change of a pin keeps the old version until
   it is rebuilt; the container is Linux, so macOS and Windows are tested in CI only (Q-4).
-- Follow-ups:
-  - Once this ADR is accepted, the comment of `devcontainer.json` and the test of the definition
-    move from OPS-dev-container-adds-rust to it; the header of that test also drops its stale
-    numbered reference.
-  - [SEC-gates-never-run-build](SEC-gates-never-run-build.md) is accepted and keeps its citation
-    of OPS-dev-container-adds-rust. The superseded ADR's file stays, so the link holds.
+- Follow-ups: none.
 
 ## Enforcement
 
 `scripts/check-devcontainer.sh` holds the pin and the lock of every Feature and refuses a host
-socket (NUC-container-hides-host-daemon §2, §3). Three tests will cite
+socket (NUC-container-hides-host-daemon §2, §3). Three tests cite
 `Verifies: OPS-dev-container-carries-and-reaches`:
 
-- The test of the definition in `tests/devcontainer.rs`, extended, reads
+- The test of the definition in `tests/devcontainer.rs` reads
   `.devcontainer/devcontainer.json`. It fails unless the definition names the Debian base image
   and the Rust Feature (clause 1). It fails on a `dockerComposeFile` or a Feature that brings a
   container engine (clause 4). It fails unless each `cargo install` of the `postCreateCommand`
