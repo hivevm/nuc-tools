@@ -19,8 +19,10 @@
 # that does not apply to one tree, one that does not make its rule fire beyond the tree's own
 # findings, a ported rule without one, a path outside the tree, a sed expression that runs a
 # command or writes a file, a name used twice, and a malformed or unmapped row; a 'chomp' applies
-# and is compared, does not apply to a file without a last newline, and takes '-' alone. No
-# network and no build.
+# and is compared, does not apply to a file without a last newline, and takes '-' alone. The pin
+# cases pass a pin of a copied fixture table that the tag of a template tree bears out, and fail
+# one the tag does not, one whose tag cannot be read, and one without a template tree. No network
+# and no build.
 #
 # The hook cases run the scenarios alone, through '--hooks', on a tree of the template whose bash
 # pre-commit refuses a commit on main, with the reference shim and a stand-in nuc: an agreeing
@@ -293,6 +295,10 @@ DEFAULT="$(variants "$work/default.tsv" "# The variant of the one ported rule." 
 # The table of the repository with the rows of docs/template-release alone, the one rule the
 # fixtures carry.
 grep -E $'^#|\tdocs/template-release\t' "$ROOT/tests/parity/normalize.tsv" > "$work/one-rule.tsv"
+# No pin of a copied fixture table, but where a case gives one: the fixtures' corpora hold no tag of
+# a template release.
+: > "$work/no-blobs"
+export PARITY_TABLE_BLOBS="$work/no-blobs"
 
 # run <corpus> <nuc> [variants] — the harness on the corpus, with the default variant unless given.
 # shellcheck disable=SC2317,SC2329 # run through expect
@@ -311,6 +317,29 @@ check "the variant leaves the cached tree as pinned" \
   bash -c "test -z \"\$(git -C \"$work/cache/agree\" status --porcelain --untracked-files=no)\""
 
 expect fail "a corpus on which they differ" "variant deleted — 2 difference" run "$c" "$(stand_in silent)"
+
+# The pins of the copied fixture tables (TEST-cases-from-template-tables): a tree of the template,
+# TEMPLATE-SETUP.md in it, whose tag v9.9.9 the harness fetches from its source through file://.
+src="$(source_repo tables)"
+mkdir -p "$src/scripts/fixtures" && echo "a case" > "$src/scripts/fixtures/t.txt"
+echo "# Template setup" > "$src/TEMPLATE-SETUP.md"
+git -C "$src" add -A
+git -C "$src" -c user.name=F -c user.email=f@example.invalid -c core.hooksPath=/dev/null commit -q -m tables
+git -C "$src" tag v9.9.9
+git -C "$src" rev-parse HEAD > "$work/src-tables.commit"
+tables="$(corpus "$work/tables.toml" tables)"
+printf 'v9.9.9 %s t.txt\n' "$(git -C "$src" rev-parse v9.9.9:scripts/fixtures/t.txt)" > "$work/blobs-good"
+printf 'v9.9.9 %s t.txt\n' "$(printf 'other\n' | git hash-object --stdin)" > "$work/blobs-other"
+sed 's/^v9.9.9/v9.9.8/' "$work/blobs-good" > "$work/blobs-no-tag"
+# pinned <blobs> <corpus> — the harness on the corpus, the pins those of the file.
+# shellcheck disable=SC2317,SC2329 # run through expect
+pinned() { PARITY_TABLE_BLOBS="$1" run "$2" "$(reactive_nuc)"; }
+expect pass "a pin the template's tag bears out" "" pinned "$work/blobs-good" "$tables"
+expect fail "a pin the template's tag does not bear out" "t.txt is not the blob v9.9.9 holds at scripts/fixtures/t.txt" \
+  pinned "$work/blobs-other" "$tables"
+expect fail "a pin whose tag cannot be read" "the tag v9.9.8 cannot be read" pinned "$work/blobs-no-tag" "$tables"
+expect fail "a pin without a tree of the template in the corpus" "no tree of the template in the corpus" \
+  pinned "$work/blobs-good" "$c"
 
 source_repo trace-fails "" 'echo "Traceability check FAILED:"; exit 1' > /dev/null
 expect fail "a script that fails without a finding fails the harness, though the other passes" \

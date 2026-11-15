@@ -29,6 +29,14 @@ v0.10.0 joins the releases at which a ported check changed.
 - [ ] Given `docs/opens-no-issue`, when the contract test runs, then the ID is listed and ships
       off.
 
+## Open
+
+- The case 'no README to carry the Template release line' of `tests/tables/check-docs-record.txt`
+  expects `docs/template-release:absent`, but `nuc` refuses a tree without a README before any rule
+  runs (API-version-coupling-hook-defaults), so it cannot agree. TEST-cases-from-template-tables
+  knows no status for a case an ADR in force decides otherwise; it stands as pending on this ticket
+  until the human settles it, by a superseding ADR or otherwise.
+
 ## Read first
 
 - Touches: `src/rules/docs_adr_refs.rs`, `src/rules/docs_template_release.rs`,

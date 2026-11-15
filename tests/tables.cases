@@ -1,0 +1,106 @@
+# The cases of the copies under tests/tables/ that do not agree with nuc, read by tests/tables.rs
+# (TEST-cases-from-template-tables): '<table> | <case name> | <rule> | <status>' a line, the table
+# without '.txt', the status 'pending <ticket>', the ticket under docs/plan/ that ports the
+# case, or 'not ported <reason>', for a rule nuc leaves to the bash (ARCH-rules-need-only-git).
+
+check-docs-record | a GET to the issues endpoint with a field | docs/opens-no-issue | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
+check-docs-record | a POST to the issues endpoint by -X, the endpoint on a continuation line | docs/opens-no-issue | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
+check-docs-record | a base ADR listed in the index | docs/adr-index | pending docs/plan/port-v0-9-to-v0-11/04-the-record-rules-read-the-new-identifiers.md
+check-docs-record | a base and AGENTS.md unchanged since their blob list | docs/base-blobs | pending docs/plan/port-v0-9-to-v0-11/05-the-fixed-base-and-its-roles.md
+check-docs-record | a base file changed after its list was written | docs/base-blobs | pending docs/plan/port-v0-9-to-v0-11/05-the-fixed-base-and-its-roles.md
+check-docs-record | a base file the list does not name | docs/base-blobs | pending docs/plan/port-v0-9-to-v0-11/05-the-fixed-base-and-its-roles.md
+check-docs-record | a base without a list and no fork named | docs/base-blobs | pending docs/plan/port-v0-9-to-v0-11/05-the-fixed-base-and-its-roles.md
+check-docs-record | a base without the release line counts as none | docs/template-release | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
+check-docs-record | a category key not in capitals, visible to the check | docs/adr-identifiers | pending docs/plan/port-v0-9-to-v0-11/03-adrs-named-by-category-and-slug.md
+check-docs-record | a category nobody defined | docs/adr-identifiers | pending docs/plan/port-v0-9-to-v0-11/03-adrs-named-by-category-and-slug.md
+check-docs-record | a category of the project's list | docs/adr-identifiers | pending docs/plan/port-v0-9-to-v0-11/03-adrs-named-by-category-and-slug.md
+check-docs-record | a change that moves the release line while a NUC- ADR is proposed | docs/template-release | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
+check-docs-record | a clause citation of a missing ADR | docs/adr-refs | pending docs/plan/port-v0-9-to-v0-11/04-the-record-rules-read-the-new-identifiers.md
+check-docs-record | a comment line that names the command | docs/opens-no-issue | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
+check-docs-record | a deleted ADR whose identifier nobody takes again | docs/adr-identifiers | pending docs/plan/port-v0-9-to-v0-11/03-adrs-named-by-category-and-slug.md
+check-docs-record | a derived project that edits AGENTS.md | docs/base-blobs | pending docs/plan/port-v0-9-to-v0-11/05-the-fixed-base-and-its-roles.md
+check-docs-record | a description only nested under metadata | docs/skill-pointers | pending docs/plan/port-v0-9-to-v0-11/06-section-refs-and-skill-pointers.md
+check-docs-record | a file outside the scripts, hooks, workflows, and skills | docs/opens-no-issue | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
+check-docs-record | a first line that is not the opening fence | docs/skill-pointers | pending docs/plan/port-v0-9-to-v0-11/06-section-refs-and-skill-pointers.md
+check-docs-record | a fixture table, which no one runs | docs/opens-no-issue | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
+check-docs-record | a fork that names no release | docs/base-blobs | pending docs/plan/port-v0-9-to-v0-11/05-the-fixed-base-and-its-roles.md
+check-docs-record | a fork without a list, the README naming the release it forked | docs/base-blobs | pending docs/plan/port-v0-9-to-v0-11/05-the-fixed-base-and-its-roles.md
+check-docs-record | a front matter never closed | docs/skill-pointers | pending docs/plan/port-v0-9-to-v0-11/06-section-refs-and-skill-pointers.md
+check-docs-record | a header field that is no list item | docs/adr-header | pending docs/plan/port-v0-9-to-v0-11/05-the-fixed-base-and-its-roles.md
+check-docs-record | a heading that names another identifier | docs/adr-identifiers | pending docs/plan/port-v0-9-to-v0-11/03-adrs-named-by-category-and-slug.md
+check-docs-record | a hook that creates an issue by the alias new | docs/opens-no-issue | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
+check-docs-record | a leading zero, which SemVer forbids | docs/template-release | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
+check-docs-record | a line whose file is gone | docs/base-blobs | pending docs/plan/port-v0-9-to-v0-11/05-the-fixed-base-and-its-roles.md
+check-docs-record | a link that cites one ADR and points at another | docs/adr-link-targets | pending docs/plan/port-v0-9-to-v0-11/04-the-record-rules-read-the-new-identifiers.md
+check-docs-record | a link to the documentation of issues in a skill | docs/opens-no-issue | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
+check-docs-record | a list of clauses after one identifier, in Markdown | docs/section-refs | pending docs/plan/port-v0-9-to-v0-11/06-section-refs-and-skill-pointers.md
+check-docs-record | a list of clauses after one identifier, in a script | docs/section-refs | pending docs/plan/port-v0-9-to-v0-11/06-section-refs-and-skill-pointers.md
+check-docs-record | a list that names the NUC- files only | docs/base-blobs | pending docs/plan/port-v0-9-to-v0-11/05-the-fixed-base-and-its-roles.md
+check-docs-record | a list written out with another identifier | docs/base-blobs | pending docs/plan/port-v0-9-to-v0-11/05-the-fixed-base-and-its-roles.md
+check-docs-record | a list written out with the git blob identifier of each file's content | docs/base-blobs | pending docs/plan/port-v0-9-to-v0-11/05-the-fixed-base-and-its-roles.md
+check-docs-record | a name that is not the skill's directory | docs/skill-pointers | pending docs/plan/port-v0-9-to-v0-11/06-section-refs-and-skill-pointers.md
+check-docs-record | a narrowing of a missing clause | docs/adr-supersessions | pending docs/plan/port-v0-9-to-v0-11/04-the-record-rules-read-the-new-identifiers.md
+check-docs-record | a numbered ADR file left from before the migration | docs/adr-identifiers | pending docs/plan/port-v0-9-to-v0-11/03-adrs-named-by-category-and-slug.md
+check-docs-record | a project ADR superseding a base ADR | docs/adr-supersessions | pending docs/plan/port-v0-9-to-v0-11/04-the-record-rules-read-the-new-identifiers.md
+check-docs-record | a project category cited and missing | docs/adr-refs | pending docs/plan/port-v0-9-to-v0-11/04-the-record-rules-read-the-new-identifiers.md
+check-docs-record | a project's own script after the setup, no file of the template | docs/opens-no-issue | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
+check-docs-record | a proposed ADR that names a missing key among keys that exist | docs/adr-refs | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
+check-docs-record | a proposed row in the archive table | docs/adr-index | pending docs/plan/port-v0-9-to-v0-11/04-the-record-rules-read-the-new-identifiers.md
+check-docs-record | a rejected row in the binding table | docs/adr-index | pending docs/plan/port-v0-9-to-v0-11/04-the-record-rules-read-the-new-identifiers.md
+check-docs-record | a release line that says 'not forked' | docs/base-blobs | pending docs/plan/port-v0-9-to-v0-11/05-the-fixed-base-and-its-roles.md
+check-docs-record | a row both sides of a union merge kept | docs/adr-index | pending docs/plan/port-v0-9-to-v0-11/04-the-record-rules-read-the-new-identifiers.md
+check-docs-record | a row without its file | docs/adr-index | pending docs/plan/port-v0-9-to-v0-11/04-the-record-rules-read-the-new-identifiers.md
+check-docs-record | a script of the template that creates an issue with gh | docs/opens-no-issue | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
+check-docs-record | a skill that posts to the issues endpoint with --method | docs/opens-no-issue | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
+check-docs-record | a slug of one word | docs/adr-identifiers | pending docs/plan/port-v0-9-to-v0-11/03-adrs-named-by-category-and-slug.md
+check-docs-record | a slug of six words | docs/adr-identifiers | pending docs/plan/port-v0-9-to-v0-11/03-adrs-named-by-category-and-slug.md
+check-docs-record | a slug with capitals and an underscore | docs/adr-identifiers | pending docs/plan/port-v0-9-to-v0-11/03-adrs-named-by-category-and-slug.md
+check-docs-record | a step of actions/github-script that creates an issue | docs/opens-no-issue | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
+check-docs-record | a step that uses an action creating an issue | docs/opens-no-issue | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
+check-docs-record | a workflow step that posts fields to the issues endpoint | docs/opens-no-issue | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
+check-docs-record | a wrapped Supersedes field, the name on the second line not flipped | docs/adr-supersessions | pending docs/plan/port-v0-9-to-v0-11/04-the-record-rules-read-the-new-identifiers.md
+check-docs-record | after the setup, no harness ADR | docs/template-identity | pending docs/plan/port-v0-9-to-v0-11/05-the-fixed-base-and-its-roles.md
+check-docs-record | after the setup, two accepted harness ADRs | docs/template-identity | pending docs/plan/port-v0-9-to-v0-11/05-the-fixed-base-and-its-roles.md
+check-docs-record | an ADR a merged side branch deleted and wrote anew, as a normalization does | docs/adr-identifiers | pending docs/plan/port-v0-9-to-v0-11/03-adrs-named-by-category-and-slug.md
+check-docs-record | an ADR a merged side branch deleted, taken again | docs/adr-identifiers | pending docs/plan/port-v0-9-to-v0-11/03-adrs-named-by-category-and-slug.md
+check-docs-record | an ADR accepted, the old one not flipped | docs/adr-supersessions | pending docs/plan/port-v0-9-to-v0-11/04-the-record-rules-read-the-new-identifiers.md
+check-docs-record | an ADR without its row | docs/adr-index | pending docs/plan/port-v0-9-to-v0-11/04-the-record-rules-read-the-new-identifiers.md
+check-docs-record | an accepted ADR that names a rule key the header of check-docs.sh lacks | docs/adr-refs | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
+check-docs-record | an extension of a project ADR | docs/adr-supersessions | pending docs/plan/port-v0-9-to-v0-11/04-the-record-rules-read-the-new-identifiers.md
+check-docs-record | an identifier a deleted ADR carried, the deleting commit named | docs/adr-identifiers | pending docs/plan/port-v0-9-to-v0-11/03-adrs-named-by-category-and-slug.md
+check-docs-record | an index status that disagrees with the ADR | docs/adr-index | pending docs/plan/port-v0-9-to-v0-11/04-the-record-rules-read-the-new-identifiers.md
+check-docs-record | an old ADR flipped while its successor is only proposed | docs/adr-supersessions | pending docs/plan/port-v0-9-to-v0-11/04-the-record-rules-read-the-new-identifiers.md
+check-docs-record | an old ADR naming a successor that does not claim it | docs/adr-supersessions | pending docs/plan/port-v0-9-to-v0-11/04-the-record-rules-read-the-new-identifiers.md
+check-docs-record | an unindented line that starts no key, the fence closed | docs/skill-pointers | pending docs/plan/port-v0-9-to-v0-11/06-section-refs-and-skill-pointers.md
+check-docs-record | curl posting to the issues endpoint of the REST API | docs/opens-no-issue | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
+check-docs-record | curl sending data, its flag on a continuation line | docs/opens-no-issue | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
+check-docs-record | no README to carry the Template release line | docs/template-release | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
+check-docs-record | no Template release line | docs/template-release | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
+check-docs-record | no description | docs/skill-pointers | pending docs/plan/port-v0-9-to-v0-11/06-section-refs-and-skill-pointers.md
+check-docs-record | one ADR superseding two, the second not flipped | docs/adr-supersessions | pending docs/plan/port-v0-9-to-v0-11/04-the-record-rules-read-the-new-identifiers.md
+check-docs-record | reading issues, as a revision does on the human's instruction | docs/opens-no-issue | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
+check-docs-record | the GraphQL mutation that creates an issue | docs/opens-no-issue | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
+check-docs-record | the first release cut while a NUC- ADR is proposed | docs/template-release | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
+check-docs-record | the issue template for findings about the template after setup | docs/template-identity | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
+check-docs-record | the issue template for findings and the link to its new-issue page | docs/opens-no-issue | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
+check-docs-record | the template rewrites the list in the change to AGENTS.md | docs/base-blobs | pending docs/plan/port-v0-9-to-v0-11/05-the-fixed-base-and-its-roles.md
+check-docs-record | the ticket-10 break: a description wrapped unindented and the fence ending its line | docs/skill-pointers | pending docs/plan/port-v0-9-to-v0-11/06-section-refs-and-skill-pointers.md
+check-docs-record | wget posting to the issues endpoint | docs/opens-no-issue | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
+check-shell | a project's script that calls no enter_root | shell/root | not ported under ARCH-rules-need-only-git, since it runs the project's scripts
+check-shell | a quoted case label with an alternative reads a value | shell/root | not ported under ARCH-rules-need-only-git, since it runs the project's scripts
+check-shell | a script tracked without the executable bit | shell/mode | pending docs/plan/port-v0-9-to-v0-11/10-shell-mode-and-parity-on-v0-10-and-v0-11.md
+check-shell | a script whose enter_root is its own reads a missing root | shell/root | not ported under ARCH-rules-need-only-git, since it runs the project's scripts
+check-shell | a script without rest_args, which takes --verbose | shell/root | not ported under ARCH-rules-need-only-git, since it runs the project's scripts
+check-shell | a self-test whose floor does not stop it | shell/bash-floor | not ported under ARCH-rules-need-only-git, since it runs the project's scripts
+check-shell | a skill script tracked without the executable bit | shell/mode | pending docs/plan/port-v0-9-to-v0-11/10-shell-mode-and-parity-on-v0-10-and-v0-11.md
+check-shell | a skill script whose floor does not stop it | shell/bash-floor | not ported under ARCH-rules-need-only-git, since it runs the project's scripts
+check-shell | an option a test reads a value after, written without one in the usage | shell/root | not ported under ARCH-rules-need-only-git, since it runs the project's scripts
+check-shell | an option whose branch reads a value, written without one in the usage | shell/root | not ported under ARCH-rules-need-only-git, since it runs the project's scripts
+check-traceability | a marker citing a slug of one word | traceability/citations | pending docs/plan/port-v0-9-to-v0-11/07-traceability-of-v0-9.md
+check-traceability | a marker citing a slug of six words, read whole | traceability/citations | pending docs/plan/port-v0-9-to-v0-11/07-traceability-of-v0-9.md
+check-traceability | a marker citing a superseded ADR | traceability/citations | pending docs/plan/port-v0-9-to-v0-11/07-traceability-of-v0-9.md
+check-traceability | a marker citing an ADR that does not exist | traceability/citations | pending docs/plan/port-v0-9-to-v0-11/07-traceability-of-v0-9.md
+check-traceability | a self-test of a sensor that cites another ADR only | traceability/sensor-tests | pending docs/plan/port-v0-9-to-v0-11/07-traceability-of-v0-9.md
+check-traceability | a sensor without its self-test | traceability/sensor-tests | pending docs/plan/port-v0-9-to-v0-11/07-traceability-of-v0-9.md
+check-traceability | an accepted ADR nobody cites | traceability/coverage | pending docs/plan/port-v0-9-to-v0-11/07-traceability-of-v0-9.md
+check-traceability | sensors in a tree without the ADR on the checks give one error | traceability/sensor-tests | pending docs/plan/port-v0-9-to-v0-11/07-traceability-of-v0-9.md
