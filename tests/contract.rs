@@ -105,6 +105,29 @@ fn the_exit_codes_are_zero_one_and_two() {
     assert_eq!(code(&clean.nuc(&["no-such-command"])), Some(2));
 }
 
+/// Only `nuc hook` answers 3, where a shim runs a check; no other command exits 3, on a clean
+/// tree, a finding, a refusal, an unknown command, or an explanation.
+#[test]
+fn no_command_but_hook_exits_three() {
+    let clean = Fixture::project("contract-no-three-clean", CONFIG, README);
+    let finding = Fixture::project("contract-no-three-finding", CONFIG, "# X\n");
+    let refusal = Fixture::project("contract-no-three-refusal", "nonsense\n", README);
+    let runs: [(&Fixture, &[&str]); 9] = [
+        (&clean, &["check"]),
+        (&finding, &["check"]),
+        (&refusal, &["check"]),
+        (&clean, &["check", "--format", "json"]),
+        (&finding, &["check", "--format", "sarif"]),
+        (&clean, &["explain", "docs/links"]),
+        (&clean, &["explain", "docs/no-such-rule"]),
+        (&clean, &["no-such-command"]),
+        (&clean, &[]),
+    ];
+    for (fixture, args) in runs {
+        assert_ne!(code(&fixture.nuc(args)), Some(3), "nuc {args:?}");
+    }
+}
+
 #[test]
 fn a_command_a_newer_nuc_may_know_refuses_with_the_install_hint() {
     let fixture = Fixture::project("contract-command", CONFIG, README);

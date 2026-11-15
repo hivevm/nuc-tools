@@ -1183,6 +1183,24 @@ fn a_readme_that_cannot_be_read_refuses_no_push() {
     );
 }
 
+/// A release before v0.5.0 is decided as v0.5.0. No hook tells v0.4.0 from v0.5.0 today, so this
+/// holds what can be seen: such a release is decided, not refused and not taken as the newest.
+#[test]
+fn a_release_before_the_earliest_is_decided_as_the_earliest() {
+    let fixture = pushing("hooks-push-early", "exit 0");
+    fixture.write("README.md", "# X\n\n- **Template release:** v0.4.0\n");
+    fixture.commit("readme");
+    fixture.write("docs/adr/draft-x.md", "");
+    fixture.commit("draft");
+    let output = git_hooked(&fixture, Some(&built()), &[], PUSH);
+    assert!(output.status.success(), "{}", both(&output));
+    assert!(
+        both(&output).contains("(README, Integration branches, step 7)."),
+        "a release before v0.5.0 words the notice as v0.5.0 does: {}",
+        both(&output)
+    );
+}
+
 /// `nuc hook reference-transaction prepared` in the fixture, with the updates given.
 fn decide_updates(fixture: &Fixture, input: &str) -> Output {
     let mut command = Command::new(NUC);
