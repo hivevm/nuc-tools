@@ -34,6 +34,7 @@ docs/inherited-adrs	scripts/check-docs.sh	check_inherited_adrs	v0.8.1,v0.9.0	v0.
 docs/template-identity	scripts/check-docs.sh	check_template_identity	v0.6.1,v0.9.0
 docs/prose-width	scripts/check-docs.sh	check_prose_width	v0.8.1	-	v0.8.0 moved its patterns and the ADR key into scripts/lib/adr.sh with the same expressions, so every release checks alike, which the parity corpus shows on the tree of v0.8.1
 docs/template-release	scripts/check-docs.sh	check_template_release	v0.7.0	-	v0.7.0 reports a missing README itself, where earlier releases leave it to check 10; nuc refuses a tree without a README before any rule runs, so no tree tells the two apart
-traceability/criteria	scripts/check-traceability.sh	-	-
-traceability/citations	scripts/check-traceability.sh	-	-
-traceability/coverage	scripts/check-traceability.sh	-	-
+traceability/criteria	scripts/check-traceability.sh	-	v0.9.0	v0.9.0	its part of the script, the criteria of the specification, reads as before; v0.9.0 changed the other parts
+traceability/citations	scripts/check-traceability.sh	-	v0.9.0
+traceability/coverage	scripts/check-traceability.sh	-	v0.9.0
+traceability/sensor-tests	scripts/check-traceability.sh	-	v0.9.0

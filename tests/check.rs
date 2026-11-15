@@ -1446,6 +1446,33 @@ fn the_criteria_rule_is_explained() {
     );
 }
 
+/// Verifies: NUC-checks-are-bash
+#[test]
+fn a_sensor_without_its_self_test_fails_from_v0_9_0_on_only() {
+    let config = "minimum = \"0.0.0\"\nrules = [\"traceability/sensor-tests\"]\n";
+    for (release, expected) in [
+        (
+            "v0.9.0",
+            "scripts/sensor-a.sh: traceability/sensor-tests: has no self-test \
+             scripts/test-sensor-a.sh — each sensor runs after one that cites NUC-checks-are-bash \
+             [traceability/sensor-tests:absent]\n",
+        ),
+        ("v0.8.1", ""),
+    ] {
+        let readme = format!("# Fixture\n\n- **Template release:** {release}\n");
+        let fixture = Fixture::project(&format!("sensor-tests-{release}"), config, &readme);
+        fixture.write(
+            "docs/adr/NUC-checks-are-bash.md",
+            "# NUC-checks-are-bash: x\n",
+        );
+        fixture.write("scripts/sensor-a.sh", "#!/usr/bin/env bash\n");
+        fixture.write("scripts/sensor-b.sh", "#!/usr/bin/env bash\n");
+        fixture.write("scripts/test-sensor-b.sh", &mark("NUC-checks-are-bash"));
+        let output = fixture.nuc(&["check"]);
+        assert_eq!(stdout(&output), expected, "{release}: {}", stderr(&output));
+    }
+}
+
 const CITATIONS: &str = "minimum = \"0.0.0\"\nrules = [\"traceability/citations\"]\n";
 
 #[test]

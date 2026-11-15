@@ -353,6 +353,43 @@ impl Tree {
     /// Every path git lists, the tracked ones and with `files` the new ones it does not ignore,
     /// as a bash script asks for them: separated by NUL bytes with `-z`, so that no path is
     /// quoted, or by lines, so that a path git quotes stays quoted and names no file.
+    /// The sensors as part 4 of the bash's traceability check reads them: each path git lists as
+    /// tracked or new and not ignored that names `scripts/sensor-<name>.sh` and is a file, as `-f`
+    /// finds it, with whether its self-test is a file; and whether `docs/adr/` holds the ADR that
+    /// decides the checks. A sensor's path that is no UTF-8 is not decided, since a finding could
+    /// not name it.
+    pub(super) fn read_sensors(&self) -> Result<rules::traceability_sensor_tests::Sensors, String> {
+        use rules::traceability_sensor_tests::{CHECKS_ADR, Sensors, self_test, sensor_name};
+        let mut sensors = Vec::new();
+        for raw in self.listed(Listing::Nul, Files::TrackedAndNew)? {
+            if !raw.starts_with(b"scripts/sensor-") || !raw.ends_with(b".sh") {
+                continue;
+            }
+            let Ok(path) = std::str::from_utf8(&raw) else {
+                return Err(format!(
+                    "{}: a sensor's path that is no UTF-8, which a finding could not name — not decided",
+                    String::from_utf8_lossy(&raw)
+                ));
+            };
+            let Some(name) = sensor_name(path) else {
+                continue;
+            };
+            if !self.root.join(path).is_file() {
+                continue;
+            }
+            let tested = self.root.join(self_test(name)).is_file();
+            sensors.push((path.to_owned(), tested));
+        }
+        let checks_adr = self
+            .root
+            .join(format!("docs/adr/{CHECKS_ADR}.md"))
+            .is_file();
+        Ok(Sensors {
+            sensors,
+            checks_adr,
+        })
+    }
+
     fn listed(&self, listing: Listing, files: Files) -> Result<Vec<Vec<u8>>, String> {
         let mut args = match files {
             Files::TrackedAndNew => vec!["ls-files", "--cached", "--others", "--exclude-standard"],

@@ -26,6 +26,7 @@ pub mod docs_template_release;
 pub mod traceability_citations;
 pub mod traceability_coverage;
 pub mod traceability_criteria;
+pub mod traceability_sensor_tests;
 
 /// What the shell reads from the repository for the rules, before any of them runs.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -76,6 +77,8 @@ pub struct Inputs {
     /// check reads them: listed by git as tracked or new and not ignored, a file, not Markdown,
     /// not binary to `grep -I`, and holding the marker.
     pub markers: std::collections::BTreeMap<String, Vec<u8>>,
+    /// The sensors and their self-tests, as `traceability/sensor-tests` reads them.
+    pub sensors: traceability_sensor_tests::Sensors,
 }
 
 pub use crate::bash::read_lines;
@@ -167,6 +170,8 @@ pub enum Input {
     Specification,
     /// The files that carry a `Verifies:` marker.
     Markers,
+    /// The sensors of `scripts/`, their self-tests, and the ADR that decides the checks.
+    Sensors,
 }
 
 /// One rule: its ID, the reason `nuc explain` gives, what it reads, and the check.
@@ -253,6 +258,7 @@ pub const ALL: &[Rule] = &[
     traceability_criteria::RULE,
     traceability_citations::RULE,
     traceability_coverage::RULE,
+    traceability_sensor_tests::RULE,
 ];
 
 /// The rule with the ID, if this `nuc` knows it.

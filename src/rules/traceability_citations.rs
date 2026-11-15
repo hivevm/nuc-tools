@@ -13,23 +13,45 @@ pub const RULE_ID: &str = "traceability/citations";
 
 pub const RULE: Rule = Rule {
     id: RULE_ID,
-    reasons: &["missing", "inactive", "criterion"],
+    reasons: &["missing", "inactive", "criterion", "malformed"],
     explain: "Every identifier a 'Verifies:' marker cites, in a file git does not ignore that is \
               not Markdown, names an ADR that exists in docs/adr/ and is neither superseded nor \
               rejected, or a criterion G-n or Q-n of docs/SPECIFICATION.md. A test that cites \
               what does not exist, or a decision no longer in force, verifies nothing the record \
-              still asks for.",
-    reads: &[Input::Markers, Input::Adr, Input::Specification],
+              still asks for. From template release v0.9.0 on, an ADR is cited by its identifier \
+              of category and slug, and a cited word of another form is malformed.",
+    reads: &[
+        Input::Markers,
+        Input::Adr,
+        Input::Specification,
+        Input::Release,
+    ],
     check: |inputs| check(inputs).into(),
 };
 
+/// What a word of the form `<CAT>-<slug>` must be, as the bash of v0.9.1 words it.
+fn malformed() -> String {
+    format!(
+        "which is no identifier: <{}>-<slug> of two to five words, G-n, or Q-n",
+        "CAT"
+    )
+}
+
 fn check(inputs: &Inputs) -> Vec<Finding> {
+    let named = inputs.carries_at_least(super::CATEGORY_IDENTIFIERS);
     let criteria = traceability::criteria(inputs.specification.as_deref()).ids;
-    let (known, inactive) = record(&inputs.adr);
-    traceability::citations(&inputs.markers)
+    let (known, inactive) = record(&inputs.adr, named);
+    let malformed = malformed();
+    traceability::citations(&inputs.markers, named)
         .into_iter()
         .filter_map(|citation| {
-            let (reason, why) = if citation.id.starts_with("ADR-") {
+            let criterion = citation.id.starts_with(['G', 'Q'])
+                && citation.id[1..]
+                    .strip_prefix('-')
+                    .is_some_and(|n| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()));
+            let (reason, why) = if named && !criterion && !adr::is_identifier(&citation.id) {
+                ("malformed", malformed.as_str())
+            } else if named && !criterion || !named && citation.id.starts_with("ADR-") {
                 if !known.contains(&citation.id) {
                     ("missing", "which does not exist in docs/adr/")
                 } else if inactive.contains(&citation.id) {
@@ -61,12 +83,22 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
 }
 
 /// The identifiers of the ADR files, and those of the files whose status line carries 🔴 or ⚪
-/// but not 🟢, as the bash's `case` sorts them.
-fn record(dir: &adr::Dir) -> (BTreeSet<String>, BTreeSet<String>) {
+/// but not 🟢, as the bash's `case` sorts them; from template release v0.9.0 on, `named`, the
+/// files named by category, each identified by its name.
+pub(super) fn record(dir: &adr::Dir, named: bool) -> (BTreeSet<String>, BTreeSet<String>) {
     let mut known = BTreeSet::new();
     let mut inactive = BTreeSet::new();
-    for (name, header) in adr::headers(dir) {
-        let id = format!("ADR-{}", adr::key_of(name));
+    let headers = if named {
+        adr::named_headers(dir)
+    } else {
+        adr::headers(dir)
+    };
+    for (name, header) in headers {
+        let id = if named {
+            name.strip_suffix(".md").unwrap_or(name).to_owned()
+        } else {
+            format!("ADR-{}", adr::key_of(name))
+        };
         let status = header.field("Status").unwrap_or(b"");
         if !bash::contains(status, "🟢".as_bytes())
             && (bash::contains(status, "🔴".as_bytes()) || bash::contains(status, "⚪".as_bytes()))
@@ -98,6 +130,7 @@ mod tests {
                 .iter()
                 .map(|&(f, text)| (f.to_owned(), text.as_bytes().to_vec()))
                 .collect(),
+            release: Some(crate::config::Version(0, 8, 1)),
             ..Inputs::default()
         }
     }
@@ -235,6 +268,7 @@ mod tests {
             ]
             .into_iter()
             .collect(),
+            false,
         );
         assert_eq!(known.len(), 3);
         assert_eq!(inactive.into_iter().collect::<Vec<_>>(), [adr_id(2)]);
@@ -247,6 +281,72 @@ mod tests {
         assert_eq!(
             messages(&inputs),
             ["t.rs:1: cites 'G-1', which is not a criterion of docs/SPECIFICATION.md"]
+        );
+    }
+
+    #[test]
+    fn from_v0_9_0_an_adr_is_cited_by_its_name_and_another_form_is_malformed() {
+        use crate::testing::cat_id;
+        let (new, old) = (cat_id("SEC", "new-rule"), cat_id("SEC", "old-rule"));
+        let marks = format!(
+            "{} {} {} {} {} {} {}",
+            new,
+            old,
+            cat_id("SEC", "gone-away"),
+            cat_id("SEC", "gone"),
+            cat_id("API", "a-b-c-d-e-f"),
+            adr_id(1),
+            "G-1 Q-9"
+        );
+        let inputs = Inputs {
+            specification: Some(spec(&["**G-1** — it works."], Q1).into_bytes()),
+            adr: [
+                (format!("{new}.md"), "- **Status:** 🟢 accepted\n"),
+                (format!("{old}.md"), "- **Status:** ⚪ superseded\n"),
+                ("0001-decision.md".to_owned(), "- **Status:** 🟢 accepted\n"),
+            ]
+            .into_iter()
+            .map(|(n, t)| (n, t.as_bytes().to_vec()))
+            .collect(),
+            markers: [("tests/t.txt".to_owned(), mark(&marks).into_bytes())].into(),
+            ..Inputs::default()
+        };
+        let found: Vec<(&str, String)> = check(&inputs)
+            .into_iter()
+            .map(|f| (f.reason, f.message))
+            .collect();
+        let why = malformed();
+        assert_eq!(
+            found,
+            [
+                (
+                    "inactive",
+                    format!(
+                        "cites '{old}', which is superseded or rejected — a test cannot verify a \
+                         decision no longer in force"
+                    )
+                ),
+                (
+                    "missing",
+                    format!(
+                        "cites '{}', which does not exist in docs/adr/",
+                        cat_id("SEC", "gone-away")
+                    )
+                ),
+                (
+                    "malformed",
+                    format!("cites '{}', {why}", cat_id("SEC", "gone"))
+                ),
+                (
+                    "malformed",
+                    format!("cites '{}', {why}", cat_id("API", "a-b-c-d-e-f"))
+                ),
+                ("malformed", format!("cites '{}', {why}", adr_id(1))),
+                (
+                    "criterion",
+                    "cites 'Q-9', which is not a criterion of docs/SPECIFICATION.md".to_owned()
+                ),
+            ]
         );
     }
 }

@@ -42,11 +42,3 @@ check-shell | a skill script tracked without the executable bit | shell/mode | p
 check-shell | a skill script whose floor does not stop it | shell/bash-floor | not ported under ARCH-rules-need-only-git, since it runs the project's scripts
 check-shell | an option a test reads a value after, written without one in the usage | shell/root | not ported under ARCH-rules-need-only-git, since it runs the project's scripts
 check-shell | an option whose branch reads a value, written without one in the usage | shell/root | not ported under ARCH-rules-need-only-git, since it runs the project's scripts
-check-traceability | a marker citing a slug of one word | traceability/citations | pending docs/plan/port-v0-9-to-v0-11/07-traceability-of-v0-9.md
-check-traceability | a marker citing a slug of six words, read whole | traceability/citations | pending docs/plan/port-v0-9-to-v0-11/07-traceability-of-v0-9.md
-check-traceability | a marker citing a superseded ADR | traceability/citations | pending docs/plan/port-v0-9-to-v0-11/07-traceability-of-v0-9.md
-check-traceability | a marker citing an ADR that does not exist | traceability/citations | pending docs/plan/port-v0-9-to-v0-11/07-traceability-of-v0-9.md
-check-traceability | a self-test of a sensor that cites another ADR only | traceability/sensor-tests | pending docs/plan/port-v0-9-to-v0-11/07-traceability-of-v0-9.md
-check-traceability | a sensor without its self-test | traceability/sensor-tests | pending docs/plan/port-v0-9-to-v0-11/07-traceability-of-v0-9.md
-check-traceability | an accepted ADR nobody cites | traceability/coverage | pending docs/plan/port-v0-9-to-v0-11/07-traceability-of-v0-9.md
-check-traceability | sensors in a tree without the ADR on the checks give one error | traceability/sensor-tests | pending docs/plan/port-v0-9-to-v0-11/07-traceability-of-v0-9.md

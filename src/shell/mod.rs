@@ -194,12 +194,7 @@ fn check(repo: Option<&Path>, format: Format) -> Result<u8, String> {
         inputs.landing = tree.read_landing()?;
     }
     read_by_git(&tree, &mut inputs, &needs, carried.as_ref())?;
-    if needs(Input::Specification) {
-        inputs.specification = tree.read_specification()?;
-    }
-    if needs(Input::Markers) {
-        inputs.markers = tree.read_markers()?;
-    }
+    read_traceability(&tree, &mut inputs, &needs, carried.as_ref())?;
     // While the setup file exists the identity rule is silent, so it reads nothing (check 13).
     if needs(Input::Identity) && !inputs.setup_file {
         inputs.identity = tree.read_identity()?;
@@ -432,6 +427,26 @@ fn read_text(
             tree.read_link_targets(&inputs.text_files, &inputs.adr, named_record(carried))?;
     }
     Ok(text.unspelled)
+}
+
+/// What the rules of the area `traceability` read: the specification, the markers, and, from
+/// template release v0.9.0 on, where the bash checks them, the sensors.
+fn read_traceability(
+    tree: &Tree,
+    inputs: &mut Inputs,
+    needs: &dyn Fn(Input) -> bool,
+    carried: Option<&rules::Carried>,
+) -> Result<(), String> {
+    if needs(Input::Specification) {
+        inputs.specification = tree.read_specification()?;
+    }
+    if needs(Input::Markers) {
+        inputs.markers = tree.read_markers()?;
+    }
+    if needs(Input::Sensors) && named_record(carried) {
+        inputs.sensors = tree.read_sensors()?;
+    }
+    Ok(())
 }
 
 /// What the rules of a record named by category read through git: the blobs of the base and the
