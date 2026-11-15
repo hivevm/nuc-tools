@@ -1047,6 +1047,23 @@ fn malformed_standard_input_is_not_decided() {
     }
 }
 
+#[test]
+fn a_push_to_main_is_refused_at_its_ref_and_ends_in_its_key() {
+    let fixture = pushing("hooks-push-main", "exit 0");
+    let line = push_line(&fixture).replacen(" refs/heads/feature ", " refs/heads/main ", 1);
+    let output = decide_push(&fixture, &line, &[]);
+    assert_eq!(output.status.code(), Some(1), "{}", stderr(&output));
+    let out = stdout(&output);
+    assert!(
+        out.starts_with("refs/heads/main: hook/push-to-main: "),
+        "{out}"
+    );
+    assert!(
+        out.trim_end().ends_with(" [hook/push-to-main:main]"),
+        "a refusal ends in its key: {out}"
+    );
+}
+
 /// Verifies: Q-8 Q-9
 #[test]
 fn nuc_hook_pre_push_decides_and_writes_in_its_own_repository_only() {
