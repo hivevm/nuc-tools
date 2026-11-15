@@ -44,7 +44,7 @@
   // wrapper gives gh the host's login; CONTRIBUTING.md -> "GitHub access".
   "postCreateCommand": {
     "gh-host-login": "sudo install -m 0755 .devcontainer/gh-host-login.sh /usr/local/bin/gh",
-    "shellcheck": "bash .devcontainer/install-shellcheck.sh /usr/local/bin",
+    "shellcheck": "bash .devcontainer/install-shellcheck.sh /usr/local/bin && bash .devcontainer/install-shellcheck.sh --verify",
     "cargo-tools": "cargo install --locked cargo-deny@0.20.2 cargo-audit@0.22.2"
   },
 

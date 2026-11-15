@@ -71,6 +71,13 @@ run "$SCRIPT"
 check "no directory is refused" status_is 2
 run "$SCRIPT" --frobnicate
 check "an unknown option is refused" status_is 2
+run "$SCRIPT" --verify extra
+check "an argument after --verify is refused" status_is 2
+
+output="$(SHELLCHECK_BASE_URL="file://$work/no-release" bash "$SCRIPT" "$work/missing" 2>&1)"
+status=$?
+check "a failed download fails" status_is 1
+check "a failed download installs nothing" absent "$work/missing/shellcheck"
 
 output="$(PATH="$work/installed:$PATH" bash "$SCRIPT" --verify 2>&1)"; status=$?
 check "the pinned version on PATH verifies" status_is 0
@@ -80,9 +87,16 @@ chmod +x "$work/other/shellcheck"
 output="$(PATH="$work/other:$PATH" bash "$SCRIPT" --verify 2>&1)"; status=$?
 check "another version on PATH fails" status_is 1
 check "the failure names the version found" output_has "'0.0.1'"
+mkdir -p "$work/nobin"
+for tool in sed bash; do ln -s "$(command -v "$tool")" "$work/nobin/$tool"; done
+output="$(PATH="$work/nobin" "$work/nobin/bash" "$SCRIPT" --verify 2>&1)"; status=$?
+check "no shellcheck on PATH fails" status_is 1
+check "the failure says it is absent" output_has "'absent'"
 
 container_installs() { grep -qF 'bash .devcontainer/install-shellcheck.sh /usr/local/bin' "$CONFIG"; }
 check "the container installs the pinned shellcheck" container_installs
+container_verifies() { grep -qF 'install-shellcheck.sh --verify' "$CONFIG"; }
+check "the container verifies the version it installed" container_verifies
 no_apt() { ! grep -qE 'apt-get install[^"]*shellcheck' "$CONFIG"; }
 check "the container installs no shellcheck of the archive" no_apt
 # shellcheck disable=SC2016 # the variable is the workflow's, not the shell's
@@ -90,5 +104,17 @@ ci_installs() { grep -qF 'bash .devcontainer/install-shellcheck.sh "$RUNNER_TEMP
 check "the shell job installs the pinned shellcheck" ci_installs
 ci_verifies() { grep -qF 'bash .devcontainer/install-shellcheck.sh --verify' "$WORKFLOW"; }
 check "the shell job verifies the version it lints with" ci_verifies
+# The line of the first step that runs scripts/<name>.sh, or of the install, in the workflow.
+step_line() { grep -nF -- "$1" "$WORKFLOW" | head -n 1 | cut -d: -f1; }
+installs_before_lint() {
+  local install lint_test lint
+  # shellcheck disable=SC2016 # the variable is the workflow's, not the shell's
+  install="$(step_line 'install-shellcheck.sh "$RUNNER_TEMP')"
+  lint_test="$(step_line 'scripts/test-check-shell.sh')"
+  lint="$(step_line 'scripts/check-shell.sh')"
+  [[ -n "$install" && -n "$lint_test" && -n "$lint" ]] \
+    && (( install < lint_test && install < lint ))
+}
+check "the shell job lints, its self-test included, only after the install" installs_before_lint
 
 summary "ShellCheck install self-test"

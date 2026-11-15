@@ -194,8 +194,7 @@ jobs:
         run: bash scripts/test-check-all.sh
       - name: Self-test the git hooks
         run: bash scripts/test-git-hooks.sh
-      - name: Self-test the shell lint
-        run: bash scripts/test-check-shell.sh
+      # The pinned ShellCheck goes on PATH before anything lints, the lint's self-test included.
       - name: Self-test the ShellCheck install
         run: bash scripts/test-install-shellcheck.sh
       - name: Install the pinned ShellCheck
@@ -204,6 +203,8 @@ jobs:
           echo "$RUNNER_TEMP/shellcheck" >> "$GITHUB_PATH"
       - name: Check the ShellCheck version
         run: bash .devcontainer/install-shellcheck.sh --verify
+      - name: Self-test the shell lint
+        run: bash scripts/test-check-shell.sh
       - name: Lint shell scripts with ShellCheck
         run: bash scripts/check-shell.sh
 

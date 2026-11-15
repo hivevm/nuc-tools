@@ -31,6 +31,12 @@ SHA256_aarch64=12b331c1d2db6b9eb13cfca64306b1b157a86eb69db83023e261eaa7e7c14588
 usage="usage: install-shellcheck.sh <dir> | --verify | --version"
 
 case "${1:-}" in
+  --version | --verify)
+    [[ $# -eq 1 ]] || { echo "install-shellcheck: $usage" >&2; exit 2; }
+    ;;
+esac
+
+case "${1:-}" in
   --version)
     echo "$VERSION"
     exit 0
@@ -78,7 +84,10 @@ if [[ "$got" != "$sha" ]]; then
   exit 1
 fi
 
-tar -xJf "$tmp/$name" -C "$tmp"
+if ! tar -xJf "$tmp/$name" -C "$tmp"; then
+  echo "install-shellcheck: could not unpack $name (is xz installed?)" >&2
+  exit 1
+fi
 mkdir -p "$dir" 2>/dev/null || sudo mkdir -p "$dir"
 if [[ -w "$dir" ]]; then
   install -m 0755 "$tmp/shellcheck-v$VERSION/shellcheck" "$dir/shellcheck"
