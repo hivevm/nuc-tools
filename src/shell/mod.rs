@@ -376,7 +376,8 @@ fn on_every_release(rule: &rules::Rule, inputs: &Inputs) -> Outcome {
 }
 
 /// A message without the citation that ends it, ` (ADR-NNNN)` or a group with a section sign such
-/// as ` (<ADR> §N)`; any other message as it is.
+/// as ` (<ADR> §N)`; any other message as it is. It holds by a convention of the rules: a closing
+/// group with a section sign is a fixed citation, and what tells two findings apart stands before.
 fn uncited(message: &str) -> &str {
     let Some(open) = message.strip_suffix(')').and_then(|m| m.rfind(" (")) else {
         return message;
