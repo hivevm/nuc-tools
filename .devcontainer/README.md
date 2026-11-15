@@ -47,11 +47,11 @@ below, and opens on **Claude Code — Overview**. Anyone who reaches it may look
 editing a dashboard takes the login `admin`/`admin`, which Grafana asks to change on the first
 sign-in.
 
-**The ports are published on the host's loopback only**, since Grafana and ClickHouse hold
+**The ports are published on the host's loopback by default**, since Grafana and ClickHouse hold
 personal data behind no credential worth the name. Docker Desktop forwards
 `host.docker.internal` to the host's loopback, so the Dev Container reaches them as they are;
 whether Podman does depends on its network mode. Docker Engine on Linux does not: there, bind them
-to the bridge gateway instead, which only the host and its containers reach:
+to the bridge gateway instead, which only the host and its containers reach (the *bridge bind*):
 
 ```sh
 OBSERVABILITY_BIND=172.17.0.1 docker compose -f .devcontainer/compose.yaml up -d
