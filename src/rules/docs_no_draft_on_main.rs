@@ -3,7 +3,7 @@
 //! bash does: the base of a pull request, else the branch a push runs on; a draft pull request
 //! passes, and so does a run outside CI.
 
-use super::{Input, Inputs, Outcome, Rule};
+use super::{CATEGORY_IDENTIFIERS, Input, Inputs, Outcome, Rule};
 use crate::finding::Finding;
 
 pub const RULE_ID: &str = "docs/no-draft-on-main";
@@ -16,7 +16,7 @@ pub const RULE: Rule = Rule {
               change lands on is the one CI names: the base of a pull request, else the branch a \
               push runs on. A draft pull request passes, since it tests a feat/ branch still \
               under rework, and so does a run outside CI, where nothing names the branch.",
-    reads: &[Input::Landing],
+    reads: &[Input::Landing, Input::Release],
     check: outcome,
 };
 
@@ -68,6 +68,10 @@ fn outcome(inputs: &Inputs) -> Outcome {
 }
 
 fn check(inputs: &Inputs) -> Vec<Finding> {
+    // The record of template release v0.9.0 on has no such check.
+    if inputs.carries_at_least(CATEGORY_IDENTIFIERS) {
+        return Vec::new();
+    }
     let landing = &inputs.landing;
     if landing.lands_on() != Some("main") || landing.draft_pull_request {
         return Vec::new();
@@ -96,6 +100,7 @@ mod tests {
                 drafts: vec!["draft-next.md".to_owned()],
                 ..landing
             },
+            release: Some(crate::config::Version(0, 8, 1)),
             ..Inputs::default()
         };
         check(&inputs).len()
@@ -152,6 +157,7 @@ mod tests {
                 drafts: vec!["draft-a\nb.md".to_owned()],
                 ..pull_request("main", false)
             },
+            release: Some(crate::config::Version(0, 8, 1)),
             ..Inputs::default()
         };
         let outcome = outcome(&inputs);

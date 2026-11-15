@@ -11,13 +11,9 @@ check-docs-record | a base file changed after its list was written | docs/base-b
 check-docs-record | a base file the list does not name | docs/base-blobs | pending docs/plan/port-v0-9-to-v0-11/05-the-fixed-base-and-its-roles.md
 check-docs-record | a base without a list and no fork named | docs/base-blobs | pending docs/plan/port-v0-9-to-v0-11/05-the-fixed-base-and-its-roles.md
 check-docs-record | a base without the release line counts as none | docs/template-release | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
-check-docs-record | a category key not in capitals, visible to the check | docs/adr-identifiers | pending docs/plan/port-v0-9-to-v0-11/03-adrs-named-by-category-and-slug.md
-check-docs-record | a category nobody defined | docs/adr-identifiers | pending docs/plan/port-v0-9-to-v0-11/03-adrs-named-by-category-and-slug.md
-check-docs-record | a category of the project's list | docs/adr-identifiers | pending docs/plan/port-v0-9-to-v0-11/03-adrs-named-by-category-and-slug.md
 check-docs-record | a change that moves the release line while a NUC- ADR is proposed | docs/template-release | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
 check-docs-record | a clause citation of a missing ADR | docs/adr-refs | pending docs/plan/port-v0-9-to-v0-11/04-the-record-rules-read-the-new-identifiers.md
 check-docs-record | a comment line that names the command | docs/opens-no-issue | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
-check-docs-record | a deleted ADR whose identifier nobody takes again | docs/adr-identifiers | pending docs/plan/port-v0-9-to-v0-11/03-adrs-named-by-category-and-slug.md
 check-docs-record | a derived project that edits AGENTS.md | docs/base-blobs | pending docs/plan/port-v0-9-to-v0-11/05-the-fixed-base-and-its-roles.md
 check-docs-record | a description only nested under metadata | docs/skill-pointers | pending docs/plan/port-v0-9-to-v0-11/06-section-refs-and-skill-pointers.md
 check-docs-record | a file outside the scripts, hooks, workflows, and skills | docs/opens-no-issue | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
@@ -27,7 +23,6 @@ check-docs-record | a fork that names no release | docs/base-blobs | pending doc
 check-docs-record | a fork without a list, the README naming the release it forked | docs/base-blobs | pending docs/plan/port-v0-9-to-v0-11/05-the-fixed-base-and-its-roles.md
 check-docs-record | a front matter never closed | docs/skill-pointers | pending docs/plan/port-v0-9-to-v0-11/06-section-refs-and-skill-pointers.md
 check-docs-record | a header field that is no list item | docs/adr-header | pending docs/plan/port-v0-9-to-v0-11/05-the-fixed-base-and-its-roles.md
-check-docs-record | a heading that names another identifier | docs/adr-identifiers | pending docs/plan/port-v0-9-to-v0-11/03-adrs-named-by-category-and-slug.md
 check-docs-record | a hook that creates an issue by the alias new | docs/opens-no-issue | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
 check-docs-record | a leading zero, which SemVer forbids | docs/template-release | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
 check-docs-record | a line whose file is gone | docs/base-blobs | pending docs/plan/port-v0-9-to-v0-11/05-the-fixed-base-and-its-roles.md
@@ -40,7 +35,6 @@ check-docs-record | a list written out with another identifier | docs/base-blobs
 check-docs-record | a list written out with the git blob identifier of each file's content | docs/base-blobs | pending docs/plan/port-v0-9-to-v0-11/05-the-fixed-base-and-its-roles.md
 check-docs-record | a name that is not the skill's directory | docs/skill-pointers | pending docs/plan/port-v0-9-to-v0-11/06-section-refs-and-skill-pointers.md
 check-docs-record | a narrowing of a missing clause | docs/adr-supersessions | pending docs/plan/port-v0-9-to-v0-11/04-the-record-rules-read-the-new-identifiers.md
-check-docs-record | a numbered ADR file left from before the migration | docs/adr-identifiers | pending docs/plan/port-v0-9-to-v0-11/03-adrs-named-by-category-and-slug.md
 check-docs-record | a project ADR superseding a base ADR | docs/adr-supersessions | pending docs/plan/port-v0-9-to-v0-11/04-the-record-rules-read-the-new-identifiers.md
 check-docs-record | a project category cited and missing | docs/adr-refs | pending docs/plan/port-v0-9-to-v0-11/04-the-record-rules-read-the-new-identifiers.md
 check-docs-record | a project's own script after the setup, no file of the template | docs/opens-no-issue | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
@@ -52,22 +46,16 @@ check-docs-record | a row both sides of a union merge kept | docs/adr-index | pe
 check-docs-record | a row without its file | docs/adr-index | pending docs/plan/port-v0-9-to-v0-11/04-the-record-rules-read-the-new-identifiers.md
 check-docs-record | a script of the template that creates an issue with gh | docs/opens-no-issue | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
 check-docs-record | a skill that posts to the issues endpoint with --method | docs/opens-no-issue | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
-check-docs-record | a slug of one word | docs/adr-identifiers | pending docs/plan/port-v0-9-to-v0-11/03-adrs-named-by-category-and-slug.md
-check-docs-record | a slug of six words | docs/adr-identifiers | pending docs/plan/port-v0-9-to-v0-11/03-adrs-named-by-category-and-slug.md
-check-docs-record | a slug with capitals and an underscore | docs/adr-identifiers | pending docs/plan/port-v0-9-to-v0-11/03-adrs-named-by-category-and-slug.md
 check-docs-record | a step of actions/github-script that creates an issue | docs/opens-no-issue | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
 check-docs-record | a step that uses an action creating an issue | docs/opens-no-issue | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
 check-docs-record | a workflow step that posts fields to the issues endpoint | docs/opens-no-issue | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
 check-docs-record | a wrapped Supersedes field, the name on the second line not flipped | docs/adr-supersessions | pending docs/plan/port-v0-9-to-v0-11/04-the-record-rules-read-the-new-identifiers.md
 check-docs-record | after the setup, no harness ADR | docs/template-identity | pending docs/plan/port-v0-9-to-v0-11/05-the-fixed-base-and-its-roles.md
 check-docs-record | after the setup, two accepted harness ADRs | docs/template-identity | pending docs/plan/port-v0-9-to-v0-11/05-the-fixed-base-and-its-roles.md
-check-docs-record | an ADR a merged side branch deleted and wrote anew, as a normalization does | docs/adr-identifiers | pending docs/plan/port-v0-9-to-v0-11/03-adrs-named-by-category-and-slug.md
-check-docs-record | an ADR a merged side branch deleted, taken again | docs/adr-identifiers | pending docs/plan/port-v0-9-to-v0-11/03-adrs-named-by-category-and-slug.md
 check-docs-record | an ADR accepted, the old one not flipped | docs/adr-supersessions | pending docs/plan/port-v0-9-to-v0-11/04-the-record-rules-read-the-new-identifiers.md
 check-docs-record | an ADR without its row | docs/adr-index | pending docs/plan/port-v0-9-to-v0-11/04-the-record-rules-read-the-new-identifiers.md
 check-docs-record | an accepted ADR that names a rule key the header of check-docs.sh lacks | docs/adr-refs | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
 check-docs-record | an extension of a project ADR | docs/adr-supersessions | pending docs/plan/port-v0-9-to-v0-11/04-the-record-rules-read-the-new-identifiers.md
-check-docs-record | an identifier a deleted ADR carried, the deleting commit named | docs/adr-identifiers | pending docs/plan/port-v0-9-to-v0-11/03-adrs-named-by-category-and-slug.md
 check-docs-record | an index status that disagrees with the ADR | docs/adr-index | pending docs/plan/port-v0-9-to-v0-11/04-the-record-rules-read-the-new-identifiers.md
 check-docs-record | an old ADR flipped while its successor is only proposed | docs/adr-supersessions | pending docs/plan/port-v0-9-to-v0-11/04-the-record-rules-read-the-new-identifiers.md
 check-docs-record | an old ADR naming a successor that does not claim it | docs/adr-supersessions | pending docs/plan/port-v0-9-to-v0-11/04-the-record-rules-read-the-new-identifiers.md

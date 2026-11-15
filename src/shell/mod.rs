@@ -160,8 +160,7 @@ fn check(repo: Option<&Path>, format: Format) -> Result<u8, String> {
     }
     read_guides(&tree, &mut inputs, unplaced, &needs)?;
     if needs(Input::Adr) {
-        inputs.adr = tree.read_adr(&tree.root.join("docs/adr"))?;
-        inputs.adr_targets = tree.read_adr_targets(&inputs.adr)?;
+        read_record(&tree, carried.as_ref(), &mut inputs)?;
     }
     if needs(Input::TextFiles) {
         let text = tree.read_text_files()?;
@@ -193,6 +192,9 @@ fn check(repo: Option<&Path>, format: Format) -> Result<u8, String> {
     }
     if needs(Input::Landing) {
         inputs.landing = tree.read_landing()?;
+    }
+    if needs(Input::History) {
+        inputs.history = read_history(&tree.root)?;
     }
     if needs(Input::Specification) {
         inputs.specification = tree.read_specification()?;
@@ -387,6 +389,47 @@ fn carried_release(
                 .to_owned(),
         ),
     }
+}
+
+/// The files of the record and the targets of its index; from template release v0.9.0 on, and for
+/// `unreleased` or none, the record is named by category.
+fn read_record(
+    tree: &Tree,
+    carried: Option<&rules::Carried>,
+    inputs: &mut Inputs,
+) -> Result<(), String> {
+    let named = match carried {
+        Some(rules::Carried::Release(release)) => *release >= rules::CATEGORY_IDENTIFIERS,
+        _ => true,
+    };
+    inputs.adr = tree.read_adr(&tree.root.join("docs/adr"), named)?;
+    inputs.adr_targets = tree.read_adr_targets(&inputs.adr)?;
+    Ok(())
+}
+
+/// The ADR files the first-parent history deleted, read by the `git log` the bash runs; none
+/// without a commit. A git that cannot read the history, as one before 2.31 rejects
+/// `--diff-merges`, is the rule's finding, not a refusal, as in the bash; its standard error stays
+/// out of the list.
+fn read_history(root: &Path) -> Result<rules::docs_adr_identifiers::History, String> {
+    use rules::docs_adr_identifiers::{History, LOG, deleted};
+    if git::probe(root, &["rev-parse", "-q", "--verify", "HEAD^{commit}"])?.is_none() {
+        return Ok(History::default());
+    }
+    let output = git::command(root, &LOG)
+        .output()
+        .map_err(|e| format!("git could not be run ({e}) — install git and put it on the PATH"))?;
+    if output.status.success() {
+        return Ok(History {
+            deleted: deleted(&String::from_utf8_lossy(&output.stdout)),
+            error: None,
+        });
+    }
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    Ok(History {
+        deleted: std::collections::BTreeMap::new(),
+        error: Some(stderr.lines().next().unwrap_or("").to_owned()),
+    })
 }
 
 /// `nuc explain <id>`: the reason of the rule (G-6).

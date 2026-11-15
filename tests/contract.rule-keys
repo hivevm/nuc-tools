@@ -6,6 +6,12 @@ docs/adr-header:emojis
 docs/adr-header:field
 docs/adr-header:instruction
 docs/adr-header:word
+docs/adr-identifiers:category
+docs/adr-identifiers:form
+docs/adr-identifiers:heading
+docs/adr-identifiers:history
+docs/adr-identifiers:numbered
+docs/adr-identifiers:taken
 docs/adr-index:above
 docs/adr-index:absent
 docs/adr-index:applies

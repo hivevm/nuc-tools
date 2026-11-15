@@ -34,6 +34,87 @@ pub fn adr_names(dir: &Dir) -> Vec<&str> {
         .collect()
 }
 
+/// Whether the name is that of an ADR file from template release v0.9.0 on, as `find -name`
+/// matches `[A-Za-z]*-*.md`: a letter of ASCII first, and a hyphen before the `.md` it ends in.
+pub fn is_category_name(name: &str) -> bool {
+    name.as_bytes().first().is_some_and(u8::is_ascii_alphabetic)
+        && name
+            .strip_suffix(".md")
+            .is_some_and(|stem| stem.contains('-'))
+}
+
+/// Whether the name is that of a numbered file as `find -name` matches `[0-9]*-*.md`, which the
+/// record from template release v0.9.0 on refuses.
+pub fn is_numbered_name(name: &str) -> bool {
+    name.as_bytes().first().is_some_and(u8::is_ascii_digit)
+        && name
+            .strip_suffix(".md")
+            .is_some_and(|stem| stem.contains('-'))
+}
+
+/// The ADR files of the directory from template release v0.9.0 on, in byte order, as
+/// `adr_files` lists them.
+pub fn category_names(dir: &Dir) -> Vec<&str> {
+    dir.keys()
+        .map(String::as_str)
+        .filter(|name| is_category_name(name))
+        .collect()
+}
+
+/// The categories every record has, from template release v0.9.0 on.
+pub const FIXED_CATEGORIES: [&str; 4] = ["NUC", "SEC", "OPS", "API"];
+
+/// The categories of the record, as `adr_categories` reads them: the fixed ones, then the key of
+/// each item `- **<KEY>**` under a heading `Categories` of the index, up to the next heading.
+pub fn categories(index: Option<&[u8]>) -> Vec<String> {
+    let mut found: Vec<String> = FIXED_CATEGORIES.iter().map(|c| (*c).to_owned()).collect();
+    let mut inside = false;
+    for line in index.map(awk_lines).unwrap_or_default() {
+        let hashes = line.iter().take_while(|&&b| b == b'#').count();
+        if hashes > 0 && line.get(hashes) == Some(&b' ') {
+            let rest = &line[hashes + 1..];
+            let end = rest.len() - rest.iter().rev().take_while(|&&b| is_space(b)).count();
+            inside = &rest[..end] == b"Categories";
+            continue;
+        }
+        if !inside {
+            continue;
+        }
+        if let Some(rest) = line.strip_prefix(b"- **") {
+            let key = rest.iter().take_while(|b| b.is_ascii_uppercase()).count();
+            if key > 0 && rest[key..].starts_with(b"**") {
+                found.push(String::from_utf8_lossy(&rest[..key]).into_owned());
+            }
+        }
+    }
+    found
+}
+
+/// Whether the identifier has the form `<CAT>-<slug>` of `ADR_NEW_RE`: two to five capital
+/// letters, a hyphen, and two to five words of lower case letters and digits joined by hyphens.
+pub fn is_identifier(id: &str) -> bool {
+    let Some((category, slug)) = id.split_once('-') else {
+        return false;
+    };
+    let words: Vec<&str> = slug.split('-').collect();
+    (2..=5).contains(&category.len())
+        && category.bytes().all(|b| b.is_ascii_uppercase())
+        && (2..=5).contains(&words.len())
+        && words.iter().all(|w| {
+            !w.is_empty()
+                && w.bytes()
+                    .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit())
+        })
+}
+
+/// The first line of the file that starts with `# `, as the bash's awk pass takes the heading
+/// from template release v0.9.0 on.
+pub fn title(text: &[u8]) -> Option<&[u8]> {
+    awk_lines(text)
+        .into_iter()
+        .find(|line| line.starts_with(b"# "))
+}
+
 /// What follows `ADR-` in the identifier of the ADR file: its number, or `draft-<slug>`.
 pub fn key_of(name: &str) -> &str {
     if name.starts_with("draft-") {

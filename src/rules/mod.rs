@@ -6,6 +6,7 @@ use crate::config::Version;
 use crate::finding::Finding;
 
 pub mod docs_adr_header;
+pub mod docs_adr_identifiers;
 pub mod docs_adr_index;
 pub mod docs_adr_link_targets;
 pub mod docs_adr_numbering;
@@ -64,6 +65,8 @@ pub struct Inputs {
     pub generated: std::collections::BTreeSet<String>,
     /// What CI says about the change, and the drafts of the record.
     pub landing: docs_no_draft_on_main::Landing,
+    /// The ADR files the first-parent history deleted, as `docs/adr-identifiers` reads them.
+    pub history: docs_adr_identifiers::History,
     /// The bytes of `docs/SPECIFICATION.md`, if it is a file.
     pub specification: Option<Vec<u8>>,
     /// Every file that may carry a `Verifies:` marker, by its path, as the bash's traceability
@@ -98,7 +101,12 @@ pub const RELEASES: &[Version] = &[
     Version(0, 6, 0),
     Version(0, 6, 1),
     Version(0, 7, 0),
+    CATEGORY_IDENTIFIERS,
 ];
+
+/// The release from which an ADR is named `<CAT>-<slug>` by category, its file name its
+/// identifier, and the record no longer knows numbers, drafts, or inherited ADRs.
+pub const CATEGORY_IDENTIFIERS: Version = Version(0, 9, 0);
 
 /// The release from which the required checks and the Project Layout stand in `CONTRIBUTING.md`.
 pub const CONTRIBUTING_GUIDE: Version = Version(0, 7, 0);
@@ -148,6 +156,8 @@ pub enum Input {
     Generated,
     /// The environment CI sets for the change, and the draft files of `docs/adr/`.
     Landing,
+    /// The ADR files the first-parent history deleted, as `docs/adr-identifiers` reads them.
+    History,
     /// `docs/SPECIFICATION.md`.
     Specification,
     /// The files that carry a `Verifies:` marker.
@@ -219,6 +229,7 @@ impl From<Vec<Finding>> for Outcome {
 pub const ALL: &[Rule] = &[
     docs_adr_index::RULE,
     docs_adr_numbering::RULE,
+    docs_adr_identifiers::RULE,
     docs_adr_header::RULE,
     docs_adr_supersessions::RULE,
     docs_adr_refs::RULE,

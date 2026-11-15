@@ -163,8 +163,9 @@ impl Tree {
     /// The files of the directory the bash reads for the record: each ADR file of its own, as
     /// `find -type f` lists it, and the index and the template wherever they resolve, as `-f`
     /// and `grep` do; empty when the directory does not exist. A directory that resolves outside
-    /// the repository is not listed, and not decided.
-    pub(super) fn read_adr(&self, dir: &Path) -> Result<adr::Dir, String> {
+    /// the repository is not listed, and not decided. From template release v0.9.0 on, `named` by
+    /// category, the files named `<CAT>-<slug>` and the numbered files it refuses are its own too.
+    pub(super) fn read_adr(&self, dir: &Path, named: bool) -> Result<adr::Dir, String> {
         let entries = match self.resolve(dir, || outside(dir))?.and_then(fs::read_dir) {
             Ok(entries) => entries,
             Err(e) if e.kind() == ErrorKind::NotFound => return Ok(adr::Dir::new()),
@@ -181,7 +182,9 @@ impl Tree {
                 ));
             };
             let own_file = entry.file_type().is_ok_and(|kind| kind.is_file());
-            let wanted = (own_file && adr::is_adr_name(&name))
+            let ours = adr::is_adr_name(&name)
+                || (named && (adr::is_category_name(&name) || adr::is_numbered_name(&name)));
+            let wanted = (own_file && ours)
                 || ((name == "README.md" || name == "template.md") && path.is_file());
             let bytes = if wanted {
                 self.read_record_file(&path)?

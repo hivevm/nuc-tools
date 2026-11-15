@@ -17,6 +17,7 @@
 
 docs/adr-index	scripts/check-docs.sh	check_adr_index	v0.8.1	-	v0.8.0 moved its patterns and the ADR key into scripts/lib/adr.sh with the same expressions, so every release checks alike, which the parity corpus shows on the tree of v0.8.1
 docs/adr-numbering	scripts/check-docs.sh	check_adr_numbering	v0.8.1	-	v0.8.0 moved its patterns and the ADR key into scripts/lib/adr.sh with the same expressions, so every release checks alike, which the parity corpus shows on the tree of v0.8.1
+docs/adr-identifiers	scripts/check-docs.sh	check_adr_identifiers	-
 docs/no-draft-on-main	scripts/check-docs.sh	check_no_draft_on_main	v0.8.1	-	v0.8.0 moved its patterns and the ADR key into scripts/lib/adr.sh with the same expressions, so every release checks alike, which the parity corpus shows on the tree of v0.8.1
 docs/adr-header	scripts/check-docs.sh	check_adr_headers	-
 docs/adr-supersessions	scripts/check-docs.sh	check_adr_supersessions	v0.6.0,v0.8.1	v0.8.1	v0.8.0 moved its patterns and the ADR key into scripts/lib/adr.sh with the same expressions, so v0.8.1 checks as v0.7.0, which the parity corpus shows on the tree of v0.8.1

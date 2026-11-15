@@ -2,7 +2,7 @@
 //! gaps, each `# ADR-NNNN` heading matches its file name, and a draft's slug and heading follow
 //! its file name.
 
-use super::{Input, Inputs, Rule};
+use super::{CATEGORY_IDENTIFIERS, Input, Inputs, Rule};
 use crate::adr;
 use crate::finding::Finding;
 
@@ -16,7 +16,7 @@ pub const RULE: Rule = Rule {
               letters and digits joined by single hyphens, and its heading reads \
               '# ADR-draft-<slug>' for the file 'draft-<slug>.md'. Superseded ADRs stay on disk, \
               so a gap can only mean a deleted ADR or a botched rename.",
-    reads: &[Input::Adr],
+    reads: &[Input::Adr, Input::Release],
     check: |inputs| check(inputs).into(),
 };
 
@@ -31,6 +31,10 @@ fn finding(reason: &'static str, file: String, message: String) -> Finding {
 }
 
 fn check(inputs: &Inputs) -> Vec<Finding> {
+    // The record of template release v0.9.0 on has no such check.
+    if inputs.carries_at_least(CATEGORY_IDENTIFIERS) {
+        return Vec::new();
+    }
     let headers = adr::headers(&inputs.adr);
     let mut found = Vec::new();
     let numbered = headers
@@ -134,6 +138,7 @@ mod tests {
             .collect();
         Inputs {
             adr,
+            release: Some(crate::config::Version(0, 8, 1)),
             ..Inputs::default()
         }
     }
@@ -214,5 +219,15 @@ mod tests {
             messages(&[("draft-x-y.md", &format!("# {}", draft_id("x-y-: T")))]),
             Vec::<String>::new()
         );
+    }
+
+    #[test]
+    fn from_v0_9_0_the_record_has_no_numbers_to_check() {
+        let mut gap = inputs(&[("0002-b.md", "# ADR-0002: b\n")]);
+        assert!(!check(&gap).is_empty());
+        gap.release = Some(crate::config::Version(0, 9, 0));
+        assert!(check(&gap).is_empty());
+        gap.release = None;
+        assert!(check(&gap).is_empty());
     }
 }

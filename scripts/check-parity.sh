@@ -37,8 +37,10 @@
 # trees of the corpus that are the template's, those that still carry TEMPLATE-SETUP.md, in the
 # order of their releases. A change the table does not list, or one it lists that the trees do not
 # show, fails the harness and names the rule; tests/releases.rs holds the rules to the table
-# (API-version-coupling-hook-defaults). With fewer than two trees of the template there is nothing
-# to compare. A helper the function calls is not compared.
+# (API-version-coupling-hook-defaults). A tree whose script lacks the function has no such check,
+# and its body counts as empty, so the release a check comes or goes at is a change; a function no
+# tree has is named, since nothing of it is compared. With fewer than two trees of the template
+# there is nothing to compare. A helper the function calls is not compared.
 #
 # Before the comparisons, each blob of tests/tables.blobs, the pins of the copies of the
 # template's fixture tables under tests/tables/, is held to the blob the template's tag of its
@@ -664,17 +666,16 @@ if ((${#template_trees[@]} >= 2)); then
   mapfile -t template_trees < <(printf '%s\n' "${template_trees[@]}" | sort -V -k1,1)
   for row in "${release_rows[@]}"; do
     read -r r_rule r_script r_function r_changed <<< "$row"
-    changed=() previous="" first=1
+    changed=() previous="" first=1 present=0
     for tree in "${template_trees[@]}"; do
       t_release="${tree%% *}" t_dir="${tree#* }"
-      if ! body="$(check_body "$t_dir/$r_script" "$r_function")"; then
-        echo "Parity check: $r_rule — the template's tree at $t_release has no $r_function in $r_script" >&2
-        failed=1
-        continue 2
-      fi
+      # A release whose script has no such function has no such check yet, or no longer: its body
+      # is empty, so that the release it comes or goes at is a change.
+      if body="$(check_body "$t_dir/$r_script" "$r_function")"; then present=1; else body=""; fi
       ((first)) || [[ "$body" == "$previous" ]] || changed+=("$t_release")
       previous="$body" first=0
     done
+    ((present)) || echo "Parity check: $r_rule — no tree of the template in the corpus has $r_function in $r_script, so nothing of it is compared"
     got="$(IFS=,; echo "${changed[*]:--}")"
     if [[ "$got" != "$r_changed" ]]; then
       echo "Parity check: $r_rule — its bash check changed at $got across the template's trees of the corpus, where ${RELEASES#"$ROOT/"} says $r_changed" >&2

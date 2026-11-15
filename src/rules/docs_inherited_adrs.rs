@@ -2,7 +2,7 @@
 //! in force whose Deciders field names the NUC maintainer also names a decider of the project and
 //! is not proposed. Superseded and rejected ADRs are not read.
 
-use super::{Input, Inputs, Rule};
+use super::{CATEGORY_IDENTIFIERS, Input, Inputs, Rule};
 use crate::adr;
 use crate::bash;
 use crate::bash::contains;
@@ -19,7 +19,7 @@ pub const RULE: Rule = Rule {
               added their name and accepted it, or it is superseded: an inherited ADR nobody \
               here decided is a rule nobody decided. While the setup file exists the decision \
               is pending by design.",
-    reads: &[Input::Adr, Input::SetupFile],
+    reads: &[Input::Adr, Input::SetupFile, Input::Release],
     check: |inputs| check(inputs).into(),
 };
 
@@ -27,6 +27,10 @@ pub const RULE: Rule = Rule {
 const TEMPLATE_DECIDER: &[u8] = b"NUC maintainer";
 
 fn check(inputs: &Inputs) -> Vec<Finding> {
+    // The record of template release v0.9.0 on has no such check.
+    if inputs.carries_at_least(CATEGORY_IDENTIFIERS) {
+        return Vec::new();
+    }
     if inputs.setup_file {
         return Vec::new();
     }
@@ -136,6 +140,7 @@ mod tests {
     fn found(status: &str, deciders: &str, setup: bool) -> Vec<String> {
         let mut inputs = Inputs {
             setup_file: setup,
+            release: Some(crate::config::Version(0, 8, 1)),
             ..Inputs::default()
         };
         let text = format!(

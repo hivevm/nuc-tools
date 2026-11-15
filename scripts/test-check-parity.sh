@@ -600,8 +600,13 @@ printf '# Setup\n' > "$work/src-tpl-bare/TEMPLATE-SETUP.md"
 git -C "$work/src-tpl-bare" add -A
 git -C "$work/src-tpl-bare" -c user.name=F -c user.email=f@example.invalid -c core.hooksPath=/dev/null commit -qm bare
 git -C "$work/src-tpl-bare" rev-parse HEAD > "$work/src-tpl-bare.commit"
-expect fail "a tree of the template without the function fails" "has no check_template_release in scripts/check-docs.sh" \
+expect pass "a tree of the template without the function has no such check, a change at its release" "" \
   run_releases "$(corpus "$work/tpl-bare.toml" tpl-old tpl-bare)" "$(releases "$work/r-bare.tsv" v0.6.0)"
+expect fail "a check gone at a release the table does not list fails" "changed at v0.6.0 across" \
+  run_releases "$(corpus "$work/tpl-bare.toml" tpl-old tpl-bare)" "$(releases "$work/r-bare-unlisted.tsv" -)"
+printf '# One rule.\ndocs/template-release\tscripts/check-docs.sh\tcheck_nowhere\t-\n' > "$work/r-nowhere.tsv"
+check "a function no tree of the template has is named, since nothing of it is compared" \
+  bash -c "PARITY_TABLE=\"$work/one-rule.tsv\" PARITY_RELEASES=\"$work/r-nowhere.tsv\" bash \"$HARNESS\" --no-hooks --corpus \"$changed\" --cache \"$work/cache\" --nuc \"$(reactive_nuc)\" --variants \"$DEFAULT\" | grep -c 'no tree of the template in the corpus has check_nowhere' > /dev/null"
 printf 'docs/template-release\tREADME.md\tcheck_template_release\t-\n' > "$work/r-malformed.tsv"
 expect fail "a malformed row of the table of releases is refused" "a row needs a rule ID" \
   run_releases "$c" "$work/r-malformed.tsv"

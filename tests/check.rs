@@ -1496,3 +1496,33 @@ fn the_criteria_without_a_test_are_named_in_the_summary_and_never_fail_the_run()
         "nuc check: 1 finding(s); 2 criteria without a test: G-1 Q-1.\n"
     );
 }
+
+/// The rules the record of template release v0.9.0 retired stay known, so that a `nuc.toml` that
+/// lists them is read, and report nothing on a tree of that release or later; on v0.8.1 they
+/// report as before.
+#[test]
+fn the_retired_rules_report_nothing_from_v0_9_0_on() {
+    let config = "minimum = \"0.0.0\"\nrules = [\"docs/adr-numbering\", \"docs/no-draft-on-main\", \
+                  \"docs/inherited-adrs\"]\n";
+    let fixture = Fixture::project(
+        "retired-rules",
+        config,
+        "# X\n\n- **Template release:** v0.9.0\n",
+    );
+    fixture
+        .write("docs/adr/0002-gap.md", "# ADR-0002: a gap\n")
+        .commit("A numbered ADR with a gap before it");
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(0), "{}", stderr(&output));
+    assert_eq!(stdout(&output), "");
+    fixture
+        .write("README.md", "# X\n\n- **Template release:** v0.8.1\n")
+        .commit("Back to v0.8.1");
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(1), "{}", stderr(&output));
+    assert!(
+        stdout(&output).contains("[docs/adr-numbering:gap]"),
+        "{}",
+        stdout(&output)
+    );
+}
