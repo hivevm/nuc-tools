@@ -1,4 +1,4 @@
-# API-command-line-keyed-findings: `nuc` reads `nuc.toml` as a TOML subset, writes one finding per line as `<file>[:<line>]: <rule ID>: <message> [<rule ID>:<reason>]`, and exits 0, 1, or 2, and `nuc hook` also 3
+# API-command-line-keyed-findings: `nuc` reads `nuc.toml` as a TOML subset, writes one finding per line as `<file>[:<line>]: <rule ID>: <message> [<rule ID>:<reason>]`, and exits 0, 1, or 2, and `nuc hook` also 3 or 4
 
 - **Status:** 🟡 proposed
 - **Date:** 2026-11-15
@@ -15,13 +15,13 @@ format out of scope). The second is the line a finding is printed as, which edit
 the parity harness read ([TEST-parity-harness](TEST-parity-harness.md)). The third is the exit codes
 the hooks and CI branch on. G-6 asks a finding to name a stable rule ID and `file:line`. G-5 and Q-1
 ask every run that could not decide to fail closed with a message naming how to install `nuc`. Q-6
-asks that an update of `nuc` never turn a green project red. Q-3 counts every dependency against
-the supply chain, and `nuc` depends on no crate. A newer template release may add a key that an
-older `nuc` does not know; that `nuc` then says it is too old and does not guess. The JSON and SARIF
-of G-7 stand beside the text
-([API-output-formats-carry-reason](API-output-formats-carry-reason.md)). A hook whose bash runs the
-project's checks tells its shim that they run now. The standard output is taken by findings, and a
-hook's refusal guards a ref, not a file ([API-hook-contract](API-hook-contract.md)).
+asks that an update of `nuc` never turn a green project red. Q-3 counts every dependency against the
+supply chain, and `nuc` depends on no crate. A newer template release may add a key that an older
+`nuc` does not know; that `nuc` then says it is too old and does not guess. The JSON and SARIF of
+G-7 stand beside the text ([API-output-formats-carry-reason](API-output-formats-carry-reason.md)). A
+hook whose bash runs the project's checks tells its shim that they run now. The standard output is
+taken by findings, and a hook's refusal guards a ref, not a file
+([API-hook-contract-names-check](API-hook-contract-names-check.md)).
 
 From template release v0.9.1 on, every finding of the bash checks ends in a key,
 `[<rule>:<reason>]`: the rule and one word for the cause, such as `[docs/adr-index:unlisted]`. The
@@ -35,7 +35,7 @@ only by their wording. `nuc` ports the releases that print the key.
 We will have `nuc` read `nuc.toml` as a strict subset of TOML holding `minimum` and `rules`,
 write each finding as one line `<file>[:<line>]: <rule ID>: <message> [<rule ID>:<reason>]` on the
 standard output, and exit 0 without a finding, 1 with findings, and 2 when it could not decide, and
-have `nuc hook` alone also exit 3 where the hook passes so far and its shim runs the checks.
+have `nuc hook` alone also exit 3 or 4 where the hook passes so far and its shim runs a check.
 
 - **`nuc.toml`:** comments, blank lines, and two keys: `minimum`, a string `"X.Y.Z"`, and
   `rules`, an array of strings that may span lines and end in a comma. It is read without a TOML
@@ -57,7 +57,9 @@ have `nuc hook` alone also exit 3 where the hook passes so far and its shim runs
     renamed, dropped, or given to another cause; a release that would do so supersedes this ADR.
 - **Exit codes:** 0, 1, and 2 as above, for every command; every cause that keeps `nuc` from
   deciding exits 2, one code for all of them. A panic exits 101, non-zero as well. `nuc hook`
-  exits 3 where API-hook-contract says, and no other command does; its `--record` exits 0 or 2.
+  exits 3 and 4 where
+  [API-hook-contract-names-check](API-hook-contract-names-check.md) says, and no other command
+  does; its `--record` exits 0 or 2.
 
 **Out of scope:** the JSON and SARIF formats of G-7; options a rule may take; the wording of the
 messages, which may change in any release; the output of `nuc explain`, which is prose and takes a
@@ -132,9 +134,9 @@ check each clause. `tests/contract.rs` checks that a `nuc.toml` with an unknown 
 `minimum` refuses as too old; that an unknown key, a key set twice, and another syntax refuse as
 unreadable, with exit 2 and the install hint; that a finding is the line form, its key included, on
 the standard output and the summary is on the standard error; and that the exit codes are 0, 1, and
-2 for a clean tree, a finding, and a refusal, and that no command but `nuc hook` exits 3. It holds
-every key `nuc` can print to the list kept beside it, one `<rule ID>:<reason>` per line, as it holds
-the rule IDs, and fails on a key the code names that the list lacks, a key of the list the code no
-longer names, and a reason that is not one word of lower-case letters. `tests/hooks.rs` checks that
-`nuc hook` exits 3 only where a shim runs a check, and that a refusal of `nuc hook` names the ref it
-guards as its location and ends in its key.
+2 for a clean tree, a finding, and a refusal, and that no command but `nuc hook` exits 3 or 4. It
+holds every key `nuc` can print to the list kept beside it, one `<rule ID>:<reason>` per line, as it
+holds the rule IDs, and fails on a key the code names that the list lacks, a key of the list the
+code no longer names, and a reason that is not one word of lower-case letters. `tests/hooks.rs`
+checks that `nuc hook` exits 3 or 4 only where a shim runs a check, and that a refusal of `nuc hook`
+names the ref it guards as its location and ends in its key.
