@@ -1,6 +1,6 @@
 # OPS-dev-container-adds-rust: The Dev Container keeps the template's Debian base image, adds the Rust Feature, and reaches no containers
 
-- **Status:** 🟢 accepted
+- **Status:** ⚪ superseded by OPS-dev-container-carries-and-reaches
 - **Date:** 2026-10-31
 - **Deciders:** Markus Brigl
 - **Applies to:** `.devcontainer/devcontainer.json`, `.devcontainer/devcontainer-lock.json`, and the tools the container installs

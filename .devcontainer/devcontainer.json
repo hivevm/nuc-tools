@@ -58,7 +58,7 @@
     // (NUC-main-only-via-pr §2).
     "ghcr.io/devcontainers/features/github-cli:1": {},
     // Rust through rustup; the toolchain itself is the one rust-toolchain.toml pins, installed on
-    // the first cargo call (OPS-dev-container-adds-rust).
+    // the first cargo call (OPS-dev-container-carries-and-reaches).
     "ghcr.io/devcontainers/features/rust:1": {}
   },
 

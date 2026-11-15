@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Self-test of scripts/check-compose.sh.
+# Self-test of scripts/check-compose.sh. Verifies: OPS-dev-container-carries-and-reaches
 #
 # Each case builds a fixture under a temporary directory — a .devcontainer/compose.yaml whose one
 # service publishes one port on a variable with a loopback default — runs the check against it,

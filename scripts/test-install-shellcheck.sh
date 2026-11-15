@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Self-test of .devcontainer/install-shellcheck.sh, the one ShellCheck of the Dev Container and of
-# the shell job of CI.
+# the shell job of CI. Verifies: OPS-dev-container-carries-and-reaches
 #
 # Each case serves a fake release archive from a directory under $work through
 # SHELLCHECK_BASE_URL, so no case reaches the network. A copy of the script whose checksums are

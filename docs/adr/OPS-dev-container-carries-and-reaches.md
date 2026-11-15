@@ -1,6 +1,6 @@
 # OPS-dev-container-carries-and-reaches: The Dev Container carries the Rust base and each check tool at the version CI runs, and reaches containers only on the host
 
-- **Status:** 🟡 proposed
+- **Status:** 🟢 accepted
 - **Date:** 2026-11-15
 - **Deciders:** Markus Brigl
 - **Applies to:** `.devcontainer/devcontainer.json`, `.devcontainer/devcontainer-lock.json`, `.devcontainer/install-shellcheck.sh`, `.devcontainer/compose.yaml`, every Compose file of a development tool run on the host, every tool the container installs, and the steps of `.github/workflows/checks.yml` that install the same tools
