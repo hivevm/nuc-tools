@@ -789,6 +789,22 @@ fn without_a_readme_no_rule_set_is_decided() {
     }
 }
 
+/// Verifies: API-version-coupling-hook-defaults
+#[test]
+fn without_a_release_line_a_finding_every_release_reports_stays_though_its_citation_moved() {
+    let config =
+        "minimum = \"0.0.0\"\nrules = [\"docs/template-release\", \"docs/skill-pointers\"]\n";
+    let fixture = Fixture::project("release-stray-cited", config, "# Project\n");
+    fixture.write(".claude/skills/lonely/SKILL.md", "# Lonely\n");
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(1), "{}", stderr(&output));
+    let out = stdout(&output);
+    assert!(
+        out.contains("(NUC-procedures-are-skills §6) [docs/skill-pointers:stray]"),
+        "{out}"
+    );
+}
+
 /// A project with only the skill pointer rule on and the skill `review` under `.agents/skills/`.
 fn skills(name: &str) -> Fixture {
     let config = "minimum = \"0.0.0\"\nrules = [\"docs/skill-pointers\"]\n";

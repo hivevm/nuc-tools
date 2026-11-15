@@ -335,7 +335,9 @@ fn read_guides(
 const EARLIEST_RELEASE: Version = rules::RELEASES[0];
 
 /// The findings of a rule that checks by the release on a tree whose README names none: those it
-/// reports on every release it knows, which no release could take back.
+/// reports on every release it knows, which no release could take back. A finding is the same on
+/// two releases when only the citation that ends its message differs, since a later release cites
+/// a renamed ADR; the message is the newest release's.
 fn on_every_release(rule: &rules::Rule, inputs: &Inputs) -> Outcome {
     let runs: Vec<Outcome> = rules::RELEASES
         .iter()
@@ -348,11 +350,19 @@ fn on_every_release(rule: &rules::Rule, inputs: &Inputs) -> Outcome {
         })
         .collect();
     let (first, rest) = runs.split_first().expect("the rules know a release");
+    let newest = runs.last().expect("the rules know a release");
+    let same = |a: &Finding, b: &Finding| {
+        (a.rule, a.reason, &a.file, a.line, uncited(&a.message))
+            == (b.rule, b.reason, &b.file, b.line, uncited(&b.message))
+    };
     Outcome {
-        findings: first
+        findings: newest
             .findings
             .iter()
-            .filter(|finding| rest.iter().all(|run| run.findings.contains(finding)))
+            .filter(|finding| {
+                runs.iter()
+                    .all(|run| run.findings.iter().any(|other| same(finding, other)))
+            })
             .cloned()
             .collect(),
         refusal: runs.iter().find_map(|run| run.refusal.clone()),
@@ -362,6 +372,23 @@ fn on_every_release(rule: &rules::Rule, inputs: &Inputs) -> Outcome {
             .filter(|note| rest.iter().all(|run| run.notes.contains(note)))
             .cloned()
             .collect(),
+    }
+}
+
+/// A message without the citation that ends it, ` (ADR-NNNN)` or a group with a section sign such
+/// as ` (<ADR> §N)`; any other message as it is.
+fn uncited(message: &str) -> &str {
+    let Some(open) = message.strip_suffix(')').and_then(|m| m.rfind(" (")) else {
+        return message;
+    };
+    let cited = &message[open + 2..message.len() - 1];
+    let numbered = cited
+        .strip_prefix("ADR-")
+        .is_some_and(|n| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()));
+    if numbered || cited.contains('\u{a7}') {
+        &message[..open]
+    } else {
+        message
     }
 }
 
@@ -489,6 +516,53 @@ fn explain(id: &str) -> Result<u8, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_finding_is_kept_without_a_release_line_only_when_every_release_reports_it() {
+        use crate::testing::cat_id;
+        fn check(inputs: &Inputs) -> Outcome {
+            let at = |reason, line, message: &str| Finding {
+                rule: "x/y",
+                reason,
+                file: "a.md".to_owned(),
+                line: Some(line),
+                message: message.to_owned(),
+            };
+            let named = inputs.carries_at_least(rules::CATEGORY_IDENTIFIERS);
+            let (cited, other) = if named {
+                (
+                    format!("({} \u{a7}6)", cat_id("NUC", "x-y")),
+                    cat_id("SEC", "y-rule"),
+                )
+            } else {
+                ("(ADR-0003)".to_owned(), "ADR-0099".to_owned())
+            };
+            vec![
+                at("stray", 1, &format!("is stray {cited}")),
+                at("unmatched", 2, &format!("reference '{other}' matches none")),
+            ]
+            .into()
+        }
+        let rule = rules::Rule {
+            id: "x/y",
+            reasons: &["stray", "unmatched"],
+            explain: "",
+            reads: &[],
+            check,
+        };
+        let kept: Vec<String> = on_every_release(&rule, &Inputs::default())
+            .findings
+            .into_iter()
+            .map(|f| f.message)
+            .collect();
+        assert_eq!(
+            kept,
+            [format!("is stray ({} \u{a7}6)", cat_id("NUC", "x-y"))]
+        );
+        assert_eq!(uncited("no (ADR-0003)"), "no");
+        assert_eq!(uncited("no (see a.md)"), "no (see a.md)");
+        assert_eq!(uncited("no (ADR-x)"), "no (ADR-x)");
+    }
 
     #[test]
     fn a_rule_that_reports_under_another_id_ends_the_run_not_decided() {
