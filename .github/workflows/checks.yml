@@ -308,10 +308,11 @@ jobs:
 
   # The parity harness (TEST-parity-harness, Q-2): the bash checks of each repository of the
   # corpus and nuc on the same tree, any difference a failure. It fetches the corpus and builds nuc
-  # with the toolchain rust-toolchain.toml pins; Linux only.
+  # with the toolchain rust-toolchain.toml pins; Linux only. The hook scenarios run on every tree
+  # of the template the corpus pins, one after another, the bulk of its time.
   parity:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 40
     permissions:
       contents: read
     steps:
