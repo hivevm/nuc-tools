@@ -1,6 +1,6 @@
 # TEST-copies-keep-old-identifiers: An ADR identifier inside a copy of an older template release is not a citation of this record, and no map moves it
 
-- **Status:** 🟡 proposed
+- **Status:** 🟢 accepted
 - **Date:** 2026-11-14
 - **Deciders:** Markus Brigl
 - **Applies to:** the messages of `nuc` that copy a bash message of a template release, `tests/parity/`, `src/testing.rs`, `tests/support/`, and every map a normalization or a migration applies to this repository
