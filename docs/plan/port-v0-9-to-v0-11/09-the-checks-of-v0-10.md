@@ -43,6 +43,14 @@ v0.10.0 joins the releases at which a ported check changed.
   names v0.8.1, where nuc has no `docs/base-blobs` to pass, so no table case decides the forked
   path of v0.9.0 on; a unit test does.
 
+## Notes
+
+- From ticket 08: `docs/adr-identifiers` words its `numbered` finding as v0.9.1 does, "map it to
+  '<CAT>-<slug>' with .agents/skills/normalize/remap.sh, as the normalize skill's migration says";
+  v0.10.0 rewords it, "migrate the record with the normalize skill of a v0.9 release, which maps
+  it to '<CAT>-<slug>'", and renames the keys of the rule from `docs/adr-numbering:` to
+  `docs/adr-identifiers:`.
+
 ## Read first
 
 - Touches: `src/rules/docs_adr_refs.rs`, `src/rules/docs_template_release.rs`,
