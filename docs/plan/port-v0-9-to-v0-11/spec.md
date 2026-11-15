@@ -162,8 +162,8 @@ and `check-traceability.sh` and the rule `shell/mode`, and switch those checks o
 ## ADR impact
 
 - Bind this work: API-version-coupling-hook-defaults (release dispatch, rules off by default, the
-  newest release for hooks), API-command-line-with-hook-signal (the text output and the hook's
-  answer), API-output-formats-short-description (JSON and SARIF), API-hook-contract (what a shim
+  newest release for hooks), API-command-line-keyed-findings (the text output, its key, and the
+  hook's answer), API-output-formats-carry-reason (JSON and SARIF), API-hook-contract (what a shim
   runs on the answer), ARCH-rules-outcome-hooks-answer (rules pure, git in the shell),
   SEC-git-cleared-environment (the history reads), TEST-parity-harness, TEST-hook-scenario-parity,
   TEST-fixtures-with-own-home, TEST-copies-keep-old-identifiers, DEV-one-agent-one-ticket.
