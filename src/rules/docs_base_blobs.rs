@@ -91,6 +91,25 @@ fn forked(readme: &str) -> bool {
     })
 }
 
+/// The lines of the list as `while read -r blob name` reads them: each line a line break ends, a
+/// last one without it dropped as `read` drops it; the first field the blob, and the rest the name,
+/// space and tab trimmed from both, and a carriage return kept as part of the name.
+fn listed(list: &[u8]) -> BTreeMap<String, String> {
+    let text = String::from_utf8_lossy(list);
+    let mut lines: Vec<&str> = text.split('\n').collect();
+    lines.pop();
+    let mut want = BTreeMap::new();
+    for line in lines {
+        let line = line.trim_matches([' ', '\t']);
+        let (blob, name) = line.split_once([' ', '\t']).unwrap_or((line, ""));
+        let name = name.trim_matches([' ', '\t']);
+        if !name.is_empty() {
+            want.insert(name.to_owned(), blob.to_owned());
+        }
+    }
+    want
+}
+
 /// The file a name of the base stands for: `AGENTS.md` at the root, a `NUC-` file in the record.
 fn file_of(name: &str) -> String {
     if name == "AGENTS.md" {
@@ -140,16 +159,7 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
                 .to_owned(),
         )];
     };
-    // As `read -r blob name` reads each line: the first field, and the rest, trimmed.
-    let mut want: BTreeMap<String, String> = BTreeMap::new();
-    for line in String::from_utf8_lossy(list).lines() {
-        let line = line.trim_matches([' ', '\t']);
-        let (blob, name) = line.split_once([' ', '\t']).unwrap_or((line, ""));
-        let name = name.trim_matches([' ', '\t']);
-        if !name.is_empty() {
-            want.insert(name.to_owned(), blob.to_owned());
-        }
-    }
+    let want = listed(list);
     let mut found = Vec::new();
     for name in want.keys() {
         if !have.contains_key(name.as_str()) {
@@ -215,6 +225,15 @@ mod tests {
                 ("unlisted", "docs/adr/NUC-b.md".to_owned()),
             ]
         );
+    }
+
+    #[test]
+    fn the_list_is_read_as_read_reads_it() {
+        let want = listed(b"1 NUC-a.md\n2 NUC-b.md\r\n  3\tname with space  \n4 NUC-last.md");
+        assert_eq!(want.get("NUC-a.md").map(String::as_str), Some("1"));
+        assert_eq!(want.get("NUC-b.md\r").map(String::as_str), Some("2"));
+        assert_eq!(want.get("name with space").map(String::as_str), Some("3"));
+        assert!(!want.contains_key("NUC-last.md"));
     }
 
     #[test]

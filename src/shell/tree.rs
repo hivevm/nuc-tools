@@ -201,9 +201,14 @@ impl Tree {
     }
 
     /// The base as `docs/base-blobs` reads it: the blob of each `NUC-` file of the record and,
-    /// where there is one, of `AGENTS.md` after them, as `adr_blobs` has git hash each, or the last
-    /// line git wrote where it could not; and the bytes of `docs/adr/NUC.blobs`. `AGENTS.md` is
-    /// hashed only where it resolves inside the repository, since git would read it (Q-12).
+    /// where there is one, of `AGENTS.md` after them, as `adr_blobs` has git hash each, or the line
+    /// adr_blobs ends on where git could not; and the bytes of `docs/adr/NUC.blobs`. `AGENTS.md`
+    /// is hashed only where it resolves inside the repository, since git would read it (Q-12).
+    /// git hashes each file as it would store it, its line endings converted, so it applies the
+    /// filters `.gitattributes` names, as the bash does: a filter's clean command comes from the
+    /// user's configuration, which SEC-git-cleared-environment trusts, and no key of
+    /// `tests/git_cli.neutralized` can name every filter; `--no-filters` would hash other blobs
+    /// than the bash where line endings are converted.
     pub(super) fn read_base(&self) -> Result<rules::docs_base_blobs::Base, String> {
         let dir = self.root.join("docs/adr");
         let record = self.read_adr(&dir, true)?;
@@ -212,7 +217,13 @@ impl Tree {
             .filter(|name| name.starts_with("NUC-"))
             .map(str::to_owned)
             .collect();
-        let list = self.read_bytes(&dir.join("NUC.blobs"))?;
+        // A list that is no file, as `-f` finds it, is no list.
+        let list_path = dir.join("NUC.blobs");
+        let list = if list_path.is_file() {
+            self.read_bytes(&list_path)?
+        } else {
+            None
+        };
         if names.is_empty() {
             return Ok(rules::docs_base_blobs::Base {
                 blobs: Ok(Vec::new()),
@@ -247,8 +258,9 @@ impl Tree {
                 .zip(text.lines().map(str::to_owned))
                 .collect())
         } else {
-            let text = String::from_utf8_lossy(&output.stderr);
-            Err(text.lines().last().unwrap_or("").to_owned())
+            // The last line the bash's adr_blobs writes when git fails, the record named from the
+            // root rather than by the root's own path.
+            Err("adr_blobs: git hash-object failed in docs/adr".to_owned())
         };
         Ok(rules::docs_base_blobs::Base { blobs, list })
     }

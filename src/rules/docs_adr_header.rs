@@ -191,4 +191,25 @@ mod tests {
             ["still carries the instruction paragraph from template.md — delete it"]
         );
     }
+
+    #[test]
+    fn from_v0_9_0_the_fields_extends_narrows_and_role_count_as_header_fields() {
+        let id = crate::testing::cat_id("SEC", "a-rule");
+        let text = format!("# {id}: x\n\n**Role:** harness\n- **Status:** 🟡 proposed\n");
+        let mut found = inputs(text.as_bytes());
+        found.adr.remove("0001-a.md");
+        found
+            .adr
+            .insert(format!("{id}.md"), text.clone().into_bytes());
+        assert!(
+            check(&found).is_empty(),
+            "v0.8.1 reads no record named by category"
+        );
+        found.release = None;
+        let reasons: Vec<&str> = check(&found).into_iter().map(|f| f.reason).collect();
+        assert_eq!(reasons, ["field"]);
+        let mut numbered = inputs(text.as_bytes());
+        numbered.release = Some(crate::config::Version(0, 8, 1));
+        assert!(check(&numbered).is_empty(), "Role is no field of v0.8.1");
+    }
 }

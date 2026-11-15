@@ -196,17 +196,19 @@ enum Continued {
 /// awk, it keeps one set of what it has seen for the field names and its own keys, so that a field
 /// named `heading`, `needle`, or `stray` lands where the awk's output puts it.
 pub fn header(text: &[u8], needle: Option<&[u8]>) -> Header {
-    header_of(text, needle, FIELDS)
+    header_of(text, needle, FIELDS, b"# ADR-")
 }
 
 /// The header as the awk pass of a record named by category reads it, from template release
-/// v0.9.0 on: a field in another form is any of `ADR_FIELDS`, Extends, Narrows, and Role included.
+/// v0.9.0 on: a field in another form is any of `ADR_FIELDS`, Extends, Narrows, and Role included,
+/// and the heading is the first line that starts with `# `.
 pub fn named_header(text: &[u8], needle: Option<&[u8]>) -> Header {
-    header_of(text, needle, NAMED_FIELDS)
+    header_of(text, needle, NAMED_FIELDS, b"# ")
 }
 
-/// The header, a field in another form being one of `fields`.
-fn header_of(text: &[u8], needle: Option<&[u8]>, fields: &[&str]) -> Header {
+/// The header, a field in another form being one of `fields`, the heading the first line that
+/// starts with `heading`.
+fn header_of(text: &[u8], needle: Option<&[u8]>, fields: &[&str], heading: &[u8]) -> Header {
     let mut header = Header::default();
     let mut seen: BTreeSet<Vec<u8>> = BTreeSet::new();
     let mut head = true;
@@ -225,7 +227,7 @@ fn header_of(text: &[u8], needle: Option<&[u8]>, fields: &[&str]) -> Header {
         {
             header.needle = true;
         }
-        if line.starts_with(b"# ADR-") && seen.insert(b"heading".to_vec()) {
+        if line.starts_with(heading) && seen.insert(b"heading".to_vec()) {
             header.heading = Some(line.to_vec());
         }
         // A field the awk continues, Supersedes or Deciders, on lines that open with space.
