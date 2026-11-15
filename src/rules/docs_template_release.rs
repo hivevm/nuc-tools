@@ -15,13 +15,33 @@ pub const RULE: Rule = Rule {
               '**Template release:**' line: a 'vX.Y.Z' tag, or 'unreleased'. Tags do not travel \
               with GitHub's template mechanism, so the line is the one thing that tells a derived \
               project which release it carries; a release moves it, and a project that takes a \
-              release up moves it.",
-    reads: &[Input::Readme],
+              release up moves it. Each finding cites the ADR on releases the tree's record holds: \
+              NUC-releases-are-semver-tags from template release v0.9.0 on, ADR-0005 before.",
+    reads: &[Input::Readme, Input::Adr],
     check: |inputs| check(inputs).into(),
 };
 
 const README: &str = "README.md";
 const LABEL: &str = "**Template release:**";
+
+/// The ADR on releases of a record named by category, from template release v0.9.0 on.
+const RELEASES_ADR: &str = "NUC-releases-are-semver-tags";
+
+/// The citation of a finding, `line` or `version`, as the bash of the tree's release words it. A
+/// line that names no release does not tell which release that is, so the citation follows the
+/// ADR on releases the record holds: its file of v0.9.0 on, or else the `ADR-0005` of before.
+fn citation(inputs: &Inputs, reason: &str) -> String {
+    if inputs.adr.contains_key(&format!("{RELEASES_ADR}.md")) {
+        let clauses = if reason == "version" {
+            "§1, §4"
+        } else {
+            "§4"
+        };
+        format!("({RELEASES_ADR} {clauses})")
+    } else {
+        format!("({}-0005)", "ADR")
+    }
+}
 
 /// The finding for the README, if it lacks the line or the line names no release. Without a
 /// README there is nothing to report: the shell refuses such a tree before a rule runs.
@@ -38,14 +58,14 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
             None,
             "line",
             "no '**Template release:**' line — the Template section names the release of the \
-             template this repository carries, or 'unreleased' (ADR-0005)",
+             template this repository carries, or 'unreleased'",
         ),
         Some((_, text)) if names_release(after_label(text)) => return Vec::new(),
         Some((i, _)) => (
             Some(i + 1),
             "version",
             "the Template release line names neither a 'vX.Y.Z' tag nor 'unreleased' — a \
-             release moves it to the tag it cuts (ADR-0005)",
+             release moves it to the tag it cuts",
         ),
     };
     vec![Finding {
@@ -53,7 +73,7 @@ fn check(inputs: &Inputs) -> Vec<Finding> {
         reason,
         file: README.to_owned(),
         line,
-        message: message.to_owned(),
+        message: format!("{message} {}", citation(inputs, reason)),
     }]
 }
 
@@ -207,6 +227,32 @@ mod tests {
     fn only_the_first_release_line_counts() {
         let text = readme("- **Template release:** latest\n- **Template release:** v1.0.0");
         assert_eq!(findings(&text).len(), 1);
+    }
+
+    #[test]
+    fn a_finding_cites_the_adr_on_releases_the_record_holds() {
+        let messages = |adr: &[&str], line: &str| -> Vec<String> {
+            check(&Inputs {
+                readme: Some(readme(line)),
+                adr: adr
+                    .iter()
+                    .map(|name| ((*name).to_owned(), Vec::new()))
+                    .collect(),
+                ..Inputs::default()
+            })
+            .into_iter()
+            .map(|f| f.message)
+            .collect()
+        };
+        let named = format!("{RELEASES_ADR}.md");
+        let old = format!("({}-0005)", "ADR");
+        assert!(messages(&["0005-x.md"], "")[0].ends_with(&old));
+        assert!(messages(&["0005-x.md"], "- **Template release:** latest")[0].ends_with(&old));
+        assert!(messages(&[&named], "")[0].ends_with(&format!("({RELEASES_ADR} §4)")));
+        assert!(
+            messages(&[&named], "- **Template release:** latest")[0]
+                .ends_with(&format!("({RELEASES_ADR} §1, §4)"))
+        );
     }
 
     #[test]
