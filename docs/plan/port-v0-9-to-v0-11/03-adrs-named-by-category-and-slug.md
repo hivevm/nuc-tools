@@ -37,11 +37,11 @@ is checked exactly as before.
 - The template's `scripts/check-docs.sh` and `scripts/lib/adr.sh` at v0.8.1 and v0.9.1, diffed with
   `git diff`, never run; the v0.9.0 tag message.
 - Golden path: a rule that dispatches by release today, such as docs/adr-supersessions.
-- Seam: the table runner of ticket 02; the parity harness.
+- Seam: the table runner of ticket 12; the parity harness.
 
 ## Blocked by
 
-- docs/plan/port-v0-9-to-v0-11/02-every-finding-names-its-key.md
+- docs/plan/port-v0-9-to-v0-11/12-the-rules-run-against-the-template-tables.md
 
 ## Mode
 

@@ -171,7 +171,8 @@ and `check-traceability.sh` and the rule `shell/mode`, and switch those checks o
   implements it:
   - API-command-line-keyed-findings and API-output-formats-carry-reason: every finding ends in its
     key `[<rule>:<reason>]`, and JSON and SARIF carry the reason (ticket 02);
-  - TEST-cases-from-template-tables: the copies of the tables, pinned by blob (ticket 02);
+  - TEST-cases-from-template-tables: the copies of the tables, pinned by blob (ticket 12, cut
+    from ticket 02);
   - ARCH-rules-need-only-git: no rule that needs a process other than git (ticket 10);
   - API-hook-contract-names-check: `nuc hook pre-commit` answers 4 where the shim runs the
     documentation check, with Q-4 of the specification changed to "answers 3 or 4" (ticket 11).
