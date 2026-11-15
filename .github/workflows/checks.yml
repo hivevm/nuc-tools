@@ -1,8 +1,9 @@
 name: Checks
 
 # Enforces the repository's rules as CI. The checks are bash + coreutils, and only the build,
-# portability, deps, and parity jobs install something (ShellCheck, used by the shell job, ships
-# preinstalled on the GitHub-hosted runner image).
+# portability, deps, parity, and shell jobs install something. The shell job installs the
+# ShellCheck that .devcontainer/install-shellcheck.sh pins, the one the Dev Container lints with,
+# in place of the runner image's own, whose version moves with the image.
 # scripts/check-all.sh is the local equivalent; the rule docs/check-lists of scripts/check-docs.sh
 # holds its list, the jobs of this workflow, and the required checks named in CONTRIBUTING.md
 # together. Each job runs a check after its own self-test, and each script's header says what it
@@ -115,6 +116,10 @@ jobs:
         run: bash scripts/test-check-dashboards.sh
       - name: Check that every dashboard panel filters by project and session on the whole name
         run: bash scripts/check-dashboards.sh
+      - name: Self-test the Compose check
+        run: bash scripts/test-check-compose.sh
+      - name: Check that every port of a development stack is published on a named host address
+        run: bash scripts/check-compose.sh
 
   sensors:
     runs-on: ubuntu-latest
@@ -193,6 +198,15 @@ jobs:
         run: bash scripts/test-check-all.sh
       - name: Self-test the git hooks
         run: bash scripts/test-git-hooks.sh
+      # The pinned ShellCheck goes on PATH before anything lints, the lint's self-test included.
+      - name: Self-test the ShellCheck install
+        run: bash scripts/test-install-shellcheck.sh
+      - name: Install the pinned ShellCheck
+        run: |
+          bash .devcontainer/install-shellcheck.sh "$RUNNER_TEMP/shellcheck"
+          echo "$RUNNER_TEMP/shellcheck" >> "$GITHUB_PATH"
+      - name: Check the ShellCheck version
+        run: bash .devcontainer/install-shellcheck.sh --verify
       - name: Self-test the shell lint
         run: bash scripts/test-check-shell.sh
       - name: Lint shell scripts with ShellCheck

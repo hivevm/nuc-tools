@@ -175,6 +175,8 @@ run "Dev Container" scripts/check-devcontainer.sh
 run "gh host login self-test" scripts/test-gh-host-login.sh
 run "Dashboard self-test" scripts/test-check-dashboards.sh
 run "Dashboard" scripts/check-dashboards.sh
+run "Compose self-test" scripts/test-check-compose.sh
+run "Compose" scripts/check-compose.sh
 run "Tests-kept sensor self-test" scripts/test-sensor-tests-kept.sh
 run "Tests-kept sensor" scripts/sensor-tests-kept.sh
 run "Binding ADRs sensor self-test" scripts/test-sensor-binding-adrs.sh
@@ -211,6 +213,7 @@ run "Release notes sensor self-test" scripts/test-sensor-release-notes.sh
 run "Red commits sensor self-test" scripts/test-sensor-red-commits.sh
 run "Check runner self-test" scripts/test-check-all.sh
 run "Git hooks self-test" scripts/test-git-hooks.sh
+run "ShellCheck install self-test" scripts/test-install-shellcheck.sh
 run "Shell lint self-test" scripts/test-check-shell.sh
 run "Shell lint" scripts/check-shell.sh
 run "Workflow credentials self-test" scripts/test-check-workflows.sh
