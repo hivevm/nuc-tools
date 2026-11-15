@@ -200,6 +200,59 @@ impl Tree {
         Ok(files)
     }
 
+    /// The base as `docs/base-blobs` reads it: the blob of each `NUC-` file of the record and,
+    /// where there is one, of `AGENTS.md` after them, as `adr_blobs` has git hash each, or the last
+    /// line git wrote where it could not; and the bytes of `docs/adr/NUC.blobs`. `AGENTS.md` is
+    /// hashed only where it resolves inside the repository, since git would read it (Q-12).
+    pub(super) fn read_base(&self) -> Result<rules::docs_base_blobs::Base, String> {
+        let dir = self.root.join("docs/adr");
+        let record = self.read_adr(&dir, true)?;
+        let mut names: Vec<String> = adr::category_names(&record)
+            .into_iter()
+            .filter(|name| name.starts_with("NUC-"))
+            .map(str::to_owned)
+            .collect();
+        let list = self.read_bytes(&dir.join("NUC.blobs"))?;
+        if names.is_empty() {
+            return Ok(rules::docs_base_blobs::Base {
+                blobs: Ok(Vec::new()),
+                list,
+            });
+        }
+        let agents = self.root.join("AGENTS.md");
+        if agents.is_file() {
+            self.resolve(&agents, || outside(&agents))?
+                .map_err(|e| format!("{}: unreadable — {e}", agents.display()))?;
+            names.push("AGENTS.md".to_owned());
+        }
+        let paths: Vec<String> = names
+            .iter()
+            .map(|name| {
+                if name == "AGENTS.md" {
+                    name.clone()
+                } else {
+                    format!("docs/adr/{name}")
+                }
+            })
+            .collect();
+        let mut args = vec!["hash-object", "--"];
+        args.extend(paths.iter().map(String::as_str));
+        let output = git::command(&self.root, &args).output().map_err(|e| {
+            format!("git could not be run ({e}) — install git and put it on the PATH")
+        })?;
+        let blobs = if output.status.success() {
+            let text = String::from_utf8_lossy(&output.stdout);
+            Ok(names
+                .into_iter()
+                .zip(text.lines().map(str::to_owned))
+                .collect())
+        } else {
+            let text = String::from_utf8_lossy(&output.stderr);
+            Err(text.lines().last().unwrap_or("").to_owned())
+        };
+        Ok(rules::docs_base_blobs::Base { blobs, list })
+    }
+
     /// The file each row of the index links, resolved under `docs/adr/` as `-f` resolves it: its
     /// bytes when it is a file, or none.
     pub(super) fn read_adr_targets(

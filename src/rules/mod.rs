@@ -12,6 +12,7 @@ pub mod docs_adr_link_targets;
 pub mod docs_adr_numbering;
 pub mod docs_adr_refs;
 pub mod docs_adr_supersessions;
+pub mod docs_base_blobs;
 pub mod docs_check_lists;
 pub mod docs_inherited_adrs;
 pub mod docs_links;
@@ -67,6 +68,8 @@ pub struct Inputs {
     pub landing: docs_no_draft_on_main::Landing,
     /// The ADR files the first-parent history deleted, as `docs/adr-identifiers` reads them.
     pub history: docs_adr_identifiers::History,
+    /// The blobs of the base and the list of them, as `docs/base-blobs` reads them.
+    pub base: docs_base_blobs::Base,
     /// The bytes of `docs/SPECIFICATION.md`, if it is a file.
     pub specification: Option<Vec<u8>>,
     /// Every file that may carry a `Verifies:` marker, by its path, as the bash's traceability
@@ -158,6 +161,8 @@ pub enum Input {
     Landing,
     /// The ADR files the first-parent history deleted, as `docs/adr-identifiers` reads them.
     History,
+    /// The blobs of the base and the list of them, as `docs/base-blobs` reads them.
+    Base,
     /// `docs/SPECIFICATION.md`.
     Specification,
     /// The files that carry a `Verifies:` marker.
@@ -240,6 +245,7 @@ pub const ALL: &[Rule] = &[
     docs_project_layout::RULE,
     docs_skill_pointers::RULE,
     docs_inherited_adrs::RULE,
+    docs_base_blobs::RULE,
     docs_template_identity::RULE,
     docs_prose_width::RULE,
     docs_no_draft_on_main::RULE,

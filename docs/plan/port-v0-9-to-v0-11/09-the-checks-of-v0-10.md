@@ -36,6 +36,9 @@ v0.10.0 joins the releases at which a ported check changed.
   runs (API-version-coupling-hook-defaults), so it cannot agree. TEST-cases-from-template-tables
   knows no status for a case an ADR in force decides otherwise; it stands as pending on this ticket
   until the human settles it, by a superseding ADR or otherwise.
+- So does the case 'a release line that says 'not forked'', for the same reason in another form:
+  its README names v0.8.1, which `nuc` checks as the bash of v0.8.1, which has no
+  `docs/base-blobs`, while the table expects the check of v0.11.0.
 
 ## Read first
 

@@ -193,9 +193,7 @@ fn check(repo: Option<&Path>, format: Format) -> Result<u8, String> {
     if needs(Input::Landing) {
         inputs.landing = tree.read_landing()?;
     }
-    if needs(Input::History) {
-        inputs.history = read_history(&tree.root, carried.as_ref())?;
-    }
+    read_by_git(&tree, &mut inputs, &needs, carried.as_ref())?;
     if needs(Input::Specification) {
         inputs.specification = tree.read_specification()?;
     }
@@ -406,6 +404,23 @@ fn read_text(
             tree.read_link_targets(&inputs.text_files, &inputs.adr, named_record(carried))?;
     }
     Ok(text.unspelled)
+}
+
+/// What the rules of a record named by category read through git: the blobs of the base and the
+/// history of the deleted ADRs, each where a rule turned on needs it.
+fn read_by_git(
+    tree: &Tree,
+    inputs: &mut Inputs,
+    needs: &dyn Fn(Input) -> bool,
+    carried: Option<&rules::Carried>,
+) -> Result<(), String> {
+    if needs(Input::Base) && named_record(carried) {
+        inputs.base = tree.read_base()?;
+    }
+    if needs(Input::History) {
+        inputs.history = read_history(&tree.root, carried)?;
+    }
+    Ok(())
 }
 
 /// Whether the record is named by category: from template release v0.9.0 on, and for

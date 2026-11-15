@@ -36,6 +36,11 @@ docs/adr-supersessions:unaccepted
 docs/adr-supersessions:unclaimed
 docs/adr-supersessions:unflipped
 docs/adr-supersessions:unnamed
+docs/base-blobs:absent
+docs/base-blobs:compute
+docs/base-blobs:differs
+docs/base-blobs:gone
+docs/base-blobs:unlisted
 docs/check-lists:absent
 docs/check-lists:extra
 docs/check-lists:gate
@@ -88,8 +93,10 @@ docs/template-identity:overview
 docs/template-identity:part
 docs/template-identity:projectname
 docs/template-identity:security
+docs/template-identity:several
 docs/template-identity:term
 docs/template-identity:title
+docs/template-identity:unfilled
 docs/template-identity:usage
 docs/template-identity:why
 docs/template-release:line

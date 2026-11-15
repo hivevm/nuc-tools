@@ -18,7 +18,7 @@ pub const RULE: Rule = Rule {
               paragraph. A leftover list of alternatives or a word contradicting its emoji \
               survives the index check, and the word is what a reader believes; a field in \
               another form is skipped by every script that reads the header.",
-    reads: &[Input::Adr],
+    reads: &[Input::Adr, Input::Release],
     check: |inputs| check(inputs).into(),
 };
 
@@ -34,7 +34,14 @@ fn word_of(emoji: &str) -> &'static str {
 
 fn check(inputs: &Inputs) -> Vec<Finding> {
     let mut found = Vec::new();
-    for (name, header) in adr::headers(&inputs.adr) {
+    // From template release v0.9.0 on, the record is named by category and its header knows the
+    // fields Extends, Narrows, and Role.
+    let headers = if inputs.carries_at_least(super::CATEGORY_IDENTIFIERS) {
+        adr::named_headers(&inputs.adr)
+    } else {
+        adr::headers(&inputs.adr)
+    };
+    for (name, header) in headers {
         let path = format!("docs/adr/{name}");
         let at = |line, reason, message: &str| Finding {
             rule: RULE_ID,
@@ -101,6 +108,7 @@ mod tests {
         .into();
         Inputs {
             adr,
+            release: Some(crate::config::Version(0, 8, 1)),
             ..Inputs::default()
         }
     }

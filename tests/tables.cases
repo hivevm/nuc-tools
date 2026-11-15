@@ -5,42 +5,28 @@
 
 check-docs-record | a GET to the issues endpoint with a field | docs/opens-no-issue | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
 check-docs-record | a POST to the issues endpoint by -X, the endpoint on a continuation line | docs/opens-no-issue | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
-check-docs-record | a base and AGENTS.md unchanged since their blob list | docs/base-blobs | pending docs/plan/port-v0-9-to-v0-11/05-the-fixed-base-and-its-roles.md
-check-docs-record | a base file changed after its list was written | docs/base-blobs | pending docs/plan/port-v0-9-to-v0-11/05-the-fixed-base-and-its-roles.md
-check-docs-record | a base file the list does not name | docs/base-blobs | pending docs/plan/port-v0-9-to-v0-11/05-the-fixed-base-and-its-roles.md
-check-docs-record | a base without a list and no fork named | docs/base-blobs | pending docs/plan/port-v0-9-to-v0-11/05-the-fixed-base-and-its-roles.md
 check-docs-record | a base without the release line counts as none | docs/template-release | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
 check-docs-record | a change that moves the release line while a NUC- ADR is proposed | docs/template-release | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
 check-docs-record | a comment line that names the command | docs/opens-no-issue | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
-check-docs-record | a derived project that edits AGENTS.md | docs/base-blobs | pending docs/plan/port-v0-9-to-v0-11/05-the-fixed-base-and-its-roles.md
 check-docs-record | a description only nested under metadata | docs/skill-pointers | pending docs/plan/port-v0-9-to-v0-11/06-section-refs-and-skill-pointers.md
 check-docs-record | a file outside the scripts, hooks, workflows, and skills | docs/opens-no-issue | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
 check-docs-record | a first line that is not the opening fence | docs/skill-pointers | pending docs/plan/port-v0-9-to-v0-11/06-section-refs-and-skill-pointers.md
 check-docs-record | a fixture table, which no one runs | docs/opens-no-issue | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
-check-docs-record | a fork that names no release | docs/base-blobs | pending docs/plan/port-v0-9-to-v0-11/05-the-fixed-base-and-its-roles.md
-check-docs-record | a fork without a list, the README naming the release it forked | docs/base-blobs | pending docs/plan/port-v0-9-to-v0-11/05-the-fixed-base-and-its-roles.md
 check-docs-record | a front matter never closed | docs/skill-pointers | pending docs/plan/port-v0-9-to-v0-11/06-section-refs-and-skill-pointers.md
-check-docs-record | a header field that is no list item | docs/adr-header | pending docs/plan/port-v0-9-to-v0-11/05-the-fixed-base-and-its-roles.md
 check-docs-record | a hook that creates an issue by the alias new | docs/opens-no-issue | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
 check-docs-record | a leading zero, which SemVer forbids | docs/template-release | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
-check-docs-record | a line whose file is gone | docs/base-blobs | pending docs/plan/port-v0-9-to-v0-11/05-the-fixed-base-and-its-roles.md
 check-docs-record | a link to the documentation of issues in a skill | docs/opens-no-issue | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
 check-docs-record | a list of clauses after one identifier, in Markdown | docs/section-refs | pending docs/plan/port-v0-9-to-v0-11/06-section-refs-and-skill-pointers.md
 check-docs-record | a list of clauses after one identifier, in a script | docs/section-refs | pending docs/plan/port-v0-9-to-v0-11/06-section-refs-and-skill-pointers.md
-check-docs-record | a list that names the NUC- files only | docs/base-blobs | pending docs/plan/port-v0-9-to-v0-11/05-the-fixed-base-and-its-roles.md
-check-docs-record | a list written out with another identifier | docs/base-blobs | pending docs/plan/port-v0-9-to-v0-11/05-the-fixed-base-and-its-roles.md
-check-docs-record | a list written out with the git blob identifier of each file's content | docs/base-blobs | pending docs/plan/port-v0-9-to-v0-11/05-the-fixed-base-and-its-roles.md
 check-docs-record | a name that is not the skill's directory | docs/skill-pointers | pending docs/plan/port-v0-9-to-v0-11/06-section-refs-and-skill-pointers.md
 check-docs-record | a project's own script after the setup, no file of the template | docs/opens-no-issue | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
 check-docs-record | a proposed ADR that names a missing key among keys that exist | docs/adr-refs | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
-check-docs-record | a release line that says 'not forked' | docs/base-blobs | pending docs/plan/port-v0-9-to-v0-11/05-the-fixed-base-and-its-roles.md
+check-docs-record | a release line that says 'not forked' | docs/base-blobs | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
 check-docs-record | a script of the template that creates an issue with gh | docs/opens-no-issue | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
 check-docs-record | a skill that posts to the issues endpoint with --method | docs/opens-no-issue | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
 check-docs-record | a step of actions/github-script that creates an issue | docs/opens-no-issue | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
 check-docs-record | a step that uses an action creating an issue | docs/opens-no-issue | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
 check-docs-record | a workflow step that posts fields to the issues endpoint | docs/opens-no-issue | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
-check-docs-record | after the setup, no harness ADR | docs/template-identity | pending docs/plan/port-v0-9-to-v0-11/05-the-fixed-base-and-its-roles.md
-check-docs-record | after the setup, two accepted harness ADRs | docs/template-identity | pending docs/plan/port-v0-9-to-v0-11/05-the-fixed-base-and-its-roles.md
 check-docs-record | an accepted ADR that names a rule key the header of check-docs.sh lacks | docs/adr-refs | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
 check-docs-record | an unindented line that starts no key, the fence closed | docs/skill-pointers | pending docs/plan/port-v0-9-to-v0-11/06-section-refs-and-skill-pointers.md
 check-docs-record | curl posting to the issues endpoint of the REST API | docs/opens-no-issue | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
@@ -53,7 +39,6 @@ check-docs-record | the GraphQL mutation that creates an issue | docs/opens-no-i
 check-docs-record | the first release cut while a NUC- ADR is proposed | docs/template-release | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
 check-docs-record | the issue template for findings about the template after setup | docs/template-identity | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
 check-docs-record | the issue template for findings and the link to its new-issue page | docs/opens-no-issue | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
-check-docs-record | the template rewrites the list in the change to AGENTS.md | docs/base-blobs | pending docs/plan/port-v0-9-to-v0-11/05-the-fixed-base-and-its-roles.md
 check-docs-record | the ticket-10 break: a description wrapped unindented and the fence ending its line | docs/skill-pointers | pending docs/plan/port-v0-9-to-v0-11/06-section-refs-and-skill-pointers.md
 check-docs-record | wget posting to the issues endpoint | docs/opens-no-issue | pending docs/plan/port-v0-9-to-v0-11/09-the-checks-of-v0-10.md
 check-shell | a project's script that calls no enter_root | shell/root | not ported under ARCH-rules-need-only-git, since it runs the project's scripts

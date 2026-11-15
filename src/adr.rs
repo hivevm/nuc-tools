@@ -11,7 +11,19 @@ use std::collections::{BTreeMap, BTreeSet};
 pub const STATUS_EMOJI: [&str; 4] = ["🟢", "🟡", "🔴", "⚪"];
 
 /// The header fields of `docs/adr/template.md`.
-const FIELDS: [&str; 5] = ["Status", "Date", "Deciders", "Applies to", "Supersedes"];
+const FIELDS: &[&str] = &["Status", "Date", "Deciders", "Applies to", "Supersedes"];
+
+/// The header fields of `docs/adr/template.md` from template release v0.9.0 on, `ADR_FIELDS`.
+const NAMED_FIELDS: &[&str] = &[
+    "Status",
+    "Date",
+    "Deciders",
+    "Applies to",
+    "Supersedes",
+    "Extends",
+    "Narrows",
+    "Role",
+];
 
 /// The files directly in `docs/adr/` that the bash reads: the ADRs, the index `README.md`, and
 /// `template.md`, by name, with their bytes; empty when the directory does not exist.
@@ -184,6 +196,17 @@ enum Continued {
 /// awk, it keeps one set of what it has seen for the field names and its own keys, so that a field
 /// named `heading`, `needle`, or `stray` lands where the awk's output puts it.
 pub fn header(text: &[u8], needle: Option<&[u8]>) -> Header {
+    header_of(text, needle, FIELDS)
+}
+
+/// The header as the awk pass of a record named by category reads it, from template release
+/// v0.9.0 on: a field in another form is any of `ADR_FIELDS`, Extends, Narrows, and Role included.
+pub fn named_header(text: &[u8], needle: Option<&[u8]>) -> Header {
+    header_of(text, needle, NAMED_FIELDS)
+}
+
+/// The header, a field in another form being one of `fields`.
+fn header_of(text: &[u8], needle: Option<&[u8]>, fields: &[&str]) -> Header {
     let mut header = Header::default();
     let mut seen: BTreeSet<Vec<u8>> = BTreeSet::new();
     let mut head = true;
@@ -192,7 +215,7 @@ pub fn header(text: &[u8], needle: Option<&[u8]>) -> Header {
         if head && line.starts_with(b"## ") {
             head = false;
         }
-        if head && names_a_field(line) && !line.starts_with(b"- **") {
+        if head && names_a_field(line, fields) && !line.starts_with(b"- **") {
             header
                 .stray
                 .push([format!("{}:", i + 1).as_bytes(), line].concat());
@@ -237,8 +260,8 @@ pub fn header(text: &[u8], needle: Option<&[u8]>) -> Header {
 }
 
 /// Whether the line holds `**<field>:**` for a field of the template, anywhere on it.
-fn names_a_field(line: &[u8]) -> bool {
-    FIELDS
+fn names_a_field(line: &[u8], fields: &[&str]) -> bool {
+    fields
         .iter()
         .any(|field| contains(line, format!("**{field}:**").as_bytes()))
 }
@@ -425,7 +448,7 @@ pub fn named_headers(dir: &Dir) -> BTreeMap<&str, Header> {
     let needle = dir.get("template.md").and_then(|t| instruction_needle(t));
     category_names(dir)
         .into_iter()
-        .map(|name| (name, header(&dir[name], needle.as_deref())))
+        .map(|name| (name, named_header(&dir[name], needle.as_deref())))
         .collect()
 }
 
