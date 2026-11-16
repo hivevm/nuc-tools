@@ -6,7 +6,7 @@
 > is updated in the same change as the structure it describes
 > ([NUC-documents-are-fixed](adr/NUC-documents-are-fixed.md)).
 >
-> **Last design revision:** 2026-11-14, due after 20 changes. The revision that took the count
+> **Last design revision:** 2026-11-16, due after 20 changes. The revision that took the count
 > moves the date; the number is this project's to set; a sensor counts the changes outside
 > `docs/` since the commit that set the date and says when the next is due
 > ([NUC-design-is-revised §4](adr/NUC-design-is-revised.md)).
@@ -55,10 +55,13 @@ golden path and the test pattern an agent copies from are named here.
   rules of the area `traceability` share one reading of the criteria of the specification and of the
   identifiers the `Verifies:` markers cite in `src/traceability.rs`, beside `src/adr.rs`, so that no
   rule module calls another. The shell matches path patterns as bash's pathname expansion does
-  through `src/glob.rs`. A rule whose bash check changed between template releases, today
-  `docs/adr-supersessions`, `docs/check-lists`, `docs/project-layout`, and `docs/template-identity`,
-  reads the release the tree carries and checks as that release does
-  (API-version-coupling-hook-defaults). `tests/parity/releases.tsv` names the releases at which each
+  through `src/glob.rs`. A rule whose bash check changed between template releases, most rules of
+  `docs/` and `traceability/` since v0.9.0 named the ADRs by category and slug, reads the release
+  the tree carries and checks as that release does (API-version-coupling-hook-defaults). The
+  thresholds it compares with stand in `src/rules/mod.rs`, `rules::RELEASES` among them, and those
+  of the hooks in `src/hook.rs`; `src/adr.rs` reads the record in each of its two forms, numbered
+  and named by category, through a pair of functions, and each rule, and the shell for the inputs,
+  chooses one by the release. `tests/parity/releases.tsv` names the releases at which each
   rule's check changed, which the parity harness holds to the template's trees and
   `tests/releases.rs` holds the rules to; a rule that checks some or every release alike although
   its bash changed, as `docs/template-release` does, gives its reason there, after a field that
@@ -78,8 +81,8 @@ golden path and the test pattern an agent copies from are named here.
   `shims/`, in POSIX sh, hand each hook to `nuc hook <name>` and run the project's check where it
   answers 3, and the documentation check where `pre-commit` answers 4
   ([API-hook-contract-names-check](adr/API-hook-contract-names-check.md)). Each decides as the
-  release the tree carries, none as the newest release `nuc` knows. A hook's function returns an
-  answer, not a rule's outcome
+  release the tree carries, and as the newest release `nuc` knows where the README names none. A
+  hook's function returns an answer, not a rule's outcome
   ([ARCH-rules-outcome-hooks-answer](adr/ARCH-rules-outcome-hooks-answer.md)).
   `pre-commit`, `pre-merge-commit`, `pre-push`, `reference-transaction`, and the merge driver of the
   ADR index are ported; `tests/bench/hook-latency.sh` measures `reference-transaction` against Q-5
@@ -98,11 +101,11 @@ golden path and the test pattern an agent copies from are named here.
   driver.
 - **Binary** — `src/main.rs` calls the shell and nothing else.
 - **Parity harness** — `scripts/check-parity.sh` runs the bash checks of each repository of the
-  corpus, `check-docs.sh` and `check-traceability.sh`, all on template release v0.5.0 or later,
-  and `nuc` on the same tree and on each variant of `tests/parity/variants.tsv` that is for it,
-  both as a pull request into `main` marked ready, and compares their findings, normalized by
-  `tests/parity/normalize.tsv`, and their exit status. A variant edits, deletes, or
-  writes one path inside a copy of the tree, never under its `.git`
+  corpus, `check-docs.sh` and `check-traceability.sh`, and from v0.10.0 on `check-shell.sh`, all on
+  template release v0.5.0 or later, and `nuc` on the same tree and on each variant of
+  `tests/parity/variants.tsv` that is for it, both as a pull request into `main` marked ready, and
+  compares their findings, normalized by `tests/parity/normalize.tsv`, and their exit status. A
+  variant edits, deletes, or writes one path inside a copy of the tree, never under its `.git`
   ([TEST-parity-harness](adr/TEST-parity-harness.md)). Across the template's trees of the
   corpus it compares each rule's bash function with `tests/parity/releases.tsv`; a change to a
   helper the function calls shows in no row. Then `scripts/lib/hook-parity.sh` runs the
@@ -128,11 +131,11 @@ golden path and the test pattern an agent copies from are named here.
 - **The golden path** — the rule `docs/template-release` of the template's `check-docs.sh`, and
   the pieces it takes through every layer. A new rule copies it:
   1. a module under `src/rules/` with its `RULE_ID`, an `area/name`, and its `RULE`, listed in
-     `rules::ALL` and its ID in `tests/contract.rule-ids`, which keeps it from then on, its unit
-     tests the cases of the bash self-test of the check it ports, each named in a `// bash:`
-     comment and given its rule in `tests/bash_cases.tsv`, which `tests/bash_cases.rs` holds to the
-     comments, and from template release v0.9.1 the cases of the fixture tables, which
-     `tests/tables.rs` runs;
+     `rules::ALL`, its ID in `tests/contract.rule-ids` and its keys in `tests/contract.rule-keys`,
+     which keep them from then on, its unit tests the cases of the bash self-test of the check it
+     ports, each named in a `// bash:` comment and given its rule in `tests/bash_cases.tsv`, which
+     `tests/bash_cases.rs` holds to the comments, and from template release v0.9.1 the cases of the
+     fixture tables, which `tests/tables.rs` runs;
   2. what it needs to read, an `Input` the rule names in its `reads`, a field of the inputs, its
      type in the rule's module unless several rules read it, and the shell's reading of it;
   3. its rows in the normalization table of the parity harness, one per bash message;
@@ -167,49 +170,56 @@ lives between them. Only what a newcomer would otherwise reconstruct from code.
 others: `README.md` and the release it carries, `CONTRIBUTING.md`, the record under `docs/adr/`, the
 text files git lists, the targets of relative links, `AGENTS.md`, the workflows and scripts, the
 Project Layout's paths, the skills and their pointers, the identity files, the attributes that mark
-a file generated, the variables CI sets, the specification, and the files that carry a `Verifies:`
-marker. It runs each selected rule on what it read and carries out every outcome alike: it prints
-the findings on the standard output, as lines, or as the JSON document or the SARIF log
-`src/format.rs` builds from them for `--format json` or `sarif`, and exits 0 without a finding and 1
-with one; the summary on the standard error carries the rules' notes, as the criteria no marker
-cites, which change no exit code. Every cause it can name that keeps it from deciding ends the run
-with exit 2 and a message on the standard error: before any rule runs for what it reads, a missing
-README, which names no release, an input that resolves outside the repository, one the bash would
-read otherwise, a release a rule that checks by it cannot place; after the rules run, before any
-finding is printed, for a rule's own refusal, for a finding a rule reports under another rule's
-ID, and for a finding that names a path of no UTF-8. A panic ends it with exit 101, non-zero as well
-(Q-1). Nothing is written and no state is kept between runs.
+a file generated, the variables CI sets, the specification, the files that carry a `Verifies:`
+marker, the sensors and their self-tests, the rule keys of `scripts/check-docs.sh`, the blobs of the
+base, the modes git's index holds for the scripts and skills, and through git, from v0.9.0 on, the
+ADR files the first-parent history deleted and the README at the merge base with `main`. It runs
+each selected rule on what it read and carries out every outcome alike: it prints the findings on
+the standard output, as lines, or as the JSON document or the SARIF log `src/format.rs` builds from
+them for `--format json` or `sarif`, and exits 0 without a finding and 1 with one; the summary on
+the standard error carries the rules' notes, as the criteria no marker cites, which change no exit
+code. Every cause it can name that keeps it from deciding ends the run with exit 2 and a message on
+the standard error: before any rule runs for what it reads, a missing README, which names no
+release, an input that resolves outside the repository, one the bash would read otherwise, a release
+a rule that checks by it cannot place; after the rules run, before any finding is printed, for a
+rule's own refusal, for a finding a rule reports under another rule's ID, and for a finding that
+names a path of no UTF-8. A panic ends it with exit 101, non-zero as well (Q-1). Nothing is written
+and no state is kept between runs.
 
 `nuc hook pre-commit` runs in the directory git runs the hook in. Without `nuc.toml` every `hook/`
-rule is on; with one, it is read as `nuc check` reads it and its list governs. Where git hands it
-a git directory other than the one it finds from there, it does not decide. It asks git for the
-branch and `MERGE_HEAD`, tests whether `scripts/check-all.sh` exists, and exits 1 with a finding
-at `refs/heads/main` on `main`, 3 on the commit that concludes a merge where the check runs, and
-0 otherwise. The shim runs the check on 3, with git's local variables unset, and refuses on red.
-`nuc hook pre-merge-commit` refuses a merge on `main` and answers 3 on any other merge whose work
-tree has `scripts/check-docs.sh`, where its rule is on; its shim runs that check.
-`nuc hook pre-push` reads git's refs from the standard input, refuses a push to the remote's
-`main`, passes one that only deletes, writes the draft notice in the wording of the README's
-release, and passes a clean tree that `checks-green-trees` of the common git directory holds.
-Otherwise it writes the tree of a clean `HEAD` to `checks-pending-tree` of the worktree's git
+rule is on; with one, it is read as `nuc check` reads it and its list governs. Where git hands it a
+git directory other than the one it finds from there, it does not decide. It asks git for the branch
+and `MERGE_HEAD`, tests whether `scripts/check-all.sh` and `scripts/check-docs.sh` exist, reads the
+release of the README, and exits 1 with a finding at `refs/heads/main` on `main`; from v0.11.0, 1 as
+well on the commit that concludes a merge on a `feat/` branch; 3 on the commit that concludes any
+other merge where the check runs; from v0.9.0, 4 on any other commit where `scripts/check-docs.sh`
+exists; and 0 otherwise. The shim runs the check on 3 and the documentation check on 4, with git's
+local variables unset, and refuses on red.
+`nuc hook pre-merge-commit` refuses a merge on `main`, from v0.11.0 one on a `feat/` branch as well,
+and answers 3 on any other merge whose work tree has `scripts/check-docs.sh`, where its rule is on;
+its shim runs that check.
+`nuc hook pre-push` reads git's refs from the standard input, refuses a push to the remote's `main`,
+passes one that only deletes, writes the draft notice in the wording of the README's release on a
+tree before v0.9.0, and passes a clean tree that `checks-green-trees` of the common git directory
+holds. Otherwise it writes the tree of a clean `HEAD` to `checks-pending-tree` of the worktree's git
 directory, with the run its shim names in `NUC_HOOK_RUN`, and answers 3; its shim runs the checks
 and, on green, calls `nuc hook pre-push --record`, which moves that tree into the record and keeps
-the last 50, and records nothing where another run's push replaced it. These
-two files are the only state `nuc` keeps between runs.
-`nuc hook reference-transaction prepared` reads the updates of a transaction from the standard
-input and, where one touches `refs/heads/main`, asks git once for `main` and `origin/main` and
-refuses a move of `main` to a commit `origin/main` lacks, as the transaction leaves it. It reads
-`nuc.toml` in the directory git runs the hook in, the root of the work tree, without asking git,
-and checks the git directory git hands it only for a transaction that touches `main`: the hook
-runs on every update of a ref, and each git call costs a process (Q-5).
+the last 50, and records nothing where another run's push replaced it. These two files are the only
+state `nuc` keeps between runs.
+`nuc hook reference-transaction prepared` reads the updates of a transaction from the standard input
+and, where one touches `refs/heads/main`, asks git once for `main` and `origin/main` and refuses a
+move of `main` to a commit `origin/main` lacks, as the transaction leaves it. It reads `nuc.toml` in
+the directory git runs the hook in, the root of the work tree, without asking git, and checks the
+git directory git hands it only for a transaction that touches `main`: the hook runs on every update
+of a ref, and each git call costs a process (Q-5).
 `nuc hook merge-adr-index` is the merge driver `.gitattributes` names for `docs/adr/README.md`,
 through `merge.adr-index.driver`: it has `git merge-file` merge the prose of the three sides, every
 line but a table row, and their union, writes the union into ours where its prose is the prose
 merged on its own, and otherwise the usual conflict markers with git's labels. Its git runs under
 the cleared environment of the shell, which passes `PATH` and `HOME`, and `SystemRoot` on Windows,
-and nothing else. So it reads the configuration of the repository, of the system, and of the user
-at its default places under `HOME`, and none git hands it through the environment, as
-`git -c merge.conflictStyle=diff3`, `GIT_CONFIG_GLOBAL`, or `XDG_CONFIG_HOME`.
+and nothing else. So it reads the configuration of the repository, of the system, and of the user at
+its default places under `HOME`, and none git hands it through the environment, as `git -c
+merge.conflictStyle=diff3`, `GIT_CONFIG_GLOBAL`, or `XDG_CONFIG_HOME`.
 
 A release starts when a human pushes a tag `vX.Y.Z` that names the version of `Cargo.toml`.
 `release.yml` builds the four targets, writes `SHA256SUMS`, attests each binary and verifies the
