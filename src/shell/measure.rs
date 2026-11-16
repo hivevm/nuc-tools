@@ -10,7 +10,6 @@ use std::path::{Path, PathBuf};
 use std::collections::BTreeMap;
 
 use crate::measure::{self, Harness, Lines, Selection, Source};
-
 use crate::rules;
 
 use super::tree::Tree;
@@ -87,16 +86,15 @@ pub(super) fn run(options: &[&str]) -> Result<u8, String> {
             dir.display()
         )
     })?;
+    // Built whole before a byte is printed, so that a refusal leaves the standard output empty.
+    let mut out = String::new();
     if options.breakdown {
-        print!("{}", measure::breakdown(&measures, &subagents));
+        out.push_str(&measure::breakdown(&measures, &subagents));
     }
     if options.finding {
-        print!(
-            "{}",
-            measure::finding(&measures, release(&root)?.as_deref())
-        );
+        out.push_str(&measure::finding(&measures, release(&root)?.as_deref()));
     }
-    println!("{}", measure::line(measures.total.total()));
+    println!("{out}{}", measure::line(measures.total.total()));
     Ok(PASSED)
 }
 

@@ -333,8 +333,8 @@ pub fn breakdown(measures: &Measures, subagents: &BTreeMap<Source, Subagent>) ->
 /// A draft of a template finding in the five fields of the template's issue form for findings,
 /// for the human to complete and send. `release` is the Template release the README names, none
 /// where it names none. Measures carries the tokens, their four parts, and the tools and sizes of
-/// the largest outputs, and nothing else: no session, subagent, branch, or path leaves with it
-/// (NUC-template-learns-from-projects).
+/// the largest outputs, an MCP tool as `mcp`, and nothing else: no session, subagent, branch, path,
+/// or MCP server leaves with it (NUC-template-learns-from-projects).
 #[must_use]
 pub fn finding(measures: &Measures, release: Option<&str>) -> String {
     let total = measures.total;
@@ -342,7 +342,7 @@ pub fn finding(measures: &Measures, release: Option<&str>) -> String {
         .outputs
         .iter()
         .take(NAMED)
-        .map(|output| format!("{} {} bytes", printable(&output.tool), output.size))
+        .map(|output| format!("{} {} bytes", public_tool(&output.tool), output.size))
         .collect();
     let largest = if largest.is_empty() {
         "none".to_owned()
@@ -367,6 +367,16 @@ pub fn finding(measures: &Measures, release: Option<&str>) -> String {
         total.cache_written,
         total.output,
     )
+}
+
+/// A tool's name as a finding may carry it: an MCP tool, `mcp__<server>__<tool>`, as `mcp`, since
+/// its server is the project's own; a harness's built-in tool by its name.
+fn public_tool(tool: &str) -> String {
+    if tool.starts_with("mcp__") {
+        "mcp".to_owned()
+    } else {
+        printable(tool)
+    }
 }
 
 /// The text with every control character a space, so that a description stays on its line.
@@ -615,13 +625,11 @@ mod tests {
             ]
         );
         assert!(text.contains("## Template release\n\nv0.11.1\n"), "{text}");
-        assert!(
-            text.contains("tokens 115 (input 1, cache read 10, cache written 100, output 4)\n")
-        );
-        assert!(
-            text.contains("largest tool outputs: Read 9 bytes\n"),
-            "{text}"
-        );
+        let measures_field = "## Measures\n\n\
+                              tokens 115 (input 1, cache read 10, cache written 100, output 4)\n\
+                              largest tool outputs: Read 9 bytes\n\n## Proposal";
+        assert!(text.contains(measures_field), "{text}");
+        assert_eq!(public_tool("mcp__acme__query"), "mcp");
         assert!(
             !text.contains("session-x") && !text.contains("agent-y") && !text.contains("t.jsonl")
         );

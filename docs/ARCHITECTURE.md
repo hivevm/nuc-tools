@@ -105,8 +105,8 @@ golden path and the test pattern an agent copies from are named here.
 - **Measure** — `src/measure.rs` counts the tokens of `nuc measure` from the requests an adapter
   per harness reads out of its transcripts, `src/measure/claude_code.rs` the one for Claude Code,
   each request once at the largest usage its lines report, selected by branch and time, and
-  breaks them down by session, subagent, and tool, or drafts a template finding that carries none
-  of them; it knows no harness and reads nothing.
+  breaks them down by session, subagent, and tool, or drafts a template finding that names no
+  session, subagent, branch, path, or MCP server; it knows no harness and reads nothing.
   `shell::measure` finds the harness's directory and reads its transcripts in the two functions
   `tests/functional_core.guarded` names for it, the one read outside the repository, following no
   symbolic link

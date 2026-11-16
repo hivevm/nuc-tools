@@ -592,10 +592,10 @@ fn the_finding_fills_the_five_fields_and_carries_nothing_of_the_project() {
     let transcripts = Transcripts::new(&format!("measure-finding-{CANARY}"));
     let session = format!("s-{CANARY}");
     let call = format!(
-        r#"{{"type":"assistant","requestId":"r1","gitBranch":"{branch}","cwd":"/{CANARY}","message":{{"content":[{{"type":"tool_use","id":"t1","name":"Read","input":{{"file_path":"/{CANARY}"}}}}],"usage":{{"input_tokens":1,"cache_read_input_tokens":2,"cache_creation_input_tokens":3,"output_tokens":4}}}}}}"#
+        r#"{{"type":"assistant","requestId":"r1","gitBranch":"{branch}","cwd":"/{CANARY}","message":{{"content":[{{"type":"tool_use","id":"t1","name":"Read","input":{{"file_path":"/{CANARY}"}}}},{{"type":"tool_use","id":"t2","name":"mcp__{CANARY}__query","input":{{}}}}],"usage":{{"input_tokens":1,"cache_read_input_tokens":2,"cache_creation_input_tokens":3,"output_tokens":4}}}}}}"#
     );
     let result = format!(
-        r#"{{"type":"user","gitBranch":"{branch}","message":{{"content":[{{"type":"tool_result","tool_use_id":"t1","content":"{CANARY}"}}]}}}}"#
+        r#"{{"type":"user","gitBranch":"{branch}","message":{{"content":[{{"type":"tool_result","tool_use_id":"t1","content":"{CANARY}"}},{{"type":"tool_result","tool_use_id":"t2","content":"abcd"}}]}}}}"#
     );
     transcripts
         .write(&format!("{session}.jsonl"), &[call, result])
@@ -630,14 +630,10 @@ fn the_finding_fills_the_five_fields_and_carries_nothing_of_the_project() {
         text.starts_with("## Template release\n\nv0.11.1\n"),
         "{text}"
     );
-    assert!(
-        text.contains("tokens 20 (input 11, cache read 2, cache written 3, output 4)\n"),
-        "{text}"
-    );
-    assert!(
-        text.contains("largest tool outputs: Read 11 bytes\n"),
-        "{text}"
-    );
+    let measures_field = "## Measures\n\n\
+                          tokens 20 (input 11, cache read 2, cache written 3, output 4)\n\
+                          largest tool outputs: Read 11 bytes, mcp 4 bytes\n\n## Proposal";
+    assert!(text.contains(measures_field), "{text}");
     assert!(text.ends_with("tokens 20\n"), "{text}");
     assert_no_canary(&output);
 }
@@ -655,4 +651,63 @@ fn the_finding_says_where_the_readme_names_no_release() {
         "{}",
         stdout(&output)
     );
+}
+
+#[test]
+fn the_breakdown_and_the_finding_stand_before_the_line() {
+    let fixture = repo_on("measure-both", "b");
+    let transcripts = Transcripts::new("measure-both");
+    transcripts.write("s1.jsonl", &[request("r1", "b", [1, 1, 1, 1])]);
+    let args = [
+        "measure",
+        "--transcripts",
+        transcripts.path(),
+        "--finding",
+        "--breakdown",
+    ];
+    let output = fixture.nuc(&args);
+    assert_eq!(code(&output), Some(0), "{}", stderr(&output));
+    let text = stdout(&output);
+    let breakdown = text.find("session s1: ").expect("the breakdown");
+    let draft = text.find("## Template release").expect("the draft");
+    assert!(breakdown < draft, "{text}");
+    assert!(text.ends_with("\ntokens 4\n"), "{text}");
+}
+
+#[cfg(unix)]
+#[test]
+fn a_readme_the_tree_refuses_leaves_the_standard_output_empty() {
+    let fixture = repo_on("measure-readme-link", "b");
+    let outside = Transcripts::new("measure-readme-outside");
+    outside.write("README.md", &["- **Template release:** v0.11.1".to_owned()]);
+    fs::remove_file(fixture.root().join("README.md")).expect("removed");
+    std::os::unix::fs::symlink(
+        outside.dir.join("README.md"),
+        fixture.root().join("README.md"),
+    )
+    .expect("the link is made");
+    let transcripts = Transcripts::new("measure-readme-link");
+    transcripts.write("s1.jsonl", &[request("r1", "b", [1, 1, 1, 1])]);
+    let args = [
+        "measure",
+        "--transcripts",
+        transcripts.path(),
+        "--breakdown",
+        "--finding",
+    ];
+    let output = fixture.nuc(&args);
+    assert_eq!(code(&output), Some(2), "{}", stdout(&output));
+    assert_eq!(stdout(&output), "");
+    assert!(stderr(&output).contains("README.md"), "{}", stderr(&output));
+}
+
+#[test]
+fn the_finding_says_where_there_is_no_readme() {
+    let fixture = repo_on("measure-no-readme", "b");
+    fixture.git(&["rm", "-q", "README.md"]);
+    let transcripts = Transcripts::new("measure-no-readme");
+    transcripts.write("s1.jsonl", &[request("r1", "b", [1, 1, 1, 1])]);
+    let output = fixture.nuc(&["measure", "--transcripts", transcripts.path(), "--finding"]);
+    assert_eq!(code(&output), Some(0), "{}", stderr(&output));
+    assert!(stdout(&output).contains("none: the README names no Template release"));
 }
