@@ -55,13 +55,15 @@ golden path and the test pattern an agent copies from are named here.
   rules of the area `traceability` share one reading of the criteria of the specification and of the
   identifiers the `Verifies:` markers cite in `src/traceability.rs`, beside `src/adr.rs`, so that no
   rule module calls another. The shell matches path patterns as bash's pathname expansion does
-  through `src/glob.rs`. A rule whose bash check changed between template releases, most rules of
-  `docs/` and `traceability/` since v0.9.0 named the ADRs by category and slug, reads the release
-  the tree carries and checks as that release does (API-version-coupling-hook-defaults). The
-  thresholds it compares with stand in `src/rules/mod.rs`, `rules::RELEASES` among them, and those
-  of the hooks in `src/hook.rs`; `src/adr.rs` reads the record in each of its two forms, numbered
-  and named by category, through a pair of functions, and each rule, and the shell for the inputs,
-  chooses one by the release. `tests/parity/releases.tsv` names the releases at which each
+  through `src/glob.rs`. A rule whose bash check changed between template releases reads the
+  release the tree carries and checks as that release does (API-version-coupling-hook-defaults).
+  Since v0.9.0 named the ADRs by category and slug, that is most rules of `docs/` and
+  `traceability/`. The thresholds the rules share stand in `src/rules/mod.rs`, `rules::RELEASES`
+  among them; a threshold only one rule reads stands in its module, as in `docs/adr-supersessions`,
+  `docs/check-lists`, and `docs/template-identity`; those of the hooks stand in `src/hook.rs`.
+  `src/adr.rs` reads the record in each of its two forms, numbered and named by category, through
+  pairs of functions, and each rule, and the shell for the inputs, chooses one by the release.
+  `tests/parity/releases.tsv` names the releases at which each
   rule's check changed, which the parity harness holds to the template's trees and
   `tests/releases.rs` holds the rules to; a rule that checks some or every release alike although
   its bash changed, as `docs/template-release` does, gives its reason there, after a field that
@@ -172,8 +174,8 @@ text files git lists, the targets of relative links, `AGENTS.md`, the workflows 
 Project Layout's paths, the skills and their pointers, the identity files, the attributes that mark
 a file generated, the variables CI sets, the specification, the files that carry a `Verifies:`
 marker, the sensors and their self-tests, the rule keys of `scripts/check-docs.sh`, the blobs of the
-base, the modes git's index holds for the scripts and skills, and through git, from v0.9.0 on, the
-ADR files the first-parent history deleted and the README at the merge base with `main`. It runs
+base, the modes git's index holds for the scripts and skills, and through git the README at the
+merge base with `main` and, from v0.9.0 on, the ADR files the first-parent history deleted. It runs
 each selected rule on what it read and carries out every outcome alike: it prints the findings on
 the standard output, as lines, or as the JSON document or the SARIF log `src/format.rs` builds from
 them for `--format json` or `sarif`, and exits 0 without a finding and 1 with one; the summary on
