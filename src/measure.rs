@@ -330,6 +330,45 @@ pub fn breakdown(measures: &Measures, subagents: &BTreeMap<Source, Subagent>) ->
     text
 }
 
+/// A draft of a template finding in the five fields of the template's issue form for findings,
+/// for the human to complete and send. `release` is the Template release the README names, none
+/// where it names none. Measures carries the tokens, their four parts, and the tools and sizes of
+/// the largest outputs, and nothing else: no session, subagent, branch, or path leaves with it
+/// (NUC-template-learns-from-projects).
+#[must_use]
+pub fn finding(measures: &Measures, release: Option<&str>) -> String {
+    let total = measures.total;
+    let largest: Vec<String> = measures
+        .outputs
+        .iter()
+        .take(NAMED)
+        .map(|output| format!("{} {} bytes", printable(&output.tool), output.size))
+        .collect();
+    let largest = if largest.is_empty() {
+        "none".to_owned()
+    } else {
+        largest.join(", ")
+    };
+    let release = release.map_or_else(
+        || "none: the README names no Template release".to_owned(),
+        printable,
+    );
+    format!(
+        "## Template release\n\n{release}\n\n\
+         ## Concerns\n\n<!-- The rule, file, or skill of the template. -->\n\n\
+         ## Finding\n\n<!-- What the work met. -->\n\n\
+         ## Measures\n\n\
+         {} (input {}, cache read {}, cache written {}, output {})\n\
+         largest tool outputs: {largest}\n\n\
+         ## Proposal\n\n<!-- What the template changes. -->\n\n",
+        line(total.total()),
+        total.input,
+        total.cache_read,
+        total.cache_written,
+        total.output,
+    )
+}
+
 /// The text with every control character a space, so that a description stays on its line.
 fn printable(text: &str) -> String {
     text.chars()
@@ -544,6 +583,49 @@ mod tests {
             text.contains("largest tool outputs:\n  Bash in session s: 42 bytes\n"),
             "{text}"
         );
+    }
+
+    #[test]
+    fn the_finding_fills_the_five_fields_and_carries_no_source() {
+        let agent = source("session-x", Some("agent-y"));
+        let lines = Lines {
+            requests: vec![request("r1", "b", T, agent.clone(), 4)],
+            tool_outputs: vec![ToolOutput {
+                tool: "Read".to_owned(),
+                at: "t.jsonl:2".to_owned(),
+                size: 9,
+                branch: "b".to_owned(),
+                time: None,
+                source: agent,
+            }],
+        };
+        let measures = measure(&lines, &on(&["b"]))
+            .expect("placed")
+            .expect("counted");
+        let text = finding(&measures, Some("v0.11.1"));
+        let headings: Vec<&str> = text.lines().filter(|l| l.starts_with("## ")).collect();
+        assert_eq!(
+            headings,
+            [
+                "## Template release",
+                "## Concerns",
+                "## Finding",
+                "## Measures",
+                "## Proposal"
+            ]
+        );
+        assert!(text.contains("## Template release\n\nv0.11.1\n"), "{text}");
+        assert!(
+            text.contains("tokens 115 (input 1, cache read 10, cache written 100, output 4)\n")
+        );
+        assert!(
+            text.contains("largest tool outputs: Read 9 bytes\n"),
+            "{text}"
+        );
+        assert!(
+            !text.contains("session-x") && !text.contains("agent-y") && !text.contains("t.jsonl")
+        );
+        assert!(finding(&measures, None).contains("none: the README names no Template release"));
     }
 
     #[test]

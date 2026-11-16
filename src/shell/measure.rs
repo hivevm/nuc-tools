@@ -11,12 +11,15 @@ use std::collections::BTreeMap;
 
 use crate::measure::{self, Harness, Lines, Selection, Source};
 
+use crate::rules;
+
+use super::tree::Tree;
 use super::{PASSED, git};
 
 /// The options of `nuc measure`: the harness, Claude Code where none is named; the directory of
 /// its transcripts, the harness's own where none is named; the branches each `--branch` adds to the
-/// current one; the time range; and whether to break the tokens down. Each but `--branch` at most
-/// once.
+/// current one; the time range; whether to break the tokens down; and whether to draft a template
+/// finding. Each but `--branch` at most once.
 #[derive(Default)]
 struct Options<'a> {
     harness: Option<Harness>,
@@ -25,6 +28,7 @@ struct Options<'a> {
     since: Option<String>,
     until: Option<String>,
     breakdown: bool,
+    finding: bool,
 }
 
 /// A transcript as the shell read it: its name under the directory, where it was written, its
@@ -37,7 +41,8 @@ struct Transcript {
 }
 
 /// `nuc measure`: the tokens the harness's sessions on the selected branches read and wrote,
-/// written as `tokens <n>` on the standard output, after their breakdown where it is asked for.
+/// written as `tokens <n>` on the standard output, after their breakdown and a draft of a template
+/// finding where they are asked for.
 pub(super) fn run(options: &[&str]) -> Result<u8, String> {
     let options = parse(options).ok_or_else(super::usage)?;
     let harness = options.harness.unwrap_or(Harness::ClaudeCode);
@@ -85,8 +90,29 @@ pub(super) fn run(options: &[&str]) -> Result<u8, String> {
     if options.breakdown {
         print!("{}", measure::breakdown(&measures, &subagents));
     }
+    if options.finding {
+        print!(
+            "{}",
+            measure::finding(&measures, release(&root)?.as_deref())
+        );
+    }
     println!("{}", measure::line(measures.total.total()));
     Ok(PASSED)
+}
+
+/// The Template release the README of the working tree names, `vX.Y.Z` or `unreleased`, read
+/// through the tree as every command reads the repository; none where the README or its line is
+/// missing or names none.
+fn release(root: &Path) -> Result<Option<String>, String> {
+    let tree = Tree::new(root.to_path_buf())?;
+    let Some(readme) = tree.read_checked(&root.join("README.md"))? else {
+        return Ok(None);
+    };
+    Ok(match rules::docs_template_release::carried(&readme) {
+        Some(rules::Carried::Release(version)) => Some(format!("v{version}")),
+        Some(rules::Carried::Unreleased) => Some("unreleased".to_owned()),
+        None => None,
+    })
 }
 
 /// The options, or none where one is unknown, repeated, has no value, or a time is of no form
@@ -97,6 +123,10 @@ fn parse<'a>(options: &[&'a str]) -> Option<Options<'a>> {
     while let Some(&option) = options.next() {
         if option == "--breakdown" && !parsed.breakdown {
             parsed.breakdown = true;
+            continue;
+        }
+        if option == "--finding" && !parsed.finding {
+            parsed.finding = true;
             continue;
         }
         let value = *options.next()?;

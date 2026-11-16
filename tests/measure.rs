@@ -344,6 +344,7 @@ fn an_unknown_harness_or_option_is_a_usage_error() {
         &["measure", "--since", "yesterday"],
         &["measure", "--until", "2026-11-16T10:00"],
         &["measure", "--breakdown", "--breakdown"],
+        &["measure", "--finding", "--finding"],
         &["measure", "--branch", ""],
     ] {
         let output = fixture.nuc(args);
@@ -574,5 +575,84 @@ fn a_linked_description_of_a_subagent_stops() {
         stderr(&output).contains("a symbolic link"),
         "{}",
         stderr(&output)
+    );
+}
+
+#[test]
+fn the_finding_fills_the_five_fields_and_carries_nothing_of_the_project() {
+    let branch = format!("b-{CANARY}");
+    let fixture = Fixture::new("measure-finding");
+    fixture
+        .write(
+            "README.md",
+            "# Fixture\n\n- **Template release:** v0.11.1\n",
+        )
+        .commit("Initial commit");
+    fixture.git(&["switch", "-q", "-c", &branch]);
+    let transcripts = Transcripts::new(&format!("measure-finding-{CANARY}"));
+    let session = format!("s-{CANARY}");
+    let call = format!(
+        r#"{{"type":"assistant","requestId":"r1","gitBranch":"{branch}","cwd":"/{CANARY}","message":{{"content":[{{"type":"tool_use","id":"t1","name":"Read","input":{{"file_path":"/{CANARY}"}}}}],"usage":{{"input_tokens":1,"cache_read_input_tokens":2,"cache_creation_input_tokens":3,"output_tokens":4}}}}}}"#
+    );
+    let result = format!(
+        r#"{{"type":"user","gitBranch":"{branch}","message":{{"content":[{{"type":"tool_result","tool_use_id":"t1","content":"{CANARY}"}}]}}}}"#
+    );
+    transcripts
+        .write(&format!("{session}.jsonl"), &[call, result])
+        .write(
+            &format!("{session}/subagents/agent-{CANARY}.jsonl"),
+            &[request("r2", &branch, [10, 0, 0, 0])],
+        )
+        .write(
+            &format!("{session}/subagents/agent-{CANARY}.meta.json"),
+            &[format!(
+                r#"{{"agentType":"reviewer","description":"{CANARY}"}}"#
+            )],
+        );
+    let output = fixture.nuc(&["measure", "--transcripts", transcripts.path(), "--finding"]);
+    assert_eq!(code(&output), Some(0), "{}", stderr(&output));
+    let text = stdout(&output);
+    let headings: Vec<&str> = text
+        .lines()
+        .filter(|line| line.starts_with("## "))
+        .collect();
+    assert_eq!(
+        headings,
+        [
+            "## Template release",
+            "## Concerns",
+            "## Finding",
+            "## Measures",
+            "## Proposal"
+        ]
+    );
+    assert!(
+        text.starts_with("## Template release\n\nv0.11.1\n"),
+        "{text}"
+    );
+    assert!(
+        text.contains("tokens 20 (input 11, cache read 2, cache written 3, output 4)\n"),
+        "{text}"
+    );
+    assert!(
+        text.contains("largest tool outputs: Read 11 bytes\n"),
+        "{text}"
+    );
+    assert!(text.ends_with("tokens 20\n"), "{text}");
+    assert_no_canary(&output);
+}
+
+#[test]
+fn the_finding_says_where_the_readme_names_no_release() {
+    let fixture = repo_on("measure-finding-none", "b");
+    let transcripts = Transcripts::new("measure-finding-none");
+    transcripts.write("s1.jsonl", &[request("r1", "b", [1, 1, 1, 1])]);
+    let output = fixture.nuc(&["measure", "--transcripts", transcripts.path(), "--finding"]);
+    assert_eq!(code(&output), Some(0), "{}", stderr(&output));
+    assert!(
+        stdout(&output)
+            .contains("## Template release\n\nnone: the README names no Template release\n"),
+        "{}",
+        stdout(&output)
     );
 }

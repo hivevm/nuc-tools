@@ -193,6 +193,14 @@ fn measure_ends_in_its_tokens_and_exits_zero_or_two() {
         text.ends_with("tokens 10\n"),
         "the breakdown stands before the line: {text}"
     );
+    let output = fixture.nuc(&["measure", "--transcripts", path, "--finding"]);
+    assert_eq!(code(&output), Some(0), "{}", stderr(&output));
+    let text = stdout(&output);
+    assert!(text.starts_with("## Template release\n"), "{text}");
+    assert!(
+        text.ends_with("tokens 10\n"),
+        "the draft stands before the line: {text}"
+    );
 
     std::fs::write(dir.join("s.jsonl"), "{\n").expect("written");
     let output = fixture.nuc(&["measure", "--transcripts", path]);
