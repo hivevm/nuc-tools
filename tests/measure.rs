@@ -142,6 +142,19 @@ fn a_subagent_counts_with_its_session_and_other_branches_do_not() {
     assert_eq!(code(&output), Some(0), "{}", stderr(&output));
     assert_eq!(stdout(&output), "tokens 22\n");
     assert_no_canary(&output);
+    let output = fixture.nuc(&[
+        "measure",
+        "--transcripts",
+        transcripts.path(),
+        "--breakdown",
+    ]);
+    assert_eq!(code(&output), Some(0), "{}", stderr(&output));
+    assert!(
+        stdout(&output).contains("subagent agent-x in session s1: "),
+        "{}",
+        stdout(&output)
+    );
+    assert_no_canary(&output);
 }
 
 #[test]
@@ -389,9 +402,16 @@ fn named_branches_and_a_time_range_select_the_requests() {
         all.extend_from_slice(args);
         fixture.nuc(&all)
     };
+    // Each named branch is added to the current one, b.
     let output = run(&["--branch", "a", "--branch", "c"]);
     assert_eq!(code(&output), Some(0), "{}", stderr(&output));
-    assert_eq!(stdout(&output), "tokens 1101\n");
+    assert_eq!(stdout(&output), "tokens 1111\n");
+    let output = run(&["--branch", "b"]);
+    assert_eq!(
+        stdout(&output),
+        "tokens 10\n",
+        "the current branch named again counts once"
+    );
     let output = run(&[
         "--branch",
         "a",
@@ -429,11 +449,44 @@ fn the_breakdown_sums_to_the_tokens_and_names_no_content() {
             CANARY.repeat(size)
         )
     };
+    let meta = |kind: &str| {
+        vec![format!(
+            r#"{{"agentType":"{kind}","description":"Review the change","toolUseId":"{CANARY}"}}"#
+        )]
+    };
     transcripts
         .write("s1.jsonl", &[call("r1"), result("r1", 2)])
-        .write("s1/subagents/agent-x.jsonl", &[request("r2", "b", [100, 0, 0, 900]), call("r3"), result("r3", 5)])
-        .write("s1/subagents/agent-x.meta.json", &[format!(r#"{{"agentType":"reviewer","description":"Review the change","toolUseId":"{CANARY}"}}"#)])
-        .write("s2.jsonl", &[request("r4", "b", [10, 20, 30, 40])]);
+        .write(
+            "s1/subagents/agent-a.jsonl",
+            &[
+                request("r2", "b", [100, 0, 0, 900]),
+                call("r3"),
+                result("r3", 5),
+            ],
+        )
+        .write("s1/subagents/agent-a.meta.json", &meta("reviewer"))
+        .write(
+            "s1/subagents/agent-b.jsonl",
+            &[
+                request("r5", "b", [1, 0, 0, 0]),
+                call("r6"),
+                result("r6", 1),
+            ],
+        )
+        .write("s1/subagents/agent-b.meta.json", &meta("explore"))
+        .write("s2.jsonl", &[request("r4", "b", [10, 20, 30, 40])])
+        .write(
+            "s2/subagents/agent-c.jsonl",
+            &[
+                request("r7", "b", [500, 0, 0, 0]),
+                call("r8"),
+                result("r8", 3),
+            ],
+        )
+        .write(
+            "s2/subagents/agent-d.jsonl",
+            &[request("r9", "b", [50, 0, 0, 0])],
+        );
     let output = fixture.nuc(&[
         "measure",
         "--transcripts",
@@ -442,15 +495,16 @@ fn the_breakdown_sums_to_the_tokens_and_names_no_content() {
     ]);
     assert_eq!(code(&output), Some(0), "{}", stderr(&output));
     let text = stdout(&output);
-    let tokens = 10 + 1000 + 10 + 100;
+    let tokens = 10 + 1010 + 1 + 10 + 100 + 510 + 50;
     assert!(text.ends_with(&format!("tokens {tokens}\n")), "{text}");
     for expected in [
         "session s1: read 3 written 3 output 4\n",
-        "  subagent reviewer \"Review the change\": read 103 written 3 output 904\n",
+        "  subagent reviewer \"Review the change\" in session s1: read 103 written 3 output 904\n",
         "session s2: read 30 written 30 output 40\n",
-        "tool Bash: calls 2 output 77 bytes\n",
-        "costliest subagents:\n  subagent reviewer \"Review the change\" in session s1: 1010\n",
-        "largest tool outputs:\n  Bash in session s1: 55 bytes\n  Bash in session s1: 22 bytes\n",
+        "  subagent agent-d in session s2: read 50 written 0 output 0\n",
+        "tool Bash: calls 4 output 121 bytes\n",
+        "costliest subagents:\n  subagent reviewer \"Review the change\" in session s1: 1010\n  subagent agent-c in session s2: 510\n  subagent agent-d in session s2: 50\nlargest tool outputs:\n",
+        "largest tool outputs:\n  Bash in session s1: 55 bytes\n  Bash in session s2: 33 bytes\n  Bash in session s1: 22 bytes\ntokens ",
     ] {
         assert!(text.contains(expected), "{expected:?} in\n{text}");
     }
@@ -468,4 +522,57 @@ fn the_breakdown_sums_to_the_tokens_and_names_no_content() {
         .sum();
     assert_eq!(sum, tokens);
     assert_no_canary(&output);
+}
+
+#[test]
+fn a_time_range_stops_at_a_line_without_its_time_and_names_it() {
+    let fixture = repo_on("measure-no-time", "b");
+    let transcripts = Transcripts::new("measure-no-time");
+    transcripts.write(
+        "s1/subagents/agent-x.jsonl",
+        &[prompt(), request("r1", "b", [1, 1, 1, 1])],
+    );
+    let output = fixture.nuc(&[
+        "measure",
+        "--transcripts",
+        transcripts.path(),
+        "--since",
+        "2026-01-01",
+    ]);
+    assert_eq!(code(&output), Some(2));
+    assert_eq!(stdout(&output), "");
+    assert!(
+        stderr(&output).contains("s1/subagents/agent-x.jsonl:2: a line without a time"),
+        "{}",
+        stderr(&output)
+    );
+    assert_no_canary(&output);
+}
+
+#[cfg(unix)]
+#[test]
+fn a_linked_description_of_a_subagent_stops() {
+    let fixture = repo_on("measure-link-meta", "b");
+    let outside = Transcripts::new("measure-link-meta-outside");
+    outside.write(
+        "meta.json",
+        &[r#"{"agentType":"x","description":"y"}"#.to_owned()],
+    );
+    let transcripts = Transcripts::new("measure-link-meta");
+    transcripts.write(
+        "s1/subagents/agent-x.jsonl",
+        &[request("r1", "b", [1, 1, 1, 1])],
+    );
+    std::os::unix::fs::symlink(
+        outside.dir.join("meta.json"),
+        transcripts.dir.join("s1/subagents/agent-x.meta.json"),
+    )
+    .expect("the link is made");
+    let output = measure(&fixture, &transcripts);
+    assert_eq!(code(&output), Some(2));
+    assert!(
+        stderr(&output).contains("a symbolic link"),
+        "{}",
+        stderr(&output)
+    );
 }

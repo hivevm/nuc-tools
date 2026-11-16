@@ -59,6 +59,7 @@ pub fn lines(name: &str, bytes: &[u8], source: &Source) -> Result<Lines, String>
                             .get(&id)
                             .cloned()
                             .unwrap_or_else(|| "unknown".to_owned()),
+                        at: at.clone(),
                         size,
                         branch: branch.clone(),
                         time: text("timestamp"),
@@ -90,6 +91,7 @@ fn request(object: &Value, at: &str, source: &Source) -> Result<Option<Request>,
         .ok_or_else(|| format!("{at}: a request without its gitBranch — not decided"))?;
     Ok(Some(Request {
         id: id.to_owned(),
+        at: at.to_owned(),
         branch: branch.to_owned(),
         time: text("timestamp").map(str::to_owned),
         source: source.clone(),
@@ -177,6 +179,7 @@ mod tests {
             found.requests,
             [Request {
                 id: "req_1".to_owned(),
+                at: "s/t.jsonl:1".to_owned(),
                 branch: "b".to_owned(),
                 time: Some("2026-11-16T10:00:00.000Z".to_owned()),
                 source: Source::default(),

@@ -62,6 +62,8 @@ pub struct Source {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Request {
     pub id: String,
+    /// The transcript and line it stands at, `<name>:<line>`, for a refusal.
+    pub at: String,
     pub branch: String,
     pub time: Option<String>,
     pub source: Source,
@@ -72,6 +74,8 @@ pub struct Request {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ToolOutput {
     pub tool: String,
+    /// The transcript and line it stands at, `<name>:<line>`, for a refusal.
+    pub at: String,
     pub size: u64,
     pub branch: String,
     pub time: Option<String>,
@@ -142,11 +146,18 @@ pub fn instant(text: &str) -> Option<String> {
                 }
             })
     };
+    let two = |at: usize| (bytes[at] - b'0') * 10 + (bytes[at + 1] - b'0');
+    let real = |n: usize| {
+        (1..=12).contains(&two(5))
+            && (1..=31).contains(&two(8))
+            && (n < 16 || (two(11) < 24 && two(14) < 60))
+            && (n < 19 || two(17) < 60)
+    };
     if bytes.len() == 10 && fits(10) {
-        return Some(format!("{text}T00:00:00.000"));
+        return real(10).then(|| format!("{text}T00:00:00.000"));
     }
     let time = text.strip_suffix('Z')?;
-    match time.len() {
+    let canonical = match time.len() {
         16 if fits(16) => Some(format!("{time}:00.000")),
         19 if fits(19) => Some(format!("{time}.000")),
         n if n > 20 && fits(20) && time[20..].bytes().all(|b| b.is_ascii_digit()) => {
@@ -154,7 +165,8 @@ pub fn instant(text: &str) -> Option<String> {
             Some(format!("{}{fraction}", &time[..20]))
         }
         _ => None,
-    }
+    }?;
+    real(time.len()).then_some(canonical)
 }
 
 /// The requests and tool outputs that count: on one of the branches, and inside the time range,
@@ -172,16 +184,18 @@ impl Selection {
     /// # Errors
     ///
     /// A time range is given and the line has no time of the form `instant` reads.
-    fn takes(&self, branch: &str, time: Option<&str>) -> Result<bool, String> {
+    fn takes(&self, branch: &str, time: Option<&str>, at: &str) -> Result<bool, String> {
         if !self.branches.iter().any(|b| b == branch) {
             return Ok(false);
         }
         if self.since.is_none() && self.until.is_none() {
             return Ok(true);
         }
-        let time = time.and_then(instant).ok_or(
-            "a line of the selection has no time of the form 2026-01-31T12:00:00.000Z, so the time range cannot be applied — not decided",
-        )?;
+        let time = time.and_then(instant).ok_or_else(|| {
+            format!(
+                "{at}: a line without a time of the form 2026-01-31T12:00:00.000Z, so the time range cannot be applied — not decided"
+            )
+        })?;
         let after = self
             .since
             .as_deref()
@@ -208,26 +222,31 @@ pub struct Measures {
 }
 
 /// The measures of the selection, each request counted once with the largest usage its lines
-/// report, at the source of its first line; none where no request counts.
+/// report; its first line decides whether it is selected and where it was written. None where no
+/// request counts.
 ///
 /// # Errors
 ///
 /// A line the selection cannot place in its time range.
 pub fn measure(lines: &Lines, selection: &Selection) -> Result<Option<Measures>, String> {
-    let mut requests: BTreeMap<&str, (&Source, Usage)> = BTreeMap::new();
+    let mut requests: BTreeMap<&str, (&Request, Usage)> = BTreeMap::new();
     for request in &lines.requests {
-        if selection.takes(&request.branch, request.time.as_deref())? {
-            let entry = requests
-                .entry(&request.id)
-                .or_insert((&request.source, Usage::default()));
-            entry.1 = entry.1.largest(request.usage);
+        let entry = requests
+            .entry(&request.id)
+            .or_insert((request, Usage::default()));
+        entry.1 = entry.1.largest(request.usage);
+    }
+    let mut selected = Vec::new();
+    for (first, usage) in requests.into_values() {
+        if selection.takes(&first.branch, first.time.as_deref(), &first.at)? {
+            selected.push((&first.source, usage));
         }
     }
-    if requests.is_empty() {
+    if selected.is_empty() {
         return Ok(None);
     }
     let mut measures = Measures::default();
-    for (source, usage) in requests.into_values() {
+    for (source, usage) in selected {
         measures.total.add(usage);
         measures
             .by_source
@@ -236,7 +255,7 @@ pub fn measure(lines: &Lines, selection: &Selection) -> Result<Option<Measures>,
             .add(usage);
     }
     for output in &lines.tool_outputs {
-        if selection.takes(&output.branch, output.time.as_deref())? {
+        if selection.takes(&output.branch, output.time.as_deref(), &output.at)? {
             let (calls, bytes) = measures.by_tool.entry(output.tool.clone()).or_default();
             *calls += 1;
             *bytes += output.size;
@@ -259,15 +278,16 @@ const NAMED: usize = 3;
 #[must_use]
 pub fn breakdown(measures: &Measures, subagents: &BTreeMap<Source, Subagent>) -> String {
     let mut text = String::new();
-    let name = |source: &Source| match (&source.subagent, subagents.get(source)) {
-        (None, _) => format!("session {}", source.session),
-        (Some(id), None) => format!("  subagent {id}"),
-        (Some(_), Some(agent)) => {
-            format!(
-                "  subagent {} \"{}\"",
-                agent.kind,
+    let name = |source: &Source| {
+        let session = printable(&source.session);
+        match (&source.subagent, subagents.get(source)) {
+            (None, _) => format!("session {session}"),
+            (Some(id), None) => format!("  subagent {} in session {session}", printable(id)),
+            (Some(_), Some(agent)) => format!(
+                "  subagent {} \"{}\" in session {session}",
+                printable(&agent.kind),
                 printable(&agent.description)
-            )
+            ),
         }
     };
     for (source, usage) in &measures.by_source {
@@ -281,7 +301,11 @@ pub fn breakdown(measures: &Measures, subagents: &BTreeMap<Source, Subagent>) ->
         );
     }
     for (tool, (calls, bytes)) in &measures.by_tool {
-        let _ = writeln!(text, "tool {tool}: calls {calls} output {bytes} bytes");
+        let _ = writeln!(
+            text,
+            "tool {}: calls {calls} output {bytes} bytes",
+            printable(tool)
+        );
     }
     let mut costliest: Vec<(&Source, &Usage)> = measures
         .by_source
@@ -291,20 +315,16 @@ pub fn breakdown(measures: &Measures, subagents: &BTreeMap<Source, Subagent>) ->
     costliest.sort_by(|a, b| b.1.total().cmp(&a.1.total()).then(a.0.cmp(b.0)));
     let _ = writeln!(text, "costliest subagents:");
     for (source, usage) in costliest.into_iter().take(NAMED) {
-        let _ = writeln!(
-            text,
-            "{} in session {}: {}",
-            name(source),
-            source.session,
-            usage.total()
-        );
+        let _ = writeln!(text, "{}: {}", name(source), usage.total());
     }
     let _ = writeln!(text, "largest tool outputs:");
     for output in measures.outputs.iter().take(NAMED) {
         let _ = writeln!(
             text,
             "  {} in session {}: {} bytes",
-            output.tool, output.source.session, output.size
+            printable(&output.tool),
+            printable(&output.source.session),
+            output.size
         );
     }
     text
@@ -337,6 +357,7 @@ mod tests {
     fn request(id: &str, branch: &str, time: &str, at: Source, output: u64) -> Request {
         Request {
             id: id.to_owned(),
+            at: format!("t.jsonl:{id}"),
             branch: branch.to_owned(),
             time: Some(time.to_owned()),
             source: at,
@@ -402,6 +423,29 @@ mod tests {
     }
 
     #[test]
+    fn a_request_whose_lines_straddle_the_range_is_decided_by_its_first() {
+        let s = source("s", None);
+        let requests = vec![
+            request("r", "b", "2026-11-16T23:59:59.000Z", s.clone(), 1),
+            request("r", "b", "2026-11-17T00:00:01.000Z", s, 50),
+        ];
+        let lines = Lines {
+            requests,
+            tool_outputs: Vec::new(),
+        };
+        let day = Selection {
+            until: instant("2026-11-17"),
+            ..on(&["b"])
+        };
+        assert_eq!(total(&lines, &day), Some(111 + 50));
+        let next = Selection {
+            since: instant("2026-11-17"),
+            ..on(&["b"])
+        };
+        assert_eq!(total(&lines, &next), None);
+    }
+
+    #[test]
     fn a_time_range_refuses_a_line_without_its_time() {
         let mut r = request("r", "b", T, source("s", None), 1);
         r.time = None;
@@ -413,7 +457,11 @@ mod tests {
             since: instant("2026-01-01"),
             ..on(&["b"])
         };
-        assert!(measure(&lines, &range).is_err());
+        let refusal = measure(&lines, &range).expect_err("refused");
+        assert!(
+            refusal.starts_with("t.jsonl:r: a line without a time"),
+            "{refusal}"
+        );
         assert_eq!(total(&lines, &on(&["b"])), Some(112));
     }
 
@@ -430,6 +478,10 @@ mod tests {
         }
         assert!(instant("2026-11-16T10:00Z") > instant("2026-11-16T09:59:59.999Z"));
         for bad in [
+            "2026-13-01",
+            "2026-11-32",
+            "2026-11-16T24:00Z",
+            "2026-11-16T10:60Z",
             "2026-11-6",
             "2026-11-16T10:00",
             "2026-11-16T10:00:00+01:00",
@@ -449,6 +501,7 @@ mod tests {
         ];
         let tool_outputs = vec![ToolOutput {
             tool: "Bash".to_owned(),
+            at: "t.jsonl:3".to_owned(),
             size: 42,
             branch: "b".to_owned(),
             time: Some(T.to_owned()),
@@ -475,7 +528,9 @@ mod tests {
             text.contains("session s: read 11 written 100 output 1\n"),
             "{text}"
         );
-        assert!(text.contains("  subagent review \"line one\": read 11 written 100 output 1000\n"));
+        assert!(text.contains(
+            "  subagent review \"line one\" in session s: read 11 written 100 output 1000\n"
+        ));
         assert!(
             text.contains("tool Bash: calls 1 output 42 bytes\n"),
             "{text}"

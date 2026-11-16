@@ -14,9 +14,9 @@ use crate::measure::{self, Harness, Lines, Selection, Source};
 use super::{PASSED, git};
 
 /// The options of `nuc measure`: the harness, Claude Code where none is named; the directory of
-/// its transcripts, the harness's own where none is named; the branches, the current one where
-/// none is named, each `--branch` adding one; the time range; and whether to break the tokens
-/// down. Each but `--branch` at most once.
+/// its transcripts, the harness's own where none is named; the branches each `--branch` adds to the
+/// current one; the time range; and whether to break the tokens down. Each but `--branch` at most
+/// once.
 #[derive(Default)]
 struct Options<'a> {
     harness: Option<Harness>,
@@ -44,14 +44,16 @@ pub(super) fn run(options: &[&str]) -> Result<u8, String> {
     let here =
         env::current_dir().map_err(|e| format!("the current directory is unreadable: {e}"))?;
     let root = git::toplevel(&here)?;
-    let branches = if options.branches.is_empty() {
-        let current = git::probe(&root, &["symbolic-ref", "--short", "-q", "HEAD"])?
-            .map(|branch| branch.trim_end().to_owned())
-            .ok_or("HEAD is on no branch: name the branches with --branch — not decided")?;
-        vec![current]
-    } else {
-        options.branches
-    };
+    // The current branch and each one named; on a detached HEAD, the named ones alone.
+    let current = git::probe(&root, &["symbolic-ref", "--short", "-q", "HEAD"])?
+        .map(|branch| branch.trim_end().to_owned());
+    if current.is_none() && options.branches.is_empty() {
+        return Err(
+            "HEAD is on no branch: name the branches with --branch — not decided".to_owned(),
+        );
+    }
+    let mut branches: Vec<String> = current.into_iter().chain(options.branches).collect();
+    branches.dedup();
     // Components drop a trailing separator, through which a link to a directory would be
     // followed rather than seen.
     let dir: PathBuf = match options.transcripts {

@@ -134,7 +134,7 @@ minimum holds like a release's.
 - `nuc measure [--harness claude-code] [--transcripts <dir>] [--branch <name>]... [--since <time>]
   [--until <time>] [--breakdown]` prints `tokens <n>`, the part of a hand-off's Measures line the
   harness knows: the input, cache read, cache written, and output tokens of every request the
-  harness's sessions made on the current branch, or on each branch `--branch` names, subagents
+  harness's sessions made on the current branch and on each branch `--branch` adds, subagents
   included, each request once. `--since` and `--until` take a date `YYYY-MM-DD` or a UTC time
   `YYYY-MM-DDTHH:MM[:SS]Z` and keep the requests from the first and before the second.
   `--breakdown` prints before that line each session's and subagent's tokens read, written to the
