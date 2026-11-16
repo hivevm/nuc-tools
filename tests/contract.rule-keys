@@ -111,7 +111,9 @@ docs/template-release:line
 docs/template-release:proposed
 docs/template-release:version
 hook/commit-on-main:main
+hook/concluded-merge-on-feat:feat
 hook/main-moves:main
+hook/merge-on-feat:feat
 hook/merge-on-main:main
 hook/push-to-main:main
 shell/mode:exec

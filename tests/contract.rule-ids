@@ -20,10 +20,13 @@ docs/section-refs
 docs/skill-pointers
 docs/template-identity
 docs/template-release
+hook/commit-docs
 hook/commit-on-main
+hook/concluded-merge-on-feat
 hook/main-moves
 hook/merge-checks
 hook/merge-docs
+hook/merge-on-feat
 hook/merge-on-main
 hook/push-checks
 hook/push-to-main

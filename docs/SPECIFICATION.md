@@ -91,7 +91,8 @@ from the threats below.
   every pull request, and every ignored advisory names its reason.
 - **Q-4** — Portability: the full test suite passes in CI on Linux x64, Linux arm64, macOS, and
   Windows x64, with no bash on the `PATH` of the process under test; a hook git for Windows runs
-  gets the bash git bundles, and only the checks a shim runs when `nuc hook` answers 3 may use it.
+  gets the bash git bundles, and only the checks a shim runs when `nuc hook` answers 3 or 4 may
+  use it.
 - **Q-5** — Hook latency: `nuc hook reference-transaction` adds at most 2 ms median per call over
   a no-op hook on Linux x64, measured over 1,000 updates of a branch other than `main`; an update
   of `main` is measured and reported beside it.

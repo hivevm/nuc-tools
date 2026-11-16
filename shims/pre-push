@@ -1,18 +1,18 @@
 #!/bin/sh
 #
-# Git pre-push hook, the reference shim of nuc (API-hook-contract): 'nuc hook pre-push' decides from
-# the refs git hands it on the standard input and the git state, and this shim runs the project's
-# full check where nuc answers that it runs.
+# Git pre-push hook, the reference shim of nuc (API-hook-contract-names-check): 'nuc hook
+# pre-push' decides from the refs git hands it on the standard input and the git state, and this
+# shim runs the project's full check where nuc answers that it runs.
 #
 # nuc refuses a push to the remote's main, its deletion included; passes a push that only deletes;
-# tells each ref that carries draft ADRs where they take their numbers; and passes a clean tree
-# the record of green trees holds. Otherwise it answers 3, having noted the tree it decided: the
-# shim then runs scripts/check-all.sh --changed in a subshell, with the variables git hands a hook
-# unset there, refuses while it is red or cannot run, and on green has 'nuc hook pre-push
-# --record' keep that tree in the record, with git's variables as git handed them. A record that
-# cannot be written lets the push pass: it costs only a second run of the checks. Every answer but
-# 0 and 3 refuses, a panic's 101 and a code a later nuc adds included. Without nuc on the PATH it
-# refuses and names where to install it.
+# before template release v0.9.0, tells each ref that carries draft ADRs where they take their
+# numbers; and passes a clean tree the record of green trees holds. Otherwise it answers 3, having
+# noted the tree it decided: the shim then runs scripts/check-all.sh --changed in a subshell, with
+# the variables git hands a hook unset there, refuses while it is red or cannot run, and on green
+# has 'nuc hook pre-push --record' keep that tree in the record, with git's variables as git handed
+# them. A record that cannot be written lets the push pass: it costs only a second run of the
+# checks. Every answer but 0 and 3 refuses, a panic's 101 and a code a later nuc adds included.
+# Without nuc on the PATH it refuses and names where to install it.
 #
 # POSIX sh, so that git for Windows runs it with the sh it bundles. Bypassable with
 # 'git push --no-verify', or by writing a tree into checks-green-trees of the git directory;
