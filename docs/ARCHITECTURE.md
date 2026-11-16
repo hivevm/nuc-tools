@@ -234,6 +234,16 @@ and nothing else. So it reads the configuration of the repository, of the system
 its default places under `HOME`, and none git hands it through the environment, as `git -c
 merge.conflictStyle=diff3`, `GIT_CONFIG_GLOBAL`, or `XDG_CONFIG_HOME`.
 
+`nuc measure` finds the root of the working tree and its current branch through git, takes the
+harness's directory for that tree, or the one `--transcripts` names, and lists it without following
+a symbolic link: each `<session>.jsonl`, and each `agent-<id>.jsonl` with its `agent-<id>.meta.json`
+under `<session>/subagents/`. The adapter of the harness turns each transcript's bytes into requests
+and tool outputs, and the counting selects them by branch and time, counts each request once, and
+builds the line `tokens <n>`, after the breakdown and the draft of a finding where they are asked
+for; for the draft it reads the README through the `Tree`. The whole output is built before it is
+printed, so that a refusal, exit 2 with its cause on the standard error, leaves the standard output
+empty. It writes nothing and keeps no state.
+
 A release starts when a human pushes a tag `vX.Y.Z` that names the version of `Cargo.toml`.
 `release.yml` builds the four targets, writes `SHA256SUMS`, attests each binary and verifies the
 attestations, and creates the release as a draft. It writes the release commit on top of the tag,

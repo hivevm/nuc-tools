@@ -135,7 +135,9 @@ minimum holds like a release's.
   [--until <time>] [--breakdown] [--finding]` prints `tokens <n>`, the part of a hand-off's Measures
   line the harness knows: the input, cache read, cache written, and output tokens of every request
   the harness's sessions made on the current branch and on each branch `--branch` adds, subagents
-  included, each request once. `--since` and `--until` take a date `YYYY-MM-DD` or a UTC time
+  included, each request once. The current branch always counts: to measure other branches alone, as
+  the tickets a `feat/` branch gathered, run it on a branch without sessions, such as `main`, or on
+  a detached HEAD. `--since` and `--until` take a date `YYYY-MM-DD` or a UTC time
   `YYYY-MM-DDTHH:MM[:SS]Z` and keep the requests from the first and before the second. `--breakdown`
   prints before that line each session's and subagent's tokens in those four parts, each tool's
   calls and output bytes, and the three costliest subagents and largest tool outputs. `--finding`
