@@ -186,7 +186,7 @@ compare() {
     fi
     if [[ -n "$rule" ]]; then
       n="" text="${line#"$file: $rule: "}"
-      # The line ends in its key, '[<rule>:<reason>]' (API-command-line-keyed-findings), which
+      # The line ends in its key, '[<rule>:<reason>]' (API-command-line-with-measure), which
       # is no part of the bash's wording before v0.9.1; a finding without it is a difference.
       reason=""
       if [[ "$text" =~ \ \["$rule":([a-z]+)\]$ ]]; then

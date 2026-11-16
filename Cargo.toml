@@ -31,3 +31,4 @@ lto = true
 
 [dependencies]
 regex = { version = "1.13.1", default-features = false, features = ["std"] }
+serde_json = { version = "1.0.154", default-features = false, features = ["std"] }

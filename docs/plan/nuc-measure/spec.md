@@ -12,8 +12,8 @@ cannot name what a rule or a skill costs in tokens.
 
 Reading the figure by hand is not practical. Claude Code keeps one transcript per session, and one
 per subagent beside it. A transcript holds a usage record per request of the model, but one request
-spans several lines, which repeat its usage. In this repository's sessions, 3749 lines carry 1858
-requests, so a naive sum counts about twice.
+spans several lines, each reporting its usage as it streams. In this repository's sessions, 3749
+lines carry 1858 requests, so a naive sum counts most requests more than once.
 
 ## Solution
 
@@ -84,8 +84,9 @@ It also bears on these criteria in force:
   the tokens read from the cache, the tokens written to the cache, and the output tokens, as the
   harness reports each: what the sessions read and wrote, as the pull request template words it.
   The breakdown gives the four parts apart.
-- **One request, once.** Lines that share a request's identifier carry the same usage; each request
-  counts once.
+- **One request, once.** Lines that share a request's identifier report its usage as it streams, so
+  the output grows from line to line; each request counts once, at the largest count each line
+  reports.
 - **Selection.**
   - By default, the requests made on the current branch, read from the branch each line records.
   - Options name further branches, one or several, and a time range. With a time range, only the

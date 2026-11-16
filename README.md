@@ -131,6 +131,13 @@ minimum holds like a release's.
   then nothing is written on the standard output in any format.
 - `nuc explain <rule ID>` gives the reason of a rule.
 - `nuc hook <name>` decides a git hook; the shims below call it.
+- `nuc measure [--harness claude-code] [--transcripts <dir>]` prints `tokens <n>`, the part of a
+  hand-off's Measures line the harness knows: the input, cache read, cache written, and output
+  tokens of every request the harness's sessions made on the current branch, subagents included,
+  each request once. It reads Claude Code's transcripts of this working tree, under
+  `CLAUDE_CONFIG_DIR` or `~/.claude`, or those in `<dir>`, and prints nothing of their text. It
+  exits 0, or 2 where a transcript does not read as it expects or no request was made on the branch
+  ([API-measure-reads-harness-transcripts](docs/adr/API-measure-reads-harness-transcripts.md)).
 - `nuc --version` prints the version.
 
 The rules port every check of the template's `check-docs.sh`, 1 to 16, each as the release a tree

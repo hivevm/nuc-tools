@@ -1,5 +1,5 @@
 # Every key nuc has printed, '<rule ID>:<reason>', read by tests/contract.rs
-# (API-command-line-keyed-findings). A key stays once listed: a reader or a test branches on it in
+# (API-command-line-with-measure). A key stays once listed: a reader or a test branches on it in
 # place of a message's wording, so no reason is renamed, dropped, or given to another cause.
 
 docs/adr-header:emojis

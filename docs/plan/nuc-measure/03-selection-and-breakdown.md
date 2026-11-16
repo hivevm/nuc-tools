@@ -5,8 +5,7 @@
 On the tracer of ticket 02, this ticket adds the selection and the breakdown.
 
 - **Selection:** options name further branches, one or several, and a time range. With a time
-  range, only the requests inside it count. The harness's configuration directory variable is
-  respected for the default directory.
+  range, only the requests inside it count.
 - **Breakdown:** an option prints, per session and per subagent of the selection, its tokens read
   (input and cache read), written to the cache, and output. It prints per tool name the calls and
   the size of their outputs, and names the three costliest subagents and the three largest tool
@@ -21,8 +20,6 @@ On the tracer of ticket 02, this ticket adds the selection and the breakdown.
   then the figure counts those of `a` and `c`.
 - [ ] Given requests on either side of a time range, when it runs with that range, then only those
   inside count.
-- [ ] Given the harness's configuration directory variable set to a fixture directory, when it runs
-  without naming one, then it reads that directory.
 - [ ] Given two sessions with subagents and tool calls, when it runs with the breakdown, then each
   session's and subagent's four figures sum to the line `tokens <n>`, and the costliest subagents
   and largest outputs are named.
@@ -36,7 +33,7 @@ On the tracer of ticket 02, this ticket adds the selection and the breakdown.
 
 ## Blocked by
 
-- docs/plan/nuc-measure/02-tokens-of-the-current-branch.md
+- None (can start immediately)
 
 ## Mode
 

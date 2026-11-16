@@ -17,3 +17,8 @@ tree.rs Tree::read_skills canonicalize
 hook.rs read_in_git_dir fs::read
 # Reads a side of a merge at the path git hands the merge driver.
 hook.rs read_merge_side fs::read
+# Read the transcripts of a harness in the one directory outside the repository that `nuc measure`
+# reads, each file and directory taken only where it is no symbolic link
+# (API-measure-reads-harness-transcripts).
+measure.rs entries read_dir
+measure.rs read_transcripts fs::read

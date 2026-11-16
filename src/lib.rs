@@ -9,6 +9,7 @@ pub mod format;
 pub mod glob;
 pub mod hook;
 pub mod markdown;
+pub mod measure;
 pub mod rules;
 pub mod shell;
 #[cfg(test)]

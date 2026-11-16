@@ -23,12 +23,13 @@ runs as a hook, or CI. What crosses its boundary:
   answers about the tree, git run as a process; the variables CI sets for a pull request, which
   the check of drafts on `main` reads; and for `nuc hook`, the arguments and the standard input
   git hands a hook, the `GIT_DIR` it sets, the run `NUC_HOOK_RUN` the `pre-push` shim names, and
-  the three sides git hands the merge driver. The tree is untrusted input.
-- **Out:** the findings on the standard output, the summary, the notices of a hook, and every
-  refusal on the standard error, and the exit code. `nuc check` writes no file and keeps no
-  state; `nuc hook pre-push` keeps the record of green trees in the git directory, and the merge
-  driver writes the merged index over ours, after git merged the prose in a scratch directory it
-  makes fresh in the git directory and removes.
+  the three sides git hands the merge driver; and for `nuc measure`, the transcripts of a harness
+  in its directory outside the repository. The tree and the transcripts are untrusted input.
+- **Out:** the findings on the standard output, or the measures of `nuc measure`; the summary,
+  the notices of a hook, and every refusal on the standard error; and the exit code. `nuc check`
+  and `nuc measure` write no file and keep no state; `nuc hook pre-push` keeps the record of green
+  trees in the git directory, and the merge driver writes the merged index over ours, after git
+  merged the prose in a scratch directory it makes fresh in the git directory and removes.
 - **Beside it:** the template's bash scripts and hooks, the oracle the parity harness compares
   `nuc` with, on a corpus of repositories fetched from GitHub; the reference shims, which run the
   project's checks where `nuc hook` answers that they run; the release workflow, which
@@ -74,7 +75,7 @@ golden path and the test pattern an agent copies from are named here.
   one answer to which IDs `nuc.toml` may name, those of `rules::ALL` and of `hook::ALL`, and the
   reason `nuc explain` gives for each, so `nuc check`, `nuc hook`, and `nuc explain` ask it alike.
 - **Formats** — `src/format.rs` turns what a run of `nuc check` decided into its standard output:
-  the lines of API-command-line-keyed-findings, one JSON document, or one SARIF 2.1.0 log, without
+  the lines of API-command-line-with-measure, one JSON document, or one SARIF 2.1.0 log, without
   a crate and byte for byte the same for the same findings
   ([API-output-formats-carry-reason](adr/API-output-formats-carry-reason.md)).
 - **Hooks** — `src/hook.rs` decides what each git hook of the template decides, from the git state
@@ -101,6 +102,13 @@ golden path and the test pattern an agent copies from are named here.
   renames, creates, and removes only in the functions `tests/functional_core.writers` names, each
   inside the repository or its git directory (Q-8); `git merge-file` writes ours for the merge
   driver.
+- **Measure** — `src/measure.rs` counts the tokens of `nuc measure` from the requests an adapter
+  per harness reads out of its transcripts, `src/measure/claude_code.rs` the one for Claude Code,
+  each request once at the largest usage its lines report; it knows no harness and reads nothing.
+  `shell::measure` finds the harness's directory and reads its transcripts in the two functions
+  `tests/functional_core.guarded` names for it, the one read outside the repository, following no
+  symbolic link
+  ([API-measure-reads-harness-transcripts](adr/API-measure-reads-harness-transcripts.md)).
 - **Binary** — `src/main.rs` calls the shell and nothing else.
 - **Parity harness** — `scripts/check-parity.sh` runs the bash checks of each repository of the
   corpus, `check-docs.sh` and `check-traceability.sh`, and from v0.10.0 on `check-shell.sh`, all on
