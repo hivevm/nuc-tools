@@ -57,7 +57,8 @@ pub(super) fn run(options: &[&str]) -> Result<u8, String> {
         );
     }
     let mut branches: Vec<String> = current.into_iter().chain(options.branches).collect();
-    branches.dedup();
+    let mut seen = std::collections::BTreeSet::new();
+    branches.retain(|branch| seen.insert(branch.clone()));
     // Components drop a trailing separator, through which a link to a directory would be
     // followed rather than seen.
     let dir: PathBuf = match options.transcripts {
@@ -138,6 +139,12 @@ fn parse<'a>(options: &[&'a str]) -> Option<Options<'a>> {
             "--until" if parsed.until.is_none() => parsed.until = Some(measure::instant(value)?),
             _ => return None,
         }
+    }
+    // A range that ends before it starts selects nothing: a mistake of the command line.
+    if let (Some(since), Some(until)) = (&parsed.since, &parsed.until)
+        && since >= until
+    {
+        return None;
     }
     Some(parsed)
 }
@@ -305,8 +312,10 @@ fn entries(dir: &Path) -> Result<Vec<String>, String> {
         Some(_) => return Err(not_regular(dir)),
     }
     let mut names = Vec::new();
-    for entry in fs::read_dir(dir).map_err(|e| format!("{}: unreadable: {e}", dir.display()))? {
-        let entry = entry.map_err(|e| format!("{}: unreadable: {e}", dir.display()))?;
+    let unreadable =
+        |e: std::io::Error| format!("{}: unreadable: {e} — not decided", dir.display());
+    for entry in fs::read_dir(dir).map_err(unreadable)? {
+        let entry = entry.map_err(unreadable)?;
         let name = entry
             .file_name()
             .into_string()

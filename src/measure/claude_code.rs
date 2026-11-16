@@ -50,10 +50,14 @@ pub fn lines(name: &str, bytes: &[u8], source: &Source) -> Result<Lines, String>
                 }
             }
             Some("user") => {
-                let Some(branch) = text("gitBranch") else {
+                let results = results(&object);
+                if results.is_empty() {
                     continue;
-                };
-                for (id, size) in results(&object) {
+                }
+                let branch = text("gitBranch").ok_or_else(|| {
+                    format!("{at}: a tool's output without its gitBranch — not decided")
+                })?;
+                for (id, size) in results {
                     found.tool_outputs.push(ToolOutput {
                         tool: tools
                             .get(&id)
@@ -203,6 +207,16 @@ mod tests {
             .map(|o| (o.tool.as_str(), o.size))
             .collect();
         assert_eq!(outputs, [("Bash", 5), ("unknown", 3)]);
+    }
+
+    #[test]
+    fn a_tool_output_without_its_branch_is_refused() {
+        let result = r#"{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"t1","content":"x"}]}}"#;
+        assert!(
+            read(result)
+                .unwrap_err()
+                .contains("a tool's output without its gitBranch")
+        );
     }
 
     #[test]

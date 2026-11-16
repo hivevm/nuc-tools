@@ -25,7 +25,12 @@ impl Usage {
     /// What the request read and wrote: the four counts summed.
     #[must_use]
     pub fn total(self) -> u64 {
-        self.input + self.cache_read + self.cache_written + self.output
+        // `add` refuses a usage whose four counts sum past u64, so this sum does not saturate on a
+        // usage `measure` returns.
+        self.input
+            .saturating_add(self.cache_read)
+            .saturating_add(self.cache_written)
+            .saturating_add(self.output)
     }
 
     /// Each count the larger of the two: the lines of one request may report it as it streams,
@@ -40,12 +45,19 @@ impl Usage {
         }
     }
 
-    /// The counts of both summed.
-    fn add(&mut self, other: Self) {
-        self.input += other.input;
-        self.cache_read += other.cache_read;
-        self.cache_written += other.cache_written;
-        self.output += other.output;
+    /// The counts of both summed, none where a sum, or the total of the four, overflows.
+    fn add(self, other: Self) -> Option<Self> {
+        let sum = Self {
+            input: self.input.checked_add(other.input)?,
+            cache_read: self.cache_read.checked_add(other.cache_read)?,
+            cache_written: self.cache_written.checked_add(other.cache_written)?,
+            output: self.output.checked_add(other.output)?,
+        };
+        sum.input
+            .checked_add(sum.cache_read)?
+            .checked_add(sum.cache_written)?
+            .checked_add(sum.output)?;
+        Some(sum)
     }
 }
 
@@ -149,7 +161,7 @@ pub fn instant(text: &str) -> Option<String> {
     let two = |at: usize| (bytes[at] - b'0') * 10 + (bytes[at + 1] - b'0');
     let real = |n: usize| {
         (1..=12).contains(&two(5))
-            && (1..=31).contains(&two(8))
+            && (1..=days_in(two(5), &bytes[..4])).contains(&two(8))
             && (n < 16 || (two(11) < 24 && two(14) < 60))
             && (n < 19 || two(17) < 60)
     };
@@ -167,6 +179,18 @@ pub fn instant(text: &str) -> Option<String> {
         _ => None,
     }?;
     real(time.len()).then_some(canonical)
+}
+
+/// The days of the month in the year, its four digits given.
+fn days_in(month: u8, year: &[u8]) -> u8 {
+    let year = year.iter().fold(0u32, |n, &b| n * 10 + u32::from(b - b'0'));
+    let leap = year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
+    match month {
+        2 if leap => 29,
+        2 => 28,
+        4 | 6 | 9 | 11 => 30,
+        _ => 31,
+    }
 }
 
 /// The requests and tool outputs that count: on one of the branches, and inside the time range,
@@ -245,20 +269,19 @@ pub fn measure(lines: &Lines, selection: &Selection) -> Result<Option<Measures>,
     if selected.is_empty() {
         return Ok(None);
     }
+    let overflow =
+        || "the counts of the selection sum past what nuc can count — not decided".to_owned();
     let mut measures = Measures::default();
     for (source, usage) in selected {
-        measures.total.add(usage);
-        measures
-            .by_source
-            .entry(source.clone())
-            .or_default()
-            .add(usage);
+        measures.total = measures.total.add(usage).ok_or_else(overflow)?;
+        let entry = measures.by_source.entry(source.clone()).or_default();
+        *entry = entry.add(usage).ok_or_else(overflow)?;
     }
     for output in &lines.tool_outputs {
         if selection.takes(&output.branch, output.time.as_deref(), &output.at)? {
             let (calls, bytes) = measures.by_tool.entry(output.tool.clone()).or_default();
             *calls += 1;
-            *bytes += output.size;
+            *bytes = bytes.saturating_add(output.size);
             measures.outputs.push(output.clone());
         }
     }
@@ -271,8 +294,8 @@ pub fn measure(lines: &Lines, selection: &Selection) -> Result<Option<Measures>,
 /// How many of the costliest subagents and the largest tool outputs the breakdown names.
 const NAMED: usize = 3;
 
-/// The breakdown of the measures: each session's own tokens and each subagent's, read, written to
-/// the cache, and output; each tool's calls and output bytes; the costliest subagents and the
+/// The breakdown of the measures: each session's own tokens and each subagent's, in the four parts
+/// the harness reports; each tool's calls and output bytes; the costliest subagents and the
 /// largest tool outputs. Subagents are named by type and description, as `subagents` gives them
 /// by source, and nothing else of a transcript is named.
 #[must_use]
@@ -293,9 +316,10 @@ pub fn breakdown(measures: &Measures, subagents: &BTreeMap<Source, Subagent>) ->
     for (source, usage) in &measures.by_source {
         let _ = writeln!(
             text,
-            "{}: read {} written {} output {}",
+            "{}: input {} cache read {} cache written {} output {}",
             name(source),
-            usage.input + usage.cache_read,
+            usage.input,
+            usage.cache_read,
             usage.cache_written,
             usage.output
         );
@@ -527,6 +551,8 @@ mod tests {
         }
         assert!(instant("2026-11-16T10:00Z") > instant("2026-11-16T09:59:59.999Z"));
         for bad in [
+            "2026-02-29",
+            "2026-04-31",
             "2026-13-01",
             "2026-11-32",
             "2026-11-16T24:00Z",
@@ -574,11 +600,11 @@ mod tests {
         )]);
         let text = breakdown(&measures, &names);
         assert!(
-            text.contains("session s: read 11 written 100 output 1\n"),
+            text.contains("session s: input 1 cache read 10 cache written 100 output 1\n"),
             "{text}"
         );
         assert!(text.contains(
-            "  subagent review \"line one\" in session s: read 11 written 100 output 1000\n"
+            "  subagent review \"line one\" in session s: input 1 cache read 10 cache written 100 output 1000\n"
         ));
         assert!(
             text.contains("tool Bash: calls 1 output 42 bytes\n"),
@@ -634,6 +660,22 @@ mod tests {
             !text.contains("session-x") && !text.contains("agent-y") && !text.contains("t.jsonl")
         );
         assert!(finding(&measures, None).contains("none: the README names no Template release"));
+    }
+
+    #[test]
+    fn counts_that_sum_past_u64_are_refused() {
+        let s = source("s", None);
+        let mut big = request("r1", "b", T, s.clone(), u64::MAX - 200);
+        big.usage.input = 0;
+        let lines = Lines {
+            requests: vec![big, request("r2", "b", T, s, 1)],
+            tool_outputs: Vec::new(),
+        };
+        assert!(measure(&lines, &on(&["b"])).is_err());
+        assert_eq!(
+            instant("2024-02-29").as_deref(),
+            Some("2024-02-29T00:00:00.000")
+        );
     }
 
     #[test]

@@ -89,7 +89,7 @@ fn assert_no_canary(output: &Output) {
 }
 
 #[test]
-fn a_request_over_several_lines_counts_once_with_its_last_usage() {
+fn a_request_over_several_lines_counts_once_at_its_largest_counts() {
     let fixture = repo_on("measure-once", "b");
     let transcripts = Transcripts::new("measure-once");
     transcripts.write(
@@ -345,6 +345,7 @@ fn an_unknown_harness_or_option_is_a_usage_error() {
         &["measure", "--until", "2026-11-16T10:00"],
         &["measure", "--breakdown", "--breakdown"],
         &["measure", "--finding", "--finding"],
+        &["measure", "--since", "2026-11-17", "--until", "2026-11-16"],
         &["measure", "--branch", ""],
     ] {
         let output = fixture.nuc(args);
@@ -499,10 +500,10 @@ fn the_breakdown_sums_to_the_tokens_and_names_no_content() {
     let tokens = 10 + 1010 + 1 + 10 + 100 + 510 + 50;
     assert!(text.ends_with(&format!("tokens {tokens}\n")), "{text}");
     for expected in [
-        "session s1: read 3 written 3 output 4\n",
-        "  subagent reviewer \"Review the change\" in session s1: read 103 written 3 output 904\n",
-        "session s2: read 30 written 30 output 40\n",
-        "  subagent agent-d in session s2: read 50 written 0 output 0\n",
+        "session s1: input 1 cache read 2 cache written 3 output 4\n",
+        "  subagent reviewer \"Review the change\" in session s1: input 101 cache read 2 cache written 3 output 904\n",
+        "session s2: input 10 cache read 20 cache written 30 output 40\n",
+        "  subagent agent-d in session s2: input 50 cache read 0 cache written 0 output 0\n",
         "tool Bash: calls 4 output 121 bytes\n",
         "costliest subagents:\n  subagent reviewer \"Review the change\" in session s1: 1010\n  subagent agent-c in session s2: 510\n  subagent agent-d in session s2: 50\nlargest tool outputs:\n",
         "largest tool outputs:\n  Bash in session s1: 55 bytes\n  Bash in session s2: 33 bytes\n  Bash in session s1: 22 bytes\ntokens ",
@@ -511,9 +512,9 @@ fn the_breakdown_sums_to_the_tokens_and_names_no_content() {
     }
     let sum: u64 = text
         .lines()
-        .filter(|line| line.contains(": read "))
+        .filter(|line| line.contains(": input "))
         .map(|line| {
-            line.rsplit(": read ")
+            line.rsplit(": input ")
                 .next()
                 .expect("counts")
                 .split(' ')
