@@ -13,6 +13,10 @@ counted once.
 - It prints nothing of a transcript's text.
 - The JSON crate joins `Cargo.toml` and passes `cargo deny` and `cargo audit`.
 - The README's command reference and `docs/ARCHITECTURE.md` name the command.
+- The maintainer accepted API-measure-reads-harness-transcripts and API-command-line-with-measure
+  on 2026-11-16. This ticket flips both to accepted and API-command-line-keyed-findings to
+  superseded, in their header lines and the index, and moves the `Verifies:` markers of
+  API-command-line-keyed-findings to API-command-line-with-measure.
 
 ## Acceptance criteria
 
@@ -42,7 +46,7 @@ counted once.
 
 ## Blocked by
 
-- docs/plan/nuc-measure/01-propose-the-adr-and-draft-g-8.md
+- None (can start immediately)
 
 ## Mode
 

@@ -151,14 +151,15 @@ It also bears on these criteria in force:
 ## ADR impact
 
 - **Bind this work:**
-  - API-command-line-keyed-findings: the command line, its help, and its exit codes;
+  - API-command-line-with-measure, which supersedes API-command-line-keyed-findings: the command
+    line, its help, and its exit codes;
   - ARCH-rules-outcome-hooks-answer: a pure library and one shell;
   - OPS-crates-pass-deny-and-audit: the JSON crate;
   - SEC-git-cleared-environment: if the current branch is asked of git;
   - TEST-fixtures-with-own-home;
   - DEV-one-agent-one-ticket;
   - NUC-template-learns-from-projects: the finding draft and that nothing is sent.
-- **New, proposed in ticket 01 before any implementation:** an ADR that `nuc measure` reads a
-  harness's transcripts outside the repository, read-only, through one adapter per harness, fails
-  closed on what it cannot read, and prints numbers and names only. Ticket 01 also drafts G-8 for
-  the human, who lands the specification.
+- **Proposed in ticket 01 and accepted by the maintainer on 2026-11-16,** flipped in ticket 02:
+  API-measure-reads-harness-transcripts, and API-command-line-with-measure, which supersedes
+  API-command-line-keyed-findings to give `nuc measure` its output and exit codes. The draft of G-8
+  stands in the hand-off of ticket 01 for the maintainer to land.
