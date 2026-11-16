@@ -1,5 +1,5 @@
 //! `nuc measure` end to end, on fixture transcripts in a directory of the test's own beside a
-//! fixture repository. Verifies: API-measure-reads-harness-transcripts
+//! fixture repository. Verifies: API-measure-reads-harness-transcripts G-8
 //!
 //! The transcripts are synthetic lines in the shape Claude Code writes them: a request spans
 //! several lines as it streams, a subagent's transcript lies under its session's directory, and
