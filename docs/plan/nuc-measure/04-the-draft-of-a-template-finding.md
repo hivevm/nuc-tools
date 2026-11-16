@@ -32,7 +32,7 @@ findings: Template release, Concerns, Finding, Measures, and Proposal.
 
 ## Blocked by
 
-- docs/plan/nuc-measure/03-selection-and-breakdown.md
+- None (can start immediately)
 
 ## Mode
 

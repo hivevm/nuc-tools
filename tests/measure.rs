@@ -328,7 +328,10 @@ fn an_unknown_harness_or_option_is_a_usage_error() {
     for args in [
         &["measure", "--harness", "other"][..],
         &["measure", "--transcripts"],
-        &["measure", "--branch", "b"],
+        &["measure", "--since", "yesterday"],
+        &["measure", "--until", "2026-11-16T10:00"],
+        &["measure", "--breakdown", "--breakdown"],
+        &["measure", "--branch", ""],
     ] {
         let output = fixture.nuc(args);
         assert_eq!(code(&output), Some(2), "{args:?}");
@@ -359,4 +362,110 @@ fn measure_writes_nothing() {
     );
     assert!(support::changed(&before.0, &after.0).is_empty());
     assert!(support::changed(&before.1, &after.1).is_empty());
+}
+
+#[test]
+fn named_branches_and_a_time_range_select_the_requests() {
+    let fixture = repo_on("measure-select", "b");
+    let transcripts = Transcripts::new("measure-select");
+    let at = |id: &str, branch: &str, time: &str, n: u64| {
+        request(id, branch, [n, 0, 0, 0]).replacen(
+            "{\"type\"",
+            &format!("{{\"timestamp\":\"{time}\",\"type\""),
+            1,
+        )
+    };
+    transcripts.write(
+        "s1.jsonl",
+        &[
+            at("r1", "a", "2026-11-15T23:59:59.999Z", 1),
+            at("r2", "b", "2026-11-16T08:00:00.000Z", 10),
+            at("r3", "c", "2026-11-16T12:00:00.000Z", 100),
+            at("r4", "c", "2026-11-17T00:00:00.000Z", 1000),
+        ],
+    );
+    let run = |args: &[&str]| {
+        let mut all = vec!["measure", "--transcripts", transcripts.path()];
+        all.extend_from_slice(args);
+        fixture.nuc(&all)
+    };
+    let output = run(&["--branch", "a", "--branch", "c"]);
+    assert_eq!(code(&output), Some(0), "{}", stderr(&output));
+    assert_eq!(stdout(&output), "tokens 1101\n");
+    let output = run(&[
+        "--branch",
+        "a",
+        "--branch",
+        "b",
+        "--branch",
+        "c",
+        "--since",
+        "2026-11-16",
+        "--until",
+        "2026-11-17",
+    ]);
+    assert_eq!(stdout(&output), "tokens 110\n", "{}", stderr(&output));
+    let output = run(&["--since", "2026-11-16T09:00Z"]);
+    assert_eq!(
+        code(&output),
+        Some(2),
+        "only b, the current branch, whose request is earlier"
+    );
+    assert_no_canary(&output);
+}
+
+#[test]
+fn the_breakdown_sums_to_the_tokens_and_names_no_content() {
+    let fixture = repo_on("measure-breakdown", "b");
+    let transcripts = Transcripts::new("measure-breakdown");
+    let call = |id: &str| {
+        format!(
+            r#"{{"type":"assistant","requestId":"{id}","gitBranch":"b","message":{{"content":[{{"type":"tool_use","id":"t-{id}","name":"Bash","input":{{"command":"{CANARY}"}}}}],"usage":{{"input_tokens":1,"cache_read_input_tokens":2,"cache_creation_input_tokens":3,"output_tokens":4}}}}}}"#
+        )
+    };
+    let result = |id: &str, size: usize| {
+        format!(
+            r#"{{"type":"user","gitBranch":"b","message":{{"content":[{{"type":"tool_result","tool_use_id":"t-{id}","content":"{}"}}]}}}}"#,
+            CANARY.repeat(size)
+        )
+    };
+    transcripts
+        .write("s1.jsonl", &[call("r1"), result("r1", 2)])
+        .write("s1/subagents/agent-x.jsonl", &[request("r2", "b", [100, 0, 0, 900]), call("r3"), result("r3", 5)])
+        .write("s1/subagents/agent-x.meta.json", &[format!(r#"{{"agentType":"reviewer","description":"Review the change","toolUseId":"{CANARY}"}}"#)])
+        .write("s2.jsonl", &[request("r4", "b", [10, 20, 30, 40])]);
+    let output = fixture.nuc(&[
+        "measure",
+        "--transcripts",
+        transcripts.path(),
+        "--breakdown",
+    ]);
+    assert_eq!(code(&output), Some(0), "{}", stderr(&output));
+    let text = stdout(&output);
+    let tokens = 10 + 1000 + 10 + 100;
+    assert!(text.ends_with(&format!("tokens {tokens}\n")), "{text}");
+    for expected in [
+        "session s1: read 3 written 3 output 4\n",
+        "  subagent reviewer \"Review the change\": read 103 written 3 output 904\n",
+        "session s2: read 30 written 30 output 40\n",
+        "tool Bash: calls 2 output 77 bytes\n",
+        "costliest subagents:\n  subagent reviewer \"Review the change\" in session s1: 1010\n",
+        "largest tool outputs:\n  Bash in session s1: 55 bytes\n  Bash in session s1: 22 bytes\n",
+    ] {
+        assert!(text.contains(expected), "{expected:?} in\n{text}");
+    }
+    let sum: u64 = text
+        .lines()
+        .filter(|line| line.contains(": read "))
+        .map(|line| {
+            line.rsplit(": read ")
+                .next()
+                .expect("counts")
+                .split(' ')
+                .filter_map(|word| word.parse::<u64>().ok())
+                .sum::<u64>()
+        })
+        .sum();
+    assert_eq!(sum, tokens);
+    assert_no_canary(&output);
 }

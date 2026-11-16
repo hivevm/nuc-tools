@@ -1,11 +1,12 @@
-//! The counting of `nuc measure`: the tokens a harness's sessions on a branch read and wrote, as
-//! the Measures line of a hand-off counts them (API-measure-reads-harness-transcripts). Pure: the
-//! shell reads the transcripts and hands their bytes over, an adapter per harness turns them into
-//! requests, and the counting knows no harness.
+//! The counting of `nuc measure`: the tokens a harness's sessions read and wrote, as the Measures
+//! line of a hand-off counts them, and where they went (API-measure-reads-harness-transcripts).
+//! Pure: the shell reads the transcripts and hands their bytes over, an adapter per harness turns
+//! them into requests and tool outputs, and the counting knows no harness.
 
 pub mod claude_code;
 
 use std::collections::BTreeMap;
+use std::fmt::Write as _;
 
 /// The tokens of one request as the harness reports them.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -27,8 +28,8 @@ impl Usage {
         self.input + self.cache_read + self.cache_written + self.output
     }
 
-    /// Each count the larger of the two: the lines of one request report it as it streams, so its
-    /// last line, and the largest count, is the request's.
+    /// Each count the larger of the two: the lines of one request may report it as it streams,
+    /// so the largest count of each is the request's.
     #[must_use]
     fn largest(self, other: Self) -> Self {
         Self {
@@ -38,15 +39,57 @@ impl Usage {
             output: self.output.max(other.output),
         }
     }
+
+    /// The counts of both summed.
+    fn add(&mut self, other: Self) {
+        self.input += other.input;
+        self.cache_read += other.cache_read;
+        self.cache_written += other.cache_written;
+        self.output += other.output;
+    }
 }
 
-/// One line of a transcript that reports a request of the model: the request's identifier, the
-/// branch the session was on, and the usage the line reports.
+/// Where a line was written: the session, and the subagent of that session, none for the
+/// session's own lines.
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Source {
+    pub session: String,
+    pub subagent: Option<String>,
+}
+
+/// One line that reports a request of the model: its identifier, the branch the session was on,
+/// its time, where it was written, and the usage it reports.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Request {
     pub id: String,
     pub branch: String,
+    pub time: Option<String>,
+    pub source: Source,
     pub usage: Usage,
+}
+
+/// The output of one tool call, by the tool's name and its size in bytes, never its text.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ToolOutput {
+    pub tool: String,
+    pub size: u64,
+    pub branch: String,
+    pub time: Option<String>,
+    pub source: Source,
+}
+
+/// What an adapter reads out of a transcript.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Lines {
+    pub requests: Vec<Request>,
+    pub tool_outputs: Vec<ToolOutput>,
+}
+
+/// A subagent as its harness names it: its type and the description it was started with.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Subagent {
+    pub kind: String,
+    pub description: String,
 }
 
 /// The harnesses whose transcripts `nuc measure` reads.
@@ -62,30 +105,216 @@ impl Harness {
         (name == "claude-code").then_some(Self::ClaudeCode)
     }
 
-    /// The requests the lines of one transcript report, or why it cannot be read: a line that
-    /// does not parse or a request without its usage, at its file and line. `name` names the
-    /// transcript in a refusal.
+    /// The requests and tool outputs the lines of one transcript report, written at `source`.
+    /// `name` names the transcript in a refusal.
     ///
     /// # Errors
     ///
     /// The refusal, which names the file and the line and nothing of the transcript's text.
-    pub fn requests(self, name: &str, bytes: &[u8]) -> Result<Vec<Request>, String> {
+    pub fn lines(self, name: &str, bytes: &[u8], source: &Source) -> Result<Lines, String> {
         match self {
-            Self::ClaudeCode => claude_code::requests(name, bytes),
+            Self::ClaudeCode => claude_code::lines(name, bytes, source),
+        }
+    }
+
+    /// The subagent its harness describes in `bytes`, none where they do not describe one.
+    #[must_use]
+    pub fn subagent(self, bytes: &[u8]) -> Option<Subagent> {
+        match self {
+            Self::ClaudeCode => claude_code::subagent(bytes),
         }
     }
 }
 
-/// The tokens the requests on `branch` read and wrote, each request counted once with the largest
-/// usage its lines report; none where no request was made on it.
+/// An instant in UTC, `YYYY-MM-DD` or `YYYY-MM-DDTHH:MM[:SS[.f…]]Z`, in the one form
+/// `YYYY-MM-DDTHH:MM:SS.fff` that orders as its text does; none for another form.
 #[must_use]
-pub fn tokens(requests: &[Request], branch: &str) -> Option<u64> {
-    let mut by_id: BTreeMap<&str, Usage> = BTreeMap::new();
-    for request in requests.iter().filter(|request| request.branch == branch) {
-        let usage = by_id.entry(&request.id).or_default();
-        *usage = usage.largest(request.usage);
+pub fn instant(text: &str) -> Option<String> {
+    let form = b"dddd-dd-ddTdd:dd:dd.";
+    let bytes = text.as_bytes();
+    let fits = |n: usize| {
+        n <= bytes.len()
+            && bytes[..n].iter().zip(form).all(|(&b, &f)| {
+                if f == b'd' {
+                    b.is_ascii_digit()
+                } else {
+                    b == f
+                }
+            })
+    };
+    if bytes.len() == 10 && fits(10) {
+        return Some(format!("{text}T00:00:00.000"));
     }
-    (!by_id.is_empty()).then(|| by_id.values().map(|usage| usage.total()).sum())
+    let time = text.strip_suffix('Z')?;
+    match time.len() {
+        16 if fits(16) => Some(format!("{time}:00.000")),
+        19 if fits(19) => Some(format!("{time}.000")),
+        n if n > 20 && fits(20) && time[20..].bytes().all(|b| b.is_ascii_digit()) => {
+            let fraction: String = time[20..].chars().chain("000".chars()).take(3).collect();
+            Some(format!("{}{fraction}", &time[..20]))
+        }
+        _ => None,
+    }
+}
+
+/// The requests and tool outputs that count: on one of the branches, and inside the time range,
+/// from `since` on and before `until`, where one is given, each in the form `instant` gives.
+#[derive(Clone, Debug, Default)]
+pub struct Selection {
+    pub branches: Vec<String>,
+    pub since: Option<String>,
+    pub until: Option<String>,
+}
+
+impl Selection {
+    /// Whether a line on `branch` at `time` counts.
+    ///
+    /// # Errors
+    ///
+    /// A time range is given and the line has no time of the form `instant` reads.
+    fn takes(&self, branch: &str, time: Option<&str>) -> Result<bool, String> {
+        if !self.branches.iter().any(|b| b == branch) {
+            return Ok(false);
+        }
+        if self.since.is_none() && self.until.is_none() {
+            return Ok(true);
+        }
+        let time = time.and_then(instant).ok_or(
+            "a line of the selection has no time of the form 2026-01-31T12:00:00.000Z, so the time range cannot be applied — not decided",
+        )?;
+        let after = self
+            .since
+            .as_deref()
+            .is_none_or(|since| time.as_str() >= since);
+        let before = self
+            .until
+            .as_deref()
+            .is_none_or(|until| time.as_str() < until);
+        Ok(after && before)
+    }
+}
+
+/// What the selected requests and tool outputs read, wrote, and returned.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Measures {
+    /// The tokens of every request, each counted once.
+    pub total: Usage,
+    /// The tokens by where they were written: a session's own, and each of its subagents'.
+    pub by_source: BTreeMap<Source, Usage>,
+    /// By tool name, its calls and the bytes of their outputs.
+    pub by_tool: BTreeMap<String, (u64, u64)>,
+    /// Each tool output, the largest first.
+    pub outputs: Vec<ToolOutput>,
+}
+
+/// The measures of the selection, each request counted once with the largest usage its lines
+/// report, at the source of its first line; none where no request counts.
+///
+/// # Errors
+///
+/// A line the selection cannot place in its time range.
+pub fn measure(lines: &Lines, selection: &Selection) -> Result<Option<Measures>, String> {
+    let mut requests: BTreeMap<&str, (&Source, Usage)> = BTreeMap::new();
+    for request in &lines.requests {
+        if selection.takes(&request.branch, request.time.as_deref())? {
+            let entry = requests
+                .entry(&request.id)
+                .or_insert((&request.source, Usage::default()));
+            entry.1 = entry.1.largest(request.usage);
+        }
+    }
+    if requests.is_empty() {
+        return Ok(None);
+    }
+    let mut measures = Measures::default();
+    for (source, usage) in requests.into_values() {
+        measures.total.add(usage);
+        measures
+            .by_source
+            .entry(source.clone())
+            .or_default()
+            .add(usage);
+    }
+    for output in &lines.tool_outputs {
+        if selection.takes(&output.branch, output.time.as_deref())? {
+            let (calls, bytes) = measures.by_tool.entry(output.tool.clone()).or_default();
+            *calls += 1;
+            *bytes += output.size;
+            measures.outputs.push(output.clone());
+        }
+    }
+    measures
+        .outputs
+        .sort_by(|a, b| b.size.cmp(&a.size).then(a.source.cmp(&b.source)));
+    Ok(Some(measures))
+}
+
+/// How many of the costliest subagents and the largest tool outputs the breakdown names.
+const NAMED: usize = 3;
+
+/// The breakdown of the measures: each session's own tokens and each subagent's, read, written to
+/// the cache, and output; each tool's calls and output bytes; the costliest subagents and the
+/// largest tool outputs. Subagents are named by type and description, as `subagents` gives them
+/// by source, and nothing else of a transcript is named.
+#[must_use]
+pub fn breakdown(measures: &Measures, subagents: &BTreeMap<Source, Subagent>) -> String {
+    let mut text = String::new();
+    let name = |source: &Source| match (&source.subagent, subagents.get(source)) {
+        (None, _) => format!("session {}", source.session),
+        (Some(id), None) => format!("  subagent {id}"),
+        (Some(_), Some(agent)) => {
+            format!(
+                "  subagent {} \"{}\"",
+                agent.kind,
+                printable(&agent.description)
+            )
+        }
+    };
+    for (source, usage) in &measures.by_source {
+        let _ = writeln!(
+            text,
+            "{}: read {} written {} output {}",
+            name(source),
+            usage.input + usage.cache_read,
+            usage.cache_written,
+            usage.output
+        );
+    }
+    for (tool, (calls, bytes)) in &measures.by_tool {
+        let _ = writeln!(text, "tool {tool}: calls {calls} output {bytes} bytes");
+    }
+    let mut costliest: Vec<(&Source, &Usage)> = measures
+        .by_source
+        .iter()
+        .filter(|(source, _)| source.subagent.is_some())
+        .collect();
+    costliest.sort_by(|a, b| b.1.total().cmp(&a.1.total()).then(a.0.cmp(b.0)));
+    let _ = writeln!(text, "costliest subagents:");
+    for (source, usage) in costliest.into_iter().take(NAMED) {
+        let _ = writeln!(
+            text,
+            "{} in session {}: {}",
+            name(source),
+            source.session,
+            usage.total()
+        );
+    }
+    let _ = writeln!(text, "largest tool outputs:");
+    for output in measures.outputs.iter().take(NAMED) {
+        let _ = writeln!(
+            text,
+            "  {} in session {}: {} bytes",
+            output.tool, output.source.session, output.size
+        );
+    }
+    text
+}
+
+/// The text with every control character a space, so that a description stays on its line.
+fn printable(text: &str) -> String {
+    text.chars()
+        .map(|c| if c.is_control() { ' ' } else { c })
+        .collect()
 }
 
 /// The part of the Measures line `nuc measure` prints, ready to paste.
@@ -98,10 +327,19 @@ pub fn line(tokens: u64) -> String {
 mod tests {
     use super::*;
 
-    fn request(id: &str, branch: &str, output: u64) -> Request {
+    fn source(session: &str, subagent: Option<&str>) -> Source {
+        Source {
+            session: session.to_owned(),
+            subagent: subagent.map(str::to_owned),
+        }
+    }
+
+    fn request(id: &str, branch: &str, time: &str, at: Source, output: u64) -> Request {
         Request {
             id: id.to_owned(),
             branch: branch.to_owned(),
+            time: Some(time.to_owned()),
+            source: at,
             usage: Usage {
                 input: 1,
                 cache_read: 10,
@@ -111,21 +349,146 @@ mod tests {
         }
     }
 
-    #[test]
-    fn a_request_over_several_lines_counts_once_at_its_largest_usage() {
-        let lines = [
-            request("r", "b", 8),
-            request("r", "b", 935),
-            request("r", "b", 900),
-        ];
-        assert_eq!(tokens(&lines, "b"), Some(1 + 10 + 100 + 935));
+    fn on(branches: &[&str]) -> Selection {
+        Selection {
+            branches: branches.iter().map(|b| (*b).to_owned()).collect(),
+            ..Selection::default()
+        }
+    }
+
+    const T: &str = "2026-11-16T10:00:00.000Z";
+
+    fn total(lines: &Lines, selection: &Selection) -> Option<u64> {
+        measure(lines, selection)
+            .expect("placed")
+            .map(|m| m.total.total())
     }
 
     #[test]
-    fn only_the_requests_of_the_branch_count() {
-        let lines = [request("r1", "a", 1), request("r2", "b", 2)];
-        assert_eq!(tokens(&lines, "b"), Some(111 + 2));
-        assert_eq!(tokens(&lines, "c"), None);
+    fn a_request_over_several_lines_counts_once_at_its_largest_usage() {
+        let s = source("s", None);
+        let requests = vec![
+            request("r", "b", T, s.clone(), 8),
+            request("r", "b", T, s.clone(), 935),
+            request("r", "b", T, s, 900),
+        ];
+        let lines = Lines {
+            requests,
+            tool_outputs: Vec::new(),
+        };
+        assert_eq!(total(&lines, &on(&["b"])), Some(1 + 10 + 100 + 935));
+    }
+
+    #[test]
+    fn the_branches_and_the_time_range_select() {
+        let s = source("s", None);
+        let requests = vec![
+            request("r1", "a", "2026-11-15T23:59:59.999Z", s.clone(), 1),
+            request("r2", "b", "2026-11-16T00:00:00.000Z", s.clone(), 2),
+            request("r3", "c", "2026-11-17T00:00:00.000Z", s, 3),
+        ];
+        let lines = Lines {
+            requests,
+            tool_outputs: Vec::new(),
+        };
+        assert_eq!(total(&lines, &on(&["a", "c"])), Some(111 * 2 + 1 + 3));
+        assert_eq!(total(&lines, &on(&["d"])), None);
+        let day = Selection {
+            since: instant("2026-11-16"),
+            until: instant("2026-11-17"),
+            ..on(&["a", "b", "c"])
+        };
+        assert_eq!(total(&lines, &day), Some(111 + 2));
+    }
+
+    #[test]
+    fn a_time_range_refuses_a_line_without_its_time() {
+        let mut r = request("r", "b", T, source("s", None), 1);
+        r.time = None;
+        let lines = Lines {
+            requests: vec![r],
+            tool_outputs: Vec::new(),
+        };
+        let range = Selection {
+            since: instant("2026-01-01"),
+            ..on(&["b"])
+        };
+        assert!(measure(&lines, &range).is_err());
+        assert_eq!(total(&lines, &on(&["b"])), Some(112));
+    }
+
+    #[test]
+    fn an_instant_is_a_date_or_a_utc_time() {
+        for (text, form) in [
+            ("2026-11-16", "2026-11-16T00:00:00.000"),
+            ("2026-11-16T10:00Z", "2026-11-16T10:00:00.000"),
+            ("2026-11-16T10:00:05Z", "2026-11-16T10:00:05.000"),
+            ("2026-11-16T10:00:05.5Z", "2026-11-16T10:00:05.500"),
+            (T, "2026-11-16T10:00:00.000"),
+        ] {
+            assert_eq!(instant(text).as_deref(), Some(form), "{text}");
+        }
+        assert!(instant("2026-11-16T10:00Z") > instant("2026-11-16T09:59:59.999Z"));
+        for bad in [
+            "2026-11-6",
+            "2026-11-16T10:00",
+            "2026-11-16T10:00:00+01:00",
+            "yesterday",
+            "",
+        ] {
+            assert_eq!(instant(bad), None, "{bad}");
+        }
+    }
+
+    #[test]
+    fn the_breakdown_sums_to_the_total_and_names_the_costliest() {
+        let (own, agent) = (source("s", None), source("s", Some("agent-x")));
+        let requests = vec![
+            request("r1", "b", T, own.clone(), 1),
+            request("r2", "b", T, agent.clone(), 1000),
+        ];
+        let tool_outputs = vec![ToolOutput {
+            tool: "Bash".to_owned(),
+            size: 42,
+            branch: "b".to_owned(),
+            time: Some(T.to_owned()),
+            source: own,
+        }];
+        let lines = Lines {
+            requests,
+            tool_outputs,
+        };
+        let measures = measure(&lines, &on(&["b"]))
+            .expect("placed")
+            .expect("counted");
+        let sum: u64 = measures.by_source.values().map(|u| u.total()).sum();
+        assert_eq!(sum, measures.total.total());
+        let names = BTreeMap::from([(
+            agent,
+            Subagent {
+                kind: "review".to_owned(),
+                description: "line\none".to_owned(),
+            },
+        )]);
+        let text = breakdown(&measures, &names);
+        assert!(
+            text.contains("session s: read 11 written 100 output 1\n"),
+            "{text}"
+        );
+        assert!(text.contains("  subagent review \"line one\": read 11 written 100 output 1000\n"));
+        assert!(
+            text.contains("tool Bash: calls 1 output 42 bytes\n"),
+            "{text}"
+        );
+        assert!(
+            text.contains(
+                "costliest subagents:\n  subagent review \"line one\" in session s: 1111\n"
+            )
+        );
+        assert!(
+            text.contains("largest tool outputs:\n  Bash in session s: 42 bytes\n"),
+            "{text}"
+        );
     }
 
     #[test]

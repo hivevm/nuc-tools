@@ -131,12 +131,18 @@ minimum holds like a release's.
   then nothing is written on the standard output in any format.
 - `nuc explain <rule ID>` gives the reason of a rule.
 - `nuc hook <name>` decides a git hook; the shims below call it.
-- `nuc measure [--harness claude-code] [--transcripts <dir>]` prints `tokens <n>`, the part of a
-  hand-off's Measures line the harness knows: the input, cache read, cache written, and output
-  tokens of every request the harness's sessions made on the current branch, subagents included,
-  each request once. It reads Claude Code's transcripts of this working tree, under
-  `CLAUDE_CONFIG_DIR` or `~/.claude`, or those in `<dir>`, and prints nothing of their text. It
-  exits 0, or 2 where a transcript does not read as it expects or no request was made on the branch
+- `nuc measure [--harness claude-code] [--transcripts <dir>] [--branch <name>]... [--since <time>]
+  [--until <time>] [--breakdown]` prints `tokens <n>`, the part of a hand-off's Measures line the
+  harness knows: the input, cache read, cache written, and output tokens of every request the
+  harness's sessions made on the current branch, or on each branch `--branch` names, subagents
+  included, each request once. `--since` and `--until` take a date `YYYY-MM-DD` or a UTC time
+  `YYYY-MM-DDTHH:MM[:SS]Z` and keep the requests from the first and before the second.
+  `--breakdown` prints before that line each session's and subagent's tokens read, written to the
+  cache, and output, each tool's calls and output bytes, and the three costliest subagents and
+  largest tool outputs. It reads Claude Code's transcripts of this working tree, under
+  `CLAUDE_CONFIG_DIR` or `~/.claude`, or those in `<dir>`, and prints nothing of their text but a
+  subagent's type and description. It exits 0, or 2 where a transcript does not read as it expects
+  or no request was selected
   ([API-measure-reads-harness-transcripts](docs/adr/API-measure-reads-harness-transcripts.md)).
 - `nuc --version` prints the version.
 

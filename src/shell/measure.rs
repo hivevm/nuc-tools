@@ -1,69 +1,115 @@
 //! `nuc measure`: reads a harness's transcripts from one directory outside the repository and
-//! prints the tokens of the Measures line (API-measure-reads-harness-transcripts). The one read
-//! outside the repository is `read_transcripts`, which follows no symbolic link and writes
+//! prints the tokens of the Measures line (API-measure-reads-harness-transcripts). The reads
+//! outside the repository are `entries` and `read`, which follow no symbolic link and write
 //! nothing; the counting is the library's.
 
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::measure::{self, Harness, Request};
+use std::collections::BTreeMap;
+
+use crate::measure::{self, Harness, Lines, Selection, Source};
 
 use super::{PASSED, git};
 
-/// The options of `nuc measure`, each at most once: the harness, Claude Code where none is named,
-/// and the directory of its transcripts, the harness's own where none is named.
+/// The options of `nuc measure`: the harness, Claude Code where none is named; the directory of
+/// its transcripts, the harness's own where none is named; the branches, the current one where
+/// none is named, each `--branch` adding one; the time range; and whether to break the tokens
+/// down. Each but `--branch` at most once.
+#[derive(Default)]
 struct Options<'a> {
-    harness: Harness,
+    harness: Option<Harness>,
     transcripts: Option<&'a str>,
+    branches: Vec<String>,
+    since: Option<String>,
+    until: Option<String>,
+    breakdown: bool,
 }
 
-/// `nuc measure`: the tokens the harness's sessions on the current branch read and wrote, written
-/// as `tokens <n>` on the standard output.
+/// A transcript as the shell read it: its name under the directory, where it was written, its
+/// bytes, and for a subagent the bytes of the harness's description of it, where there is one.
+struct Transcript {
+    name: String,
+    source: Source,
+    bytes: Vec<u8>,
+    meta: Option<Vec<u8>>,
+}
+
+/// `nuc measure`: the tokens the harness's sessions on the selected branches read and wrote,
+/// written as `tokens <n>` on the standard output, after their breakdown where it is asked for.
 pub(super) fn run(options: &[&str]) -> Result<u8, String> {
     let options = parse(options).ok_or_else(super::usage)?;
+    let harness = options.harness.unwrap_or(Harness::ClaudeCode);
     let here =
         env::current_dir().map_err(|e| format!("the current directory is unreadable: {e}"))?;
     let root = git::toplevel(&here)?;
-    let branch = git::probe(&root, &["symbolic-ref", "--short", "-q", "HEAD"])?
-        .map(|branch| branch.trim_end().to_owned())
-        .ok_or("HEAD is on no branch, so no session's branch can be chosen — not decided")?;
+    let branches = if options.branches.is_empty() {
+        let current = git::probe(&root, &["symbolic-ref", "--short", "-q", "HEAD"])?
+            .map(|branch| branch.trim_end().to_owned())
+            .ok_or("HEAD is on no branch: name the branches with --branch — not decided")?;
+        vec![current]
+    } else {
+        options.branches
+    };
     // Components drop a trailing separator, through which a link to a directory would be
     // followed rather than seen.
     let dir: PathBuf = match options.transcripts {
         Some(dir) => Path::new(dir).components().collect(),
-        None => default_dir(options.harness, &root)?,
+        None => default_dir(harness, &root)?,
     };
-    let mut requests: Vec<Request> = Vec::new();
-    for (name, bytes) in read_transcripts(&dir)? {
-        requests.extend(options.harness.requests(&name, &bytes)?);
+    let mut lines = Lines::default();
+    let mut subagents = BTreeMap::new();
+    for transcript in read_transcripts(&dir)? {
+        let read = harness.lines(&transcript.name, &transcript.bytes, &transcript.source)?;
+        lines.requests.extend(read.requests);
+        lines.tool_outputs.extend(read.tool_outputs);
+        if let Some(agent) = transcript.meta.and_then(|meta| harness.subagent(&meta)) {
+            subagents.insert(transcript.source, agent);
+        }
     }
-    let tokens = measure::tokens(&requests, &branch).ok_or_else(|| {
+    let selection = Selection {
+        branches,
+        since: options.since,
+        until: options.until,
+    };
+    let measures = measure::measure(&lines, &selection)?.ok_or_else(|| {
         format!(
-            "no request of the harness on the branch {branch} in {} — not decided",
+            "no request of the harness on the branch {} in {} — not decided",
+            selection.branches.join(", "),
             dir.display()
         )
     })?;
-    println!("{}", measure::line(tokens));
+    if options.breakdown {
+        print!("{}", measure::breakdown(&measures, &subagents));
+    }
+    println!("{}", measure::line(measures.total.total()));
     Ok(PASSED)
 }
 
-/// The options, or none where one is unknown, repeated, or has no value.
+/// The options, or none where one is unknown, repeated, has no value, or a time is of no form
+/// `measure::instant` reads.
 fn parse<'a>(options: &[&'a str]) -> Option<Options<'a>> {
-    let (mut harness, mut transcripts) = (None, None);
+    let mut parsed = Options::default();
     let mut options = options.iter();
     while let Some(&option) = options.next() {
+        if option == "--breakdown" && !parsed.breakdown {
+            parsed.breakdown = true;
+            continue;
+        }
         let value = *options.next()?;
         match option {
-            "--harness" if harness.is_none() => harness = Some(Harness::parse(value)?),
-            "--transcripts" if transcripts.is_none() => transcripts = Some(value),
+            "--harness" if parsed.harness.is_none() => {
+                parsed.harness = Some(Harness::parse(value)?)
+            }
+            "--transcripts" if parsed.transcripts.is_none() => parsed.transcripts = Some(value),
+            "--branch" if !value.is_empty() => parsed.branches.push(value.to_owned()),
+            "--since" if parsed.since.is_none() => parsed.since = Some(measure::instant(value)?),
+            "--until" if parsed.until.is_none() => parsed.until = Some(measure::instant(value)?),
             _ => return None,
         }
     }
-    Some(Options {
-        harness: harness.unwrap_or(Harness::ClaudeCode),
-        transcripts,
-    })
+    Some(parsed)
 }
 
 /// The harness's directory of the transcripts of the working tree at `root`. Claude Code keeps
@@ -103,52 +149,83 @@ fn home() -> Option<PathBuf> {
         .map(PathBuf::from)
 }
 
-/// The transcripts in `dir`, each named by its path under `dir` and read whole: every `*.jsonl`
-/// file of the directory, and every `agent-*.jsonl` of `<session>/subagents/` beside it, in the
-/// order of their names. A symbolic link anywhere in `dir` or a `subagents/` directory, and a file
-/// that is not regular where a transcript is read, is refused, so that nothing outside `dir` is
-/// read and nothing in it is passed over unseen.
-fn read_transcripts(dir: &Path) -> Result<Vec<(String, Vec<u8>)>, String> {
-    let mut files = Vec::new();
+/// The transcripts in `dir`, each read whole: every `<session>.jsonl` of the directory, and every
+/// `agent-<id>.jsonl` of `<session>/subagents/` with its `agent-<id>.meta.json` where there is one,
+/// in the order of their names. A symbolic link anywhere in `dir` or a `subagents/` directory,
+/// and a file that is not regular where a transcript is read, is refused, so that nothing outside
+/// `dir` is read and nothing in it is passed over unseen.
+fn read_transcripts(dir: &Path) -> Result<Vec<Transcript>, String> {
+    let mut found = Vec::new();
     for name in entries(dir)? {
         let path = dir.join(&name);
         let what = kind(&path)?;
         if what == Kind::Link {
             return Err(not_regular(&path));
         }
-        if name.ends_with(".jsonl") {
-            files.push((name, path, what));
+        if let Some(session) = name.strip_suffix(".jsonl") {
+            let source = Source {
+                session: session.to_owned(),
+                subagent: None,
+            };
+            found.push(Transcript {
+                name: name.clone(),
+                source,
+                bytes: read(&path)?,
+                meta: None,
+            });
         } else if what == Kind::Dir {
-            let subagents = path.join("subagents");
-            match kind_if_any(&subagents)? {
-                None => {}
-                Some(Kind::Dir) => {
-                    for agent in entries(&subagents)? {
-                        let at = subagents.join(&agent);
-                        let agent_kind = kind(&at)?;
-                        if agent_kind == Kind::Link {
-                            return Err(not_regular(&at));
-                        }
-                        if agent.starts_with("agent-") && agent.ends_with(".jsonl") {
-                            files.push((format!("{name}/subagents/{agent}"), at, agent_kind));
-                        }
-                    }
-                }
-                Some(_) => return Err(not_regular(&subagents)),
-            }
+            found.extend(read_subagents(&name, &path.join("subagents"))?);
         }
     }
-    files
-        .into_iter()
-        .map(|(name, path, kind)| {
-            if kind != Kind::Regular {
-                return Err(not_regular(&path));
-            }
-            let bytes = fs::read(&path)
-                .map_err(|e| format!("{}: unreadable: {e} — not decided", path.display()))?;
-            Ok((name, bytes))
-        })
-        .collect()
+    Ok(found)
+}
+
+/// The transcripts of the subagents of `session` in its `subagents/` directory, none where it has
+/// none.
+fn read_subagents(session: &str, dir: &Path) -> Result<Vec<Transcript>, String> {
+    match kind_if_any(dir)? {
+        None => return Ok(Vec::new()),
+        Some(Kind::Dir) => {}
+        Some(_) => return Err(not_regular(dir)),
+    }
+    let names = entries(dir)?;
+    let mut found = Vec::new();
+    for name in &names {
+        let path = dir.join(name);
+        if kind(&path)? == Kind::Link {
+            return Err(not_regular(&path));
+        }
+        let Some(agent) = name
+            .strip_suffix(".jsonl")
+            .filter(|a| a.starts_with("agent-"))
+        else {
+            continue;
+        };
+        let meta_name = format!("{agent}.meta.json");
+        let meta = if names.contains(&meta_name) {
+            Some(read(&dir.join(&meta_name))?)
+        } else {
+            None
+        };
+        found.push(Transcript {
+            name: format!("{session}/subagents/{name}"),
+            source: Source {
+                session: session.to_owned(),
+                subagent: Some(agent.to_owned()),
+            },
+            bytes: read(&path)?,
+            meta,
+        });
+    }
+    Ok(found)
+}
+
+/// The bytes of a regular file the listing found.
+fn read(path: &Path) -> Result<Vec<u8>, String> {
+    if kind(path)? != Kind::Regular {
+        return Err(not_regular(path));
+    }
+    fs::read(path).map_err(|e| format!("{}: unreadable: {e} — not decided", path.display()))
 }
 
 /// What a path is, without following a symbolic link.
