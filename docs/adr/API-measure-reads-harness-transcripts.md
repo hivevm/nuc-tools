@@ -20,9 +20,8 @@ The forces:
   transcript per subagent beside it. Every other command of `nuc` reads only inside the repository
   and its git directory, each path resolved through one function that refuses a path outside.
 - **The format is the harness's.** It is undocumented and changes with the harness's releases. One
-  request of the model spans several lines, each reporting its usage as it streams. In this
-  repository's sessions, 3749 lines carry 1858 requests, so a naive sum counts most requests more
-  than once.
+  request of the model spans several lines, each repeating its usage. In this repository's
+  sessions, 3749 lines carry 1858 requests, so a naive sum counts about twice.
 - **The transcripts are private.** They hold prompts, code, tool inputs, and tool outputs. A figure
   is pasted into a pull request, and a finding goes to another repository
   (NUC-template-learns-from-projects §2).
@@ -59,7 +58,7 @@ numbers and names only.
     harness.
   - The transcripts are parsed with a JSON crate that passes `cargo deny` and `cargo audit`.
 - **The figure.** `tokens <n>` is the sum of the input, cache read, cache written, and output tokens
-  of every selected request. A request counts once, at the largest count its lines report.
+  of every selected request. A request counts once, however many lines repeat its usage.
 - **The selection.** The requests made on the current branch count. Options add branches and a time
   range. No git history is read to find the branches of another.
 - **Fail closed.**

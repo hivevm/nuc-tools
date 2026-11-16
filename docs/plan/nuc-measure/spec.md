@@ -33,7 +33,7 @@ Greenfield: `nuc` has no command that reads anything outside the repository, and
   - `nuc check` and `nuc hook` read only inside the repository and its git directory, resolved
     through the one function that refuses a path outside it.
   - The command line keeps its contract: the existing commands, their options, and their exit codes
-    (API-command-line-keyed-findings), which `tests/contract.rs` holds.
+    (API-command-line-with-measure), which `tests/contract.rs` holds.
 - What changes:
   - A new command joins the command line and the help text.
   - Its reading of the harness's directory is the one read outside the repository, decided by its

@@ -96,16 +96,22 @@ fn a_request_over_several_lines_counts_once_with_its_last_usage() {
         "s1.jsonl",
         &[
             prompt(),
-            request("r1", "b", [2, 1000, 300, 8]),
-            request("r1", "b", [2, 1000, 300, 935]),
-            request("r1", "b", [2, 1000, 300, 935]),
+            request(&format!("r1-{CANARY}"), "b", [2, 1000, 300, 8]),
+            request(&format!("r1-{CANARY}"), "b", [3, 999, 301, 935]),
+            request(&format!("r1-{CANARY}"), "b", [2, 1001, 300, 900]),
+            request(
+                &format!("r2-{CANARY}"),
+                &format!("other-{CANARY}"),
+                [9, 9, 9, 9],
+            ),
         ],
     );
     let output = measure(&fixture, &transcripts);
     assert_eq!(code(&output), Some(0), "{}", stderr(&output));
+    // Each count the largest its lines report, as a request's lines report it while it streams.
     assert_eq!(
         stdout(&output),
-        format!("tokens {}\n", 2 + 1000 + 300 + 935)
+        format!("tokens {}\n", 3 + 1001 + 301 + 935)
     );
     assert_no_canary(&output);
 }
@@ -222,6 +228,67 @@ fn a_symbolic_link_where_a_transcript_is_read_stops() {
         "{}",
         stderr(&output)
     );
+}
+
+#[cfg(unix)]
+#[test]
+fn a_symbolic_link_anywhere_in_the_directory_stops_and_nothing_is_passed_over() {
+    let fixture = repo_on("measure-links", "b");
+    let outside = Transcripts::new("measure-links-outside");
+    outside.write(
+        "s1/subagents/agent-x.jsonl",
+        &[request("r9", "b", [5, 5, 5, 5])],
+    );
+
+    let session = Transcripts::new("measure-link-session");
+    session.write("s0.jsonl", &[request("r1", "b", [1, 0, 0, 1])]);
+    std::os::unix::fs::symlink(outside.dir.join("s1"), session.dir.join("s1"))
+        .expect("the link is made");
+
+    let subagents = Transcripts::new("measure-link-subagents");
+    subagents.write("s1.jsonl", &[request("r1", "b", [1, 0, 0, 1])]);
+    fs::create_dir_all(subagents.dir.join("s1")).expect("directory");
+    std::os::unix::fs::symlink(
+        outside.dir.join("s1/subagents"),
+        subagents.dir.join("s1/subagents"),
+    )
+    .expect("link");
+
+    let agent = Transcripts::new("measure-link-agent");
+    agent.write(
+        "s1/subagents/agent-y.jsonl",
+        &[request("r1", "b", [1, 0, 0, 1])],
+    );
+    std::os::unix::fs::symlink(
+        outside.dir.join("s1/subagents/agent-x.jsonl"),
+        agent.dir.join("s1/subagents/agent-x.jsonl"),
+    )
+    .expect("link");
+
+    for transcripts in [&session, &subagents, &agent] {
+        let output = measure(&fixture, transcripts);
+        assert_eq!(code(&output), Some(2), "{}", transcripts.path());
+        assert_eq!(stdout(&output), "");
+        assert!(
+            stderr(&output).contains("a symbolic link"),
+            "{}",
+            stderr(&output)
+        );
+    }
+
+    let whole = Transcripts::new("measure-link-whole");
+    let to_outside = whole.dir.join("projects");
+    std::os::unix::fs::symlink(&outside.dir, &to_outside).expect("link");
+    let plain = to_outside.to_str().expect("UTF-8").to_owned();
+    for named in [plain.clone(), format!("{plain}/")] {
+        let output = fixture.nuc(&["measure", "--transcripts", &named]);
+        assert_eq!(code(&output), Some(2), "{named}");
+        assert!(
+            stderr(&output).contains("a symbolic link"),
+            "{named}: {}",
+            stderr(&output)
+        );
+    }
 }
 
 #[test]

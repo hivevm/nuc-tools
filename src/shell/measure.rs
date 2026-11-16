@@ -28,8 +28,10 @@ pub(super) fn run(options: &[&str]) -> Result<u8, String> {
     let branch = git::probe(&root, &["symbolic-ref", "--short", "-q", "HEAD"])?
         .map(|branch| branch.trim_end().to_owned())
         .ok_or("HEAD is on no branch, so no session's branch can be chosen — not decided")?;
-    let dir = match options.transcripts {
-        Some(dir) => PathBuf::from(dir),
+    // Components drop a trailing separator, through which a link to a directory would be
+    // followed rather than seen.
+    let dir: PathBuf = match options.transcripts {
+        Some(dir) => Path::new(dir).components().collect(),
         None => default_dir(options.harness, &root)?,
     };
     let mut requests: Vec<Request> = Vec::new();
@@ -66,16 +68,16 @@ fn parse<'a>(options: &[&'a str]) -> Option<Options<'a>> {
 
 /// The harness's directory of the transcripts of the working tree at `root`. Claude Code keeps
 /// them under `projects/` of its configuration directory, which `CLAUDE_CONFIG_DIR` names or is
-/// `.claude` in the home directory, in a directory named for the working tree's path, each byte
-/// but an ASCII letter or digit replaced by `-`.
+/// `.claude` in the home directory, in a directory named for the working tree's path, each
+/// character but an ASCII letter or digit replaced by `-`. The directories above it are followed
+/// as the system resolves them; only what is read inside it must be no symbolic link.
 fn default_dir(harness: Harness, root: &Path) -> Result<PathBuf, String> {
     match harness {
         Harness::ClaudeCode => {
             let config = match env::var_os("CLAUDE_CONFIG_DIR") {
                 Some(dir) => PathBuf::from(dir),
-                None => env::var_os("HOME")
-                    .or_else(|| env::var_os("USERPROFILE"))
-                    .map(|home| PathBuf::from(home).join(".claude"))
+                None => home()
+                    .map(|home| home.join(".claude"))
                     .ok_or("neither CLAUDE_CONFIG_DIR nor a home directory is set — name the transcripts with --transcripts")?,
             };
             let key: String = root
@@ -88,15 +90,32 @@ fn default_dir(harness: Harness, root: &Path) -> Result<PathBuf, String> {
     }
 }
 
+/// The home directory: `USERPROFILE` on Windows, where Claude Code takes the system's home and a
+/// shell's `HOME` may be no native path, and `HOME` elsewhere, each the other where it is unset.
+fn home() -> Option<PathBuf> {
+    let (first, second) = if cfg!(windows) {
+        ("USERPROFILE", "HOME")
+    } else {
+        ("HOME", "USERPROFILE")
+    };
+    env::var_os(first)
+        .or_else(|| env::var_os(second))
+        .map(PathBuf::from)
+}
+
 /// The transcripts in `dir`, each named by its path under `dir` and read whole: every `*.jsonl`
 /// file of the directory, and every `agent-*.jsonl` of `<session>/subagents/` beside it, in the
-/// order of their names. A symbolic link or a file that is not regular, where a transcript would
-/// be read, is refused, so that nothing outside `dir` is read.
+/// order of their names. A symbolic link anywhere in `dir` or a `subagents/` directory, and a file
+/// that is not regular where a transcript is read, is refused, so that nothing outside `dir` is
+/// read and nothing in it is passed over unseen.
 fn read_transcripts(dir: &Path) -> Result<Vec<(String, Vec<u8>)>, String> {
     let mut files = Vec::new();
     for name in entries(dir)? {
         let path = dir.join(&name);
         let what = kind(&path)?;
+        if what == Kind::Link {
+            return Err(not_regular(&path));
+        }
         if name.ends_with(".jsonl") {
             files.push((name, path, what));
         } else if what == Kind::Dir {
@@ -105,9 +124,12 @@ fn read_transcripts(dir: &Path) -> Result<Vec<(String, Vec<u8>)>, String> {
                 None => {}
                 Some(Kind::Dir) => {
                     for agent in entries(&subagents)? {
+                        let at = subagents.join(&agent);
+                        let agent_kind = kind(&at)?;
+                        if agent_kind == Kind::Link {
+                            return Err(not_regular(&at));
+                        }
                         if agent.starts_with("agent-") && agent.ends_with(".jsonl") {
-                            let at = subagents.join(&agent);
-                            let agent_kind = kind(&at)?;
                             files.push((format!("{name}/subagents/{agent}"), at, agent_kind));
                         }
                     }
@@ -134,13 +156,14 @@ fn read_transcripts(dir: &Path) -> Result<Vec<(String, Vec<u8>)>, String> {
 enum Kind {
     Regular,
     Dir,
+    Link,
     Other,
 }
 
 /// The kind of the path, none where nothing is there.
 fn kind_if_any(path: &Path) -> Result<Option<Kind>, String> {
     match fs::symlink_metadata(path) {
-        Ok(meta) if meta.file_type().is_symlink() => Ok(Some(Kind::Other)),
+        Ok(meta) if meta.file_type().is_symlink() => Ok(Some(Kind::Link)),
         Ok(meta) if meta.is_file() => Ok(Some(Kind::Regular)),
         Ok(meta) if meta.is_dir() => Ok(Some(Kind::Dir)),
         Ok(_) => Ok(Some(Kind::Other)),
