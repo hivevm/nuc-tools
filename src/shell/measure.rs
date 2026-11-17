@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 
 use std::collections::BTreeMap;
 
-use crate::measure::{self, Harness, Lines, Selection, Source};
+use crate::measure::{self, Harness, Lines, Selection, Source, claude_code};
 use crate::rules;
 
 use super::tree::Tree;
@@ -151,9 +151,10 @@ fn parse<'a>(options: &[&'a str]) -> Option<Options<'a>> {
 
 /// The harness's directory of the transcripts of the working tree at `root`. Claude Code keeps
 /// them under `projects/` of its configuration directory, which `CLAUDE_CONFIG_DIR` names or is
-/// `.claude` in the home directory, in a directory named for the working tree's path, each
-/// character but an ASCII letter or digit replaced by `-`. The directories above it are followed
-/// as the system resolves them; only what is read inside it must be no symbolic link.
+/// `.claude` in the home directory, in a directory `claude_code::directory_key` names for the
+/// working tree's path. A session started in a subdirectory or another worktree has a directory of
+/// its own, which `--transcripts` names. The directories above it are followed as the system
+/// resolves them; only what is read inside it must be no symbolic link.
 fn default_dir(harness: Harness, root: &Path) -> Result<PathBuf, String> {
     match harness {
         Harness::ClaudeCode => {
@@ -163,12 +164,31 @@ fn default_dir(harness: Harness, root: &Path) -> Result<PathBuf, String> {
                     .map(|home| home.join(".claude"))
                     .ok_or("neither CLAUDE_CONFIG_DIR nor a home directory is set — name the transcripts with --transcripts")?,
             };
-            let key: String = root
-                .to_string_lossy()
-                .chars()
-                .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
-                .collect();
-            Ok(config.join("projects").join(key))
+            // A name `CLAUDE_CODE_PROJECT_DIR_NAME` gives under a set `CLAUDE_CONFIG_DIR` stands in
+            // place of the working tree's, as Claude Code takes it.
+            let config_dir_set =
+                env::var_os("CLAUDE_CONFIG_DIR").is_some_and(|dir| !dir.is_empty());
+            let named = env::var("CLAUDE_CODE_PROJECT_DIR_NAME").ok();
+            if let Some(name) = claude_code::directory_override(config_dir_set, named.as_deref()) {
+                return Ok(config.join("projects").join(name));
+            }
+            // Claude Code names the directory for its session's working directory as the system
+            // writes it; git's toplevel writes `/` where Windows writes `\`, which the hash of a
+            // long name reads.
+            let path = root.to_str().ok_or_else(|| {
+                format!(
+                    "{}: a path that is no UTF-8 — name the transcripts with --transcripts",
+                    root.display()
+                )
+            })?;
+            let path = if cfg!(windows) {
+                path.replace('/', "\\")
+            } else {
+                path.to_owned()
+            };
+            Ok(config
+                .join("projects")
+                .join(claude_code::directory_key(&path)))
         }
     }
 }

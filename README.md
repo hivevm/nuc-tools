@@ -144,11 +144,13 @@ minimum holds like a release's.
   prints before it a draft of a template finding in the fields of the template's issue form: the
   README's Template release, the tokens and their four parts, and the tools and sizes of the largest
   outputs, an MCP tool as `mcp`, with no session, subagent, branch, or path; the human completes it
-  and decides whether to send it. It reads Claude Code's transcripts of this working tree, under
-  `CLAUDE_CONFIG_DIR` or `~/.claude`, or those in `<dir>`, and prints nothing of their text but a
-  subagent's type and description and the names of tools. It exits 0, or 2 where a transcript does
-  not read as it expects, no request was selected, or, for `--finding`, the README cannot be read,
-  with nothing on the standard output
+  and decides whether to send it. It reads Claude Code's transcripts of this working tree, in the
+  directory under `CLAUDE_CONFIG_DIR` or `~/.claude` that Claude Code names for the working tree's
+  path, or `CLAUDE_CODE_PROJECT_DIR_NAME` under a set `CLAUDE_CONFIG_DIR`, or those in `<dir>`; a
+  session started in a subdirectory or in another worktree has a directory of its own, which
+  `--transcripts` names. It prints nothing of their text but a subagent's type and description and
+  the names of tools. It exits 0, or 2 where a transcript does not read as it expects, no request
+  was selected, or, for `--finding`, the README cannot be read, with nothing on the standard output
   ([API-measure-reads-harness-transcripts](docs/adr/API-measure-reads-harness-transcripts.md)).
 - `nuc --version` prints the version.
 
