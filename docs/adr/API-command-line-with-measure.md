@@ -4,7 +4,6 @@
 - **Date:** 2026-11-16
 - **Deciders:** Markus Brigl
 - **Applies to:** the keys and the syntax of `nuc.toml` and how `src/config.rs` reads them, the text output of every `nuc` command, `nuc measure`'s among them, the reason every finding carries and the list of keys kept beside its test, and the exit codes
-- **Supersedes:** [API-command-line-keyed-findings](API-command-line-keyed-findings.md)
 
 ## Context
 
@@ -80,13 +79,13 @@ rule ID only, not a key.
 
 ## Alternatives considered
 
-- **No clause for `nuc measure`** — what API-command-line-keyed-findings decided, accepted on
-  2026-11-15 with every other clause of this one. Its standard output held findings alone, so a
+- **No clause for `nuc measure`** — what the contract decided before it, accepted on 2026-11-15
+  with every other clause of this one. Its standard output held findings alone, so a
   command that reports a figure had nowhere to write it, and this ADR replaced that clause.
 - **The figure on the standard error** — the standard output would stay the findings' alone, but a
   figure meant to be pasted or redirected belongs where a shell pipes it.
-- **The line without a key** — what API-command-line-with-hook-signal decided, accepted on
-  2026-11-06 with every other clause of this one. Once the bash keys every finding, `nuc` cannot be
+- **The line without a key** — what the contract decided before the key, accepted on 2026-11-06
+  with every other clause of this one. Once the bash keys every finding, `nuc` cannot be
   held to the template's fixture tables by key, and a reader who switches from the bash loses the
   word that names the cause, so this ADR replaced that clause.
 - **The reason alone at the end, `[<reason>]`** — no rule ID twice on a line, but its end differs
@@ -101,8 +100,7 @@ rule ID only, not a key.
 - **The codes 0, 1, and 2 for every command, `nuc hook` included, and a file as every location**
   — the first contract of the command line, accepted on 2026-10-31. It left a hook no way to tell
   its shim that the checks run now, and gave a refusal that guards a ref no location. The hook
-  contract needed both, so API-command-line-with-hook-signal replaced it and kept every other
-  clause.
+  contract needed both, so the contract that followed replaced it and kept every other clause.
 - **Ignoring an unknown key** — forward compatible without a version bump, but a key a newer
   template adds would be dropped silently by an older `nuc`, against Q-1.
 - **Refusing an unknown key before reading `minimum`** — the simplest parser, but an older `nuc`
@@ -144,8 +142,7 @@ rule ID only, not a key.
   and a location that is no file, and a caller of `nuc hook` refuses every code it does not name. A
   template release that adds a key raises `minimum` with it. Callers cannot tell the causes of
   exit 2 apart without reading the message.
-- Follow-ups: the tests that cite API-command-line-keyed-findings move their `Verifies:` markers to
-  this ADR when it is accepted.
+- Follow-ups: none.
 
 ## Enforcement
 

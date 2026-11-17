@@ -4,20 +4,21 @@
 - **Date:** 2026-11-15
 - **Deciders:** Markus Brigl
 - **Applies to:** the `--format` option of `nuc check`, the JSON and SARIF it writes and the code that writes them, and the tests that compare them with the text output
-- **Supersedes:** [API-output-formats-short-description](API-output-formats-short-description.md)
 
 ## Context
 
 G-7 asks that a check run with `--format json` or `--format sarif` report the same findings as its
-text output. [API-command-line-keyed-findings](API-command-line-keyed-findings.md) decides the text:
+text output. [API-command-line-with-measure](API-command-line-with-measure.md) decides the text:
 one finding per line on the standard output, ending in its key `[<rule ID>:<reason>]`, the summary
 and every refusal on the standard error, and exit 0, 1, or 2; it leaves the formats of G-7 out of
 scope. The text is made for a terminal, an editor, and the parity harness
 ([TEST-parity-harness](TEST-parity-harness.md)), which reads it back by its shape; a program that
 wants to count, filter, or annotate findings has to parse those lines, and a message may hold a
 colon. GitHub code scanning and other services read SARIF 2.1.0, the OASIS standard. Q-1 asks that
-nothing pass that could not decide; Q-3 counts every dependency against the supply chain, and `nuc`
-depends on no crate. A finding never names a path that is not UTF-8, since such a path is refused
+nothing pass that could not decide; Q-3 counts every dependency against the supply chain, and a
+crate joins `nuc` only to widen what it reads
+([OPS-crates-pass-deny-and-audit](OPS-crates-pass-deny-and-audit.md)), which writing JSON and SARIF
+does not. A finding never names a path that is not UTF-8, since such a path is refused
 where a finding would name it, so every finding can be written as a JSON string. The rules return
 their findings to a functional core, and every effect is in the shell
 ([ARCH-rules-outcome-hooks-answer](ARCH-rules-outcome-hooks-answer.md)). GitHub shows a rule's short
@@ -32,7 +33,7 @@ without a crate from the same findings as the text, and write nothing on the sta
 any format when the run cannot decide.
 
 - **Option:** `--format <name>` is given at most once, before or after `--repo <path>`; `text` is
-  the default and writes what API-command-line-keyed-findings decides, byte for byte. An unknown
+  the default and writes what API-command-line-with-measure decides, byte for byte. An unknown
   name or a second `--format` is a usage error, exit 2. Only `nuc check` takes it.
 - **The same run:** the format changes only what the standard output holds. The rules run, the
   exit code, the summary and its notes, and every refusal on the standard error are those of the
@@ -70,12 +71,12 @@ any format when the run cannot decide.
 **Out of scope:** `--format` for `nuc hook` and `nuc explain`; a SARIF upload in the GitHub Action;
 JSON Lines and a published schema for the JSON; columns, fixes, and code flows in SARIF, which no
 rule produces; `partialFingerprints`, which an upload computes; the wording of the messages, which
-API-command-line-keyed-findings leaves free; a write to the standard output that fails, which ends
+API-command-line-with-measure leaves free; a write to the standard output that fails, which ends
 the run as any failed write does.
 
 ## Alternatives considered
 
-- **Findings without a reason** — what API-output-formats-short-description decided, accepted on
+- **Findings without a reason** — what the first ADR on the formats decided, accepted on
   2026-11-08 with every other clause of this one. Once the text line ends in the key, a document
   without the reason would carry less than the text, against G-7, so this ADR replaced that clause.
 - **The key as the SARIF rule ID, `docs/adr-index:unlisted`** — the cause in the field GitHub
@@ -104,8 +105,8 @@ the run as any failed write does.
 - **The whole reason as the short description** — what the first ADR on the formats decided,
   accepted on 2026-11-08 with every other clause of this one. GitHub shows the short description
   where a reader scans the list of alerts and calls it a concise description, and the whole reason
-  there repeats the full description word for word, so API-output-formats-short-description
-  replaced that clause.
+  there repeats the full description word for word, so the second ADR on the formats replaced that
+  clause.
 - **`--format` for every command** — `nuc hook` writes for its shim and `nuc explain` prose; no
   reader needs either as a document.
 

@@ -3,7 +3,7 @@
 - **Status:** 🟢 accepted
 - **Date:** 2026-11-16
 - **Deciders:** Markus Brigl
-- **Applies to:** the `nuc measure` command and its source, the adapter of each harness it reads, the one function of `src/shell/` that reads outside the repository, the structural test that holds it, and the tests of `nuc measure`
+- **Applies to:** the `nuc measure` command and its source, the adapter of each harness it reads, the two functions of `src/shell/` that read outside the repository, the structural test that holds them, and the tests of `nuc measure`
 
 ## Context
 
@@ -20,8 +20,10 @@ The forces:
   transcript per subagent beside it. Every other command of `nuc` reads only inside the repository
   and its git directory, each path resolved through one function that refuses a path outside.
 - **The format is the harness's.** It is undocumented and changes with the harness's releases. One
-  request of the model spans several lines, each repeating its usage. In this repository's
-  sessions, 3749 lines carry 1858 requests, so a naive sum counts about twice.
+  request of the model spans several lines, each reporting its usage, which grows while the
+  request streams: over the maintainer's projects, 387 of 129,741 requests report more than one
+  usage. In this repository's sessions, 3749 lines carry 1858 requests, so a naive sum counts most
+  requests more than once.
 - **The transcripts are private.** They hold prompts, code, tool inputs, and tool outputs. A figure
   is pasted into a pull request, and a finding goes to another repository
   (NUC-template-learns-from-projects §2).
@@ -43,13 +45,18 @@ We will have `nuc measure` read a harness's transcripts from one directory outsi
 read-only, through a pure adapter per harness. It fails closed on what it cannot read, and prints
 numbers and names only.
 
-- **The directory.** By default it is Claude Code's directory for this working tree. That is under
-  the configuration directory the harness's own variable names, or under its default in the home
-  directory. An option names another directory.
-- **What is read.** Only regular files are read: the transcripts in that directory and the
-  transcripts of the subagents under each session's directory. A symbolic link, or a file that is
-  not regular, stops the command. Nothing outside that directory is read, and nothing is written
-  anywhere. One function of the shell reads outside the repository, and only for `nuc measure`.
+- **The directory.** By default it is Claude Code's directory for this working tree, named as its
+  release 2.1.325 names it: each UTF-16 unit of the path but an ASCII letter or digit replaced by
+  `-`, a name over 200 units cut there and followed by a hash of the path. It lies under the
+  configuration directory the harness's own variable names, or under its default in the home
+  directory, and the name the harness's own variable gives stands in place of the path's under a
+  named configuration directory. A session started in a subdirectory or another worktree has a
+  directory of its own. An option names another directory.
+- **What is read.** Only regular files are read: the transcripts in that directory, and under each
+  session's directory the transcripts of its subagents and the description of each. A symbolic link
+  anywhere there, or a file that is not regular, stops the command. Nothing outside that directory
+  is read, and nothing is written anywhere. Two functions of the shell, one that lists and one that
+  reads, read outside the repository, and only for `nuc measure`.
 - **The adapter.** For each harness, a pure function of the library turns the bytes of its
   transcripts into requests. A request carries its identifier, its usage, its branch, and its time.
   It also carries its session, its subagent, and its tool calls with the sizes of their outputs.
@@ -58,9 +65,11 @@ numbers and names only.
     harness.
   - The transcripts are parsed with a JSON crate that passes `cargo deny` and `cargo audit`.
 - **The figure.** `tokens <n>` is the sum of the input, cache read, cache written, and output tokens
-  of every selected request. A request counts once, however many lines repeat its usage.
+  of every selected request. A request counts once, at the largest of each count its lines
+  report.
 - **The selection.** The requests made on the current branch count. Options add branches and a time
-  range. No git history is read to find the branches of another.
+  range. No git history is read to find the branches of another. Other branches alone are measured
+  from a branch without sessions or a detached HEAD.
 - **Fail closed.**
   - A line that does not parse, or a request without the usage the format gives it, stops the
     command with exit 2. The message names the file and the line.
@@ -112,6 +121,9 @@ None.
   JSON object; an assistant line carries `requestId`, `gitBranch`, `timestamp`, `sessionId`, and
   `message.usage` with `input_tokens`, `cache_read_input_tokens`, `cache_creation_input_tokens`,
   and `output_tokens`. Subagents are in `<session>/subagents/agent-*.jsonl` with a `.meta.json`.
+- Claude Code 2.1.325, its installed `extension.js` and native binary, read on 2026-11-17: the name
+  of a working tree's directory (`mS`, `_S`, and the hash `o3`), and the name
+  `CLAUDE_CODE_PROJECT_DIR_NAME` gives under a set `CLAUDE_CONFIG_DIR`.
 - Anthropic, *Messages API*, the usage object of a response, whose four token counts the
   transcripts copy.
 - JSON Lines — <https://jsonlines.org/>.
@@ -125,7 +137,7 @@ None.
   - The counting is tested without a harness, on requests the tests build.
 - Negative / trade-offs:
   - `nuc` reads outside the repository for the first time. The structural test holds that read to
-    one function and one command.
+    two functions and one command.
   - The format is the harness's and will change. Each change stops `nuc measure` until an adapter
     follows it.
   - A JSON crate joins the supply chain.
@@ -147,4 +159,4 @@ transcripts in a directory of the test's own:
 - a canary string in every text field of the fixtures appears in no output.
 
 The structural test `tests/functional_core.rs` fails where a function of `src/shell/` other than
-the one named for `nuc measure` reads a path outside the repository.
+the two named for `nuc measure` reads a path outside the repository.

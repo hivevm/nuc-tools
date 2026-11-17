@@ -4,7 +4,6 @@
 - **Date:** 2026-11-15
 - **Deciders:** Markus Brigl
 - **Applies to:** the copies of the template's fixture tables under `tests/tables/`, their blob list `tests/tables.blobs`, the list of cases that do not agree `tests/tables.cases`, the runner `tests/tables.rs`, and the check of the blobs in `scripts/check-parity.sh`
-- **Supersedes:** [TEST-cases-from-template-tables](TEST-cases-from-template-tables.md)
 
 ## Context
 
@@ -18,9 +17,9 @@ template release v0.8.1: a rule's unit tests copy the cases of the bash self-tes
 From release v0.9.1 on, the template keeps the cases of its checks in fixture tables under
 `scripts/fixtures/`: `check-docs-record.txt` with 208 cases at v0.11.0, `check-traceability.txt`,
 and `check-shell.txt`. Each case builds a tree from steps on a base fixture its table's header
-spells out, and expects an exit and the key and subjects of each finding, never wording. Since
-API-command-line-keyed-findings, every finding of `nuc` names the same key
-([API-command-line-keyed-findings](API-command-line-keyed-findings.md)), so `nuc` can run the
+spells out, and expects an exit and the key and subjects of each finding, never wording. Every
+finding of `nuc` names the same key
+([API-command-line-with-measure](API-command-line-with-measure.md)), so `nuc` can run the
 template's own cases. A table changes with each release, and the cases of one release describe
 that release's checks.
 
@@ -32,10 +31,12 @@ which a rule of `nuc` reads and never runs. An ADR identifier inside a copy of a
 not a citation of this record
 ([TEST-copies-keep-old-identifiers](TEST-copies-keep-old-identifiers.md)).
 
-Two cases of `check-docs-record.txt` at v0.11.0 cannot agree, and no ticket ports them. 'no README
-to carry the Template release line' expects a finding where `nuc` refuses a tree without a README,
-and 'a release line that says 'not forked'' expects `docs/base-blobs` on a tree whose README names
-v0.8.1, which `nuc` checks as v0.8.1, a release without that check. Both follow
+Five cases of `check-docs-record.txt` at v0.11.0 cannot agree, and no ticket ports them. 'no README
+to carry the Template release line' expects a finding where `nuc` refuses a tree without a README.
+'a release line that says 'not forked'' expects `docs/base-blobs` on a tree whose README names
+v0.8.1, which `nuc` checks as v0.8.1, a release without that check. Three cases of
+`docs/template-release` expect its checks of v0.10.0 on a tree whose README names v0.1.0 or v0.2.0,
+which `nuc` checks as that release, before those checks. All five follow
 [API-version-coupling-hook-defaults](API-version-coupling-hook-defaults.md): a rule whose check
 changed checks a tree as the release its README names, and a tree whose README names none is not
 decided. The template's bash knows only its own release. Neither case is a gap a ticket closes, nor
@@ -85,12 +86,12 @@ plain-rules sensor's table; the cases a bash self-test keeps inline; which rules
 
 ## Alternatives considered
 
-- **The two cases pending on a ticket for good** — no new status, but a pending case says a port
+- **The cases pending on a ticket for good** — no new status, but a pending case says a port
   will make it agree, and the runner would fail once the ticket's file is gone.
-- **The two cases as not ported** — no new status, but `not ported` says the rule is the bash's,
+- **The cases as not ported** — no new status, but `not ported` says the rule is the bash's,
   while `nuc` ports `docs/template-release` and `docs/base-blobs` and decides these cases on
   purpose.
-- **The copies edited, the two cases deleted** — nothing to list, but a copy would no longer be
+- **The copies edited, the cases deleted** — nothing to list, but a copy would no longer be
   the template's blob, and the pin is what keeps it so.
 - **A decided case without a reason, the ADR alone** — shorter, but the line would not say which
   part of the ADR decides the case, and a reader would open the ADR to find it.
@@ -120,7 +121,7 @@ plain-rules sensor's table; the cases a bash self-test keeps inline; which rules
   `check-shell.txt` at v0.11.0, whose headers give the form of a case and the base fixture, and
   `scripts/test-check-docs.sh`, which reads the first.
 - The tag message of the template's v0.9.1: the fixture tables expect keys and data, never wording.
-- The two cases of `check-docs-record.txt` at v0.11.0 that cannot agree, and
+- The five cases of `check-docs-record.txt` at v0.11.0 that cannot agree, and
   API-version-coupling-hook-defaults, which decides them.
 - `git hash-object`, which computes the blob of a file as git stores it.
 

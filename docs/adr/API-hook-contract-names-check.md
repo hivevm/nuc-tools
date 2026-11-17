@@ -4,7 +4,6 @@
 - **Date:** 2026-11-15
 - **Deciders:** Markus Brigl
 - **Applies to:** the `nuc hook` command and its source, the reference shims under `shims/`, the `hook/` rule IDs, the files `nuc hook` writes in the git directory, and the merge driver of the ADR index
-- **Supersedes:** [API-hook-contract](API-hook-contract.md)
 ## Context
 
 G-2 asks that a hook through the shim refuse or pass exactly as the bash hook of the release does.
@@ -23,7 +22,7 @@ has to say which.
 
 The command line gives every command the exit codes 0, 1, and 2 and keeps the standard output for
 findings, so "the checks run now" needs a code of its own, which
-[API-command-line-keyed-findings](API-command-line-keyed-findings.md) gives `nuc hook` alone.
+[API-command-line-with-measure](API-command-line-with-measure.md) gives `nuc hook` alone.
 Git hands a hook its standard input once, so a second call cannot read the refs again. The bash
 hook decides the green tree before it clears git's variables and runs the checks, and records that
 same tree afterwards. A tree computed after the checks could differ, because a check may touch the
@@ -87,7 +86,7 @@ on 4, and refuses on every code it does not name.
   - `--record` exits 0 when it recorded and when there was no pending tree, and 2 when it cannot
     write. The shim ignores its exit status and lets the push pass, as the bash ignores a
     failed write of the record: a lost record costs only a second run of the checks.
-- **Findings:** a refusal is a finding in the line form of API-command-line-keyed-findings, its
+- **Findings:** a refusal is a finding in the line form of API-command-line-with-measure, its
   key included,
   whose location for a hook is the ref it guards, such as `refs/heads/main`. Its rule ID is in
   the area `hook/`. The check a hook runs is a `hook/` rule as well, so a
@@ -96,7 +95,7 @@ on 4, and refuses on every code it does not name.
 - **`nuc.toml` and the release:** how `nuc hook` reads them, with and without `nuc.toml`, is the
   *Hooks* clause of [API-version-coupling-hook-defaults](API-version-coupling-hook-defaults.md),
   and stated there only. The exit codes 3 and 4 and the ref as location are stated in
-  API-command-line-keyed-findings.
+  API-command-line-with-measure.
 - **Merge driver:** `.gitattributes` names the driver `adr-index` for `docs/adr/README.md`, and
   the git configuration `merge.adr-index.driver` names its shim. Git calls the shim with the base,
   ours, theirs, and the three labels, and `nuc` writes the merged file into ours. It exits 0 on a
@@ -116,7 +115,7 @@ on 4, and refuses on every code it does not name.
 
 ## Alternatives considered
 
-- **One code for "the checks run now", the check fixed per hook** — what API-hook-contract
+- **One code for "the checks run now", the check fixed per hook** — what the first hook contract
   decided, accepted on 2026-11-06 with every other clause of this one. From v0.9.0 `pre-commit`
   runs one of two checks by the git state, and one code cannot say which, so this ADR replaced
   that clause.
@@ -171,7 +170,7 @@ on 4, and refuses on every code it does not name.
   - a commit, merge, or move of `main` that runs no check needs no bash.
 - Negative / trade-offs:
   - `nuc hook` has two exit codes more than every other command, as
-    API-command-line-keyed-findings states;
+    API-command-line-with-measure states;
   - the hooks read `nuc.toml` differently from `nuc check`, as API-version-coupling-hook-defaults
     states;
   - the checks a hook runs stay bash until they are ported;

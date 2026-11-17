@@ -8,9 +8,9 @@
 ## Context
 
 Up to the port of template release v0.10.0, `nuc` depended on no crate: its readers of TOML,
-JSON, SARIF, and the bash's patterns are written by hand, and the Context of several ADRs says so,
-among them [API-command-line-keyed-findings](API-command-line-keyed-findings.md) and
-[API-output-formats-carry-reason](API-output-formats-carry-reason.md). Template release v0.10.0
+JSON, SARIF, and the bash's patterns were written by hand, and the Context of several ADRs said so.
+The writers of JSON and SARIF still are
+([API-output-formats-carry-reason](API-output-formats-carry-reason.md)). Template release v0.10.0
 adds checks whose bash is a set of extended regular expressions run by awk: the five forms of
 `docs/opens-no-issue` and the paths an *Applies to* names for `docs/adr-refs`. Written by hand,
 each pattern becomes a matcher of its own, and a mistake in one goes unseen where no case of the
