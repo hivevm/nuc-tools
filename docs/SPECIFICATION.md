@@ -180,7 +180,8 @@ exist for an agent. One a test can decide is restated as a `Q-n`, so that it is 
     another configuration. The boundary is the environment of every process `nuc` starts.
   - *Harness transcripts:* the lines a harness writes, read by `nuc measure`, are untrusted and
     private. The boundary is the adapter of each harness, which reads numbers and names and lets no
-    text out.
+    other text out: a subagent's type and description, the names of tools, and session identifiers,
+    as API-measure-reads-harness-transcripts allows.
 - The system shall never execute repository content (Q-7).
 - The system shall never write outside the repository and its git directory (Q-8).
 - The system shall never act on a repository other than the one it was pointed at (Q-9).
