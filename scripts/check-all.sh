@@ -161,6 +161,8 @@ run "Documentation self-test" scripts/test-check-docs.sh
 run "Documentation consistency" scripts/check-docs.sh
 run "Comment width self-test" scripts/test-check-comment-width.sh
 run "Comment width" scripts/check-comment-width.sh
+run "Accepted ADR text self-test" scripts/test-check-adr-text.sh
+run "Accepted ADR text" scripts/check-adr-text.sh
 run "Normalize map self-test" scripts/test-normalize-remap.sh
 # The readiness script rebases a branch on a human's instruction, as step 7 of
 # Integration branches in CONTRIBUTING.md; its self-test runs here.

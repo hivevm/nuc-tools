@@ -12,6 +12,12 @@ an ADR. What the golden path already shows needs none. Few entries that hold bea
 skimmed. The design revision drops what prevented nothing
 ([`AGENTS.md` §5](../AGENTS.md#5-quality-bar--definition-of-done)).
 
+- **A commit that restates accepted ADRs carries its map** — a normalization, and a take-up of a
+  template release that moves the citations of a `NUC-` clause in accepted ADRs as the release's
+  map says, writes in its commit message a line that reads `ADR map:` alone, the map below it.
+  `scripts/check-adr-text.sh` reads that line, and fails any other commit that changes an accepted
+  ADR beyond its Status and Date lines; the `normalize` skill asks for the map in the body, not for
+  the line.
 - **A rule changes everywhere it is stated** — a change to a rule, a step, or a name searches
   the tree for its old wording and corrects it in the same change. A link check sees an anchor,
   and `tests/adr_citations.rs` a citation of a superseded or rejected ADR; neither sees a sentence

@@ -307,10 +307,7 @@ fn drafts(dir: &Path, object: &str) -> usize {
 /// release before v0.5.0 as v0.5.0. A hook refuses nothing for the release
 /// (API-version-coupling-hook-defaults).
 fn release(root: Option<&Path>) -> Option<config::Version> {
-    let root = root?;
-    let tree = Tree::new(root.to_path_buf()).ok()?;
-    let readme = tree.read_checked(&root.join("README.md")).ok()??;
-    match rules::docs_template_release::carried(&readme) {
+    match super::template_release(root?).ok()? {
         Some(rules::Carried::Release(release)) => Some(release.max(rules::RELEASES[0])),
         _ => None,
     }
