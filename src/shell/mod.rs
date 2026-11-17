@@ -333,6 +333,15 @@ fn read_guides(
     Ok(())
 }
 
+/// The Template release the README at `root` names, read through the tree as every command reads
+/// the repository; none where the README is missing or its line names no release. `nuc hook` and
+/// `nuc measure` ask it alike; each decides what a refusal of the read means for it.
+fn template_release(root: &Path) -> Result<Option<Carried>, String> {
+    let tree = Tree::new(root.to_path_buf())?;
+    let readme = tree.read_checked(&root.join("README.md"))?;
+    Ok(readme.and_then(|readme| rules::docs_template_release::carried(&readme)))
+}
+
 /// The earliest template release whose bash checks the rules port.
 const EARLIEST_RELEASE: Version = rules::RELEASES[0];
 

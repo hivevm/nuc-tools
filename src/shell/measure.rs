@@ -12,7 +12,6 @@ use std::collections::BTreeMap;
 use crate::measure::{self, Harness, Lines, Selection, Source, claude_code};
 use crate::rules;
 
-use super::tree::Tree;
 use super::{PASSED, git};
 
 /// The options of `nuc measure`: the harness, Claude Code where none is named; the directory of
@@ -99,15 +98,10 @@ pub(super) fn run(options: &[&str]) -> Result<u8, String> {
     Ok(PASSED)
 }
 
-/// The Template release the README of the working tree names, `vX.Y.Z` or `unreleased`, read
-/// through the tree as every command reads the repository; none where the README or its line is
-/// missing or names none.
+/// The Template release the README of the working tree names, `vX.Y.Z` or `unreleased`; none
+/// where the README or its line is missing or names none. A README the tree refuses stops the run.
 fn release(root: &Path) -> Result<Option<String>, String> {
-    let tree = Tree::new(root.to_path_buf())?;
-    let Some(readme) = tree.read_checked(&root.join("README.md"))? else {
-        return Ok(None);
-    };
-    Ok(match rules::docs_template_release::carried(&readme) {
+    Ok(match super::template_release(root)? {
         Some(rules::Carried::Release(version)) => Some(format!("v{version}")),
         Some(rules::Carried::Unreleased) => Some("unreleased".to_owned()),
         None => None,
