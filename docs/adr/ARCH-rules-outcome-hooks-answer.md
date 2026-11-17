@@ -31,7 +31,7 @@ And `traceability/coverage` names the criteria no test cites, which are pending 
 shell would call these rules by name for both, and each port would add a case to it.
 
 The hooks have a shape of their own, which the design revision of 2026-11-06 found in the port of
-the hooks ([API-hook-contract](API-hook-contract.md)):
+the hooks ([API-hook-contract-names-check](API-hook-contract-names-check.md)):
 - the seven `hook/` rules are constants in one module, `src/hook.rs`, each an ID and the reason
   `nuc explain` gives, with no module of its own;
 - the decision is one function per hook, not per rule: `pre_commit` decides `hook/commit-on-main`
@@ -75,7 +75,7 @@ effect in one shell module, `src/shell/`, and a binary, `src/main.rs`, that only
   - The merge driver is decided by pure functions over the bytes of its sides: the prose git
     merges, and whether the union stands over the prose merged on its own. The shell has git
     merge, writes the union or git's conflict into ours, and exits 0 or 1 by that decision, as
-    [API-hook-contract](API-hook-contract.md) decides.
+    [API-hook-contract-names-check](API-hook-contract-names-check.md) decides.
 - **Shell:** `src/shell/` is the only place that spawns processes, touches the file system, reads
   the environment, prints, or reaches the network. It gathers the values the rules and hooks
   need, calls them, and carries out what they return. For the rules it does so the same for every
@@ -90,7 +90,7 @@ effect in one shell module, `src/shell/`, and a binary, `src/main.rs`, that only
 **Out of scope:** how git is spawned and its environment built, which
 [SEC-git-cleared-environment](SEC-git-cleared-environment.md) decides; the module layout inside the
 core beyond one module per rule and one module for the hooks; the output formats; what each hook
-decides, which [API-hook-contract](API-hook-contract.md) decides.
+decides, which [API-hook-contract-names-check](API-hook-contract-names-check.md) decides.
 
 ## Alternatives considered
 
@@ -115,7 +115,7 @@ decides, which [API-hook-contract](API-hook-contract.md) decides.
   carries all, and a rule that forgets to wire its refusal passes on what it cannot decide.
 - **A refusal as a finding of its own kind** — keeps one list, but every reader of findings must
   then tell the two apart, and a refusal printed as a finding breaks the line contract of
-  [API-command-line-with-hook-signal](API-command-line-with-hook-signal.md).
+  [API-command-line-with-measure](API-command-line-with-measure.md).
 - **Library and thin binary, nothing more prescribed** — the effects could spread into the rule
   modules, and the parts the threats aim at would no longer be one module the maintainer reviews.
 - **Ports and adapters** — draws the seam at technologies; there is one, git's CLI, and nothing to

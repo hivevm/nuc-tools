@@ -29,13 +29,15 @@ The template pins what each hook refuses and passes in its hook self-test,
   substring of the message.
 
 The substrings are the bash wording. G-6 asks for rule IDs, and the wording of `nuc` is left free by
-[API-command-line-with-hook-signal](API-command-line-with-hook-signal.md), so a comparison maps
+[API-command-line-with-measure](API-command-line-with-measure.md), so a comparison maps
 messages, as the tree harness does. Some `expect` cases assert no hook decision but its aftermath,
 such as that a refused fast-forward leaves `main` where it was. A hook's standard error mixes its
 own lines with git's and with the output of the check it ran, which the self-test asserts as well.
 
-How a hook through `nuc` behaves is decided in [API-hook-contract](API-hook-contract.md):
-the shim, the exit codes, the green tree, and the defaults without `nuc.toml`.
+How a hook through `nuc` behaves is decided in
+[API-hook-contract-names-check](API-hook-contract-names-check.md): the shim, the exit codes, and
+the green tree; the defaults without `nuc.toml` are decided in
+[API-version-coupling-hook-defaults](API-version-coupling-hook-defaults.md).
 
 ## Decision
 
@@ -90,7 +92,7 @@ any difference and on any case of a pinned release's hook self-test that no scen
 
 - **The template's self-test reused, with the shims in place of `.githooks/`.** The cheapest, and
   the cases are the oracle verbatim. But `nuc` would have to match the bash's substrings word for
-  word, which API-command-line-with-hook-signal leaves free. The rule IDs would never be compared. A
+  word, which API-command-line-with-measure leaves free. The rule IDs would never be compared. A
   message the self-test does not assert could differ unseen.
 - **Rust tests only, no bash side.** No harness to maintain, but nothing compares, and Q-2 asks
   for a comparison of every ported hook.

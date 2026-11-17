@@ -166,8 +166,9 @@ the system must never do, regardless of what a task asks. A prohibition not writ
 exist for an agent. One a test can decide is restated as a `Q-n`, so that it is verified.
 
 - **Assets:** the gates — checks and hooks — of every project derived from the template; those
-  repositories, their trees, git directories, and refs; and the tokens present in the
-  environments `nuc` runs in, such as CI's.
+  repositories, their trees, git directories, and refs; the tokens present in the environments
+  `nuc` runs in, such as CI's; and the transcripts of a harness, which hold its sessions' prompts,
+  code, and tool output.
 - **Actors and trust boundaries:**
   - *The supply chain:* a compromised dependency, or a compromised build or release pipeline,
     reaches every derived project through its hooks and CI. The boundary is the published
@@ -177,6 +178,10 @@ exist for an agent. One a test can decide is restated as a `Q-n`, so that it is 
   - *The inherited environment:* variables git sets for hooks, such as `GIT_DIR` and
     `GIT_CONFIG_PARAMETERS`, can point `nuc` and the git it spawns at another repository or
     another configuration. The boundary is the environment of every process `nuc` starts.
+  - *Harness transcripts:* the lines a harness writes, read by `nuc measure`, are untrusted and
+    private. The boundary is the adapter of each harness, which reads numbers and names and lets no
+    other text out: a subagent's type and description, the names of tools, and session identifiers,
+    as API-measure-reads-harness-transcripts allows.
 - The system shall never execute repository content (Q-7).
 - The system shall never write outside the repository and its git directory (Q-8).
 - The system shall never act on a repository other than the one it was pointed at (Q-9).
@@ -200,5 +205,8 @@ maintained.
   README, and that line keeps the form the template's rule `docs/template-release` holds.
 - The template switches its hooks and checks over to `nuc` once parity is reached, and keeps its
   rules in `AGENTS.md`, the ADRs, and the skills.
+- Claude Code keeps its transcripts as JSON Lines under a directory it names for the working tree,
+  as its release 2.1.325 does; where a later release changes either, `nuc measure` stops with exit
+  2 until its adapter follows.
 - The targets of Q-3 and Q-4 can be built reproducibly with the pinned Rust toolchain, and an
   arm64 build serves the macOS users, so no x64 build is released.
