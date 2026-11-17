@@ -830,6 +830,7 @@ fn every_shim() -> Vec<String> {
     names
 }
 
+/// Verifies: API-config-refusals-keyed
 #[test]
 fn every_shim_stops_without_nuc_and_with_a_nuc_too_old() {
     for hook in every_shim() {
@@ -871,6 +872,13 @@ fn every_shim_stops_without_nuc_and_with_a_nuc_too_old() {
             both(&output).contains("requires nuc 99.0.0 or later")
                 && both(&output).contains("install or update nuc"),
             "{hook}: {}",
+            both(&output)
+        );
+        assert!(
+            both(&output)
+                .lines()
+                .any(|line| line.ends_with(" [config/toml:old]")),
+            "{hook}: the refusal of a nuc too old ends in its key: {}",
             both(&output)
         );
         assert!(!canary.exists(), "{hook} ran a check before it stopped");

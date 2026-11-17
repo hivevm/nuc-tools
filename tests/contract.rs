@@ -58,6 +58,57 @@ fn what_this_nuc_cannot_read_refuses_with_the_install_hint() {
     }
 }
 
+/// Verifies: API-config-refusals-keyed, G-5
+#[test]
+fn every_refusal_of_nuc_toml_ends_in_its_key() {
+    let missing = Fixture::new("config-key-missing");
+    missing.write("README.md", README);
+    for (fixture, reason) in [
+        (missing, "missing"),
+        (
+            Fixture::project(
+                "config-key-unreadable",
+                "minimum = \"0.0.0\"\n[rules]\n",
+                README,
+            ),
+            "unreadable",
+        ),
+        (
+            Fixture::project(
+                "config-key-old",
+                "minimum = \"99.0.0\"\nrules = []\n",
+                README,
+            ),
+            "old",
+        ),
+        (
+            Fixture::project(
+                "config-key-unknown",
+                "minimum = \"0.0.0\"\nrules = [\"docs/no-such-rule\"]\n",
+                README,
+            ),
+            "unknown",
+        ),
+    ] {
+        let output = fixture.nuc(&["check"]);
+        assert_eq!(code(&output), Some(2), "{reason}");
+        let err = stderr(&output);
+        let line = err
+            .lines()
+            .find(|line| line.contains("nuc.toml"))
+            .unwrap_or("");
+        assert!(
+            line.ends_with(&format!(" [config/toml:{reason}]")),
+            "{reason}: the refusal ends in its key: {err}"
+        );
+        assert_eq!(
+            stdout(&output),
+            "",
+            "{reason}: a refusal writes nothing on the standard output"
+        );
+    }
+}
+
 /// Verifies: G-6
 #[test]
 fn a_finding_is_one_line_on_the_standard_output_and_the_summary_is_on_the_standard_error() {
@@ -291,6 +342,7 @@ fn shim_keys() -> Vec<(String, String)> {
 }
 
 /// Verifies: API-command-line-with-measure, API-hook-contract-keyed-shims, G-6
+/// Verifies: API-config-refusals-keyed
 #[test]
 fn every_key_stays_once_listed_and_each_reason_is_one_lower_case_word() {
     let listed: Vec<&str> = RULE_KEYS
@@ -308,6 +360,11 @@ fn every_key_stays_once_listed_and_each_reason_is_one_lower_case_word() {
         )
         .map(|(id, reason)| (id.to_owned(), reason.to_owned()))
         .chain(shim_keys())
+        .chain(
+            nuc::config::Refusal::REASONS
+                .iter()
+                .map(|reason| (nuc::config::KEY.to_owned(), (*reason).to_owned())),
+        )
         .map(|(id, reason)| {
             assert!(
                 !reason.is_empty() && reason.bytes().all(|b| b.is_ascii_lowercase()),

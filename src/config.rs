@@ -43,6 +43,10 @@ struct Config {
     rules: Vec<String>,
 }
 
+/// The ID in the key every refusal of `nuc.toml` ends in, `[config/toml:<reason>]`; it names no
+/// rule, so no `nuc.toml` turns it off (API-config-refusals-keyed).
+pub const KEY: &str = "config/toml";
+
 /// Why `nuc` refuses to check with a `nuc.toml`; each is a run that could not decide.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Refusal {
@@ -56,8 +60,22 @@ pub enum Refusal {
     UnknownRule(String),
 }
 
-impl fmt::Display for Refusal {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl Refusal {
+    /// The reason of each refusal's key, in the order of the variants; each stays once released.
+    pub const REASONS: [&'static str; 4] = ["missing", "unreadable", "old", "unknown"];
+
+    /// The reason in this refusal's key.
+    pub fn reason(&self) -> &'static str {
+        match self {
+            Self::Missing => Self::REASONS[0],
+            Self::Unreadable(..) => Self::REASONS[1],
+            Self::TooOld { .. } => Self::REASONS[2],
+            Self::UnknownRule(_) => Self::REASONS[3],
+        }
+    }
+
+    /// The message before the key.
+    fn message(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Missing => write!(
                 f,
@@ -77,6 +95,13 @@ impl fmt::Display for Refusal {
                 "nuc.toml: turns on the rule '{id}', which this nuc does not know — {INSTALL}"
             ),
         }
+    }
+}
+
+impl fmt::Display for Refusal {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.message(f)?;
+        write!(f, " [{KEY}:{}]", self.reason())
     }
 }
 

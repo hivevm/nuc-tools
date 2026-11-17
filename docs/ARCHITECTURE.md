@@ -71,7 +71,9 @@ golden path and the test pattern an agent copies from are named here.
   names the releases the reason covers, or `-` for all.
 - **Configuration** — `config` reads `nuc.toml` and selects the rules it turns on, or says why `nuc`
   refuses: missing, unreadable, a minimum above the running version, an unknown rule ID
-  ([API-version-coupling-hook-defaults](adr/API-version-coupling-hook-defaults.md)). It holds the
+  ([API-version-coupling-hook-defaults](adr/API-version-coupling-hook-defaults.md)), each refusal
+  ending in its key `[config/toml:<reason>]`
+  ([API-config-refusals-keyed](adr/API-config-refusals-keyed.md)). It holds the
   one answer to which IDs `nuc.toml` may name, those of `rules::ALL` and of `hook::ALL`, and the
   reason `nuc explain` gives for each, so `nuc check`, `nuc hook`, and `nuc explain` ask it alike.
 - **Formats** — `src/format.rs` turns what a run of `nuc check` decided into its standard output:
