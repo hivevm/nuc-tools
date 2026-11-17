@@ -830,7 +830,7 @@ fn every_shim() -> Vec<String> {
     names
 }
 
-/// Verifies: API-config-refusals-keyed
+/// Verifies: API-hook-contract-keyed-shims, API-config-refusals-keyed
 #[test]
 fn every_shim_stops_without_nuc_and_with_a_nuc_too_old() {
     for hook in every_shim() {

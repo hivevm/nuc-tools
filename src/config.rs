@@ -47,6 +47,12 @@ struct Config {
 /// rule, so no `nuc.toml` turns it off (API-config-refusals-keyed).
 pub const KEY: &str = "config/toml";
 
+/// The refusal of a `nuc.toml` that cannot be read at all, such as one that is no UTF-8 text or no
+/// file: `why` and the key of an unreadable file (API-config-refusals-keyed).
+pub fn unreadable(why: String) -> String {
+    format!("{why} [{KEY}:{}]", Refusal::REASONS[1])
+}
+
 /// Why `nuc` refuses to check with a `nuc.toml`; each is a run that could not decide.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Refusal {

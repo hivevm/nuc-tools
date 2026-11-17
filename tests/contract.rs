@@ -98,13 +98,35 @@ fn every_refusal_of_nuc_toml_ends_in_its_key() {
             .find(|line| line.contains("nuc.toml"))
             .unwrap_or("");
         assert!(
-            line.ends_with(&format!(" [config/toml:{reason}]")),
-            "{reason}: the refusal ends in its key: {err}"
+            line.ends_with(&format!(" [config/toml:{reason}]"))
+                && line.matches("[config/toml:").count() == 1,
+            "{reason}: the refusal ends in its key, once: {err}"
         );
         assert_eq!(
             stdout(&output),
             "",
             "{reason}: a refusal writes nothing on the standard output"
+        );
+    }
+}
+
+/// Verifies: API-config-refusals-keyed
+#[test]
+fn a_nuc_toml_that_cannot_be_read_at_all_refuses_as_unreadable_in_its_key() {
+    let text = Fixture::project("config-key-bytes", CONFIG, README);
+    std::fs::write(text.root().join("nuc.toml"), [0xff, 0xfe, b'\n']).expect("bytes are written");
+    let dir = Fixture::project("config-key-dir", CONFIG, README);
+    std::fs::remove_file(dir.root().join("nuc.toml")).expect("the file is removed");
+    std::fs::create_dir(dir.root().join("nuc.toml")).expect("a directory takes its place");
+    for (name, fixture) in [("no UTF-8", text), ("a directory", dir)] {
+        let output = fixture.nuc(&["check"]);
+        assert_eq!(code(&output), Some(2), "{name}");
+        assert!(
+            stderr(&output)
+                .trim_end()
+                .ends_with(" [config/toml:unreadable]"),
+            "{name}: {}",
+            stderr(&output)
         );
     }
 }
