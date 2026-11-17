@@ -34,7 +34,7 @@ fn main_only(release: Option<Version>, clauses: &str) -> String {
 /// alone; `nuc check` knows its ID, so that one `nuc.toml` lists both, and runs it never.
 pub struct HookRule {
     pub id: &'static str,
-    /// The reasons of the findings it refuses with, as a rule's (API-command-line-keyed-findings).
+    /// The reasons of the findings it refuses with, as a rule's (API-command-line-with-measure).
     pub reasons: &'static [&'static str],
     pub explain: &'static str,
 }

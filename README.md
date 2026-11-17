@@ -131,6 +131,25 @@ minimum holds like a release's.
   then nothing is written on the standard output in any format.
 - `nuc explain <rule ID>` gives the reason of a rule.
 - `nuc hook <name>` decides a git hook; the shims below call it.
+- `nuc measure [--harness claude-code] [--transcripts <dir>] [--branch <name>]... [--since <time>]
+  [--until <time>] [--breakdown] [--finding]` prints `tokens <n>`, the part of a hand-off's Measures
+  line the harness knows: the input, cache read, cache written, and output tokens of every request
+  the harness's sessions made on the current branch and on each branch `--branch` adds, subagents
+  included, each request once. The current branch always counts: to measure other branches alone, as
+  the tickets a `feat/` branch gathered, run it on a branch without sessions, such as `main`, or on
+  a detached HEAD. `--since` and `--until` take a date `YYYY-MM-DD` or a UTC time
+  `YYYY-MM-DDTHH:MM[:SS]Z` and keep the requests from the first and before the second. `--breakdown`
+  prints before that line each session's and subagent's tokens in those four parts, each tool's
+  calls and output bytes, and the three costliest subagents and largest tool outputs. `--finding`
+  prints before it a draft of a template finding in the fields of the template's issue form: the
+  README's Template release, the tokens and their four parts, and the tools and sizes of the largest
+  outputs, an MCP tool as `mcp`, with no session, subagent, branch, or path; the human completes it
+  and decides whether to send it. It reads Claude Code's transcripts of this working tree, under
+  `CLAUDE_CONFIG_DIR` or `~/.claude`, or those in `<dir>`, and prints nothing of their text but a
+  subagent's type and description and the names of tools. It exits 0, or 2 where a transcript does
+  not read as it expects, no request was selected, or, for `--finding`, the README cannot be read,
+  with nothing on the standard output
+  ([API-measure-reads-harness-transcripts](docs/adr/API-measure-reads-harness-transcripts.md)).
 - `nuc --version` prints the version.
 
 The rules port every check of the template's `check-docs.sh`, 1 to 16, each as the release a tree

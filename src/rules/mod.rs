@@ -200,7 +200,7 @@ pub enum Input {
 pub struct Rule {
     pub id: &'static str,
     /// The reasons its findings carry, each with the ID the key `<id>:<reason>` of a line
-    /// (API-command-line-keyed-findings); a finding with another is refused.
+    /// (API-command-line-with-measure); a finding with another is refused.
     pub reasons: &'static [&'static str],
     pub explain: &'static str,
     /// The inputs the check reads; the shell reads only those a rule turned on needs.
@@ -223,7 +223,7 @@ impl Outcome {
     /// out: its own refusal; a finding it reports under another rule's ID, which every format
     /// would name wrongly and the SARIF could not place in its list of rules
     /// (API-output-formats-carry-reason); or a finding with a reason it does not declare, whose key
-    /// no list holds (API-command-line-keyed-findings). Each ends the run not decided (Q-1).
+    /// no list holds (API-command-line-with-measure). Each ends the run not decided (Q-1).
     pub fn refusal_of(&self, id: &str, reasons: &[&str]) -> Option<String> {
         if let Some(refusal) = &self.refusal {
             return Some(refusal.clone());

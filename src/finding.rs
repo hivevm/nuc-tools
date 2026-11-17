@@ -8,7 +8,7 @@ pub struct Finding {
     pub rule: &'static str,
     /// The cause within the rule, one word of lower-case ASCII letters: with the rule ID it is
     /// the key `<rule ID>:<reason>` the line ends in, as stable as the rule ID
-    /// (API-command-line-keyed-findings).
+    /// (API-command-line-with-measure).
     pub reason: &'static str,
     pub file: String,
     pub line: Option<usize>,

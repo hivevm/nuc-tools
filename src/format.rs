@@ -1,5 +1,5 @@
 //! What `nuc check` writes on the standard output, in the format `--format` names
-//! (API-output-formats-carry-reason): the lines of API-command-line-keyed-findings, one JSON
+//! (API-output-formats-carry-reason): the lines of API-command-line-with-measure, one JSON
 //! document, or one SARIF 2.1.0 log. Built here, without a crate, so that the same findings give
 //! the same bytes; the shell only writes the result.
 
@@ -9,7 +9,7 @@ use crate::finding::Finding;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Format {
     /// One line per finding, `<file>[:<line>]: <rule ID>: <message> [<rule ID>:<reason>]`
-    /// (API-command-line-keyed-findings); the default.
+    /// (API-command-line-with-measure); the default.
     Text,
     /// One JSON document that names its format and version.
     Json,

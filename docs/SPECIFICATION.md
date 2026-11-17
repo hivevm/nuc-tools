@@ -68,6 +68,9 @@ Only a normalization renumbers them
    `nuc explain <id>` gives the reason.
 7. **G-7** — When a check runs with `--format json` or `--format sarif`, it reports the same
    findings as its text output.
+8. **G-8** — When a maintainer hands off a change, `nuc measure` prints the tokens the harness's
+   sessions on that branch read and wrote, as the Measures line of the pull request template
+   counts them, or stops with exit 2 where it cannot read them.
 
 ## Quality Goals
 
@@ -118,7 +121,9 @@ from the threats below.
   that resolves outside the repository; a fixture whose link, symbolic link, or listed path leads
   a read outside shows exit 2 and a message naming it. A test of existence, as the bash's `-e`,
   follows the path and reads nothing. Git's own configuration, attribute, and exclude files are
-  git's to read.
+  git's to read. `nuc measure` reads the transcripts of a harness in the one directory
+  API-measure-reads-harness-transcripts names, outside the repository, and nothing else outside
+  it; a symbolic link there shows exit 2 as in the tree.
 
 ## Non-Goals
 
@@ -129,7 +134,8 @@ What this project explicitly does not try to do.
   review, no design revision, no ADR content.
 - **No agent- or editor-specific mechanism.** Enforcement runs through git hooks and CI only,
   so it holds for every agent and every human alike. An LSP or MCP front end is a later
-  option, never the enforcement path.
+  option, never the enforcement path. `nuc measure` reads one harness's transcripts to report a
+  cost; it enforces nothing.
 - **No release automation for projects.** How a derived project releases is the template's
   ADR on releases, not this tool's.
 - **No writes beyond the repository without a human's instruction.** `nuc` pushes nothing,

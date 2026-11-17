@@ -1,5 +1,5 @@
 //! The command-line contract of `nuc`, clause by clause, on fixture repositories.
-//! Verifies: API-command-line-keyed-findings
+//! Verifies: API-command-line-with-measure
 
 mod support;
 
@@ -121,7 +121,9 @@ fn no_command_but_hook_exits_three_or_four() {
     let clean = Fixture::project("contract-no-three-clean", CONFIG, README);
     let finding = Fixture::project("contract-no-three-finding", CONFIG, "# X\n");
     let refusal = Fixture::project("contract-no-three-refusal", "nonsense\n", README);
-    let runs: [(&Fixture, &[&str]); 9] = [
+    let runs: [(&Fixture, &[&str]); 11] = [
+        (&clean, &["measure", "--transcripts", "no-such-directory"]),
+        (&clean, &["measure", "--no-such-option", "x"]),
         (&clean, &["check"]),
         (&finding, &["check"]),
         (&refusal, &["check"]),
@@ -157,6 +159,53 @@ fn a_command_a_newer_nuc_may_know_refuses_with_the_install_hint() {
             stderr(&output)
         );
     }
+}
+
+/// `nuc measure` writes its measures on the standard output, ending in `tokens <n>`, and exits 0;
+/// where it cannot read a transcript it exits 2, with nothing on the standard output.
+#[test]
+fn measure_ends_in_its_tokens_and_exits_zero_or_two() {
+    let fixture = Fixture::project("contract-measure", CONFIG, README);
+    let dir = fixture
+        .root()
+        .join(".git")
+        .join("contract-measure-transcripts");
+    std::fs::create_dir_all(&dir).expect("the directory is made");
+    let line = r#"{"type":"assistant","requestId":"r","gitBranch":"main","message":{"usage":{"input_tokens":1,"cache_read_input_tokens":2,"cache_creation_input_tokens":3,"output_tokens":4}}}"#;
+    std::fs::write(dir.join("s.jsonl"), format!("{line}\n")).expect("written");
+    let path = dir.to_str().expect("UTF-8");
+    let output = fixture.nuc(&["measure", "--transcripts", path]);
+    assert_eq!(code(&output), Some(0), "{}", stderr(&output));
+    assert!(
+        stdout(&output).ends_with("tokens 10\n"),
+        "{}",
+        stdout(&output)
+    );
+
+    let output = fixture.nuc(&["measure", "--transcripts", path, "--breakdown"]);
+    assert_eq!(code(&output), Some(0), "{}", stderr(&output));
+    let text = stdout(&output);
+    assert!(
+        text.starts_with("session s: input 1 cache read 2 cache written 3 output 4\n"),
+        "{text}"
+    );
+    assert!(
+        text.ends_with("tokens 10\n"),
+        "the breakdown stands before the line: {text}"
+    );
+    let output = fixture.nuc(&["measure", "--transcripts", path, "--finding"]);
+    assert_eq!(code(&output), Some(0), "{}", stderr(&output));
+    let text = stdout(&output);
+    assert!(text.starts_with("## Template release\n"), "{text}");
+    assert!(
+        text.ends_with("tokens 10\n"),
+        "the draft stands before the line: {text}"
+    );
+
+    std::fs::write(dir.join("s.jsonl"), "{\n").expect("written");
+    let output = fixture.nuc(&["measure", "--transcripts", path]);
+    assert_eq!(code(&output), Some(2));
+    assert_eq!(stdout(&output), "");
 }
 
 /// Every rule ID `nuc` has had, kept beside this test.
@@ -201,7 +250,7 @@ fn every_rule_keeps_its_id_and_is_explained() {
 /// Every key `nuc` has printed, kept beside this test.
 const RULE_KEYS: &str = include_str!("contract.rule-keys");
 
-/// Verifies: API-command-line-keyed-findings, G-6
+/// Verifies: API-command-line-with-measure, G-6
 #[test]
 fn every_key_stays_once_listed_and_each_reason_is_one_lower_case_word() {
     let listed: Vec<&str> = RULE_KEYS
