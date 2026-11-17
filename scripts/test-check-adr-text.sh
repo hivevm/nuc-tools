@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Self-test of scripts/check-adr-text.sh.
+# Self-test of scripts/check-adr-text.sh. Verifies: NUC-decisions-are-proposed-then-accepted
 #
 # Each case builds a git repository under a temporary directory: main with a proposed, an accepted,
 # and a NUC- ADR, and a branch with the commits of the case. It runs the check with the branch's
@@ -129,6 +129,19 @@ run_check "$d"
 expect "each commit read alone, a rewording taken back included" 1 \
   "$(g "$d" rev-parse --short HEAD~1): docs/adr/API-accepted.md:9:" \
   "$(g "$d" rev-parse --short HEAD): docs/adr/API-accepted.md:9:"
+
+d="$(repo rule)"
+edit "$d/docs/adr/API-accepted.md" 's/^And so on.$/---/'
+commit "$d" "Turn a line of an accepted ADR into a rule"
+run_check "$d"
+expect "a line that reads as a diff's header, inside a hunk" 1 "docs/adr/API-accepted.md:9:"
+
+d="$(repo unicode)"
+edit "$d/docs/adr/API-accepted.md" 's/We will do it./We will do it otherwise./'
+mv "$d/docs/adr/API-accepted.md" "$d/docs/adr/API-ä b.md"
+commit "$d" "Rename an accepted ADR beyond ASCII and reword it"
+run_check "$d"
+expect "a path beyond ASCII" 1 "docs/adr/API-ä b.md:1:" "[adr-text/accepted:deleted]"
 
 d="$work/no-main"
 mkdir -p "$d"

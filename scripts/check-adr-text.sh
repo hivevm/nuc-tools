@@ -10,11 +10,15 @@
 # commit's parent or the commit flips it to accepted: a flip changes the header line alone.
 #
 # Not held:
-# - a commit whose message carries a line 'ADR map:', which the normalize skill writes into the
-#   commit of a normalization;
+# - a commit whose message carries a line that reads 'ADR map:' alone: a normalization, or a
+#   take-up that moves the citations of NUC- clauses by the release's map, as docs/CONVENTIONS.md
+#   asks of both;
 # - the NUC- ADRs, which a take-up of a template release replaces and docs/adr/NUC.blobs holds;
 # - an ADR proposed at the commit's parent that the commit leaves proposed or rejects;
-# - the working tree: only commits are read.
+# - the working tree: only commits are read;
+# - a merge commit, which a branch of this project carries none of, and a binary file, which has
+#   no line to compare.
+# An ADR added as accepted is held as a flip: an ADR is submitted proposed (clause 3).
 #
 # Pure bash + git. Usage:
 #     scripts/check-adr-text.sh [--root <dir>] [base [head]]
@@ -70,13 +74,15 @@ held() {
 # commit adds none, of each hunk of the commit's change to the file that changes a line other than
 # the Status and Date lines.
 hunks_beyond_flip() {
-  local line at="" beyond=0
+  local line at="" beyond=0 in_hunk=0
   while IFS= read -r line; do
     if [[ "$line" =~ ^@@\ -([0-9]+)(,[0-9]+)?\ \+([0-9]+)(,([0-9]+))? ]]; then
       ((beyond)) && echo "$at"
-      at="${BASH_REMATCH[3]}" beyond=0
+      at="${BASH_REMATCH[3]}" beyond=0 in_hunk=1
       [[ "${BASH_REMATCH[5]:-1}" == 0 ]] && at="${BASH_REMATCH[1]}"
-    elif [[ "$line" == [-+]* && "$line" != ---* && "$line" != +++* ]]; then
+    elif ((in_hunk)) && [[ "$line" == [-+]* ]]; then
+      # Inside a hunk a line of '---' or '+++' is a line of the file, a Markdown rule among them;
+      # the headers of the file stand before the first hunk.
       [[ "${line:1}" =~ $FLIP_RE ]] || beyond=1
     fi
   done < <(git diff -U0 --no-color --no-ext-diff "$1^" "$1" -- "$2")
@@ -90,7 +96,8 @@ for rev in "${revs[@]}"; do
   commits=$((commits + 1))
   grep -qx 'ADR map:' <<< "$(git log -1 --format=%B "$rev")" && continue
   short="$(git rev-parse --short "$rev")"
-  while IFS=$'\t' read -r status path; do
+  # NUL-separated, so that a path beyond ASCII comes as it is, not quoted by core.quotePath.
+  while IFS= read -r -d '' status && IFS= read -r -d '' path; do
     held "$path" || continue
     accepted "$rev^" "$path" || accepted "$rev" "$path" || continue
     held_changes=$((held_changes + 1))
@@ -101,7 +108,7 @@ for rev in "${revs[@]}"; do
     while read -r n; do
       add_error "$short: $path:$n: a line of an accepted ADR changed outside its Status and Date — supersede it, or leave it to a normalization [adr-text/accepted:changed]"
     done < <(hunks_beyond_flip "$rev" "$path")
-  done < <(git diff-tree --no-commit-id --no-renames -r --name-status "$rev")
+  done < <(git diff-tree -z --no-commit-id --no-renames -r --name-status "$rev")
 done
 
 if ((${#errors[@]})); then
