@@ -35,8 +35,9 @@ such as that a refused fast-forward leaves `main` where it was. A hook's standar
 own lines with git's and with the output of the check it ran, which the self-test asserts as well.
 
 How a hook through `nuc` behaves is decided in
-[API-hook-contract-names-check](API-hook-contract-names-check.md): the shim, the exit codes, the
-green tree, and the defaults without `nuc.toml`.
+[API-hook-contract-names-check](API-hook-contract-names-check.md): the shim, the exit codes, and
+the green tree; the defaults without `nuc.toml` are decided in
+[API-version-coupling-hook-defaults](API-version-coupling-hook-defaults.md).
 
 ## Decision
 

@@ -22,8 +22,8 @@ The forces:
 - **The format is the harness's.** It is undocumented and changes with the harness's releases. One
   request of the model spans several lines, each reporting its usage, which grows while the
   request streams: over the maintainer's projects, 387 of 129,741 requests report more than one
-  usage. In this repository's sessions, 3749 lines carry 1858 requests, so a naive sum counts most
-  requests more than once.
+  usage. In this repository's sessions, 3749 lines carry 1858 requests, so a naive sum counts about
+  twice.
 - **The transcripts are private.** They hold prompts, code, tool inputs, and tool outputs. A figure
   is pasted into a pull request, and a finding goes to another repository
   (NUC-template-learns-from-projects §2).
@@ -45,18 +45,20 @@ We will have `nuc measure` read a harness's transcripts from one directory outsi
 read-only, through a pure adapter per harness. It fails closed on what it cannot read, and prints
 numbers and names only.
 
-- **The directory.** By default it is Claude Code's directory for this working tree, named as its
-  release 2.1.325 names it: each UTF-16 unit of the path but an ASCII letter or digit replaced by
-  `-`, a name over 200 units cut there and followed by a hash of the path. It lies under the
-  configuration directory the harness's own variable names, or under its default in the home
-  directory, and the name the harness's own variable gives stands in place of the path's under a
-  named configuration directory. A session started in a subdirectory or another worktree has a
+- **The directory.** By default it is Claude Code's directory for this working tree. Its name is
+  the one Claude Code 2.1.325 gives. Each UTF-16 unit of the path but an ASCII letter or digit
+  becomes `-`. A name over 200 units is cut there and followed by a hash of the path. It lies
+  under the configuration directory `CLAUDE_CONFIG_DIR` names, or under its default in the home
+  directory. Where `CLAUDE_CONFIG_DIR` is set, a name `CLAUDE_CODE_PROJECT_DIR_NAME` gives stands
+  in place of the path's. It is taken only if it is 1 to 64 ASCII letters, digits, `_`, or `-`, and
+  no Windows device's name. A session started in a subdirectory or another worktree has a
   directory of its own. An option names another directory.
-- **What is read.** Only regular files are read: the transcripts in that directory, and under each
-  session's directory the transcripts of its subagents and the description of each. A symbolic link
-  anywhere there, or a file that is not regular, stops the command. Nothing outside that directory
-  is read, and nothing is written anywhere. Two functions of the shell, one that lists and one that
-  reads, read outside the repository, and only for `nuc measure`.
+- **What is read.** Only regular files are read. They are the transcripts in that directory, and
+  under each session's directory those of its subagents with the description of each. A symbolic
+  link among the entries of that directory or of a `subagents/` directory stops the command. So
+  does a file that is not regular where one is read. Nothing outside that directory is read, and
+  nothing is written anywhere. Two functions of the shell read outside the repository, one that
+  lists and one that reads, and only for `nuc measure`.
 - **The adapter.** For each harness, a pure function of the library turns the bytes of its
   transcripts into requests. A request carries its identifier, its usage, its branch, and its time.
   It also carries its session, its subagent, and its tool calls with the sizes of their outputs.

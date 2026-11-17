@@ -39,7 +39,7 @@ v0.8.1, which `nuc` checks as v0.8.1, a release without that check. Three cases 
 which `nuc` checks as that release, before those checks. All five follow
 [API-version-coupling-hook-defaults](API-version-coupling-hook-defaults.md): a rule whose check
 changed checks a tree as the release its README names, and a tree whose README names none is not
-decided. The template's bash knows only its own release. Neither case is a gap a ticket closes, nor
+decided. The template's bash knows only its own release. None of them is a gap a ticket closes, nor
 a rule `nuc` leaves to the bash.
 
 ## Decision
@@ -86,8 +86,9 @@ plain-rules sensor's table; the cases a bash self-test keeps inline; which rules
 
 ## Alternatives considered
 
-- **The cases pending on a ticket for good** — no new status, but a pending case says a port
-  will make it agree, and the runner would fail once the ticket's file is gone.
+- **The cases pending on a ticket for good** — what the first ADR on the tables allowed, accepted on
+  2026-11-15, which knew only `pending` and `not ported`. No new status, but a pending case says a
+  port will make it agree, and the runner would fail once the ticket's file is gone.
 - **The cases as not ported** — no new status, but `not ported` says the rule is the bash's,
   while `nuc` ports `docs/template-release` and `docs/base-blobs` and decides these cases on
   purpose.
@@ -147,4 +148,4 @@ line of that list that names no case, and on a pending case whose ticket file do
 fails on a decided case whose ADR has no file under `docs/adr/` or whose status is not accepted.
 `scripts/check-parity.sh` fails where a blob of `tests/tables.blobs` is not the blob of its table at
 the release's tag of the template, and where it cannot read that tag; `scripts/test-check-parity.sh`
-decides both.
+decides all five.

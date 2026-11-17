@@ -16,7 +16,7 @@ scope. The text is made for a terminal, an editor, and the parity harness
 wants to count, filter, or annotate findings has to parse those lines, and a message may hold a
 colon. GitHub code scanning and other services read SARIF 2.1.0, the OASIS standard. Q-1 asks that
 nothing pass that could not decide; Q-3 counts every dependency against the supply chain, and a
-crate joins `nuc` only to widen what it reads
+crate joins `nuc` only to widen what it reads or how fast it reads it
 ([OPS-crates-pass-deny-and-audit](OPS-crates-pass-deny-and-audit.md)), which writing JSON and SARIF
 does not. A finding never names a path that is not UTF-8, since such a path is refused
 where a finding would name it, so every finding can be written as a JSON string. The rules return
@@ -76,7 +76,7 @@ the run as any failed write does.
 
 ## Alternatives considered
 
-- **Findings without a reason** — what the first ADR on the formats decided, accepted on
+- **Findings without a reason** — what the second ADR on the formats decided, accepted on
   2026-11-08 with every other clause of this one. Once the text line ends in the key, a document
   without the reason would carry less than the text, against G-7, so this ADR replaced that clause.
 - **The key as the SARIF rule ID, `docs/adr-index:unlisted`** — the cause in the field GitHub
