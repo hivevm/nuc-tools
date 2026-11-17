@@ -121,9 +121,9 @@ on 4, and refuses on every code it does not name, each refusal of its own ending
   ([OPS-feature-in-hivevm-features](OPS-feature-in-hivevm-features.md)). A too old `nuc` is
   reported by `nuc` itself from `nuc.toml`.
 - **The keys of a shim's own refusals:** in the area `shim/`, under the name of the hook, so that
-  no `nuc.toml` lists them: `[shim/<hook>:no-nuc]` where `nuc` is missing,
-  `[shim/<hook>:unknown-answer]` on a code the shim does not know, and
-  `[shim/<hook>:no-work-tree]` where git names none. The list of keys beside the contract's test
+  no `nuc.toml` lists them: `[shim/<hook>:missing]` where `nuc` is missing,
+  `[shim/<hook>:unknown]` on a code the shim does not know, and `[shim/<hook>:outside]` where git
+  names no work tree. The list of keys beside the contract's test
   holds them with the keys of `nuc`.
 
 **Out of scope:**
