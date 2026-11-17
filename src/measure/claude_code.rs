@@ -202,6 +202,24 @@ fn base36(mut n: u64) -> String {
     digits.iter().rev().collect()
 }
 
+/// The directory name `CLAUDE_CODE_PROJECT_DIR_NAME` gives in place of `directory_key`, as Claude
+/// Code 2.1.325 takes it: only where `CLAUDE_CONFIG_DIR` is set, and only a name of 1 to 64 ASCII
+/// letters, digits, `_`, or `-` that no Windows device takes; none otherwise.
+#[must_use]
+pub fn directory_override(config_dir_set: bool, name: Option<&str>) -> Option<&str> {
+    let name = name.filter(|_| config_dir_set)?;
+    let fits = (1..=64).contains(&name.len())
+        && name
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-');
+    let lower = name.to_ascii_lowercase();
+    let device = ["con", "prn", "aux", "nul"].contains(&lower.as_str())
+        || (lower.len() == 4
+            && (lower.starts_with("com") || lower.starts_with("lpt"))
+            && lower.as_bytes()[3].is_ascii_digit());
+    (fits && !device).then_some(name)
+}
+
 /// The subagent its `agent-*.meta.json` describes, none where it names no type.
 #[must_use]
 pub fn subagent(bytes: &[u8]) -> Option<Subagent> {
@@ -332,11 +350,36 @@ mod tests {
         for (path, key) in &cases {
             assert_eq!(directory_key(path), *key, "{path}");
         }
+        let negative = format!("/srv/{}10", "y".repeat(250));
+        assert_eq!(
+            directory_key(&negative),
+            format!("-srv-{}-8pfoca", "y".repeat(195)),
+            "a hash below zero, written without its sign"
+        );
+        assert_eq!(
+            directory_key("/workspaces/nuc-tools/.claude/worktrees/ticket-03"),
+            "-workspaces-nuc-tools--claude-worktrees-ticket-03",
+            "a worktree, named for its own path"
+        );
         let z = format!("/home/u/{}", "z".repeat(300));
         assert_eq!(
             directory_key(&z),
             format!("-home-u-{}-hbww3f", "z".repeat(192))
         );
+    }
+
+    #[test]
+    fn a_project_directory_name_is_taken_only_under_a_config_directory() {
+        assert_eq!(
+            directory_override(true, Some("my_proj-1")),
+            Some("my_proj-1")
+        );
+        assert_eq!(directory_override(false, Some("my_proj-1")), None);
+        for bad in ["", "a/b", "a.b", "COM1", "nul", "lpt9", &"x".repeat(65)] {
+            assert_eq!(directory_override(true, Some(bad)), None, "{bad}");
+        }
+        assert_eq!(directory_override(true, Some("com")), Some("com"));
+        assert_eq!(directory_override(true, None), None);
     }
 
     #[test]

@@ -326,6 +326,22 @@ fn without_a_directory_named_it_reads_the_harness_s_own_for_the_working_tree() {
     assert_eq!(code(&output), Some(0), "{}", stderr(&output));
     assert_eq!(stdout(&output), "tokens 7\n");
 
+    let named = &[
+        ("CLAUDE_CONFIG_DIR", config.path()),
+        ("CLAUDE_CODE_PROJECT_DIR_NAME", "named"),
+    ];
+    config.write(
+        "projects/named/s1.jsonl",
+        &[request("r1", "b", [1, 0, 0, 1])],
+    );
+    let output = fixture.nuc_with(named, &["measure"]);
+    assert_eq!(code(&output), Some(0), "{}", stderr(&output));
+    assert_eq!(
+        stdout(&output),
+        "tokens 2\n",
+        "the name Claude Code takes in place of the key"
+    );
+
     let home = Transcripts::new("measure-default-home");
     home.write(
         &format!(".claude/projects/{key}/s1.jsonl"),

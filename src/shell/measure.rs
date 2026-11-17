@@ -164,6 +164,14 @@ fn default_dir(harness: Harness, root: &Path) -> Result<PathBuf, String> {
                     .map(|home| home.join(".claude"))
                     .ok_or("neither CLAUDE_CONFIG_DIR nor a home directory is set — name the transcripts with --transcripts")?,
             };
+            // A name `CLAUDE_CODE_PROJECT_DIR_NAME` gives under a set `CLAUDE_CONFIG_DIR` stands in
+            // place of the working tree's, as Claude Code takes it.
+            let config_dir_set =
+                env::var_os("CLAUDE_CONFIG_DIR").is_some_and(|dir| !dir.is_empty());
+            let named = env::var("CLAUDE_CODE_PROJECT_DIR_NAME").ok();
+            if let Some(name) = claude_code::directory_override(config_dir_set, named.as_deref()) {
+                return Ok(config.join("projects").join(name));
+            }
             // Claude Code names the directory for its session's working directory as the system
             // writes it; git's toplevel writes `/` where Windows writes `\`, which the hash of a
             // long name reads.
