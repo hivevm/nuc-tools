@@ -106,7 +106,7 @@ turns on: the rules `nuc check` runs, and the `hook/` rules `nuc hook` decides
 ([API-version-coupling-hook-defaults](docs/adr/API-version-coupling-hook-defaults.md)):
 
 ```toml
-minimum = "0.3.0"
+minimum = "0.2.1"
 rules = ["docs/template-release", "docs/prose-width"]
 ```
 
