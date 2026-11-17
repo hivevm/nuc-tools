@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# Git pre-merge-commit hook, the reference shim of nuc (API-hook-contract-names-check): 'nuc
+# Git pre-merge-commit hook, the reference shim of nuc (API-hook-contract-keyed-shims): 'nuc
 # hook pre-merge-commit' decides from the git state, and this shim runs the project's
 # documentation check where nuc answers that it runs.
 #
@@ -11,10 +11,10 @@
 # included. Without nuc on the PATH it refuses and names where to install it.
 #
 # POSIX sh, so that git for Windows runs it with the sh it bundles. Bypassable with
-# 'git merge --no-verify'; AGENTS.md, section 6 says who may.
+# 'git merge --no-verify'; NUC-main-only-via-pr §6 says who may.
 
 if ! command -v nuc >/dev/null 2>&1; then
-  echo "pre-merge-commit: refused — nuc is not on the PATH, so no hook decides. Install it from https://github.com/hivevm/nuc-tools/releases" >&2
+  echo "pre-merge-commit: refused — nuc is not on the PATH, so no hook decides. Install it from https://github.com/hivevm/nuc-tools/releases [shim/pre-merge-commit:missing]" >&2
   exit 1
 fi
 
@@ -25,13 +25,13 @@ case "$answer" in
   3) ;;
   1 | 2) exit 1 ;;
   *)
-    echo "pre-merge-commit: refused — nuc hook pre-merge-commit exited $answer, which this shim does not know" >&2
+    echo "pre-merge-commit: refused — nuc hook pre-merge-commit exited $answer, which this shim does not know [shim/pre-merge-commit:unknown]" >&2
     exit 1
     ;;
 esac
 
 if ! root="$(git rev-parse --show-toplevel)"; then
-  echo "pre-merge-commit: refused — git names no work tree, so the documentation check cannot run" >&2
+  echo "pre-merge-commit: refused — git names no work tree, so the documentation check cannot run [shim/pre-merge-commit:outside]" >&2
   exit 1
 fi
 
@@ -42,7 +42,7 @@ unset $(git rev-parse --local-env-vars)
 
 if ! bash "$root/scripts/check-docs.sh"; then
   echo >&2
-  echo "pre-merge-commit: refused — the documentation check is red on the merge, and it passes before a branch takes up another (AGENTS.md, section 6). git merge --abort, fix it on the merged branch, then merge again." >&2
+  echo "pre-merge-commit: refused — the documentation check is red on the merge, and it passes before a branch takes up another (NUC-checks-are-bash §6). git merge --abort, fix it on the merged branch, then merge again. [hook/merge-docs:red]" >&2
   exit 1
 fi
 

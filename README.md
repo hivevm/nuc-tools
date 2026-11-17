@@ -106,7 +106,7 @@ turns on: the rules `nuc check` runs, and the `hook/` rules `nuc hook` decides
 ([API-version-coupling-hook-defaults](docs/adr/API-version-coupling-hook-defaults.md)):
 
 ```toml
-minimum = "0.2.0"
+minimum = "0.3.0"
 rules = ["docs/template-release", "docs/prose-width"]
 ```
 
@@ -170,7 +170,7 @@ criteria no test cites yet in the summary on standard error, and, from v0.9.0 on
 The shims under [`shims/`](shims/), in POSIX sh, are the reference hooks the template copies
 when it switches over from its bash hooks; until it does, a project keeps the hooks its template
 release carries
-([API-hook-contract-names-check](docs/adr/API-hook-contract-names-check.md)).
+([API-hook-contract-keyed-shims](docs/adr/API-hook-contract-keyed-shims.md)).
 Each shim hands its hook to `nuc hook <name>`: `nuc` decides, and where a hook's check is due
 the shim runs the project's `scripts/check-all.sh` or `scripts/check-docs.sh` itself. Without `nuc`
 on the `PATH`, or with one older than `nuc.toml` requires, every shim refuses and names where to

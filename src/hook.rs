@@ -1,5 +1,5 @@
 //! The decisions of `nuc hook`: what each git hook of the template decides from the git state, as
-//! the bash hook of the release does (API-hook-contract-names-check). The shell reads the state;
+//! the bash hook of the release does (API-hook-contract-keyed-shims). The shell reads the state;
 //! these functions decide on it, and the reference shim runs the project's check where they say it
 //! runs. Each decides as the release the tree carries, none as the newest
 //! (API-version-coupling-hook-defaults).
@@ -115,7 +115,7 @@ pub const PUSH_TO_MAIN: HookRule = HookRule {
 pub const PUSH_CHECKS: HookRule = HookRule {
     id: "hook/push-checks",
     reasons: &[],
-    explain: "the checks pass before anything is pushed (AGENTS.md, section 5), so the pre-push \
+    explain: "the checks pass before anything is pushed (NUC-checks-are-bash §6), so the pre-push \
               hook has scripts/check-all.sh --changed run before a push that sends a ref, unless \
               they passed before on the clean tree it pushes, and refuses the push while they \
               are red",
@@ -156,7 +156,7 @@ pub fn find(id: &str) -> Option<&'static HookRule> {
 
 /// What a hook answers the shim: pass, refuse with a finding, pass so far and the check of the
 /// hook runs now, or pass so far and the documentation check runs now, exit 0, 1, 3, and 4
-/// (API-hook-contract-names-check).
+/// (API-hook-contract-keyed-shims).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Answer {
     Pass,

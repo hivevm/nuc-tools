@@ -1,6 +1,7 @@
 # Every key nuc has printed, '<rule ID>:<reason>', read by tests/contract.rs
-# (API-command-line-with-measure). A key stays once listed: a reader or a test branches on it in
-# place of a message's wording, so no reason is renamed, dropped, or given to another cause.
+# (API-command-line-with-measure), and every key a shim writes (API-hook-contract-keyed-shims). A
+# key stays once listed: a reader or a test branches on it in place of a message's wording, so no
+# reason is renamed, dropped, or given to another cause.
 
 docs/adr-header:emojis
 docs/adr-header:field
@@ -110,13 +111,30 @@ docs/template-identity:why
 docs/template-release:line
 docs/template-release:proposed
 docs/template-release:version
+hook/commit-docs:red
 hook/commit-on-main:main
 hook/concluded-merge-on-feat:feat
 hook/main-moves:main
+hook/merge-checks:red
+hook/merge-docs:red
 hook/merge-on-feat:feat
 hook/merge-on-main:main
+hook/push-checks:red
 hook/push-to-main:main
 shell/mode:exec
+shim/merge-adr-index:missing
+shim/merge-adr-index:unknown
+shim/pre-commit:missing
+shim/pre-commit:outside
+shim/pre-commit:unknown
+shim/pre-merge-commit:missing
+shim/pre-merge-commit:outside
+shim/pre-merge-commit:unknown
+shim/pre-push:missing
+shim/pre-push:outside
+shim/pre-push:unknown
+shim/reference-transaction:missing
+shim/reference-transaction:unknown
 traceability/citations:criterion
 traceability/citations:inactive
 traceability/citations:malformed

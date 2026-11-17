@@ -1,7 +1,7 @@
 # API-hook-contract-names-check: A POSIX sh shim hands each hook to `nuc hook <name>`, which decides from the git state and answers 0, 1, 2, 3, or 4, and the shim runs the hook's check on 3 and the documentation check on 4
 
-- **Status:** 🟢 accepted
-- **Date:** 2026-11-15
+- **Status:** ⚪ superseded by API-hook-contract-keyed-shims
+- **Date:** 2026-11-17
 - **Deciders:** Markus Brigl
 - **Applies to:** the `nuc hook` command and its source, the reference shims under `shims/`, the `hook/` rule IDs, the files `nuc hook` writes in the git directory, and the merge driver of the ADR index
 ## Context

@@ -1,5 +1,5 @@
 //! `nuc hook` and the reference shims, through git.
-//! Verifies: API-command-line-with-measure API-hook-contract-names-check
+//! Verifies: API-command-line-with-measure API-hook-contract-keyed-shims
 //! Verifies: API-version-coupling-hook-defaults
 //! Verifies: G-2 G-3 G-5 Q-1 Q-4 Q-7 Q-8 Q-9 Q-10 Q-11
 //!
@@ -208,7 +208,8 @@ fn a_concluded_merge_runs_the_check_with_changed_and_refuses_it_red() {
         if !passes {
             assert!(
                 both(&output)
-                    .contains("pre-commit: refused — the checks are red on the resolved merge"),
+                    .contains("pre-commit: refused — the checks are red on the resolved merge")
+                    && both(&output).contains("[hook/merge-checks:red]"),
                 "{}",
                 both(&output)
             );
@@ -341,7 +342,7 @@ fn the_pre_commit_shim_runs_the_documentation_check_only_on_4() {
         both(&output).contains(
             "pre-commit: refused — the documentation check is red, and the checks pass before a \
              commit (NUC-checks-are-bash §6)"
-        ),
+        ) && both(&output).contains("[hook/commit-docs:red]"),
         "{}",
         both(&output)
     );
@@ -770,7 +771,8 @@ fn a_merge_on_main_is_refused_and_one_elsewhere_passes_the_documentation_check()
         if !passes {
             assert!(
                 both(&output)
-                    .contains("pre-merge-commit: refused — the documentation check is red"),
+                    .contains("pre-merge-commit: refused — the documentation check is red")
+                    && both(&output).contains("[hook/merge-docs:red]"),
                 "{}",
                 both(&output)
             );
@@ -843,7 +845,7 @@ fn every_shim_stops_without_nuc_and_with_a_nuc_too_old() {
         };
         assert!(
             both(&output).contains(&format!(
-                "{hook}: refused — nuc is not on the PATH, {decides}. Install it from https://github.com/hivevm/nuc-tools/releases"
+                "{hook}: refused — nuc is not on the PATH, {decides}. Install it from https://github.com/hivevm/nuc-tools/releases [shim/{hook}:missing]"
             )),
             "{hook}: {}",
             both(&output)
@@ -973,7 +975,8 @@ fn the_shims_decide_with_no_bash_on_the_path_and_refuse_a_check_that_needs_it() 
     } else {
         assert!(!output.status.success(), "a check that cannot run passed");
         assert!(
-            both(&output).contains("pre-merge-commit: refused — the documentation check is red"),
+            both(&output).contains("pre-merge-commit: refused — the documentation check is red")
+                && both(&output).contains("[hook/merge-docs:red]"),
             "{}",
             both(&output)
         );
@@ -989,6 +992,7 @@ fn a_panic_of_nuc_hook_is_refused_and_named() {
         assert!(!output.status.success(), "{hook} passed a panic");
         assert!(
             both(&output).contains(&format!("{hook}: refused — nuc hook {hook} exited 101"))
+                && both(&output).contains(&format!("[shim/{hook}:unknown]"))
                 && both(&output).contains("nuc: internal error"),
             "{hook}: {}",
             both(&output)
@@ -1017,11 +1021,21 @@ fn a_shim_refuses_where_git_names_no_work_tree() {
             .expect("sh runs");
         assert!(!output.status.success(), "{hook} passed");
         // A hook that runs no check knows no 3.
-        let refusal = if ["reference-transaction", "merge-adr-index"].contains(&hook.as_str()) {
-            format!("{hook}: refused — nuc hook {hook} exited 3, which this shim does not know")
-        } else {
-            format!("{hook}: refused — git names no work tree")
-        };
+        let (refusal, key) =
+            if ["reference-transaction", "merge-adr-index"].contains(&hook.as_str()) {
+                (
+                    format!(
+                        "{hook}: refused — nuc hook {hook} exited 3, which this shim does not know"
+                    ),
+                    format!("[shim/{hook}:unknown]"),
+                )
+            } else {
+                (
+                    format!("{hook}: refused — git names no work tree"),
+                    format!("[shim/{hook}:outside]"),
+                )
+            };
+        assert!(both(&output).contains(&key), "{hook}: {}", both(&output));
         assert!(
             both(&output).contains(&refusal),
             "{hook}: {}",
@@ -1068,6 +1082,21 @@ fn pushing(name: &str, body: &str) -> Fixture {
     );
     fixture.commit("checks");
     fixture
+}
+
+/// Verifies: API-hook-contract-keyed-shims
+#[test]
+fn a_red_check_refuses_the_push_and_ends_in_its_key() {
+    let fixture = pushing("hooks-push-red", "exit 1");
+    let output = git_hooked(&fixture, Some(&built()), &[], PUSH);
+    assert!(!output.status.success(), "a red check passed the push");
+    assert!(
+        both(&output).contains("pre-push: refused — the checks are red")
+            && both(&output).contains("(NUC-checks-are-bash §6)")
+            && both(&output).contains("[hook/push-checks:red]"),
+        "{}",
+        both(&output)
+    );
 }
 
 #[test]

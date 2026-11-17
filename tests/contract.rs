@@ -250,7 +250,47 @@ fn every_rule_keeps_its_id_and_is_explained() {
 /// Every key `nuc` has printed, kept beside this test.
 const RULE_KEYS: &str = include_str!("contract.rule-keys");
 
-/// Verifies: API-command-line-with-measure, G-6
+/// The keys the shims under `shims/` write (API-hook-contract-keyed-shims):
+/// `[shim/<hook>:<reason>]` for a refusal of a shim's own, its hook the shim's own name, and
+/// `[hook/<rule>:red]` for a red check, its rule one of `hook::ALL`.
+fn shim_keys() -> Vec<(String, String)> {
+    let dir = support::sources::root().join("shims");
+    let mut keys = Vec::new();
+    for entry in std::fs::read_dir(&dir).expect("shims/ is listed") {
+        let path = entry.expect("an entry").path();
+        let name = path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .expect("a name")
+            .to_owned();
+        let text = std::fs::read_to_string(&path).expect("a shim is read");
+        let shim = text.split("[shim/").skip(1).map(|part| ("shim", part));
+        let hook = text.split("[hook/").skip(1).map(|part| ("hook", part));
+        for (area, part) in shim.chain(hook) {
+            let key = part.split(']').next().expect("a key");
+            let (id, reason) = key.split_once(':').expect("a key has a reason");
+            if area == "shim" {
+                assert_eq!(
+                    id, name,
+                    "shims/{name} writes the key of another shim, shim/{id}"
+                );
+            } else {
+                assert!(
+                    nuc::hook::ALL
+                        .iter()
+                        .any(|rule| rule.id == format!("hook/{id}")),
+                    "shims/{name} writes hook/{id}, which is no hook rule"
+                );
+            }
+            keys.push((format!("{area}/{id}"), reason.to_owned()));
+        }
+    }
+    keys.sort();
+    keys.dedup();
+    keys
+}
+
+/// Verifies: API-command-line-with-measure, API-hook-contract-keyed-shims, G-6
 #[test]
 fn every_key_stays_once_listed_and_each_reason_is_one_lower_case_word() {
     let listed: Vec<&str> = RULE_KEYS
@@ -266,6 +306,8 @@ fn every_key_stays_once_listed_and_each_reason_is_one_lower_case_word() {
                 .iter()
                 .flat_map(|rule| rule.reasons.iter().map(move |reason| (rule.id, *reason))),
         )
+        .map(|(id, reason)| (id.to_owned(), reason.to_owned()))
+        .chain(shim_keys())
         .map(|(id, reason)| {
             assert!(
                 !reason.is_empty() && reason.bytes().all(|b| b.is_ascii_lowercase()),

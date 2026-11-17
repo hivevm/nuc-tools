@@ -82,8 +82,9 @@ golden path and the test pattern an agent copies from are named here.
   the shell reads in `shell::hook`, which finds each hook in its one table `HOOKS`, and holds the
   `hook/` rules, `hook::ALL`, which `nuc check` knows and runs never. The reference shims under
   `shims/`, in POSIX sh, hand each hook to `nuc hook <name>` and run the project's check where it
-  answers 3, and the documentation check where `pre-commit` answers 4
-  ([API-hook-contract-names-check](adr/API-hook-contract-names-check.md)). Each decides as the
+  answers 3, and the documentation check where `pre-commit` answers 4; each refusal of a shim's
+  own ends in its key, `shim/<hook>` or the `hook/` rule of a red check
+  ([API-hook-contract-keyed-shims](adr/API-hook-contract-keyed-shims.md)). Each decides as the
   release the tree carries, and as the newest release `nuc` knows where the README names none. A
   hook's function returns an answer, not a rule's outcome
   ([ARCH-rules-outcome-hooks-answer](adr/ARCH-rules-outcome-hooks-answer.md)).
