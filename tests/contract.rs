@@ -250,9 +250,9 @@ fn every_rule_keeps_its_id_and_is_explained() {
 /// Every key `nuc` has printed, kept beside this test.
 const RULE_KEYS: &str = include_str!("contract.rule-keys");
 
-/// The keys the shims under `shims/` write (API-hook-contract-keyed-shims): `[shim/<hook>:<reason>]`
-/// for a refusal of a shim's own, its hook the shim's own name, and `[hook/<rule>:red]` for a red
-/// check, its rule one of `hook::ALL`.
+/// The keys the shims under `shims/` write (API-hook-contract-keyed-shims):
+/// `[shim/<hook>:<reason>]` for a refusal of a shim's own, its hook the shim's own name, and
+/// `[hook/<rule>:red]` for a red check, its rule one of `hook::ALL`.
 fn shim_keys() -> Vec<(String, String)> {
     let dir = support::sources::root().join("shims");
     let mut keys = Vec::new();
