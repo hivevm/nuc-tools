@@ -34,9 +34,7 @@ fn main_only(release: Option<Version>, clauses: &str) -> String {
 /// alone; `nuc check` knows its ID, so that one `nuc.toml` lists both, and runs it never.
 pub struct HookRule {
     pub id: &'static str,
-    /// The reasons of the findings it refuses with, as a rule's (API-command-line-with-measure),
-    /// and `red` for a rule whose check a shim runs, which the shim refuses with when the check
-    /// fails (API-hook-contract-keyed-shims).
+    /// The reasons of the findings it refuses with, as a rule's (API-command-line-with-measure).
     pub reasons: &'static [&'static str],
     pub explain: &'static str,
 }
@@ -53,7 +51,7 @@ pub const COMMIT_ON_MAIN: HookRule = HookRule {
 /// The full check, with `--changed`, on the commit that concludes a conflicted merge.
 pub const MERGE_CHECKS: HookRule = HookRule {
     id: "hook/merge-checks",
-    reasons: &["red"],
+    reasons: &[],
     explain: "the resolution of a conflicted merge is the one part of a merge written by hand, so \
               the pre-commit hook has scripts/check-all.sh --changed run on the commit that \
               concludes it, and refuses it while the checks are red",
@@ -71,7 +69,7 @@ pub const MERGE_ON_MAIN: HookRule = HookRule {
 /// The documentation check on a commit that concludes no merge, from template release v0.9.0.
 pub const COMMIT_DOCS: HookRule = HookRule {
     id: "hook/commit-docs",
-    reasons: &["red"],
+    reasons: &[],
     explain: "the checks pass before a commit, so the pre-commit hook has scripts/check-docs.sh \
               run on every commit off main that concludes no merge, and refuses it while the \
               documentation check is red; it reads the working tree. From template release \
@@ -99,7 +97,7 @@ pub const MERGE_ON_FEAT: HookRule = HookRule {
 /// The documentation check on the tree of a merge into any other branch.
 pub const MERGE_DOCS: HookRule = HookRule {
     id: "hook/merge-docs",
-    reasons: &["red"],
+    reasons: &[],
     explain: "two branches green on their own collide at a merge mostly in the record, which \
               scripts/check-docs.sh decides in about a second, so the pre-merge-commit hook has \
               it run on the merged tree and refuses the merge while it is red",
@@ -116,8 +114,8 @@ pub const PUSH_TO_MAIN: HookRule = HookRule {
 /// The full check, with `--changed`, before a push.
 pub const PUSH_CHECKS: HookRule = HookRule {
     id: "hook/push-checks",
-    reasons: &["red"],
-    explain: "the checks pass before anything is pushed (AGENTS.md, section 5), so the pre-push \
+    reasons: &[],
+    explain: "the checks pass before anything is pushed (NUC-checks-are-bash §6), so the pre-push \
               hook has scripts/check-all.sh --changed run before a push that sends a ref, unless \
               they passed before on the clean tree it pushes, and refuses the push while they \
               are red",

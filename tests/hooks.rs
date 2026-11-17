@@ -975,7 +975,8 @@ fn the_shims_decide_with_no_bash_on_the_path_and_refuse_a_check_that_needs_it() 
     } else {
         assert!(!output.status.success(), "a check that cannot run passed");
         assert!(
-            both(&output).contains("pre-merge-commit: refused — the documentation check is red"),
+            both(&output).contains("pre-merge-commit: refused — the documentation check is red")
+                && both(&output).contains("[hook/merge-docs:red]"),
             "{}",
             both(&output)
         );
@@ -991,6 +992,7 @@ fn a_panic_of_nuc_hook_is_refused_and_named() {
         assert!(!output.status.success(), "{hook} passed a panic");
         assert!(
             both(&output).contains(&format!("{hook}: refused — nuc hook {hook} exited 101"))
+                && both(&output).contains(&format!("[shim/{hook}:unknown]"))
                 && both(&output).contains("nuc: internal error"),
             "{hook}: {}",
             both(&output)
@@ -1019,19 +1021,20 @@ fn a_shim_refuses_where_git_names_no_work_tree() {
             .expect("sh runs");
         assert!(!output.status.success(), "{hook} passed");
         // A hook that runs no check knows no 3.
-        let refusal = if ["reference-transaction", "merge-adr-index"].contains(&hook.as_str()) {
-            format!(
-                "{hook}: refused — nuc hook {hook} exited 3, which this shim does not know \
-                 [shim/{hook}:unknown]"
-            )
-        } else {
-            format!("{hook}: refused — git names no work tree")
-        };
-        let key = if refusal.ends_with(']') {
-            String::new()
-        } else {
-            format!("[shim/{hook}:outside]")
-        };
+        let (refusal, key) =
+            if ["reference-transaction", "merge-adr-index"].contains(&hook.as_str()) {
+                (
+                    format!(
+                        "{hook}: refused — nuc hook {hook} exited 3, which this shim does not know"
+                    ),
+                    format!("[shim/{hook}:unknown]"),
+                )
+            } else {
+                (
+                    format!("{hook}: refused — git names no work tree"),
+                    format!("[shim/{hook}:outside]"),
+                )
+            };
         assert!(both(&output).contains(&key), "{hook}: {}", both(&output));
         assert!(
             both(&output).contains(&refusal),
