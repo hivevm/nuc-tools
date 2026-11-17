@@ -308,12 +308,16 @@ fn a_symbolic_link_anywhere_in_the_directory_stops_and_nothing_is_passed_over() 
 fn without_a_directory_named_it_reads_the_harness_s_own_for_the_working_tree() {
     let fixture = repo_on("measure-default", "b");
     let config = Transcripts::new("measure-default-config");
+    // The key itself is held to Claude Code's own in the adapter's unit tests; here the shell is
+    // held to find the directory that key names for the working tree.
     let root = support::stdout(&fixture.git(&["rev-parse", "--show-toplevel"]));
-    let key: String = root
-        .trim_end()
-        .chars()
-        .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
-        .collect();
+    let root = root.trim_end();
+    let root = if cfg!(windows) {
+        root.replace('/', "\\")
+    } else {
+        root.to_owned()
+    };
+    let key = nuc::measure::claude_code::directory_key(&root);
     config.write(
         &format!("projects/{key}/s1.jsonl"),
         &[request("r1", "b", [3, 0, 0, 4])],

@@ -155,6 +155,53 @@ fn results(object: &Value) -> Vec<(String, u64)> {
         .collect()
 }
 
+/// The longest directory name Claude Code keeps whole; a longer one is cut there and given a hash.
+const KEY_LENGTH: usize = 200;
+
+/// The name Claude Code gives the directory of a working tree's transcripts under `projects/`, as
+/// its release 2.1.325 does: each UTF-16 unit of the path but an ASCII letter or digit replaced by
+/// `-`; a name longer than 200 units cut there and followed by `-` and the hash of the path, the
+/// 32-bit `h * 31 + unit` over its UTF-16 units, without its sign, in base 36. `path` is the
+/// working tree's path as the system writes it, with `\` on Windows.
+#[must_use]
+pub fn directory_key(path: &str) -> String {
+    let units: Vec<u16> = path.encode_utf16().collect();
+    let key: String = units
+        .iter()
+        .map(|&unit| match u8::try_from(unit) {
+            Ok(byte) if byte.is_ascii_alphanumeric() => char::from(byte),
+            _ => '-',
+        })
+        .collect();
+    if key.len() <= KEY_LENGTH {
+        return key;
+    }
+    let hash = units.iter().fold(0i32, |h, &unit| {
+        h.wrapping_shl(5)
+            .wrapping_sub(h)
+            .wrapping_add(i32::from(unit))
+    });
+    format!(
+        "{}-{}",
+        &key[..KEY_LENGTH],
+        base36(i64::from(hash).unsigned_abs())
+    )
+}
+
+/// The number in base 36, in lower-case letters, as JavaScript's `toString(36)` writes it.
+fn base36(mut n: u64) -> String {
+    let mut digits = Vec::new();
+    loop {
+        let digit = u32::try_from(n % 36).expect("below 36");
+        digits.push(char::from_digit(digit, 36).expect("a digit of base 36"));
+        n /= 36;
+        if n == 0 {
+            break;
+        }
+    }
+    digits.iter().rev().collect()
+}
+
 /// The subagent its `agent-*.meta.json` describes, none where it names no type.
 #[must_use]
 pub fn subagent(bytes: &[u8]) -> Option<Subagent> {
@@ -252,6 +299,44 @@ mod tests {
     fn a_refusal_carries_nothing_of_the_line() {
         let refusal = read("{\"type\":\"assistant\",\"secret\":\"CANARY\"").unwrap_err();
         assert!(!refusal.contains("CANARY"), "{refusal}");
+    }
+
+    /// The names Claude Code 2.1.325 gives these paths, computed with the functions of its
+    /// `extension.js` (`mS`, `_S`, `o3`) run verbatim under Node, not with the code under test.
+    #[test]
+    fn the_directory_key_is_the_one_claude_code_writes() {
+        let long = format!(
+            "/home/user/{}project",
+            "a-very-long-directory-name/".repeat(9)
+        );
+        let cases = [
+            ("/workspaces/nuc-tools", "-workspaces-nuc-tools".to_owned()),
+            (
+                "C:\\Users\\Ana\\nuc.tools",
+                "C--Users-Ana-nuc-tools".to_owned(),
+            ),
+            (
+                "/private/var/folders/x/T/nuc",
+                "-private-var-folders-x-T-nuc".to_owned(),
+            ),
+            ("/home/jürgen/projekt", "-home-j-rgen-projekt".to_owned()),
+            ("/home/u/proj😀", "-home-u-proj--".to_owned()),
+            (
+                long.as_str(),
+                format!(
+                    "-home-user-{}-yj6nb2",
+                    "a-very-long-directory-name-".repeat(7)
+                ),
+            ),
+        ];
+        for (path, key) in &cases {
+            assert_eq!(directory_key(path), *key, "{path}");
+        }
+        let z = format!("/home/u/{}", "z".repeat(300));
+        assert_eq!(
+            directory_key(&z),
+            format!("-home-u-{}-hbww3f", "z".repeat(192))
+        );
     }
 
     #[test]
