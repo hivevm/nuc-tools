@@ -1,6 +1,6 @@
 # API-hook-contract-keyed-shims: A POSIX sh shim hands each hook to `nuc hook <name>`, which decides from the git state and answers 0, 1, 2, 3, or 4, the shim runs the hook's check on 3 and the documentation check on 4, and every refusal of a shim ends in its key
 
-- **Status:** 🟡 proposed
+- **Status:** 🟢 accepted
 - **Date:** 2026-11-17
 - **Deciders:** Markus Brigl
 - **Applies to:** the `nuc hook` command and its source, the reference shims under `shims/`, the `hook/` rule IDs, the files `nuc hook` writes in the git directory, and the merge driver of the ADR index, and the keys and wording of the shims' own refusals

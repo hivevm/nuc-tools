@@ -1,5 +1,5 @@
 //! `nuc hook <name>`: the git state a hook decides on, read through git, and the answer the
-//! reference shim acts on (API-hook-contract-names-check). It runs no command but git and no
+//! reference shim acts on (API-hook-contract-keyed-shims). It runs no command but git and no
 //! script of the repository (Q-7): where a hook's check runs, it exits 3, or 4 for the
 //! documentation check of `pre-commit`, and the shim runs it.
 
