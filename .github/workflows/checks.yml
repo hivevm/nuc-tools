@@ -78,6 +78,12 @@ jobs:
         run: bash scripts/test-check-comment-width.sh
       - name: Check that every comment line of the project's own code is at most 100 columns
         run: bash scripts/check-comment-width.sh
+      - name: Self-test the accepted ADR text check
+        run: bash scripts/test-check-adr-text.sh
+      - name: Check that each commit changes an accepted ADR only in its Status and Date lines
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: bash scripts/check-adr-text.sh "$BASE"
       - name: Self-test the map script of the normalize skill
         run: bash scripts/test-normalize-remap.sh
       - name: Self-test the readiness script of the pull request into main
