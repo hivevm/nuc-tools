@@ -6,7 +6,7 @@
 > is updated in the same change as the structure it describes
 > ([NUC-documents-are-fixed](adr/NUC-documents-are-fixed.md)).
 >
-> **Last design revision:** 2026-11-16, due after 20 changes. The revision that took the count
+> **Last design revision:** 2026-11-18, due after 20 changes. The revision that took the count
 > moves the date; the number is this project's to set; a sensor counts the changes outside
 > `docs/` since the commit that set the date and says when the next is due
 > ([NUC-design-is-revised §4](adr/NUC-design-is-revised.md)).
@@ -144,6 +144,17 @@ golden path and the test pattern an agent copies from are named here.
   a major release ([OPS-feature-in-hivevm-features](adr/OPS-feature-in-hivevm-features.md)).
 - **Action** — `action.yml` installs the `nuc` of the release its release commit carries; at any
   other commit it installs nothing.
+- **Gates** — this repository's own gates are the template's bash checks under `scripts/`, which
+  `scripts/check-all.sh` runs, and the hooks under `.githooks/`, the reference shims of a release
+  that `.githooks/nuc.blobs` pins and `scripts/check-hooks.sh` holds them to. The hooks run a
+  released `nuc`, never the one being built
+  ([SEC-gates-run-released-nuc](adr/SEC-gates-run-released-nuc.md)). In CI each job that runs a
+  hook installs it by `release/install-nuc.sh` from the `SHA256SUMS` and `VERSION` of one release
+  committed under `release/gate/`. The Dev Container installs it by the Feature
+  `ghcr.io/hivevm/features/nuc`, which its lock pins. Two checks are this project's own:
+  `scripts/check-gates.sh` fails on a line of a gate that would run a build of the working tree,
+  or `nuc` outside the hooks; `scripts/check-adr-text.sh` fails on a commit that changes an
+  accepted ADR beyond its Status and Date lines, outside a commit that carries its `ADR map:`.
 - **The golden path** — the rule `docs/template-release` of the template's `check-docs.sh`, and
   the pieces it takes through every layer. A new rule copies it:
   1. a module under `src/rules/` with its `RULE_ID`, an `area/name`, and its `RULE`, listed in
