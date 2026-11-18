@@ -1,7 +1,7 @@
 # SEC-gates-never-run-build: This repository's gates never run the `nuc` being built, only the template's bash or a released `nuc` pinned like any dependency
 
-- **Status:** 🟢 accepted
-- **Date:** 2026-10-31
+- **Status:** ⚪ superseded by SEC-gates-run-released-nuc
+- **Date:** 2026-11-18
 - **Deciders:** Markus Brigl
 - **Applies to:** `scripts/check-all.sh`, the hooks under `.githooks/`, the jobs of `.github/workflows/checks.yml`, and every place they name the tool that runs a check
 
