@@ -1,9 +1,12 @@
 name: Checks
 
 # Enforces the repository's rules as CI. The checks are bash + coreutils, and only the build,
-# portability, deps, parity, and shell jobs install something. The shell job installs the
-# ShellCheck that .devcontainer/install-shellcheck.sh pins, the one the Dev Container lints with,
-# in place of the runner image's own, whose version moves with the image.
+# portability, deps, parity, and shell jobs install something, and nuc where a job runs a git hook.
+# The shell job installs the ShellCheck that .devcontainer/install-shellcheck.sh pins, the one the
+# Dev Container lints with, in place of the runner image's own, whose version moves with the image.
+# The git hooks hand their work to a released nuc, which each job that runs a hook installs first
+# by release/install-nuc.sh from release/gate/, never a build of this tree
+# (SEC-gates-run-released-nuc).
 # scripts/check-all.sh is the local equivalent; the rule docs/check-lists of scripts/check-docs.sh
 # holds its list, the jobs of this workflow, and the required checks named in CONTRIBUTING.md
 # together. Each job runs a check after its own self-test, and each script's header says what it
@@ -69,6 +72,10 @@ jobs:
           persist-credentials: false
           submodules: recursive
           fetch-depth: 0
+      - name: Install the released nuc, which the git hooks hand their work to
+        run: |
+          sh release/install-nuc.sh release/gate/SHA256SUMS release/gate/VERSION "$RUNNER_TEMP/nuc-bin"
+          echo "$RUNNER_TEMP/nuc-bin" >> "$GITHUB_PATH"
       # The check's own tests run first: a check that is wrong passes nothing worth trusting.
       - name: Self-test the documentation checks
         run: bash scripts/test-check-docs.sh
@@ -204,6 +211,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Install the released nuc, which the git hooks hand their work to
+        run: |
+          sh release/install-nuc.sh release/gate/SHA256SUMS release/gate/VERSION "$RUNNER_TEMP/nuc-bin"
+          echo "$RUNNER_TEMP/nuc-bin" >> "$GITHUB_PATH"
       - name: Self-test the check runner
         run: bash scripts/test-check-all.sh
       - name: Self-test the git hooks
@@ -217,6 +228,10 @@ jobs:
           echo "$RUNNER_TEMP/shellcheck" >> "$GITHUB_PATH"
       - name: Check the ShellCheck version
         run: bash .devcontainer/install-shellcheck.sh --verify
+      - name: Self-test the pin check of the git hooks
+        run: bash scripts/test-check-hooks.sh
+      - name: Check that the git hooks are the pinned shims and nuc.toml runs their rules
+        run: bash scripts/check-hooks.sh
       - name: Self-test the shell lint
         run: bash scripts/test-check-shell.sh
       - name: Lint shell scripts with ShellCheck
@@ -224,7 +239,7 @@ jobs:
 
   # The rules of the gates themselves: the workflows store no secret and set permissions per job
   # (SEC-no-stored-secrets), and no gate runs a build of the working tree
-  # (SEC-gates-never-run-build).
+  # (SEC-gates-run-released-nuc).
   gates:
     runs-on: ubuntu-latest
     timeout-minutes: 10

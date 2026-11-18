@@ -1,21 +1,23 @@
-# Template release v0.11.1
+# Template release v0.12.0
 # The code files of the template at that release, by blob. scripts/check-comment-width.sh leaves
 # out a file while it is unchanged, and its header says how a take-up writes this list anew.
-8948ae90d0ae5e35a1b22858dfb0f3b7376656fb .agents/skills/normalize/remap.sh
+7cac060cff83cf4a8cc0f40510694e4efad742c7 .agents/skills/normalize/remap.sh
 80265856886d776aa4d199ba87d2fbc76a0cf531 .agents/skills/work-tickets/claim.sh
-028ddee9acba8be0eb857a11cfdac74251399ce1 .github/dependabot.yml
-41879f1b482a038efa767ddfa1dad31b55ee8125 .github/workflows/checks.yml
+eee14f7b19e3ba2fc70fac686d5c611ea6ff7bed .github/dependabot.yml
+3367b9afd960631000d92c40cbf5e49d7c8c3b15 .github/workflows/checks.yml
 8f9c7c4aacb5b094f9b5296e79056e71e249dcc2 .github/workflows/review-binding.yml
-bfec7cff179d1bb505f4e2520d93afd7cdeb6fbe scripts/check-all.sh
-680f319543824d0853993403f6d1403f54f85373 scripts/check-devcontainer.sh
-c681e5849f06abf42ddd868daed6b5ed685c31c5 scripts/check-docs.sh
-85b96d6b8183b50010702d8a770f6c01803e0442 scripts/check-shell.sh
+1e9c54138228ec0b2fb2534aa5ca81d376555c1d scripts/check-all.sh
+67c864d49423f0d9dc4d8f4c6f21374e4654ad5f scripts/check-devcontainer.sh
+b34f4738d65a48a52ef89c4cb4d6a9c4ce86de55 scripts/check-docs.sh
+7950cc2ffaab54dd4e26d16e60f293df0261ad93 scripts/check-hooks.sh
+368897db35d39ee45ed739c23ca95d80285e3ac1 scripts/check-shell.sh
 1a6a16e21b83f4e0381b103c018c99c2baced52a scripts/check-traceability.sh
 62768ef8699d6ed94ac5659882a234dbe04f6229 scripts/drop-merged-branch.sh
 6e500f849f296da44aff95d41d3da277b3fda1a4 scripts/lib/adr.sh
 8066bf08ea7edf9dad6407e4c934000a1f4cc5d1 scripts/lib/bash.sh
 d1203872036d822675e09fa7facc2abda8524d62 scripts/lib/check.sh
 7463de8643559b81bab18f21db7588c0da585418 scripts/lib/git.sh
+eb01975f530d278dce2c0546c6e28f8cb551e919 scripts/lib/pin.sh
 857a4e28307a4ddba180c5502f9b50d7792295a1 scripts/lib/root.sh
 cd97f59ae57ca6f0317cd9424201e5070823fd9d scripts/lib/rules.sh
 a69e2661afc919ca6e6839f489766310ba2fe572 scripts/lib/selftest.sh
@@ -34,13 +36,14 @@ e27e88a8650a4607b3abc0065968ed22bbef8258 scripts/sensor-revision-due.sh
 4ed7856524920b2a99bab3637ead4f1cdc1050cd scripts/sensor-tests-kept.sh
 f5b3a37ea08e48035aa72f31834b658e72aa5781 scripts/sensor-work-measures.sh
 e1f10c89d735376f46a61b8f83d3bef059933fb8 scripts/test-check-all.sh
-ad019294fdf48b9269f5075926a0211efe7c2fc3 scripts/test-check-devcontainer.sh
+012b3e07012b2010a629e943e924e407560606bf scripts/test-check-devcontainer.sh
 784a60d9d4f5f61a5e81b5aa89a23673d0a9195b scripts/test-check-docs.sh
+103a7a241f394ef9a2ad1966de6509ab8e186e9f scripts/test-check-hooks.sh
 0b897dda8d2cba00d1435ea445f80aa734e6d29e scripts/test-check-shell.sh
 4cc0aa2c6f05aba4f444e8ffd929f0bace5358ee scripts/test-check-traceability.sh
 4a1e2fc941945be3d7f3ed0ed02949f774ee1d55 scripts/test-drop-merged-branch.sh
-091c637f2a39be434baeec48d0eb2403bdce86ad scripts/test-git-hooks.sh
-34c0cba6b5c59c4913e273a8f30a95c80686ef31 scripts/test-normalize-remap.sh
+3301b0e14a5d11b55d9b1c80d54c436b86666f32 scripts/test-git-hooks.sh
+646df4f98937b43522765b443555d96dfb9c2c70 scripts/test-normalize-remap.sh
 cb2f33ef2f66e2f29bc6b9cf1387dc250a170e85 scripts/test-ready-for-main.sh
 248fa384f85023f28ec04b208b5ab829bf44e551 scripts/test-sensor-action-refs.sh
 bfc53f2b2180b23471980105cbae4ce57871b456 scripts/test-sensor-backlog.sh

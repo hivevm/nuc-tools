@@ -1,12 +1,16 @@
 #!/usr/bin/env bash
 #
-# Self-test of scripts/check-gates.sh. Verifies: SEC-gates-never-run-build
+# Self-test of scripts/check-gates.sh.
+# Verifies: SEC-gates-run-released-nuc SEC-gates-never-run-build
 #
 # Each case builds a fixture under a temporary directory — a check-all.sh, a hook, and a
 # checks.yml that run the bash checks and scripts/check-build.sh — runs the check against it, and
 # asserts the exit code and, for a failing case, the message that names the violation. The
 # baseline passes; the cases that fail have one gate, or a script under scripts/ a gate runs, run
-# a build of the working tree; those that pass show what is no build or not read.
+# a build of the working tree; those that pass show what is no build or not read. The rest hold
+# the hooks on a released nuc: a pinned hook and the version query of the hooks' self-test may run
+# nuc, the installer is read as a gate, a job that runs a hook installs nuc from release/gate/
+# first, and release/gate/VERSION is no older than the minimum of nuc.toml.
 #
 # Inputs: scripts/check-gates.sh scripts/lib/
 #
@@ -160,6 +164,66 @@ printf '#!/usr/bin/env bash\ncargo test --locked\ncargo run -- check\n' > "$d/sc
 # shellcheck disable=SC2016 # the variable is the gate's
 printf '#!/usr/bin/env bash\n"$ROOT/target/debug/nuc" check\n' > "$d/scripts/check-parity.sh"
 expect pass "the two tests of the build run the build" "$d"
+
+# The hooks on a released nuc (SEC-gates-run-released-nuc §2, §3).
+zero="$(printf '0%.0s' {1..40})"
+d="$(gates pinned-hook)"
+echo 'nuc hook pre-push "$@"' >> "$d/.githooks/pre-push"
+printf 'release v1.0.0\n%s pre-push\n' "$zero" > "$d/.githooks/nuc.blobs"
+expect pass "a hook the blob list pins runs nuc" "$d"
+d="$(gates unpinned-hook)"
+echo 'nuc hook pre-push "$@"' >> "$d/.githooks/pre-push"
+printf 'release v1.0.0\n%s pre-commit\n' "$zero" > "$d/.githooks/nuc.blobs"
+expect fail "a hook the blob list does not pin runs nuc" "$d" "pre-push:3: 'nuc' run by a gate"
+
+d="$(gates version-query)"
+# shellcheck disable=SC2016 # the substitution is the self-test's
+printf '#!/usr/bin/env bash
+have="$(nuc --version 2>/dev/null)"
+' > "$d/scripts/test-git-hooks.sh"
+expect pass "the version query of the hooks' self-test runs nuc" "$d"
+# shellcheck disable=SC2016 # the substitution is the self-test's
+printf '#!/usr/bin/env bash
+have="$(nuc --version 2>/dev/null)"
+nuc check
+' > "$d/scripts/test-git-hooks.sh"
+expect fail "another line of the hooks' self-test that runs nuc" "$d" "scripts/test-git-hooks.sh:3: 'nuc' run by a gate"
+
+d="$(gates installer)"
+mkdir -p "$d/release"
+# shellcheck disable=SC2016 # the parameter is the installer's
+printf '#!/bin/sh\ncp target/release/nuc "$3/nuc"\n' > "$d/release/install-nuc.sh"
+expect fail "an installer that copies a build" "$d" "release/install-nuc.sh:2: a path under a target directory"
+
+# shellcheck disable=SC2016 # the variable is the workflow's
+install='      - run: sh release/install-nuc.sh release/gate/SHA256SUMS release/gate/VERSION "$RUNNER_TEMP/n"'
+for t in test-git-hooks test-ready-for-main test-normalize-remap; do
+  d="$(gates "uninstalled-$t")"
+  echo "      - run: bash scripts/$t.sh" >> "$d/.github/workflows/checks.yml"
+  expect fail "a job that runs scripts/$t.sh without installing nuc" "$d" \
+    "the job 'build' runs scripts/$t.sh, which runs a hook, without installing the released nuc"
+done
+d="$(gates installed)"
+printf '%s\n      - run: bash scripts/test-git-hooks.sh\n' "$install" >> "$d/.github/workflows/checks.yml"
+expect pass "a job that installs nuc before it runs a hook" "$d"
+d="$(gates installed-elsewhere)"
+printf '%s\n  shell:\n    steps:\n      - run: bash scripts/test-git-hooks.sh\n' "$install" >> "$d/.github/workflows/checks.yml"
+expect fail "nuc installed in another job" "$d" "the job 'shell' runs scripts/test-git-hooks.sh"
+d="$(gates installed-after)"
+printf '      - run: bash scripts/test-git-hooks.sh\n%s\n' "$install" >> "$d/.github/workflows/checks.yml"
+expect fail "nuc installed after the hook ran" "$d" "the job 'build' runs scripts/test-git-hooks.sh"
+
+d="$(gates gate-version)"
+mkdir -p "$d/release/gate"
+echo 0.2.2 > "$d/release/gate/VERSION"
+printf 'minimum = "0.2.2"\n' > "$d/nuc.toml"
+expect pass "a release CI installs as new as the minimum" "$d"
+printf 'minimum = "0.2.10"\n' > "$d/nuc.toml"
+expect fail "a release CI installs older than the minimum" "$d" "0.2.2 is older than the minimum 0.2.10"
+printf 'minimum = "0.1.9"\n' > "$d/nuc.toml"
+expect pass "a release CI installs newer than the minimum" "$d"
+rm "$d/release/gate/VERSION"
+expect fail "a nuc.toml without release/gate/VERSION" "$d" "release/gate/VERSION: not found"
 
 d="$(gates no-gates)"
 rm -r "$d/scripts" "$d/.githooks" "$d/.github"

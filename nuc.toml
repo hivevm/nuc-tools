@@ -1,0 +1,16 @@
+# The nuc the git hooks hand their work to (NUC-hooks-run-nuc §3): the minimum release, at least
+# the one the shims under .githooks/ come from, and every hook/ rule of it, none of which a
+# project removes.
+minimum = "0.2.2"
+rules = [
+  "hook/commit-docs",
+  "hook/commit-on-main",
+  "hook/concluded-merge-on-feat",
+  "hook/main-moves",
+  "hook/merge-checks",
+  "hook/merge-docs",
+  "hook/merge-on-feat",
+  "hook/merge-on-main",
+  "hook/push-checks",
+  "hook/push-to-main",
+]

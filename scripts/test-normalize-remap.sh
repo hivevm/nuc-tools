@@ -8,16 +8,17 @@
 # a new identifier, a clause moved to another ADR, a split left for the hand, a marker that already
 # names the successor, a refused chain, the --check mode, a second run that changes nothing, a swap
 # of two criteria, the record left untouched, a criterion outside Markdown and outside a marker
-# line, a reference to an ADR with no successor, an ignored file, files without a final newline and
-# a binary one, a release's map applied from the tree, each invalid map, which changes nothing, a
-# numbered ADR file among them, an option the script does not read, a refused call told apart
-# from a move by what it prints, a move with a reference left under --check, and every ADR of a
-# copy of this repository moved to a new identifier, after which the other self-tests still pass.
+# line, a reference to an ADR with no successor, an ignored file, a hook the hooks' blob list
+# pins, files without a final newline and a binary one, a release's map applied from the tree,
+# each invalid map, which changes nothing, a numbered ADR file among them, an option the script
+# does not read, a refused call told apart from a move by what it prints, a move with a reference
+# left under --check, and every ADR of a copy of this repository moved to a new identifier, after
+# which the other self-tests still pass.
 #
 # The identifiers in the fixtures are assembled at run time: a literal one would be a reference
 # that check-docs.sh and check-traceability.sh hold against this repository.
 #
-# Inputs: .agents/skills/normalize/
+# Inputs: .agents/skills/normalize/ scripts/lib/pin.sh
 # The move of the real tree runs every other self-test again, the costliest case of the local
 # gate. Before a push it runs only when the map script changes; a self-test that took up a
 # literal identifier fails it in CI, which runs it on every pull request.
@@ -235,6 +236,18 @@ printf 'notes.md\n' > "$d/.gitignore"
 printf '%s\n' "$(id one)" > "$d/notes.md"
 run "$d" "$(id one) $(id four)"; rc=$?
 check "an ignored file is left alone" "[[ $rc -eq 0 ]] && grep -qxF '$(id one)' '$d/notes.md'"
+
+# A hook the hooks' blob list pins is another repository's file and is left alone; a hook it does
+# not pin moves like any other file.
+d="$(repo pinned)"
+mkdir -p "$d/.githooks"
+printf '#!/bin/sh\n# %s %s1\n' "$(id one)" "$S" > "$d/.githooks/pre-push"
+printf '#!/bin/sh\n# %s\n' "$(id one)" > "$d/.githooks/own"
+printf 'release v1.0.0\n%s pre-push\n' "$(printf '0%.0s' {1..40})" > "$d/.githooks/nuc.blobs"
+run "$d" "$(id one) $(id four)"; rc=$?
+check "a pinned hook is left alone" \
+  "[[ $rc -eq 0 ]] && grep -qxF '# $(id one) ${S}1' '$d/.githooks/pre-push'"
+check "a hook the blob list does not pin moves" "grep -qxF '# $(id four)' '$d/.githooks/own'"
 
 # A release's map, applied from where the tree ships it: a whole ADR moves, a split is left for
 # the hand, and the map file itself, which names both, stays as it was.

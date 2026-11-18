@@ -27,7 +27,8 @@ Authority runs **specification → accepted ADRs → task**
    [`scripts/check-all.sh`](scripts/check-all.sh) locally before pushing
    ([§5](AGENTS.md#5-quality-bar--definition-of-done)). It runs the same checks CI runs on every
    pull request, and the repository's git hooks run them for you ([Git hooks](#git-hooks)). They
-   need bash 4.4 or later and coreutils, already in the Dev Container. Only the shell lint
+   need bash 4.4 or later and coreutils, already in the Dev Container, and the hooks need `nuc`
+   ([Git hooks](#git-hooks)). Only the shell lint
    additionally needs [ShellCheck](https://www.shellcheck.net), which the Dev Container installs;
    elsewhere it skips itself where that is missing, and CI runs it always. On macOS, whose bash
    is 3.2, install a current one, such as Homebrew's. On Windows they run under Git Bash in a
@@ -64,13 +65,15 @@ scripts/lib/          # what the scripts share: the bash floor (bash.sh), the AD
                       # the findings of a check (check.sh), git (git.sh), the root a script
                       # reads (root.sh): every scripts/*.sh but the self-tests and check-all.sh
                       # takes it, as check-shell.sh checks; the plain rules (rules.sh), the
-                      # self-tests (selftest.sh), the ticket path (ticket.sh), and the hook
-                      # scenarios of the parity harness (hook-parity.sh)
+                      # self-tests (selftest.sh), the ticket path (ticket.sh), the hook
+                      # scenarios of the parity harness (hook-parity.sh), and the files the
+                      # hooks' blob list pins (pin.sh)
 scripts/fixtures/     # the cases of a check as a table, which its self-test reads
 scripts/*.sh          # run by hand, steps 7 and 8 of the integration branches: ready-for-main.sh,
                       # drop-merged-branch.sh
-.githooks/            # git hooks: nothing lands on main locally; checks before a commit, a merge,
-                      # and a push
+.githooks/            # git hooks, the pinned shims of nuc: nothing lands on main locally; checks
+                      # before a commit, a merge, and a push; their blob list nuc.blobs
+nuc.toml              # the minimum nuc the hooks need and the hook/ rules they run
 .github/workflows/    # checks.yml runs the checks, the build on every platform of Q-4 included;
                       # review-binding.yml reads each pull request's hand-off; release.yml
                       # publishes a release, release-test.yml tests what it runs; benchmark.yml
@@ -89,7 +92,8 @@ deny.toml             # what cargo deny allows: advisories, bans, licenses, sour
 src/                  # the library's functional core, its shell in src/shell/, and the binary
 shims/                # the reference shims: POSIX sh hooks that hand each to 'nuc hook' (API-hook-contract-keyed-shims)
 action.yml            # the GitHub Action: installs the nuc of its release and runs it
-release/              # the release tooling: build, checksums, the installer, and the release commit
+release/              # the release tooling: build, checksums, the installer, and the release commit;
+                      # gate/ holds the checksums and version of the nuc the gates install
 tests/                # the integration tests, their fixture helpers and the readings of the
                       # crate's sources in tests/support/, the corpus, variants, tables, and
                       # hook scenarios of the parity harness in tests/parity/, and the benchmark
@@ -116,8 +120,10 @@ The environment is defined entirely in
 base image and layers Dev Container Features and VS Code extensions on top; no Dockerfile or
 Compose file is required. Customise the environment by adding Features, switching the base image,
 or adding extensions. Features are pinned by major tag and resolved in the committed
-`devcontainer-lock.json`. Extensions are listed by identifier only, because a published extension
-version cannot be repointed and a version suffix is VS Code-specific.
+`devcontainer-lock.json`, which Dependabot moves by a pull request when a Feature publishes a new
+release ([`.github/dependabot.yml`](.github/dependabot.yml)). Extensions are listed by identifier
+only, because a published extension version cannot be repointed and a version suffix is VS
+Code-specific.
 
 ### GitHub access
 
@@ -234,6 +240,24 @@ git config pull.ff only
 git config merge.adr-index.driver '.githooks/merge-adr-index %O %A %B %S %X %Y'
 ```
 
+The hooks are the reference shims of `nuc`, the binary of
+[`hivevm/nuc-tools`](https://github.com/hivevm/nuc-tools), copied unchanged from the release that
+[`.githooks/nuc.blobs`](.githooks/nuc.blobs) names
+([NUC-hooks-run-nuc](docs/adr/NUC-hooks-run-nuc.md)). Each hands its decision to
+`nuc hook <name>` and runs the checks where `nuc` answers that they run.
+[`scripts/check-hooks.sh`](scripts/check-hooks.sh) fails on a hook that differs from its blob.
+A hook needs `nuc` on the `PATH`, no older than the `minimum` of [`nuc.toml`](nuc.toml), whose
+`rules` turn on every `hook/` rule; a project removes none of them. The Dev Container installs
+`nuc` by its Feature. CI installs it by `release/install-nuc.sh` from the `SHA256SUMS` and
+`VERSION` committed under `release/gate/`, not by this repository's Action, whose SHA pin would
+move to a source commit
+([SEC-gates-run-released-nuc](docs/adr/SEC-gates-run-released-nuc.md)). Outside the Dev Container,
+install a release from the [releases](https://github.com/hivevm/nuc-tools/releases) before the
+first commit, never a build of this tree. A hook runs the `nuc` that comes first on the `PATH`.
+Without it, or with one too old, every hook refuses in a key, such as `[shim/pre-commit:missing]`
+or `[config/toml:old]`, and falls back to nothing. A newer release
+replaces the hooks and the blob list from its `shims/` in one change, and the `minimum` with them.
+
 `merge.ff false` makes every merge a merge commit, so that any merge on `main` is a merge commit
 the `pre-merge-commit` hook refuses, and any other merge one it gates; a fast-forward would make
 no commit and run no hook. A `feat/` branch carries no merge commit
@@ -256,14 +280,16 @@ With `--changed`, the self-tests of what the branch left untouched since `main` 
 every one before anything reaches `main`. A bypass is a deliberate act, not a default;
 [NUC-main-only-via-pr §6](docs/adr/NUC-main-only-via-pr.md) says when an agent may. Each refusal
 says what to do instead.
-[`scripts/test-git-hooks.sh`](scripts/test-git-hooks.sh) exercises every row.
+[`scripts/test-git-hooks.sh`](scripts/test-git-hooks.sh) exercises every row, and asserts
+each refusal by its key.
 
 ## Integration branches
 
 A change reaches `main` through a pull request. Several branches may integrate first on a
 `feat/` branch, each rebased onto it, and it stays the human's to rework until its pull request
 into `main` merges ([NUC-main-only-via-pr §5](docs/adr/NUC-main-only-via-pr.md)). A `feat/`
-branch carries no merge commit. Each step waits for a human's instruction
+branch carries no merge commit. A plan lands on `main` before a `feat/` branch gathers its
+tickets, as the `plan-feature` skill says. Each step waits for a human's instruction
 ([NUC-main-only-via-pr §2](docs/adr/NUC-main-only-via-pr.md)).
 
 1. Start it at the remote's `main`: `git fetch origin`, then

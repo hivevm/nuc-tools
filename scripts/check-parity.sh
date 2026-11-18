@@ -58,7 +58,7 @@
 # The tree of the corpus runs its own bash scripts: the corpus is pinned by commit, and a pull
 # request that moves a pin is reviewed like code. nuc is built from the working tree by
 # 'cargo build --locked'; the harness is a test of the build, as scripts/check-build.sh is
-# (SEC-gates-never-run-build).
+# (SEC-gates-run-released-nuc).
 #
 # Pure bash + coreutils/git/awk, and cargo for the build. Usage:
 #     scripts/check-parity.sh [--root <dir>] [--corpus <file>] [--cache <dir>] [--nuc <binary>]

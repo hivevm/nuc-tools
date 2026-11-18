@@ -211,6 +211,8 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib/adr.sh"
 source "$(dirname "${BASH_SOURCE[0]}")/lib/check.sh"
 # shellcheck source-path=SCRIPTDIR source=lib/git.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib/git.sh"
+# shellcheck source-path=SCRIPTDIR source=lib/pin.sh
+source "$(dirname "${BASH_SOURCE[0]}")/lib/pin.sh"
 
 # shellcheck source-path=SCRIPTDIR source=lib/root.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib/root.sh"
@@ -328,13 +330,17 @@ applies_to_of() { adr_field_value "$HEADER_APPLIES" 'Applies to'; trim "$ADR_VAL
 # The list comes from git: tracked files plus new, not-yet-added ones, minus everything
 # .gitignore excludes. That keeps generated trees (node_modules/, target/, dist/) out without
 # this script having to guess the directory names of a toolchain this repository does not yet know.
-# Binary files are dropped by grep -I, which never matches inside one.
+# Binary files are dropped by grep -I, which never matches inside one. A file the hooks' blob list
+# pins is dropped too: it is another repository's file, held by its pin (scripts/lib/pin.sh), and
+# the ADRs it cites are that repository's.
 # Outside a work tree (an exported tarball) git cannot answer, so fall back to a plain walk.
 TEXT_FILES=()
 collect_text_files() {
   local f paths=()
+  local -A pinned=()
+  while IFS= read -r f; do pinned["$ROOT/$f"]=1; done < <(pinned_files "$ROOT")
   while IFS= read -r f; do
-    [[ -f "$f" ]] && paths+=("$f")
+    [[ -f "$f" && ! -v pinned["$f"] ]] && paths+=("$f")
   done < <(
     if git -C "$ROOT" rev-parse --is-inside-work-tree > /dev/null 2>&1; then
       git -C "$ROOT" ls-files --cached --others --exclude-standard \

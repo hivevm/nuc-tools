@@ -1,15 +1,17 @@
 #!/usr/bin/env bash
 #
-# Self-test of scripts/check-devcontainer.sh. Verifies: NUC-container-hides-host-daemon
+# Self-test of scripts/check-devcontainer.sh.
+# Verifies: NUC-container-hides-host-daemon NUC-hooks-run-nuc
 #
-# Each case builds a fixture under a temporary directory — a devcontainer.json with comments and
-# one pinned Feature and the postStartCommand that enables the git hooks, the lock that resolves
-# it, and the editor settings that pin the container-management extension to the host — runs the
-# check against it, and asserts the exit code and, for a failing case, the message that names the
-# violation. The cases stand in scripts/fixtures/check-devcontainer.txt, which says its format, so
-# that a port of the check is held to them: the baseline passes, what binds when the project has
-# no Dev Container or no VS Code settings, and the cases that break one clause of
-# NUC-container-hides-host-daemon each, a socket mount also in a config longer than a pipe holds.
+# Each case builds a fixture under a temporary directory — a devcontainer.json with comments, two
+# pinned Features, one of them nuc's, and the postStartCommand that enables the git hooks, the lock
+# that resolves them, and the editor settings that pin the container-management extension to the
+# host — runs the check against it, and asserts the exit code and, for a failing case, the message
+# that names the violation. The cases stand in scripts/fixtures/check-devcontainer.txt, which says
+# its format, so that a port of the check is held to them: the baseline passes, what binds when
+# the project has no Dev Container or no VS Code settings, and the cases that break one clause of
+# NUC-container-hides-host-daemon each, a socket mount also in a config longer than a pipe holds,
+# and a Dev Container without the nuc Feature (NUC-hooks-run-nuc §4).
 # The table is read twice, the second time against a copy of the check that rewords its messages,
 # and the reader of the table is checked on fields of its own.
 #
@@ -31,9 +33,11 @@ DRIVER="merge.adr-index.driver '.githooks/merge-adr-index %O %A %B %S %X %Y'"
 POST_START='{ "repository": "git config core.hooksPath .githooks && git config merge.ff false && git config pull.ff only && git config '"$DRIVER"'" }'
 post_start="$POST_START"
 
-# config <dir> <feature id> [extra json lines...] — write devcontainer.json with one Feature, the
-# postStartCommand post_start holds, and, before the features block, any extra top-level lines
-# given.
+# config <dir> <feature id> [extra json lines...] — write devcontainer.json with the Feature and
+# the one nuc_feature holds, none when it is empty, the postStartCommand post_start holds, and,
+# before the features block, any extra top-level lines given.
+NUC_FEATURE="ghcr.io/hivevm/features/nuc:0"
+nuc_feature="$NUC_FEATURE"
 config() {
   local dir="$1" feature="$2"; shift 2
   {
@@ -44,8 +48,13 @@ config() {
     [[ -z "$post_start" ]] || echo "  \"postStartCommand\": $post_start,"
     printf '  %s\n' "$@"
     echo '  "features": {'
-    echo '    // The one Feature.'
-    echo "    \"$feature\": {}"
+    echo '    // The Features.'
+    if [[ -n "$nuc_feature" ]]; then
+      echo "    \"$feature\": {},"
+      echo "    \"$nuc_feature\": {}"
+    else
+      echo "    \"$feature\": {}"
+    fi
     echo '  },'
     echo '  "customizations": { "vscode": { "extensions": [] } }'
     echo '}'
@@ -87,7 +96,7 @@ repo() {
   local dir="$work/$1"
   mkdir -p "$dir/.devcontainer" "$dir/.vscode"
   config "$dir" "ghcr.io/devcontainers/features/github-cli:1"
-  lock "$dir" "ghcr.io/devcontainers/features/github-cli:1"
+  lock "$dir" "ghcr.io/devcontainers/features/github-cli:1" "$NUC_FEATURE"
   settings "$dir" '{ "ms-azuretools.vscode-containers": ["ui"] }'
   echo "$dir"
 }
@@ -108,6 +117,7 @@ table_cases() {
     IFS=$'\x1f' read -r want needle name tree <<< "${line// | /$'\x1f'}"
     d="$(repo "$1-$n")"
     feature="ghcr.io/devcontainers/features/github-cli:1" extras=() post_start="$POST_START"
+    nuc_feature="$NUC_FEATURE"
     [[ "$tree" != - ]] || tree=""
     while IFS= read -r s; do
       [[ -n "$s" ]] || continue
@@ -120,6 +130,7 @@ table_cases() {
         extra) extras+=("$arg") ;;
         post) post_start="$arg" ;;
         feature) feature="$arg" ;;
+        nuc) nuc_feature="$arg" ;;
         lock) read -r -a ids <<< "$arg"; lock "$d" "${ids[@]}" ;;
         settings) settings "$d" "$arg" ;;
         write)
@@ -127,9 +138,9 @@ table_cases() {
           mkdir -p "$(dirname "$d/$path")" && printf '%s' "${text//\\n/$'\n'}" > "$d/$path" ;;
         *) echo "fixture table: unknown step '$op'" >&2; exit 1 ;;
       esac
-      case "$op" in extra | post | feature) config "$d" "$feature" "${extras[@]}" ;; esac
+      case "$op" in extra | post | feature | nuc) config "$d" "$feature" "${extras[@]}" ;; esac
     done <<< "${tree//; /$'\n'}"
-    post_start="$POST_START"
+    post_start="$POST_START" nuc_feature="$NUC_FEATURE"
     out="$(bash "$CHECK" --root "$d" 2>&1)"
     table_case "$name" "$want" "$needle" "$?" "$out"
   done < "$TABLE"

@@ -1,0 +1,20 @@
+# The pin of the git hooks (NUC-hooks-run-nuc §2), read by scripts/check-hooks.sh: the release of
+# hivevm/nuc-tools the hooks come from, the blob of each hook as that release's shims/ holds it,
+# and each hook/ rule of that release, which nuc.toml turns on. A newer release replaces the hooks
+# and this list in one change.
+release v0.2.2
+2b2030214e355020c34a4a7ceb0ea76ffb273e99 merge-adr-index
+52f4c0c748c7a392f346a46a823a4488079f497e pre-commit
+2c4f65686d9a169ccc74b5748f6633d89760be9e pre-merge-commit
+395a440bdb45d39d1c02510bda378659f5526720 pre-push
+62bfaf35730e2a6512cd6d7ba423139932fcf0c0 reference-transaction
+rule hook/commit-docs
+rule hook/commit-on-main
+rule hook/concluded-merge-on-feat
+rule hook/main-moves
+rule hook/merge-checks
+rule hook/merge-docs
+rule hook/merge-on-feat
+rule hook/merge-on-main
+rule hook/push-checks
+rule hook/push-to-main

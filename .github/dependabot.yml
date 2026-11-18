@@ -1,6 +1,12 @@
 # Keeps the dependencies current as pull requests (SEC-actions-pinned-by-sha): the
 # GitHub Actions under .github/workflows/, pinned by commit SHA, get a pull request that moves the
 # pin and its version comment; the crates of Cargo.lock get one that scripts/check-deps.sh audits.
+#
+# Keeps the Features of the Dev Container current as well: a Feature is referenced by its major
+# tag and built from the digest .devcontainer/devcontainer-lock.json resolves
+# (NUC-container-hides-host-daemon §3), so a new release reaches the container only when the lock
+# moves. Dependabot raises a pull request that moves the lock, the nuc Feature's included, which
+# the git hooks hand their work to (NUC-hooks-run-nuc §4).
 version: 2
 updates:
   - package-ecosystem: github-actions
@@ -8,6 +14,10 @@ updates:
     schedule:
       interval: monthly
   - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: monthly
+  - package-ecosystem: devcontainers
     directory: /
     schedule:
       interval: monthly
