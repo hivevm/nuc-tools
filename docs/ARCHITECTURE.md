@@ -203,7 +203,8 @@ lives between them. Only what a newcomer would otherwise reconstruct from code.
 `nuc check` finds the root of the working tree with `git rev-parse --show-toplevel`, reads
 `nuc.toml` there and selects the rules it turns on, and reads the inputs those rules name and no
 others: `README.md` and the release it carries, `CONTRIBUTING.md`, the record under `docs/adr/`, the
-text files git lists, the targets of relative links, `AGENTS.md`, the workflows and scripts, the
+text files git lists, from v0.12.0 on without the hooks `.githooks/nuc.blobs` pins, the targets of
+relative links, `AGENTS.md`, the workflows and scripts, the
 Project Layout's paths, the skills and their pointers, the identity files, the attributes that mark
 a file generated, the variables CI sets, the specification, the files that carry a `Verifies:`
 marker, the sensors and their self-tests, the rule keys of `scripts/check-docs.sh`, the blobs of the

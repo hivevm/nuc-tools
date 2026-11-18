@@ -806,7 +806,7 @@ fn rules_of(case: &Case) -> Vec<String> {
 const STAND_IN_README: &str = "# Fixture\n\n- **Template release:** unreleased\n";
 
 /// The rule keys of the header of the template's `scripts/check-docs.sh` at the release of the
-/// copies, v0.11.0, which the bash reads from its own script and `docs/adr-refs` reads from the
+/// copies, v0.12.0, which the bash reads from its own script and `docs/adr-refs` reads from the
 /// tree's: the record table's tree holds them as a stand-in script.
 const STAND_IN_HEADER: &str = "#!/usr/bin/env bash\n\
 #   docs/adr-index\n#   docs/adr-identifiers (was: docs/adr-numbering)\n#   docs/links\n\

@@ -407,6 +407,56 @@ fn the_text_files_are_those_git_lists_that_grep_reads_as_text() {
 }
 
 #[test]
+fn from_v0_12_0_a_hook_the_blob_list_pins_is_no_text_file() {
+    // A citation of no ADR, a reference to no section of the rule file, and an issue opened by
+    // the hook, each assembled so that the gate does not read them here: each a finding of one of
+    // the three rules that read the text files.
+    let hook = format!(
+        "# See {}.\n# See {}, section 9.\ngh issue create --title x\n",
+        format_args!("{}-y-rule", "SEC"),
+        "AGENTS.md"
+    );
+    let list = format!(
+        "release v1.0.0\n{} pre-push\n{} own\n",
+        "0".repeat(40),
+        "0".repeat(40)
+    );
+    let rules = ["docs/adr-refs", "docs/section-refs", "docs/opens-no-issue"];
+    let reports = |out: &str, file: &str, rule: &str| {
+        out.lines().any(|line| {
+            line.starts_with(&format!("{file}:")) && line.contains(&format!(": {rule}: "))
+        })
+    };
+    for (release, found) in [("v0.11.1", true), ("v0.12.0", false), ("unreleased", false)] {
+        let readme = format!("# Fixture\n\n- **Template release:** {release}\n");
+        let config = format!(
+            "minimum = \"0.0.0\"\nrules = [{}]\n",
+            rules.map(|rule| format!("\"{rule}\"")).join(", ")
+        );
+        let fixture = Fixture::project(&format!("pinned-{release}"), &config, &readme);
+        fixture.write("AGENTS.md", "# Agents\n\n## 1. One\n");
+        fixture.write("TEMPLATE-SETUP.md", "# Setup\n");
+        fixture.write(".githooks/pre-push", &hook);
+        fixture.write(".githooks/own", &hook);
+        fixture.write(".githooks/nuc.blobs", &list);
+        let output = fixture.nuc(&["check"]);
+        let out = stdout(&output);
+        for rule in rules {
+            assert_eq!(
+                reports(&out, ".githooks/pre-push", rule),
+                found,
+                "{release}, {rule}: {out}"
+            );
+            // A file the list names that is no hook of the five is read like any file.
+            assert!(
+                reports(&out, ".githooks/own", rule),
+                "{release}, {rule}: {out}"
+            );
+        }
+    }
+}
+
+#[test]
 fn a_path_git_quotes_names_no_file_as_for_the_bash() {
     let fixture = references("quoted-path");
     fixture.write("caf\u{e9}.md", &missing_reference());

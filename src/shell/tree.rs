@@ -306,10 +306,14 @@ impl Tree {
     /// lists unquoted under `core.quotePath=false`, is read by its bytes and keyed by its text with
     /// each such byte replaced; those keys come back as well, since a finding cannot name them as
     /// the bash does. A Markdown file of such a path is not decided: its links and attributes are
-    /// found from its path.
-    pub(super) fn read_text_files(&self) -> Result<TextFiles, String> {
+    /// found from its path. A path `left_out` names is no text file, as a pinned file is none from
+    /// template release v0.12.0 on.
+    pub(super) fn read_text_files(&self, left_out: &BTreeSet<String>) -> Result<TextFiles, String> {
         let mut text = TextFiles::default();
         for raw in self.listed(Listing::Lines, Files::TrackedAndNew)? {
+            if left_out.iter().any(|path| path.as_bytes() == raw) {
+                continue;
+            }
             let Some(full) = path_of(&self.root, &raw) else {
                 continue;
             };
@@ -354,6 +358,20 @@ impl Tree {
             ));
         }
         Ok(text)
+    }
+
+    /// The files the blob list of the hooks pins, as pinned_files of the template's
+    /// `scripts/lib/pin.sh` reads `.githooks/nuc.blobs` where it is a file, as `-f` finds it;
+    /// none without one.
+    pub(super) fn read_pinned(&self) -> Result<BTreeSet<String>, String> {
+        let list = self.root.join(".githooks/nuc.blobs");
+        if !list.is_file() {
+            return Ok(BTreeSet::new());
+        }
+        Ok(self
+            .read_bytes(&list)?
+            .map(|bytes| rules::pinned_files(&bytes))
+            .unwrap_or_default())
     }
 
     /// The sensors as part 4 of the bash's traceability check reads them: each path git lists as

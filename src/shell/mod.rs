@@ -437,7 +437,12 @@ fn read_text(
     links: bool,
     carried: Option<&rules::Carried>,
 ) -> Result<std::collections::BTreeSet<String>, String> {
-    let text = tree.read_text_files()?;
+    let pinned = if pins_left_out(carried) {
+        tree.read_pinned()?
+    } else {
+        std::collections::BTreeSet::new()
+    };
+    let text = tree.read_text_files(&pinned)?;
     inputs.text_files = text.files;
     if links {
         inputs.link_targets =
@@ -589,6 +594,16 @@ fn read_release_base(root: &Path) -> Result<Option<Vec<u8>>, String> {
 fn named_record(carried: Option<&rules::Carried>) -> bool {
     match carried {
         Some(rules::Carried::Release(release)) => *release >= rules::CATEGORY_IDENTIFIERS,
+        _ => true,
+    }
+}
+
+/// Whether the files the blob list of the hooks pins are left out of the text files: from
+/// template release v0.12.0 on, and for `unreleased` or a README that names none, as the newest
+/// release (NUC-hooks-run-nuc §2).
+fn pins_left_out(carried: Option<&rules::Carried>) -> bool {
+    match carried {
+        Some(rules::Carried::Release(release)) => *release >= rules::HOOK_PINS,
         _ => true,
     }
 }
