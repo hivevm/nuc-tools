@@ -1,6 +1,6 @@
 # API-config-refusals-keyed: Every refusal `nuc` reports while it reads `nuc.toml` ends in a key `[config/toml:<reason>]`
 
-- **Status:** 🟡 proposed
+- **Status:** 🟢 accepted
 - **Date:** 2026-11-17
 - **Deciders:** Markus Brigl
 - **Applies to:** the refusals of `src/config.rs` and of a `nuc.toml` that cannot be read at all, their message on the standard error of `nuc check` and `nuc hook`, the keys `config/toml:<reason>` in the list of keys kept beside the contract's test, and the tests that assert them
