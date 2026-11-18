@@ -145,16 +145,21 @@ golden path and the test pattern an agent copies from are named here.
 - **Action** — `action.yml` installs the `nuc` of the release its release commit carries; at any
   other commit it installs nothing.
 - **Gates** — this repository's own gates are the template's bash checks under `scripts/`, which
-  `scripts/check-all.sh` runs, and the hooks under `.githooks/`, the reference shims of a release
-  that `.githooks/nuc.blobs` pins and `scripts/check-hooks.sh` holds them to. The hooks run a
-  released `nuc`, never the one being built
-  ([SEC-gates-run-released-nuc](adr/SEC-gates-run-released-nuc.md)). In CI each job that runs a
-  hook installs it by `release/install-nuc.sh` from the `SHA256SUMS` and `VERSION` of one release
-  committed under `release/gate/`. The Dev Container installs it by the Feature
+  `scripts/check-all.sh` runs, and the hooks under `.githooks/`. The hooks are the reference shims
+  of the release that `.githooks/nuc.blobs` pins, and the template's `scripts/check-hooks.sh`
+  fails on a hook that differs from its blob. The hooks run a released `nuc`, never the one being
+  built ([SEC-gates-run-released-nuc](adr/SEC-gates-run-released-nuc.md)). In CI each job that
+  runs a hook installs it by `release/install-nuc.sh` from the `SHA256SUMS` and `VERSION` of one
+  release committed under `release/gate/`. The Dev Container installs it by the Feature
   `ghcr.io/hivevm/features/nuc`, which its lock pins. Two checks are this project's own:
-  `scripts/check-gates.sh` fails on a line of a gate that would run a build of the working tree,
-  or `nuc` outside the hooks; `scripts/check-adr-text.sh` fails on a commit that changes an
-  accepted ADR beyond its Status and Date lines, outside a commit that carries its `ADR map:`.
+  - `scripts/check-gates.sh` fails on each of these:
+    - a line of a gate that would run a build of the working tree;
+    - `nuc` run outside the hooks;
+    - a job of `checks.yml` that runs a hook without first installing `nuc` from `release/gate/`;
+    - a `minimum` of `nuc.toml` newer than `release/gate/VERSION`.
+  - `scripts/check-adr-text.sh` fails on a commit that changes a project ADR, accepted at its
+    parent or flipped to accepted, beyond its Status and Date lines, unless the commit message
+    carries an `ADR map:` line. The `NUC-` ADRs are left to `docs/adr/NUC.blobs`.
 - **The golden path** — the rule `docs/template-release` of the template's `check-docs.sh`, and
   the pieces it takes through every layer. A new rule copies it:
   1. a module under `src/rules/` with its `RULE_ID`, an `area/name`, and its `RULE`, listed in

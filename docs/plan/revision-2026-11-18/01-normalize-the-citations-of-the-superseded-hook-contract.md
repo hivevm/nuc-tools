@@ -8,7 +8,7 @@ the hand-off of #102 noted under Doubts:
 
 - API-command-line-with-measure (twice);
 - API-version-coupling-hook-defaults (three times);
-- ARCH-rules-outcome-hooks-answer (twice);
+- ARCH-rules-outcome-hooks-answer (three times);
 - TEST-hook-scenario-parity (once).
 
 `tests/adr_citations.rs` fails on such a citation only outside `docs/adr/`, so nothing holds them.
