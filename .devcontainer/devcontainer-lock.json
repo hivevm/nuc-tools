@@ -11,9 +11,9 @@
       "integrity": "sha256:846c949f52c9dea98d4f90a11957cbf152fb3f6e8a70ddd7cb83014a7d1d0c98"
     },
     "ghcr.io/hivevm/features/nuc:0": {
-      "version": "0.2.1",
-      "resolved": "ghcr.io/hivevm/features/nuc@sha256:01a3b1ff1a0018931d193b2ce7094416a2b82ce3dc38469b9ee5a0d966327d2f",
-      "integrity": "sha256:01a3b1ff1a0018931d193b2ce7094416a2b82ce3dc38469b9ee5a0d966327d2f"
+      "version": "0.2.2",
+      "resolved": "ghcr.io/hivevm/features/nuc@sha256:4fbb25d14cb7f616c698e8f78394290cab9bea7cb3fe031a5bf513fa27539fff",
+      "integrity": "sha256:4fbb25d14cb7f616c698e8f78394290cab9bea7cb3fe031a5bf513fa27539fff"
     }
   }
 }
