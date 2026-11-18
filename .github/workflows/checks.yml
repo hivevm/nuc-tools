@@ -333,8 +333,8 @@ jobs:
   # processor, about 18 minutes on one runner, so each entry of the matrix makes one shard of them,
   # one required check run per entry; together they compare every tree once. The last shard also
   # runs the parts that read all the template's trees, the hook scenarios among them, and the
-  # shard with the fewest trees runs the self-tests. fail-fast is off so that one red shard does
-  # not hide another.
+  # first runs the self-tests, by its place in the matrix, so that they run whatever its values.
+  # fail-fast is off so that one red shard does not hide another.
   parity:
     strategy:
       fail-fast: false
@@ -350,7 +350,7 @@ jobs:
           persist-credentials: false
       # The harness's own tests run first: a harness that is wrong passes nothing worth trusting.
       - name: Self-test the parity harness
-        if: matrix.shard == '3/4'
+        if: strategy.job-index == 0
         run: bash scripts/test-check-parity.sh
       - name: Compare the bash checks and nuc on the corpus
         run: bash scripts/check-parity.sh --shard "$SHARD"
@@ -359,5 +359,5 @@ jobs:
       # The benchmark of Q-5 runs in benchmark.yml on a schedule; its self-test, which no timing
       # decides, runs here with the other tests of the hooks' port.
       - name: Self-test the hook latency benchmark
-        if: matrix.shard == '3/4'
+        if: strategy.job-index == 0
         run: bash scripts/test-bench-hook-latency.sh

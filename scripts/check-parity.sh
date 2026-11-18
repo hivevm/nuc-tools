@@ -793,4 +793,6 @@ if ((failed)); then
   echo "Parity check FAILED." >&2
   exit 1
 fi
-echo "Parity check passed (${#repositories[@]} repositories, ${#variant_names[@]} variants, rules: ${ported:-none})."
+slice=""
+((shard_n > 1)) && slice=", shard $shard: ${#trees[@]} of them compared"
+echo "Parity check passed (${#repositories[@]} repositories$slice, ${#variant_names[@]} variants, rules: ${ported:-none})."

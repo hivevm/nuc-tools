@@ -27,9 +27,9 @@
 # cases pass a pin of a copied fixture table that the tag of a template tree bears out, and fail
 # one the tag does not, one whose tag cannot be read, and one without a template tree, and exit 2
 # on a malformed or missing list of pins. The shard cases compare in each shard the trees at its
-# places, the shards together each tree and variant once, as one run does, and the releases in the
-# last shard alone, and exit 2 on a shard that is not <k>/<n> with 1 <= k <= n. No network and no
-# build.
+# places, the shards together each tree and variant once, as one run does, and the pins, the
+# releases, and the hook scenarios in the last shard alone, and exit 2 on a shard that is not
+# <k>/<n> with 1 <= k <= n. No network and no build.
 #
 # The hook cases run the scenarios alone, through '--hooks', on a tree of the template whose bash
 # pre-commit refuses a commit on main, with the reference shim and a stand-in nuc: an agreeing nuc
@@ -511,6 +511,21 @@ names "$work/shard-thirds.out" > "$work/shard-thirds.names"
 check "three shards together compare each tree and variant once, as one run does" \
   cmp -s "$work/shard-all.names" "$work/shard-thirds.names"
 check "a run without --shard compares every tree" test -s "$work/shard-all.names"
+# The pins of the copied tables and the hook scenarios read all the template's trees, so they run
+# in the last shard alone: a pin the tag does not bear out, and a corpus with no tree of the
+# template for the hooks, fail 2/2 and pass 1/2, which compares the one tree.
+# sharded <shard> <blobs> <corpus> [--no-hooks] — the harness on one shard with the pins given.
+# shellcheck disable=SC2317,SC2329 # run through expect
+sharded() {
+  env PARITY_TABLE="$work/one-rule.tsv" PARITY_TABLE_BLOBS="$2" bash "$HARNESS" "${@:4}" \
+    --shard "$1" --corpus "$3" --cache "$work/cache" --nuc "$(reactive_nuc)" --variants "$DEFAULT"
+}
+expect pass "a shard but the last holds no pin" "" sharded 1/2 "$work/blobs-other" "$tables" --no-hooks
+expect fail "the last shard holds the pins" "is not the blob" \
+  sharded 2/2 "$work/blobs-other" "$tables" --no-hooks
+expect pass "a shard but the last runs no hook scenario" "" sharded 1/2 "$work/no-blobs" "$c"
+expect fail "the last shard runs the hook scenarios" "the corpus pins no tree of the template" \
+  sharded 2/2 "$work/no-blobs" "$c"
 for bad in 0/2 3/2 2 x/y 1/0; do
   check "a shard '$bad' exits 2, as a malformed input does" \
     exits_two run_shard "$bad" "$many" "$(reactive_nuc)"
