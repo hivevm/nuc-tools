@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Self-test of scripts/check-gates.sh.
-# Verifies: SEC-gates-run-released-nuc SEC-gates-never-run-build
+# Verifies: SEC-gates-run-released-nuc
 #
 # Each case builds a fixture under a temporary directory — a check-all.sh, a hook, and a
 # checks.yml that run the bash checks and scripts/check-build.sh — runs the check against it, and
