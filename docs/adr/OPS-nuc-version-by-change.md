@@ -1,6 +1,6 @@
 # OPS-nuc-version-by-change: A release of `nuc` takes the part of its version by what the change does to a project
 
-- **Status:** 🟡 proposed
+- **Status:** 🟢 accepted
 - **Date:** 2026-11-18
 - **Deciders:** Markus Brigl
 - **Applies to:** the version in `Cargo.toml` and `Cargo.lock` that a release of `nuc` moves, the release tag `vX.Y.Z` it names, and the pull request that prepares a release
