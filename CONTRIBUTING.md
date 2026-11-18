@@ -228,10 +228,11 @@ The event `claude_code.api_request` carries the tokens of each call.
 The tokens of a hand-off's `Measures:` line come from `nuc measure`, which reads the harness's
 transcripts of the working tree; its options are in the README's
 [command reference](README.md#commands). On the branch the hand-off is for, `nuc measure` prints
-the line's `tokens <n>`. A `feat/` branch's line gathers its tickets: from `main` or a detached
-HEAD, run `nuc measure --branch feat/<topic>` with one `--branch` for each ticket branch it
-gathered. A `-` there means the work ran in no harness `nuc measure` reads, not that nobody
-measured it.
+the line's `tokens <n>`. A ticket worked in a worktree of its own is measured there, at its own
+hand-off, since each worktree's sessions have a directory of their own. A `feat/` branch's line
+adds up the lines of the tickets it gathered, as
+[API-measure-reads-harness-transcripts](docs/adr/API-measure-reads-harness-transcripts.md)
+says.
 
 ## Git hooks
 
