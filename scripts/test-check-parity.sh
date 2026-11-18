@@ -42,7 +42,8 @@
 # of green trees that differs, a merge driver that writes another index, no tree at all, and a
 # malformed table each fail (TEST-hook-scenario-parity). A case is held only on a tree whose
 # self-test names it. A tree whose .githooks/nuc.blobs pins its hooks, nuc's shims, is left out of
-# the scenarios and their coverage, and a run with no other tree fails.
+# the scenarios and their coverage, and a run with no other tree fails. The bound of the hooks nuc
+# ports is v0.11.1 by default, and the scenario of the defaults runs on the newest tree left in.
 #
 # Inputs: scripts/check-parity.sh tests/parity/ scripts/lib/ shims/
 #
@@ -899,6 +900,40 @@ else
   failed=$((failed + 1))
   echo "FAIL: a tree whose blob list pins its hooks is left out (exit $rc, alone $rc_alone)" >&2
   while IFS= read -r l; do printf '    %s\n' "$l"; done <<< "$out"$'\n'"$out_alone" >&2
+fi
+# The bound of the hooks nuc ports is v0.11.1 unless PARITY_HOOKS_PORTED names another: a tree at
+# v0.11.1 is compared, one at v0.11.2 left out.
+at_bound="$(HOOK_TREE_RELEASE=v0.11.1 hook_tree bound "")"
+past_bound="$(HOOK_TREE_RELEASE=v0.11.2 hook_tree past "")"
+out="$(run_hooks "$(hook_nuc agrees "$HOOK_AGREES")" "$HOOK_SCENARIOS_FILE" "$NO_CASES" "$at_bound" "$past_bound" 2>&1)"; rc=$?
+if ((rc == 0)) && [[ "$out" == *"the tree at v0.11.2 is later than v0.11.1, whose hooks nuc ports"* \
+  && "$out" == *"on 1 tree(s)"* ]]; then
+  passed=$((passed + 1))
+else
+  failed=$((failed + 1))
+  echo "FAIL: the default bound of the hooks nuc ports is v0.11.1 (exit $rc)" >&2
+  while IFS= read -r l; do printf '    %s\n' "$l"; done <<< "$out" >&2
+fi
+# The scenario of the defaults, without README and nuc.toml, runs on the newest tree left in, not
+# on a newer one left out by the bound or by its pinned hooks: a nuc that differs there alone fails
+# on the tree of v0.7.0.
+cp "$HOOK_SCENARIOS_FILE" "$work/hook-scenarios-bare.sh"
+echo 'hook_scenario --bare bare-main pre-commit "a commit on main" : commit -q --allow-empty -m x' >> "$work/hook-scenarios-bare.sh"
+newer="$(HOOK_TREE_RELEASE=v0.8.0 hook_tree newer "")"
+pinned_newer="$(HOOK_TREE_RELEASE=v0.9.0 hook_tree pinned-newer "")"
+printf 'release v0.2.2\n%s pre-commit\n' "$(printf '0%.0s' {1..40})" > "$pinned_newer/.githooks/nuc.blobs"
+out="$(env PARITY_HOOKS_PORTED=v0.8.0 PARITY_HOOK_SCENARIOS="$work/hook-scenarios-bare.sh" PARITY_HOOK_CASES="$NO_CASES" \
+  bash "$HARNESS" --nuc "$(hook_nuc bare-differs "[ -f README.md ] || exit 0; $HOOK_AGREES")" --hooks "$tree" "$newer" "$pinned_newer" 2>&1)"; rc=$?
+out_newest="$(env PARITY_HOOKS_PORTED=v0.7.0 PARITY_HOOK_SCENARIOS="$work/hook-scenarios-bare.sh" PARITY_HOOK_CASES="$NO_CASES" \
+  bash "$HARNESS" --nuc "$(hook_nuc bare-differs "[ -f README.md ] || exit 0; $HOOK_AGREES")" --hooks "$tree" "$newer" "$pinned_newer" 2>&1)"; rc_newest=$?
+if ((rc == 1 && rc_newest == 1)) && [[ "$out" == *"bare-main at v0.8.0"* && "$out" != *"bare-main at v0.7.0"* \
+  && "$out_newest" == *"bare-main at v0.7.0"* && "$out_newest" == *"the tree at v0.8.0 is later than v0.7.0"* \
+  && "$out_newest" == *"the tree at v0.9.0 pins its hooks"* ]]; then
+  passed=$((passed + 1))
+else
+  failed=$((failed + 1))
+  echo "FAIL: the scenario of the defaults runs on the newest tree left in (exit $rc, $rc_newest)" >&2
+  while IFS= read -r l; do printf '    %s\n' "$l"; done <<< "$out"$'\n'"$out_newest" >&2
 fi
 expect pass "a tree at the bound of the hooks nuc ports is compared" "" \
   env PARITY_HOOKS_PORTED=v0.7.0 PARITY_HOOK_SCENARIOS="$HOOK_SCENARIOS_FILE" PARITY_HOOK_CASES="$NO_CASES" \
