@@ -50,3 +50,32 @@ The decision of which inputs count is the human's.
 
 with the human: it changes a required gate of `main`, and which inputs may skip it is the
 human's to decide.
+
+## Where it stands
+
+Measured on 2026-11-18. The first criterion is met; the change of the second waits for the
+human's choice.
+
+- **CI.** The `parity` job's last nine green runs on `main` took 18.7 to 27.8 minutes, with a
+  median of 23. In run 44309663012 the job spent its time like this:
+  - self-test: 27 s;
+  - toolchain install: 10 s;
+  - the build and 537 comparisons on the 14 trees of the corpus and their variants: 18.6 min, not
+    separable in the log, since the harness prints its findings at the end;
+  - the hook scenarios: 2.0 min;
+  - the latency benchmark's self-test: 2 s.
+- **Locally**, on 24 processors with a warm cache: the build takes 5 s. The comparisons without
+  the hooks take 595 s at `PARITY_JOBS=4`, the processors of an `ubuntu-latest` runner, and 265 s
+  at 24. So the comparisons are bound by the processor. The corpus fetch and the build are not
+  where the time goes.
+
+What follows for the options:
+
+- **Cache the corpus:** saves seconds at most, since the fetch does not show in the time.
+- **Split the comparisons over a matrix of jobs:** cuts the wall time about by the number of
+  jobs, and the gate stays whole. The harness reads its corpus from `--corpus <file>`. But the
+  release comparison across the template's trees and the hook scenarios need all of the
+  template's trees in one run. So a split needs a new option of the harness, one that runs a
+  slice of the comparisons and leaves those two parts to one job.
+- **Skip the corpus for a change that touches none of its inputs:** saves the whole 18 minutes
+  for a change to `docs/` alone. The human decides which paths count as inputs.
