@@ -3,7 +3,7 @@
 - **Status:** 🟡 proposed
 - **Date:** 2026-11-18
 - **Deciders:** Markus Brigl
-- **Applies to:** the version in `Cargo.toml` and `Cargo.lock` that a release of `nuc` moves, the release tag `vX.Y.Z` it names, the pull request that prepares a release, and the Cutting a release section of `CONTRIBUTING.md`
+- **Applies to:** the version in `Cargo.toml` and `Cargo.lock` that a release of `nuc` moves, the release tag `vX.Y.Z` it names, and the pull request that prepares a release
 
 ## Context
 
@@ -17,9 +17,9 @@ or prints takes.
 
 The gap cost a rework. The shims' keyed refusals were prepared as v0.3.0 (#102). After the merge
 the maintainer chose a patch: the binary decides and answers as before, and only the shims' own
-refusals gained a key. The release went out as v0.2.1 in a pull request of its own (#103) and took
-one more lock of the Feature (#104). v0.2.2 (#106), the key on each refusal of `nuc.toml`, was cut
-as a patch by the same reasoning, which nobody wrote down.
+refusals gained a key. The release went out as v0.2.1 in a pull request of its own (#103).
+v0.2.2 (#106), the key on each refusal of `nuc.toml`, was cut as a patch by the same reasoning,
+which nobody wrote down.
 
 What a project relies on is what decides the part. A project pins the Action and the Feature by the
 major tag `v0`, and its `nuc.toml` names a `minimum`
@@ -45,22 +45,22 @@ up.
 
 ## Decision
 
-We will take the part of the version of each release of `nuc` by what its changes since the last
-release do to a project that runs it.
+We will take the part of each release's version of `nuc` by what its changes do to a project
+that runs it.
 
 1. **Patch.** A release is a patch when none of its changes alters what a project relies on:
-   - a fix that makes a rule or a hook decide as the template's bash does, as the parity harness
-     or a fixture table compares;
+   - a fix that makes a rule or a hook decide as the template's bash does. The fix holds at a
+     template release `nuc` already ports, as the parity harness or a fixture table compares;
    - a change of a message's wording, `nuc explain`'s text included;
-   - a key, a citation, or a field added to a message or a refusal whose exit code and decision
-     stay the same;
+   - a key, a citation, or a field added to an existing message or refusal, its exit code and
+     decision the same;
    - a change to the shims that keeps each hook's answers and adds or rewords only their own
      refusals;
    - a change to the documentation, the build, the tests, or the release tooling that leaves the
      interface of [OPS-feature-in-hivevm-features](OPS-feature-in-hivevm-features.md) unchanged.
-2. **Minor.** A release is a minor when one of its changes adds what a project may come to rely
-   on, or alters what a rule or a hook decides, and keeps what a project already relies on:
-   - a rule, a command, an option, an output format, a key of a rule, or a hook port;
+2. **Minor.** A release is a minor when a change adds what a project may rely on, or alters what
+   a rule or a hook decides. What a project relies on already stays:
+   - a rule, a command, an option, an output format, a key of a new finding, or a hook port;
    - a template release whose checks `nuc` now ports;
    - a change to what a rule or a hook decides that is no fix of clause 1.
 3. **Major.** A release is a major when one of its changes breaks what a project relies on:
@@ -69,10 +69,12 @@ release do to a project that runs it.
      decides;
    - a rule ID, a key, an option, or an exit code removed or given another meaning.
 
-   Before `v1.0.0`, as SemVer item 4 allows, the second item is a minor.
+   Before `v1.0.0`, as SemVer item 4 allows, the second item is a minor. The first stays a major,
+   as OPS-feature-in-hivevm-features decides, and so makes its release `v1.0.0`.
 4. **The highest part wins.** A release that gathers changes of several parts takes the highest.
-5. **When.** The pull request that prepares a release names the part and the clause of this
-   decision that sets it, so that the reviewer checks it against the changes since the last tag.
+5. **When.** The author of the pull request that prepares a release must name in it the part
+   and the clause of this decision that sets it. The reviewer checks that against the changes
+   since the last tag.
 
 **Out of scope:**
 
@@ -107,15 +109,16 @@ None.
 - [Cargo's SemVer compatibility guide](https://doc.rust-lang.org/cargo/reference/semver.html),
   under which a change of `y` in `0.y.z` is incompatible.
 - NUC-releases-are-semver-tags §3, the template's own rule for its parts.
-- The releases v0.2.0 (`nuc measure`, a new command: a minor), v0.2.1, and v0.2.2 (keys added to
-  refusals: patches), and the rework of #102 to #104.
+- The releases v0.2.0, a minor by clause 4: the new command `nuc measure`, the ports of template
+  releases v0.9.0 to v0.11.0, and parity fixes; v0.2.1 and v0.2.2, keys added to refusals:
+  patches; and the rework of #102 and #103.
 
 ## Consequences
 
 - Positive: the pull request that prepares a release names its part by a clause, so the choice of
   #102 is made before the merge and checked in review.
-- Positive: v0.2.0 to v0.2.2 each fall under exactly one clause: v0.2.0 under clause 2, v0.2.1 and
-  v0.2.2 under clause 1.
+- Positive: v0.2.0 to v0.2.2 each take one part: v0.2.0 a minor by clauses 2 and 4, v0.2.1 and
+  v0.2.2 a patch by clause 1.
 - Positive: a break before `v1.0.0` takes a minor, so retiring a rule ID or a key while the port
   still grows costs no major and moves no pinned tag beyond `v0`.
 - Negative / trade-offs: before `v1.0.0` a minor may break, and the moved tag `v0` brings it to
@@ -124,12 +127,14 @@ None.
   "A derived project acts on", carry what a project does.
 - Negative / trade-offs: a parity fix released as a patch can turn a project's CI red where its tree
   was red under the bash.
+- Follow-ups: where the procedure of a release of `nuc` is written down, with the step that names
+  its part; the Cutting a release section of `CONTRIBUTING.md` describes the template's.
 - Follow-ups: the template's tags in a local clone that fetched the template as a remote, which
   share `v*` with the releases of `nuc`; how a clone fetches the template without its tags.
 
 ## Enforcement
 
-**Not mechanically decidable:** which part a change takes depends on what it does to a project,
-which no check reads from a diff. `release/version.sh` holds the tag to the version of
-`Cargo.toml`, not the part. The review of the pull request that prepares a release checks the part
-it names against clause 5 and the changes since the last tag.
+**Not mechanically decidable:** the part a change takes depends on what it does to a project. No
+check reads that from a diff. `release/version.sh` holds the tag to the version of
+`Cargo.toml`, not the part. The review of a release's pull request checks the part it names
+against clauses 1 to 4 and the changes since the last tag.
