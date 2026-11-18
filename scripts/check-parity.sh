@@ -17,8 +17,13 @@
 #
 # The comparisons run in parallel, one job per processor or PARITY_JOBS, and their outputs follow
 # in the order of the corpus and the variants, after what the preparation of the trees reports,
-# such as a refused tree. Every run computes every tree and variant anew. For each repository and
-# each variant:
+# such as a refused tree. Every run computes every tree and variant anew. With --shard <k>/<n>, a
+# run compares only the trees of the corpus whose place in it, counted from 1, is k, k + n,
+# k + 2n, and so on, each with its variants; the n runs from 1/n to n/n compare every tree once,
+# on as many machines. Every shard fills and checks the whole cache, so that a malformed corpus or
+# a tree it refuses fails each. The parts that read all the template's trees at once, the pins of
+# the copied fixture tables, the releases a rule's check changed at, and the hook scenarios, run
+# in the last shard alone, n/n. For each repository and each variant:
 #   1. The bash scripts with a ported rule run in the tree, one after the other, with the
 #      environment cleared to PATH, HOME, LC_ALL=C, and that of a pull request into main marked
 #      ready (CI_ENV): scripts/check-docs.sh and scripts/check-traceability.sh (BASH_CHECKS),
@@ -62,22 +67,23 @@
 #
 # Pure bash + coreutils/git/awk, and cargo for the build. Usage:
 #     scripts/check-parity.sh [--root <dir>] [--corpus <file>] [--cache <dir>] [--nuc <binary>]
-#                             [--variants <file>] [--no-hooks]
+#                             [--variants <file>] [--no-hooks] [--shard <k>/<n>]
 #     scripts/check-parity.sh [--root <dir>] [--nuc <binary>] --hooks <template tree>...
 #     scripts/check-parity.sh --compare <bash output> <bash exit> <nuc output> <nuc exit>
 # --root names the repository whose corpus, tables, and build it reads, this one by default; the
 # harness changes into it, so a relative path given to an option or in PARITY_TABLE or
 # PARITY_RELEASES is read from that root, not from the directory it was called in.
 # --nuc runs the given binary instead of building one; --no-hooks leaves the hook scenarios out;
-# --hooks runs them alone, on the trees given; --compare compares one pair of outputs, for
-# scripts/test-check-parity.sh. PARITY_TABLE names another normalization table,
-# PARITY_RELEASES another table of releases, PARITY_TABLE_BLOBS another list of the blobs of the
-# copied fixture tables, and PARITY_JOBS the number of comparisons that run at once.
+# --hooks runs them alone, on the trees given; --shard runs one of n slices of the comparisons;
+# --compare compares one pair of outputs, for scripts/test-check-parity.sh. PARITY_TABLE names
+# another normalization table, PARITY_RELEASES another table of releases, PARITY_TABLE_BLOBS
+# another list of the blobs of the copied fixture tables, and PARITY_JOBS the number of
+# comparisons that run at once.
 # Exit code 0 when every repository and variant agrees, 1 on a difference, a refused tree, a
 # variant that fits no tree or does not fire, a cache that cannot be filled, or a pin of a copied
 # table the template's tag does not bear out, 2 on a missing or malformed list of pins, a malformed
-# corpus, table, or variants file, a PARITY_JOBS that is no number of jobs, a root that does not
-# exist, or an argument it does not read.
+# corpus, table, or variants file, a PARITY_JOBS that is no number of jobs, a shard that is not
+# <k>/<n> with 1 <= k <= n, a root that does not exist, or an argument it does not read.
 
 set -uo pipefail
 
@@ -93,7 +99,7 @@ LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")/lib" && pwd)"
 # shellcheck source-path=SCRIPTDIR source=lib/root.sh
 source "$LIB/root.sh"
 # The usage is one line, as enter_root reads which options take a value from it.
-usage="scripts/check-parity.sh [--root <dir>] [--corpus <file>] [--cache <dir>] [--nuc <binary>] [--variants <file>] [--no-hooks] [--hooks <template tree>...] | --compare <bash output> <bash exit> <nuc output> <nuc exit>"
+usage="scripts/check-parity.sh [--root <dir>] [--corpus <file>] [--cache <dir>] [--nuc <binary>] [--variants <file>] [--no-hooks] [--shard <k>/<n>] [--hooks <template tree>...] | --compare <bash output> <bash exit> <nuc output> <nuc exit>"
 enter_root "${BASH_SOURCE[0]}" "$usage" "$@"
 set -- "${ARGS[@]}"
 TABLE="${PARITY_TABLE:-$ROOT/tests/parity/normalize.tsv}"
@@ -301,6 +307,8 @@ variants="$ROOT/tests/parity/variants.tsv"
 # Whether the hook scenarios run, and the trees they run on alone under --hooks.
 hooks=1 hooks_only=0
 hook_trees=()
+# The slice of the comparisons this run makes, k of n; 1/1 is all of them.
+shard=1/1
 # The earliest template release a tree of the corpus may carry.
 FLOOR=v0.5.0
 while (($#)); do
@@ -310,10 +318,17 @@ while (($#)); do
     --nuc) nuc="${2:-}"; shift 2 || die "--nuc takes a binary" ;;
     --variants) [[ -n "${2:-}" ]] || die "--variants takes a file"; variants="$2"; shift 2 ;;
     --no-hooks) hooks=0; shift ;;
+    --shard) shard="${2:-}"; shift 2 || die "--shard takes <k>/<n>" ;;
     --hooks) hooks_only=1; shift; while (($#)) && [[ "$1" != --* ]]; do hook_trees+=("$1"); shift; done ;;
     *) rest_args "${BASH_SOURCE[0]}" "$usage" 0 "$@" ;;
   esac
 done
+if ! [[ "$shard" =~ ^([1-9][0-9]*)/([1-9][0-9]*)$ ]] || ((BASH_REMATCH[1] > BASH_REMATCH[2])); then
+  die "the shard is '$shard', not <k>/<n> with 1 <= k <= n"
+fi
+shard_k="${BASH_REMATCH[1]}" shard_n="${BASH_REMATCH[2]}"
+# Whether this run makes the parts that read all the template's trees at once: the last shard.
+whole=$((shard_k == shard_n))
 load_table
 
 # The corpus, one 'name url commit' line per repository.
@@ -594,10 +609,11 @@ for i in "${!variant_names[@]}"; do
     fi
   done
 done
-template_trees=() trees=() template_url=""
+template_trees=() trees=() template_url="" place=0
 for entry in "${repositories[@]}"; do
   read -r name url commit <<< "$entry"
   dir="$cache/$name"
+  place=$((place + 1))
   if [[ "$(cgit "$dir" rev-parse -q --verify HEAD 2>/dev/null)" != "$commit" ]]; then
     if ! { rm -rf "$dir" && mkdir -p "$dir" && cgit "$dir" init -q \
       && cgit "$dir" fetch -q --depth 1 "$url" "$commit" \
@@ -622,7 +638,8 @@ for entry in "${repositories[@]}"; do
   printf '%s\n' "$config" > "$dir/nuc.toml"
   grep -qx '/nuc.toml' "$dir/.git/info/exclude" 2>/dev/null || echo '/nuc.toml' >> "$dir/.git/info/exclude"
 
-  trees+=("$name $commit $dir")
+  # This shard compares the tree at its place k, k + n, and so on.
+  (((place - shard_k) % shard_n == 0)) && trees+=("$name $commit $dir")
 done
 
 # check_table_blobs — the pins of the copies of the template's fixture tables
@@ -660,7 +677,7 @@ check_table_blobs() {
     fi
   done < "$TABLE_BLOBS"
 }
-check_table_blobs
+((whole)) && check_table_blobs
 
 # run_variant <name> <commit> <dir> <index> — bash and nuc on a copy of the tree with the variant
 # applied, in a directory of its own, never on the cache; fails on a difference, on an edit that
@@ -723,7 +740,7 @@ wait
 for unit in "${units[@]}"; do report "$unit"; done
 
 # The releases at which each rule's bash check changed, across the template's trees in order.
-if ((${#template_trees[@]} >= 2)); then
+if ((whole && ${#template_trees[@]} >= 2)); then
   mapfile -t template_trees < <(printf '%s\n' "${template_trees[@]}" | sort -V -k1,1)
   for row in "${release_rows[@]}"; do
     read -r r_rule r_script r_function r_changed <<< "$row"
@@ -765,7 +782,7 @@ if ((${#template_trees[@]} >= 2)); then
 fi
 
 # The hook scenarios, on the template's trees of the corpus (TEST-hook-scenario-parity).
-if ((hooks)); then
+if ((hooks && whole)); then
   tree_dirs=()
   for tree in "${template_trees[@]}"; do tree_dirs+=("${tree#* }"); done
   hook_parity "$nuc" "$work" "${tree_dirs[@]}"
@@ -776,4 +793,6 @@ if ((failed)); then
   echo "Parity check FAILED." >&2
   exit 1
 fi
-echo "Parity check passed (${#repositories[@]} repositories, ${#variant_names[@]} variants, rules: ${ported:-none})."
+slice=""
+((shard_n > 1)) && slice=", shard $shard: ${#trees[@]} of them compared"
+echo "Parity check passed (${#repositories[@]} repositories$slice, ${#variant_names[@]} variants, rules: ${ported:-none})."

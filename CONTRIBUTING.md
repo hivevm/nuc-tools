@@ -223,9 +223,16 @@ unless told otherwise, so start it there with
 names the host `host.docker.internal` and reaches the loopback, where the stack starts without the
 variable; Podman and the host itself are in the stack's table of endpoints, with the rest of the
 settings ([Pointing Claude Code at it](.devcontainer/README.md#pointing-claude-code-at-it)).
-The event `claude_code.api_request` carries the tokens of each call. The tokens of a hand-off's
-`Measures:` line come from there, or, once it lands, from `nuc measure` of
-[hivevm/nuc-tools#81](https://github.com/hivevm/nuc-tools/issues/81).
+The event `claude_code.api_request` carries the tokens of each call.
+
+The tokens of a hand-off's `Measures:` line come from `nuc measure`, which reads the harness's
+transcripts of the working tree; its options are in the README's
+[command reference](README.md#commands). On the branch the hand-off is for, `nuc measure` prints
+the line's `tokens <n>`. A ticket worked in a worktree of its own is measured there, at its own
+hand-off, since each worktree's sessions have a directory of their own. A `feat/` branch's line
+adds up the lines of the tickets it gathered, as
+[API-measure-reads-harness-transcripts](docs/adr/API-measure-reads-harness-transcripts.md)
+says.
 
 ## Git hooks
 
@@ -382,7 +389,7 @@ or transfer:
   <!-- required-checks begin — compared with the workflow's jobs by scripts/check-docs.sh -->
   `docs`, `traceability`, `devcontainer`, `sensors`, `shell`, `gates`, `build`,
   `portability (ubuntu-24.04-arm)`, `portability (macos-latest)`, `portability (windows-latest)`,
-  `deps`, and `parity`
+  `deps`, `parity (1/4)`, `parity (2/4)`, `parity (3/4)`, and `parity (4/4)`
   <!-- required-checks end -->
   jobs of the **Checks** workflow as required status checks (rulesets list checks as they report:
   a job by its name, a job with a matrix by one check run per entry, such as

@@ -26,8 +26,10 @@
 # shell/mode. The pin
 # cases pass a pin of a copied fixture table that the tag of a template tree bears out, and fail
 # one the tag does not, one whose tag cannot be read, and one without a template tree, and exit 2
-# on a malformed or missing list of pins. No network
-# and no build.
+# on a malformed or missing list of pins. The shard cases compare in each shard the trees at its
+# places, the shards together each tree and variant once, as one run does, and the pins, the
+# releases, and the hook scenarios in the last shard alone, and exit 2 on a shard that is not
+# <k>/<n> with 1 <= k <= n. No network and no build.
 #
 # The hook cases run the scenarios alone, through '--hooks', on a tree of the template whose bash
 # pre-commit refuses a commit on main, with the reference shim and a stand-in nuc: an agreeing nuc
@@ -485,6 +487,49 @@ expect fail "a number of jobs that is none is refused" "PARITY_JOBS is 'many'" \
 # exits_two <command...> — whether the command exits 2, as a malformed input does.
 # shellcheck disable=SC2317,SC2329 # run through check
 exits_two() { "$@" > /dev/null 2>&1; (($? == 2)); }
+
+# A shard compares the trees at its places of the corpus, k, k + n, and so on, and the shards
+# together compare each tree once: on the corpus agree, trace-fails, agree-too, the shard 1/2 has
+# the two that agree, and 2/2 the one that fails.
+# run_shard <shard> <corpus> <nuc> — the harness as run does it, on one shard.
+# shellcheck disable=SC2317,SC2329 # run through expect
+run_shard() {
+  env PARITY_TABLE="$work/one-rule.tsv" bash "$HARNESS" --no-hooks --shard "$1" --corpus "$2" \
+    --cache "$work/cache" --nuc "$3" --variants "$DEFAULT"
+}
+expect pass "the shard 1/2 compares the first and the third tree" "" run_shard 1/2 "$many" "$(reactive_nuc)"
+expect fail "the shard 2/2 compares the second tree" "trace-fails at" \
+  run_shard 2/2 "$many" "$(reactive_nuc)"
+# names <file> — the trees and variants a run's output compared, sorted.
+names() { sed -nE 's/^Parity check: ([a-z-]+) at [0-9a-f]+(, variant [a-z]+)? — .*/\1\2/p' "$1" | sort; }
+for sh in 1/1 1/3 2/3 3/3; do
+  run_shard "$sh" "$many" "$(stand_in silent)" > "$work/shard-${sh/\//-}.out" 2>&1
+done
+names "$work/shard-1-1.out" > "$work/shard-all.names"
+cat "$work/shard-1-3.out" "$work/shard-2-3.out" "$work/shard-3-3.out" > "$work/shard-thirds.out"
+names "$work/shard-thirds.out" > "$work/shard-thirds.names"
+check "three shards together compare each tree and variant once, as one run does" \
+  cmp -s "$work/shard-all.names" "$work/shard-thirds.names"
+check "a run without --shard compares every tree" test -s "$work/shard-all.names"
+# The pins of the copied tables and the hook scenarios read all the template's trees, so they run
+# in the last shard alone: a pin the tag does not bear out, and a corpus with no tree of the
+# template for the hooks, fail 2/2 and pass 1/2, which compares the one tree.
+# sharded <shard> <blobs> <corpus> [--no-hooks] — the harness on one shard with the pins given.
+# shellcheck disable=SC2317,SC2329 # run through expect
+sharded() {
+  env PARITY_TABLE="$work/one-rule.tsv" PARITY_TABLE_BLOBS="$2" bash "$HARNESS" "${@:4}" \
+    --shard "$1" --corpus "$3" --cache "$work/cache" --nuc "$(reactive_nuc)" --variants "$DEFAULT"
+}
+expect pass "a shard but the last holds no pin" "" sharded 1/2 "$work/blobs-other" "$tables" --no-hooks
+expect fail "the last shard holds the pins" "is not the blob" \
+  sharded 2/2 "$work/blobs-other" "$tables" --no-hooks
+expect pass "a shard but the last runs no hook scenario" "" sharded 1/2 "$work/no-blobs" "$c"
+expect fail "the last shard runs the hook scenarios" "the corpus pins no tree of the template" \
+  sharded 2/2 "$work/no-blobs" "$c"
+for bad in 0/2 3/2 2 x/y 1/0; do
+  check "a shard '$bad' exits 2, as a malformed input does" \
+    exits_two run_shard "$bad" "$many" "$(reactive_nuc)"
+done
 check "a number of jobs that is none exits 2, as a malformed input does" \
   exits_two env PARITY_JOBS=many PARITY_TABLE="$work/one-rule.tsv" bash "$HARNESS" --no-hooks \
     --corpus "$many" --cache "$work/cache" --nuc "$(reactive_nuc)" --variants "$DEFAULT"
@@ -676,6 +721,18 @@ expect pass "a row with the releases its reason covers and the reason is read fo
 expect fail "a change the table does not list fails and names the rule" \
   "docs/template-release — its bash check changed at v0.6.0 across the template's trees of the corpus" \
   run_releases "$changed" "$(releases "$work/r-unlisted.tsv" -)"
+# The releases are compared in the last shard alone, which has every tree of the template.
+# run_releases_shard <shard> <corpus> <table> — run_releases on one shard.
+# shellcheck disable=SC2317,SC2329 # run through expect
+run_releases_shard() {
+  env PARITY_TABLE="$work/one-rule.tsv" PARITY_RELEASES="$3" bash "$HARNESS" --no-hooks \
+    --shard "$1" --corpus "$2" --cache "$work/cache" --nuc "$(reactive_nuc)" --variants "$DEFAULT"
+}
+expect pass "a shard but the last compares no releases" "" \
+  run_releases_shard 1/2 "$changed" "$(releases "$work/r-unlisted-1.tsv" -)"
+expect fail "the last shard compares the releases of every tree of the template" \
+  "docs/template-release — its bash check changed at v0.6.0" \
+  run_releases_shard 2/2 "$changed" "$(releases "$work/r-unlisted-2.tsv" -)"
 expect fail "a change the table lists that the trees do not show fails" "changed at - across" \
   run_releases "$(corpus "$work/tpl-same.toml" tpl-old tpl-same)" "$(releases "$work/r-phantom.tsv" v0.6.0)"
 stub="$work/src-tpl-same/scripts/check-docs.sh"
