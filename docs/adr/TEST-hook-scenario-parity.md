@@ -35,7 +35,7 @@ such as that a refused fast-forward leaves `main` where it was. A hook's standar
 own lines with git's and with the output of the check it ran, which the self-test asserts as well.
 
 How a hook through `nuc` behaves is decided in
-[API-hook-contract-names-check](API-hook-contract-names-check.md): the shim, the exit codes, and
+[API-hook-contract-keyed-shims](API-hook-contract-keyed-shims.md): the shim, the exit codes, and
 the green tree; the defaults without `nuc.toml` are decided in
 [API-version-coupling-hook-defaults](API-version-coupling-hook-defaults.md).
 
@@ -79,8 +79,8 @@ any difference and on any case of a pinned release's hook self-test that no scen
 - **Run:**
   - from `scripts/check-parity.sh`, after the tree comparison, on Linux, in its job and from
     `scripts/check-all.sh`;
-  - with the built `nuc`, which [SEC-gates-never-run-build](SEC-gates-never-run-build.md) allows
-    the parity harness;
+  - with the built `nuc`, which [SEC-gates-run-released-nuc](SEC-gates-run-released-nuc.md)
+    leaves to the tests of the build, the parity harness among them, under its clause 5;
   - its fixtures live under a temporary directory of its own and never touch the cache.
 
 **Out of scope:**

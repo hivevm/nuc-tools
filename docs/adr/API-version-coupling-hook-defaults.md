@@ -30,7 +30,7 @@ v0.7.0, and v0.8.1, three derived projects on v0.6.1, and this repository on v0.
 findings on the trees of another, or passes what that release fails. A rule ID stays stable (G-6).
 The bash hooks read neither `nuc.toml` nor the release line, and the fixtures of the template's hook
 self-test carry neither. The maintainer decided that a hook works without `nuc.toml`, on defaults
-([API-hook-contract-names-check](API-hook-contract-names-check.md)).
+([API-hook-contract-keyed-shims](API-hook-contract-keyed-shims.md)).
 
 ## Decision
 
@@ -78,11 +78,11 @@ runs without `nuc.toml` on defaults and takes the newest release it knows where 
     v0.5.0 is decided as v0.5.0, the earliest the hooks port. A hook refuses nothing for the
     release; the rule `docs/template-release` gates the line.
   - The missing binary is reported by the reference shims of
-    [API-hook-contract-names-check](API-hook-contract-names-check.md).
+    [API-hook-contract-keyed-shims](API-hook-contract-keyed-shims.md).
 
 **Out of scope:** the field names and the rest of the format of `nuc.toml`, which
 API-command-line-with-measure decides; options a rule may take; the shims themselves, which
-API-hook-contract-names-check decides; template releases before v0.5.0, beyond the hooks' clause;
+API-hook-contract-keyed-shims decides; template releases before v0.5.0, beyond the hooks' clause;
 how `nuc upgrade` moves a project between releases (G-4).
 
 ## Alternatives considered

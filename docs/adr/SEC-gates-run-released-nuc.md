@@ -4,22 +4,21 @@
 - **Date:** 2026-11-18
 - **Deciders:** Markus Brigl
 - **Applies to:** `scripts/check-all.sh`, the hooks under `.githooks/`, the jobs of `.github/workflows/checks.yml`, the checksums and the version under `release/gate/`, `release/install-nuc.sh` as a gate runs it, the `minimum` of `nuc.toml`, and every place they name the tool that runs a check
-- **Supersedes:** [SEC-gates-never-run-build](SEC-gates-never-run-build.md)
 
 ## Context
 
 This repository builds the tool that derived projects run as their gates, and it has gates of its
-own. [SEC-gates-never-run-build](SEC-gates-never-run-build.md) keeps them off the `nuc` built from
-the change under review: a broken or tampered build would pass itself, the silent pass Q-1
-forbids, and a compromised change would reach `main` through a gate it wrote (*Threats*). It let a
-released `nuc` replace the bash scripts only later, through an ADR that narrows
+own. They stay off the `nuc` built from the change under review, as this repository decided from
+its start: a broken or tampered build would pass itself, the silent pass Q-1 forbids, and a
+compromised change would reach `main` through a gate it wrote (*Threats*). The decision before
+this one let a released `nuc` replace the bash scripts only later, through an ADR that narrows
 NUC-checks-are-bash §1 once `nuc` reaches parity for every check.
 
 Template release v0.12.0 moves part of that later forward, for the hooks only.
 [NUC-hooks-run-nuc](NUC-hooks-run-nuc.md) makes the five git hooks the shims of a `nuc-tools`
 release, pinned by their blobs. Each hands its decision to `nuc hook`, and a hook without `nuc`
 refuses. The checks the hooks run stay bash scripts under NUC-checks-are-bash §1. A take-up of
-v0.12.0 here therefore has hooks that run `nuc`. The check of SEC-gates-never-run-build fails on
+v0.12.0 here therefore has hooks that run `nuc`. The check of that earlier decision fails on
 each of them, and on the self-test of the hooks, which asks `nuc` for its version.
 
 A rehearsed take-up showed the second force. NUC-hooks-run-nuc §4 asks each job of CI that runs a
@@ -31,6 +30,12 @@ the source commit of a release. That commit carries no checksums and installs no
 NUC-hooks-run-nuc names the installer of a release, with its checksums committed, for a project
 that pins by SHA. This repository keeps that installer in its tree, `release/install-nuc.sh`, the
 script every release commit carries; it takes the tree's copy as the installer the latitude means.
+
+A released `nuc` reaches a machine in three ways
+([OPS-feature-in-hivevm-features](OPS-feature-in-hivevm-features.md)). The release commit carries
+`SHA256SUMS` and `VERSION`, and `release/install-nuc.sh` installs the binary they name after
+verifying its checksum. The Action `hivevm/nuc-tools@vN` runs that installer. The Feature
+`ghcr.io/hivevm/features/nuc` comes from `hivevm/features`.
 
 A hook resolves `nuc` through the `PATH`. In the Dev Container that is the Feature's release,
 pinned by the lock. A contributor who ran `cargo install --path .` may have a build first on the
@@ -70,9 +75,20 @@ under `release/gate/`, and never run a gate on the `nuc` being built.
 
 ## Alternatives considered
 
-- **Keep SEC-gates-never-run-build and stay on template v0.11.1.** The gates stay bash, and this
-  repository never takes up the hooks it ships to every project. Its own gate would no longer be
-  the one derived projects run.
+- **No `nuc` in any gate until it reaches parity for every check, and stay on template v0.11.1**
+  — what this repository decided first, accepted on 2026-10-31, with clauses 1, 3, 4, and 5 of
+  this one for a later switch of the checks. The gates stay bash, and this repository never takes
+  up the hooks it ships to every project. Its own gate would no longer be the one derived projects
+  run.
+- **The gates run the binary being built** — the change judges itself. A broken build passes, and
+  a malicious one waves itself through.
+- **The switch of the checks fixed at v0.1 now** — simpler, but it narrows NUC-checks-are-bash §1
+  before a released `nuc` can stand in for every check. A v0.1 that does not cover every check
+  would leave part of the gates unchecked.
+- **The switch as a supersession of NUC-checks-are-bash §1** — the record's first wording of the
+  later switch. No project ADR supersedes a `NUC-` clause; it narrows one
+  ([NUC-base-is-fixed §1](NUC-base-is-fixed.md), NUC-checks-are-bash §8). The decision stayed; the
+  form of the switch follows the fixed base.
 - **Install `nuc` in CI by the Action, pinned by the SHA of its release commit and exempted from
   Dependabot.** One step and no committed files, but an exception to SEC-actions-pinned-by-sha
   that moves only by hand, and a pin a reviewer cannot tell from a moved one.
@@ -92,8 +108,10 @@ under `release/gate/`, and never run a gate on the `nuc` being built.
 
 ## Sources / Prior art
 
-- [SEC-gates-never-run-build](SEC-gates-never-run-build.md): the decision this one restates for the
-  hooks.
+- [NUC-checks-are-bash](NUC-checks-are-bash.md): the checks, the hooks, the local gate, and the
+  binary in place of the scripts.
+- The decision before this one, accepted on 2026-10-31, which kept every gate off `nuc` until it
+  reached parity and which this one restates for the hooks.
 - [NUC-hooks-run-nuc](NUC-hooks-run-nuc.md): the hooks as pinned shims, clause 4, and its latitude
   for a project that pins actions by SHA.
 - A rehearsed take-up of template v0.12.0: `scripts/check-gates.sh` failed on each hook and on the
@@ -114,6 +132,9 @@ under `release/gate/`, and never run a gate on the `nuc` being built.
   installs a build of the working tree has hooks that judge with it until CI runs.
 - Negative: the change under review carries the installer and the checksums CI installs from; a
   reviewer reads a change to `release/install-nuc.sh` or to `release/gate/` as a change to a gate.
+- Negative: the bash scripts and their dependency on bash 4.4 stay here until the checks switch.
+  The bash checks read every text file, the tests included, so a test assembles the references it
+  writes, as `src/testing.rs` and `tests/support/` do.
 - Follow-ups: the release flow moving `release/gate/` in the pull request that bumps the lock; the
   switch of the checks once a released `nuc` reaches parity.
 

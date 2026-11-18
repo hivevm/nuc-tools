@@ -22,7 +22,7 @@ without one. A newer template release may add a key that an older
 G-7 stand beside the text ([API-output-formats-carry-reason](API-output-formats-carry-reason.md)). A
 hook whose bash runs the project's checks tells its shim that they run now. The standard output is
 taken by findings, and a hook's refusal guards a ref, not a file
-([API-hook-contract-names-check](API-hook-contract-names-check.md)).
+([API-hook-contract-keyed-shims](API-hook-contract-keyed-shims.md)).
 
 From template release v0.9.1 on, every finding of the bash checks ends in a key,
 `[<rule>:<reason>]`: the rule and one word for the cause, such as `[docs/adr-index:unlisted]`. The
@@ -69,7 +69,7 @@ also exit 3 or 4 where the hook passes so far and its shim runs a check.
 - **Exit codes:** 0, 1, and 2 as above, for every command; every cause that keeps `nuc` from
   deciding exits 2, one code for all of them. A panic exits 101, non-zero as well. `nuc hook`
   exits 3 and 4 where
-  [API-hook-contract-names-check](API-hook-contract-names-check.md) says, and no other command
+  [API-hook-contract-keyed-shims](API-hook-contract-keyed-shims.md) says, and no other command
   does; its `--record` exits 0 or 2. `nuc measure` exits 0 where it printed its measures and 2
   where it cannot, never 1, since it reports no finding.
 
