@@ -23,7 +23,9 @@
 # applies and is compared, does not apply to a mode left as it was or to a file git does not track,
 # and takes +x or -x alone. The shell cases compare the lines of check-shell.sh keyed shell/ alone,
 # map a rule nuc leaves to the bash to none, and run no check-shell.sh without the key of
-# shell/mode. The pin
+# shell/mode. The hooks cases read the '  - ' lines of check-hooks.sh as findings, fail one that
+# fails without a finding, and hand it the harness's nuc.toml with the tree's minimum and hook/
+# rules. The pin
 # cases pass a pin of a copied fixture table that the tag of a template tree bears out, and fail
 # one the tag does not, one whose tag cannot be read, and one without a template tree, and exit 2
 # on a malformed or missing list of pins. The shard cases compare in each shard the trees at its
@@ -400,6 +402,35 @@ expect pass "a finding of shell/mode maps to the rule by its row" "" \
   compare "$(bash_out shell-mode "$MODE_FINDING")" 1 "$(raw_nuc_out shell-mode "scripts/x.sh: shell/mode: $MODE_TEXT")" 1
 expect fail "a finding of shell/mode nuc does not report is a difference" "only bash reports: shell/mode scripts/x.sh" \
   compare "$(bash_out shell-mode-only "$MODE_FINDING")" 1 "$(nuc_out shell-mode-only)" 0
+
+# check-hooks.sh of a tree that has it: its '  - ' lines are findings, and it fails only with one.
+# The harness's nuc.toml keeps the tree's minimum and its hook/ rules, read as check-hooks.sh reads
+# them, a rule in a comment left out, and adds no other rule of the tree's.
+# hooked <name> <script body> — a source repository whose check-hooks.sh runs the body, and whose
+# nuc.toml names the minimum 0.2.2, a hook/ rule, one in a comment, and a rule of docs/.
+TOML_FINDING="nuc.toml: its rules do not name 'hook/x' — with a nuc.toml its list governs which rules run, and no project removes a hook/ rule (NUC-hooks-run-nuc §3) [hooks/toml:rule]"
+hooked() {
+  local src name="$1"
+  src="$(source_repo "$name")"
+  printf '%s\n' '#!/usr/bin/env bash' "$2" > "$src/scripts/check-hooks.sh"
+  printf '%s\n' '# The nuc of the hooks.' 'minimum = "0.2.2"' 'rules = [' '  "hook/push-checks", # "hook/x",' \
+    '  "docs/x",' ']' > "$src/nuc.toml"
+  git -C "$src" add -A
+  git -C "$src" -c user.name=F -c user.email=f@example.invalid -c core.hooksPath=/dev/null commit -q -m hooked
+  git -C "$src" rev-parse HEAD > "$work/src-$name.commit"
+  corpus "$work/$name.toml" "$name"
+}
+# The harness's nuc.toml as the tree's check-hooks.sh sees it: a finding unless it is the one the
+# tree's own minimum and hook/ rules make.
+# shellcheck disable=SC2016 # the body is the stub's
+KEPT='grep -qx "minimum = \"0.2.2\"" nuc.toml && grep -q ",\"hook/push-checks\"\]$" nuc.toml && ! grep -q "docs/x\|hook/x" nuc.toml && exit 0
+printf "Hooks pin check FAILED:\n  - %s\n" "$(cat nuc.toml)"; exit 1'
+expect pass "the harness's nuc.toml keeps the tree's minimum and hook/ rules, and nothing in a comment" "" \
+  run "$(hooked hooks-kept "$KEPT")" "$(reactive_nuc)"
+expect fail "a line of check-hooks.sh is read as a finding" "bash message the table does not know" \
+  run "$(hooked hooks-finding "printf '  - %s\n' $(printf %q "$TOML_FINDING"); exit 1")" "$(reactive_nuc)"
+expect fail "a check-hooks.sh that fails without a finding fails the harness" "check-hooks.sh exited 1 without a finding" \
+  run "$(hooked hooks-silent 'exit 1')" "$(reactive_nuc)"
 
 # The pins of the copied fixture tables (TEST-template-table-cases): a tree of the template,
 # TEMPLATE-SETUP.md in it, whose tag v9.9.9 the harness fetches from its source through file://.

@@ -139,8 +139,8 @@ fn check(repo: Option<&Path>, format: Format) -> Result<u8, String> {
         .ok_or_else(|| config::Refusal::Missing.to_string())?;
     // A hook rule decides in `nuc hook` alone: its ID is known, and it is in no `rules::ALL`, so
     // it runs never here.
-    let selected =
-        config::turned_on(&text, running(), rules::ALL).map_err(|refusal| refusal.to_string())?;
+    let config = config::read(&text, running()).map_err(|refusal| refusal.to_string())?;
+    let selected = config::select(&config, rules::ALL);
     // Only what a rule turned on reads: an input no rule needs can neither refuse nor cost.
     let needs = |input: Input| selected.iter().any(|rule| rule.reads.contains(&input));
     let mut inputs = Inputs::default();
@@ -156,6 +156,9 @@ fn check(repo: Option<&Path>, format: Format) -> Result<u8, String> {
     let carried = rules::docs_template_release::carried(&readme);
     if needs(Input::Readme) {
         inputs.readme = Some(readme);
+    }
+    if needs(Input::Toml) {
+        inputs.toml = Some(config);
     }
     if needs(Input::Release) {
         let reported = selected
@@ -437,7 +440,7 @@ fn read_text(
     links: bool,
     carried: Option<&rules::Carried>,
 ) -> Result<std::collections::BTreeSet<String>, String> {
-    let pinned = if pins_left_out(carried) {
+    let pinned = if hooks_pinned(carried) {
         tree.read_pinned()?
     } else {
         std::collections::BTreeSet::new()
@@ -537,7 +540,8 @@ fn rule_keys(text: &[u8]) -> std::collections::BTreeSet<String> {
 
 /// What the rules read through git, and the header of `scripts/check-docs.sh`, each where a rule
 /// turned on needs it: the blobs of the base, the history of the deleted ADRs, `README.md` at the
-/// merge base with `main`, and the rule keys the header lists, none without the script.
+/// merge base with `main`, the modes of the scripts in the index, the blob list of the hooks and
+/// their blobs, and the rule keys the header lists, none without the script.
 fn read_by_git(
     tree: &Tree,
     inputs: &mut Inputs,
@@ -555,6 +559,12 @@ fn read_by_git(
     }
     if needs(Input::IndexModes) {
         inputs.index_modes = read_index_modes(&tree.root)?;
+    }
+    if needs(Input::HookList) && hooks_pinned(carried) {
+        inputs.hooks.list = tree.read_hook_list()?;
+    }
+    if needs(Input::HookBlobs) && hooks_pinned(carried) {
+        inputs.hooks.blobs = tree.read_hook_blobs()?;
     }
     if needs(Input::RuleKeys) {
         let script = tree.root.join("scripts/check-docs.sh");
@@ -598,10 +608,11 @@ fn named_record(carried: Option<&rules::Carried>) -> bool {
     }
 }
 
-/// Whether the files the blob list of the hooks pins are left out of the text files: from
-/// template release v0.12.0 on, and for `unreleased` or a README that names none, as the newest
-/// release (NUC-hooks-run-nuc §2).
-fn pins_left_out(carried: Option<&rules::Carried>) -> bool {
+/// Whether the blob list pins the hooks, from template release v0.12.0 on, and for `unreleased` or
+/// a README that names none, as the newest release (NUC-hooks-run-nuc §2): the files it pins are
+/// left out of the text files, and the list and the hooks' blobs are read for the rules of
+/// `scripts/check-hooks.sh`.
+fn hooks_pinned(carried: Option<&rules::Carried>) -> bool {
     match carried {
         Some(rules::Carried::Release(release)) => *release >= rules::HOOK_PINS,
         _ => true,

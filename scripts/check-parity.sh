@@ -27,13 +27,17 @@
 #   1. The bash scripts with a ported rule run in the tree, one after the other, with the
 #      environment cleared to PATH, HOME, LC_ALL=C, and that of a pull request into main marked
 #      ready (CI_ENV): scripts/check-docs.sh and scripts/check-traceability.sh (BASH_CHECKS),
-#      whose findings are their '  - ' lines; and scripts/check-shell.sh where it has the rule
-#      shell/mode, from v0.10.0 on, whose findings are its lines that end in a key of shell/.
+#      whose findings are their '  - ' lines; scripts/check-hooks.sh where the tree has it, from
+#      v0.12.0 on, whose findings are its '  - ' lines too; and scripts/check-shell.sh where it has
+#      the rule shell/mode, from v0.10.0 on, whose findings are its lines that end in a key of
+#      shell/.
 #      Their outputs are read as one, and bash fails when
 #      either fails; a tree that lacks one of them, or a script that fails without a finding,
 #      fails the harness.
 #   2. nuc runs 'check' on the tree, with a nuc.toml the harness writes beside it, ignored through
-#      the cache's .git/info/exclude, that turns on every rule the table maps to.
+#      the cache's .git/info/exclude, that turns on every rule the table maps to. Where the tree
+#      has a nuc.toml of its own, the harness's keeps its minimum and its hook/ rules, which
+#      check-hooks.sh holds; the bash checks run after it is written, and read the same file.
 #   3. The findings are normalized to (rule ID, file, line) by tests/parity/normalize.tsv and
 #      compared as sets. A bash message no row matches is a difference; one a row maps to '-' is
 #      a check not ported yet, left out. The exit status is compared for the ported rules: nuc
@@ -381,8 +385,33 @@ fi
 
 # The nuc.toml of the harness: every rule the table maps to, at the lowest minimum.
 ported="$(printf '%s\n' "${rules[@]}" | grep -vx -- '-' | sort -u | sed 's/.*/"&"/' | paste -sd, -)"
-config="minimum = \"0.0.0\"
-rules = [$ported]"
+
+# tree_config <dir> — the nuc.toml of the harness for the tree: every rule the table maps to; and
+# where the tree has a nuc.toml of its own, its minimum in place of the lowest and its hook/ rules
+# after them, read as scripts/check-hooks.sh reads them, so that the check of the file's clause 3
+# (NUC-hooks-run-nuc §3) decides the tree's own minimum and hook/ rules on both sides.
+tree_config() {
+  local minimum="0.0.0" hooks=""
+  if [[ -f "$1/nuc.toml" ]]; then
+    local own
+    own="$(sed -nE 's/^[[:space:]]*minimum[[:space:]]*=[[:space:]]*"([0-9]+\.[0-9]+\.[0-9]+)".*/\1/p' "$1/nuc.toml" | head -n 1)"
+    [[ -n "$own" ]] && minimum="$own"
+    hooks="$(awk '
+      {
+        line = ""; quoted = 0
+        for (i = 1; i <= length($0); i++) {
+          c = substr($0, i, 1)
+          if (c == "\"") quoted = !quoted
+          else if (c == "#" && !quoted) break
+          line = line c
+        }
+      }
+      !open && line ~ /^[[:space:]]*rules[[:space:]]*=/ { open = 1; sub(/^[^=]*=/, "", line) }
+      open { text = text " " line; if (index(line, "]")) open = 0 }
+      END { print text }' "$1/nuc.toml" | grep -oE '"hook/[^"]*"' | paste -sd, -)"
+  fi
+  printf 'minimum = "%s"\nrules = [%s%s]\n' "$minimum" "$ported" "${hooks:+,$hooks}"
+}
 
 work="$(mktemp -d)"
 # kill_tree <pid> — stop the process and every process it started, the deepest first, so that no
@@ -457,9 +486,11 @@ at_least_floor() {
 # that reads where a change lands (check 16) speaks as it does in CI.
 CI_ENV=(GITHUB_BASE_REF=main PULL_REQUEST_DRAFT=false)
 
-# The bash scripts whose rules nuc ports, run in this order; and check-shell.sh, run where it has
-# the one rule of it nuc ports, whose finding lines end in a key of shell/.
+# The bash scripts whose rules nuc ports, run in this order; check-hooks.sh, run where the tree has
+# it; and check-shell.sh, run where it has the one rule of it nuc ports, whose finding lines end in
+# a key of shell/.
 BASH_CHECKS=(scripts/check-docs.sh scripts/check-traceability.sh)
+HOOKS_CHECK=scripts/check-hooks.sh
 SHELL_CHECK=scripts/check-shell.sh
 SHELL_FINDING_RE='^[^ ].* \[shell/[a-z-]+:[a-z]+\]$'
 
@@ -482,6 +513,18 @@ run_pair() {
     cat "$out.script" >> "$out.bash"
     ((bash_rc)) || bash_rc=$rc
   done
+  # check-hooks.sh of a tree that has it, from v0.12.0 on: its findings are its '  - ' lines, as
+  # those of check-docs.sh are, and it fails only with one.
+  if [[ -f "$dir/$HOOKS_CHECK" ]]; then
+    (cd "$dir" && env -i PATH="$PATH" HOME="$HOME" LC_ALL=C "${CI_ENV[@]}" bash "$HOOKS_CHECK") > "$out.script" 2>&1
+    rc=$?
+    if ((rc)) && ! grep -q '^  - ' "$out.script"; then
+      echo "Parity check: $label — bash: $HOOKS_CHECK exited $rc without a finding" >&2
+      return 1
+    fi
+    grep '^  - ' "$out.script" >> "$out.bash"
+    ((bash_rc)) || bash_rc=$rc
+  fi
   # check-shell.sh of a tree that has the rule shell/mode, from v0.10.0 on: its findings are the
   # lines that end in a key of shell/, read as findings of the other scripts are; the rest of its
   # output, ShellCheck's among it, and its exit, which a rule nuc leaves to the bash sets too, are
@@ -638,7 +681,7 @@ for entry in "${repositories[@]}"; do
     continue
   fi
   [[ -f "$dir/TEMPLATE-SETUP.md" ]] && template_trees+=("$release $dir") template_url="$url"
-  printf '%s\n' "$config" > "$dir/nuc.toml"
+  tree_config "$dir" > "$dir/nuc.toml.harness" && mv "$dir/nuc.toml.harness" "$dir/nuc.toml"
   grep -qx '/nuc.toml' "$dir/.git/info/exclude" 2>/dev/null || echo '/nuc.toml' >> "$dir/.git/info/exclude"
 
   # This shard compares the tree at its place k, k + n, and so on.

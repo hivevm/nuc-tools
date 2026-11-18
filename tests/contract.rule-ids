@@ -30,6 +30,8 @@ hook/merge-on-feat
 hook/merge-on-main
 hook/push-checks
 hook/push-to-main
+hooks/pin
+hooks/toml
 shell/mode
 traceability/citations
 traceability/coverage

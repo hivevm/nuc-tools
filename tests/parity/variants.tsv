@@ -132,3 +132,15 @@ adr-refs-unlisted-v10	docs/adr-refs	docs/adr/NUC-base-is-fixed.md	sed	s/^(- \*\*
 # The check of v0.12.0: a hook the blob list no longer pins, since its line names more than the
 # hook, is read as any text file, and its citations of the ADRs of nuc are unmatched here.
 adr-refs-unpinned-v12	docs/adr-refs	.githooks/nuc.blobs	sed	s/ pre-push$/ pre-push unpinned/	nuc-v0-12-0
+
+# hooks/pin and hooks/toml: check-hooks.sh of v0.12.0. Its hooks/toml:absent and a minimum that is
+# no X.Y.Z do not fire on a variant: nuc refuses such a nuc.toml before any rule runs.
+hooks-pin-absent-v12	hooks/pin	.githooks/nuc.blobs	delete	-	nuc-v0-12-0,nuc-tools-v0-12-0
+hooks-pin-differs-v12	hooks/pin	.githooks/pre-push	sed	$s/$/ # edited by hand/	nuc-v0-12-0,nuc-tools-v0-12-0
+hooks-pin-unlisted-v12	hooks/pin	.githooks/nuc.blobs	sed	/ pre-commit$/d	nuc-v0-12-0,nuc-tools-v0-12-0
+hooks-pin-missing-v12	hooks/pin	.githooks/reference-transaction	delete	-	nuc-v0-12-0,nuc-tools-v0-12-0
+hooks-pin-release-v12	hooks/pin	.githooks/nuc.blobs	sed	/^release /d	nuc-v0-12-0,nuc-tools-v0-12-0
+hooks-pin-entry-v12	hooks/pin	.githooks/nuc.blobs	sed	s/^release (.*)$/release \1 \xff/	nuc-v0-12-0,nuc-tools-v0-12-0
+hooks-pin-foreign-v12	hooks/pin	.githooks/nuc.blobs	sed	s/^([0-9a-f]{40}) pre-push$/&\n\1 own/	nuc-v0-12-0,nuc-tools-v0-12-0
+hooks-toml-minimum-v12	hooks/toml	nuc.toml	sed	s/^minimum = .*/minimum = "0.1.0"/	nuc-v0-12-0,nuc-tools-v0-12-0
+hooks-toml-rule-v12	hooks/toml	nuc.toml	sed	s/,"hook\/push-checks"//	nuc-v0-12-0,nuc-tools-v0-12-0

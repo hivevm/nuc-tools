@@ -24,6 +24,8 @@ pub mod docs_section_refs;
 pub mod docs_skill_pointers;
 pub mod docs_template_identity;
 pub mod docs_template_release;
+pub mod hooks_pin;
+pub mod hooks_toml;
 pub mod shell_mode;
 pub mod traceability_citations;
 pub mod traceability_coverage;
@@ -89,6 +91,12 @@ pub struct Inputs {
     pub rule_keys: Option<std::collections::BTreeSet<String>>,
     /// The index entries of the scripts `shell/mode` holds, as `git ls-files -s` lists them.
     pub index_modes: Vec<shell_mode::IndexEntry>,
+    /// The blob list of the hooks and the blob of each hook, as `scripts/check-hooks.sh` reads
+    /// them.
+    pub hooks: crate::pin::Hooks,
+    /// `nuc.toml` as `nuc` read it for the run. The shell always gives it, since `nuc check`
+    /// refuses a tree without one before any rule runs: none occurs only in unit tests.
+    pub toml: Option<crate::config::Config>,
 }
 
 pub use crate::bash::read_lines;
@@ -127,36 +135,6 @@ pub const RELEASES: &[Version] = &[
 /// bash's collect_text_files leaves it out, which `docs/adr-refs`, `docs/section-refs`, and
 /// `docs/opens-no-issue` read, while the functions of those rules stay as they were.
 pub const HOOK_PINS: Version = Version(0, 12, 0);
-
-/// The hooks a blob list may pin, as the template's `scripts/lib/pin.sh` names them.
-const PINNED_HOOKS: [&str; 5] = [
-    "merge-adr-index",
-    "pre-commit",
-    "pre-merge-commit",
-    "pre-push",
-    "reference-transaction",
-];
-
-/// The path of each file the blob list pins, as pinned_files of the template's
-/// `scripts/lib/pin.sh` reads the bytes of `.githooks/nuc.blobs`: each line, the last one without
-/// a newline included, split as `read -r blob hook rest` splits it, names `.githooks/<hook>` where
-/// the blob is a git object name of SHA-1 or SHA-256 in lower-case hex, the hook, without one
-/// trailing carriage return, is one of the five, and nothing follows; any other line names none.
-pub fn pinned_files(list: &[u8]) -> std::collections::BTreeSet<String> {
-    crate::bash::awk_lines(list)
-        .into_iter()
-        .filter_map(|line| {
-            let (blob, hook, rest) = crate::bash::read_fields(line);
-            let hook = hook.strip_suffix(b"\r").unwrap_or(&hook);
-            let hex = blob.iter().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'));
-            let pinned = hex && matches!(blob.len(), 40 | 64) && rest.is_empty();
-            PINNED_HOOKS
-                .iter()
-                .find(|name| pinned && name.as_bytes() == hook)
-                .map(|name| format!(".githooks/{name}"))
-        })
-        .collect()
-}
 
 /// The release from which a derived project sends its findings about the template by hand, the
 /// release line moves only over accepted `NUC-` ADRs, and each rule key of `scripts/check-docs.sh`
@@ -231,6 +209,12 @@ pub enum Input {
     RuleKeys,
     /// The modes in git's index of the scripts under `scripts/` and the skills.
     IndexModes,
+    /// The blob list of the hooks, `.githooks/nuc.blobs`.
+    HookList,
+    /// The blob git would store for each hook of the five under `.githooks/`.
+    HookBlobs,
+    /// `nuc.toml` as `nuc` read it.
+    Toml,
 }
 
 /// One rule: its ID, the reason `nuc explain` gives, what it reads, and the check.
@@ -315,6 +299,8 @@ pub const ALL: &[Rule] = &[
     docs_no_draft_on_main::RULE,
     docs_opens_no_issue::RULE,
     docs_template_release::RULE,
+    hooks_pin::RULE,
+    hooks_toml::RULE,
     shell_mode::RULE,
     traceability_criteria::RULE,
     traceability_citations::RULE,
@@ -337,29 +323,6 @@ mod tests {
         assert!(guide_is_contributing(Some(CONTRIBUTING_GUIDE)));
         assert!(guide_is_contributing(Some(Version(0, 8, 0))));
         assert!(guide_is_contributing(None));
-    }
-
-    #[test]
-    fn the_blob_list_pins_a_hook_of_the_five_by_a_blob_and_nothing_else() {
-        let sha1 = "0".repeat(40);
-        let sha256 = "a".repeat(64);
-        let list = format!(
-            "# The pin\nrelease v0.2.2\n{sha1} pre-push\n {sha256}\tpre-commit\r\n\
-             {sha1} own\n{sha1} pre-merge-commit extra\n{} merge-adr-index\n\
-             {} reference-transaction\nrule hook/main-moves\n{sha1} merge-adr-index",
-            "A".repeat(40),
-            "0".repeat(41),
-        );
-        let pinned: Vec<String> = pinned_files(list.as_bytes()).into_iter().collect();
-        assert_eq!(
-            pinned,
-            [
-                ".githooks/merge-adr-index",
-                ".githooks/pre-commit",
-                ".githooks/pre-push"
-            ]
-        );
-        assert!(pinned_files(b"").is_empty());
     }
 
     #[test]

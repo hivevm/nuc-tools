@@ -364,14 +364,57 @@ impl Tree {
     /// `scripts/lib/pin.sh` reads `.githooks/nuc.blobs` where it is a file, as `-f` finds it;
     /// none without one.
     pub(super) fn read_pinned(&self) -> Result<BTreeSet<String>, String> {
-        let list = self.root.join(".githooks/nuc.blobs");
-        if !list.is_file() {
-            return Ok(BTreeSet::new());
-        }
         Ok(self
-            .read_bytes(&list)?
-            .map(|bytes| rules::pinned_files(&bytes))
+            .read_hook_list()?
+            .map(|bytes| crate::pin::pinned_files(&bytes))
             .unwrap_or_default())
+    }
+
+    /// The bytes of the blob list of the hooks, `.githooks/nuc.blobs`, where it is a file, as `-f`
+    /// finds it.
+    pub(super) fn read_hook_list(&self) -> Result<Option<Vec<u8>>, String> {
+        let list = self.root.join(crate::pin::LIST);
+        if !list.is_file() {
+            return Ok(None);
+        }
+        self.read_bytes(&list)
+    }
+
+    /// The blob of each hook of the five that is a file under `.githooks/`, as `-f` finds it, by
+    /// its name, as `scripts/check-hooks.sh` hashes it from the root: `git hash-object` converts
+    /// the line endings and applies the attributes as git would to store the file, so the blob
+    /// holds under `core.autocrlf`; none where git cannot hash it. A hook that resolves outside
+    /// the repository is not decided, and neither is one whose attributes name a filter: git
+    /// would run its driver, a command of the repository's, to hash it (Q-7).
+    pub(super) fn read_hook_blobs(&self) -> Result<BTreeMap<String, Option<String>>, String> {
+        let mut blobs = BTreeMap::new();
+        for hook in crate::pin::PINNED_HOOKS {
+            let path = self.root.join(".githooks").join(hook);
+            if !path.is_file() {
+                continue;
+            }
+            self.resolve(&path, || outside(&path))?
+                .map_err(|e| format!("{}: unreadable — {e}", path.display()))?;
+            let relative = format!(".githooks/{hook}");
+            // Every value but unspecified and unset is refused, `set` and a driver whose command
+            // the configuration lacks included: git runs no command for those, but telling them
+            // apart would mean reading git's configuration for each driver. Refusing is never a
+            // pass (Q-1), while hashing with a driver would run a command of the repository (Q-7).
+            let filter = git::run(&self.root, &["check-attr", "filter", "--", &relative])?;
+            if !filter.lines().all(|line| {
+                line.ends_with(": filter: unspecified") || line.ends_with(": filter: unset")
+            }) {
+                return Err(format!(
+                    "{relative}: its attributes name a filter, whose driver git would run to hash \
+                     it — not decided"
+                ));
+            }
+            let (code, out) =
+                git::status_and_output(&self.root, &["hash-object", "--", &relative])?;
+            let blob = String::from_utf8_lossy(&out).trim_end().to_owned();
+            blobs.insert(hook.to_owned(), (code == 0).then_some(blob));
+        }
+        Ok(blobs)
     }
 
     /// The sensors as part 4 of the bash's traceability check reads them: each path git lists as

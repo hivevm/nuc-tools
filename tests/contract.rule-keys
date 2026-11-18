@@ -126,6 +126,16 @@ hook/merge-on-feat:feat
 hook/merge-on-main:main
 hook/push-checks:red
 hook/push-to-main:main
+hooks/pin:absent
+hooks/pin:differs
+hooks/pin:entry
+hooks/pin:foreign
+hooks/pin:missing
+hooks/pin:release
+hooks/pin:unlisted
+hooks/toml:absent
+hooks/toml:minimum
+hooks/toml:rule
 shell/mode:exec
 shim/merge-adr-index:missing
 shim/merge-adr-index:unknown

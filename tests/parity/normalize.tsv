@@ -151,3 +151,17 @@
 ^[^ ].*: reads a value after '[^']+', which its usage does not write as 	-	-
 ^[^ ].*: does not refuse --verbose with exit 2 and its name 	-	-
 ^[^ ].*: does not refuse a --root that is no directory with exit 2 	-	-
+
+# check-hooks.sh of v0.12.0 on: the pin of the git hooks and nuc.toml (NUC-hooks-run-nuc §2, §3).
+^\.githooks/nuc\.blobs: not found — the hooks are pinned by their blobs beside them 	hooks/pin	-
+^\.githooks/nuc\.blobs: pins '.*', which is none of the five hooks — 	hooks/pin	-
+^\.githooks/nuc\.blobs: '.*' is no entry — write 	hooks/pin	-
+^\.githooks/nuc\.blobs: names no release — 	hooks/pin	-
+^\.githooks/nuc\.blobs: names no blob for the hook '[a-z-]+' — 	hooks/pin	-
+^\.githooks/[a-z-]+: not found, though \.githooks/nuc\.blobs pins it 	hooks/pin	-
+^\.githooks/[a-z-]+: git cannot hash it 	hooks/pin	-
+^\.githooks/[a-z-]+: differs from the shim of nuc-tools v.* that \.githooks/nuc\.blobs pins — 	hooks/pin	-
+^nuc\.toml: not found — it names the minimum nuc and the hook/ rules 	hooks/toml	-
+^nuc\.toml: names no minimum 	hooks/toml	-
+^nuc\.toml: its minimum .* is older than nuc-tools v.*, the release of the hooks — 	hooks/toml	-
+^nuc\.toml: its rules do not name '.*' — 	hooks/toml	-
