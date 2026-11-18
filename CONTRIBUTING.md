@@ -389,7 +389,7 @@ or transfer:
   <!-- required-checks begin — compared with the workflow's jobs by scripts/check-docs.sh -->
   `docs`, `traceability`, `devcontainer`, `sensors`, `shell`, `gates`, `build`,
   `portability (ubuntu-24.04-arm)`, `portability (macos-latest)`, `portability (windows-latest)`,
-  `deps`, and `parity`
+  `deps`, `parity (1/4)`, `parity (2/4)`, `parity (3/4)`, and `parity (4/4)`
   <!-- required-checks end -->
   jobs of the **Checks** workflow as required status checks (rulesets list checks as they report:
   a job by its name, a job with a matrix by one check run per entry, such as
