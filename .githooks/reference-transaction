@@ -1,66 +1,31 @@
-#!/usr/bin/env bash
+#!/bin/sh
 #
-# Git reference-transaction hook: the local main moves only to what the remote's main has.
+# Git reference-transaction hook, the reference shim of nuc (API-hook-contract-keyed-shims): 'nuc
+# hook reference-transaction' decides from the updates git hands it on the standard input and the
+# git state; this hook runs no check.
 #
-# Changes reach main through a pull request, and the local main only takes up the remote's
-# (NUC-main-only-via-pr §4). pre-commit and pre-merge-commit refuse a commit and a merge on main,
-# but a fast-forward to a local branch, a cherry-pick, a reset, or 'git branch -f' moves main
-# without either, and 'git commit --no-verify' skips them. Every one of these updates
-# refs/heads/main in a reference transaction, and git runs this hook on it before the update is
-# made ('prepared'), where a non-zero exit aborts it; --no-verify does not skip it. An update of
-# main is let through when its new commit is one origin/main has, as the same transaction leaves
-# origin/main, so 'git merge --ff-only origin/main', 'git reset --hard origin/main', and
-# 'git fetch origin main:main' pass. So does one that writes main where it already is, as
-# pack-refs and gc do in a clone whose main is ahead of the remote's, and a deletion of the local
-# main. Without origin/main, a repository that has no remote's main yet, nothing is decided.
-# A refused fast-forward has already brought the index and the working tree to its target while
-# main stays: from a clean tree, 'git restore --source=HEAD --staged --worktree .' takes them
-# back. Enabled as the "Git hooks" of CONTRIBUTING.md says; it needs git 2.28 or later.
+# In the 'prepared' state, where a non-zero exit aborts the transaction, nuc refuses an update of
+# the local main to a commit origin/main lacks, as the same transaction leaves origin/main; a
+# write of main where it already is, a deletion, and a repository without origin/main pass. Every
+# other state passes. Every answer but 0 refuses, a panic's 101 and a code a later nuc adds
+# included; 3 is no answer of this hook. Without nuc on the PATH it refuses and names where to
+# install it.
 #
-# Bypassable by running git without the hooks ('git -c core.hooksPath=/dev/null'), or by moving
-# origin/main itself ('git update-ref refs/remotes/origin/main'); NUC-main-only-via-pr §6
-# says who may. A push that runs the hooks still cannot reach the remote's main.
-# scripts/test-git-hooks.sh exercises this hook.
+# POSIX sh, so that git for Windows runs it with the sh it bundles. Bypassable by running git
+# without the hooks ('git -c core.hooksPath=/dev/null'); NUC-main-only-via-pr §6 says who may.
 
-set -uo pipefail
+if ! command -v nuc >/dev/null 2>&1; then
+  echo "reference-transaction: refused — nuc is not on the PATH, so no hook decides. Install it from https://github.com/hivevm/nuc-tools/releases [shim/reference-transaction:missing]" >&2
+  exit 1
+fi
 
-[[ "${1:-}" == "prepared" ]] || exit 0
-
-# Every update of the transaction, one per line: old object, new object, ref. Read by a loop, which
-# works on bash 3.2, the one macOS ships, not by mapfile, which that bash lacks: without it the
-# hook fails in a way that depends on the bash version. An empty list passes here, since bash
-# before 4.4 takes its expansion for unset.
-updates=()
-while IFS= read -r u || [[ -n "$u" ]]; do
-  updates+=("$u")
-done
-((${#updates[@]})) || exit 0
-
-# The remote's main as this transaction leaves it: a fetch may move it together with main.
-remote="$(git rev-parse -q --verify refs/remotes/origin/main 2>/dev/null)" || remote=""
-for u in "${updates[@]}"; do
-  read -r _ new ref <<< "$u"
-  [[ "$ref" == "refs/remotes/origin/main" && ! "$new" =~ ^0+$ ]] && remote="$new"
-done
-[[ -n "$remote" ]] || exit 0
-
-# Where main is now: a transaction that writes main where it already is, as pack-refs, gc, or
-# 'git reset --hard HEAD' does, moves nothing, and its old column may be zeros.
-current="$(git rev-parse -q --verify refs/heads/main 2>/dev/null)" || current=""
-
-for u in "${updates[@]}"; do
-  read -r _ new ref <<< "$u"
-  [[ "$ref" == "refs/heads/main" && ! "$new" =~ ^0+$ && "$new" != "$current" ]] || continue
-  if ! git merge-base --is-ancestor "$new" "$remote" 2>/dev/null; then
-    hint="Take up the remote's main: git merge --ff-only origin/main"
-    # A main already ahead of the remote's, as in a clone that took up these hooks with unpushed
-    # work, moves no further and takes nothing up; its commits go to a branch first.
-    if [[ -n "$current" ]] && ! git merge-base --is-ancestor "$current" "$remote" 2>/dev/null; then
-      hint="main has commits origin/main lacks; keep them on a branch and take main back: git switch -c feat/<topic> main, then git branch -f main origin/main"
-    fi
-    echo "reference-transaction: refused — main moves only to what origin/main has, and changes reach it through a pull request (NUC-main-only-via-pr §4). $hint" >&2
+nuc hook reference-transaction "$@"
+answer=$?
+case "$answer" in
+  0) exit 0 ;;
+  1 | 2) exit 1 ;;
+  *)
+    echo "reference-transaction: refused — nuc hook reference-transaction exited $answer, which this shim does not know [shim/reference-transaction:unknown]" >&2
     exit 1
-  fi
-done
-
-exit 0
+    ;;
+esac

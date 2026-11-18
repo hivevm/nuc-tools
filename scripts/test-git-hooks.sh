@@ -1,17 +1,23 @@
 #!/usr/bin/env bash
 #
-# Self-test of the git hooks under .githooks/: every refusal and every passage the table under
-# "Git hooks" in CONTRIBUTING.md lists (NUC-main-only-via-pr §1, §4, §5, §6; NUC-checks-are-bash
-# §6).
+# Self-test of the git hooks under .githooks/, the pinned shims of nuc: every refusal and every
+# passage the table under "Git hooks" in CONTRIBUTING.md lists (NUC-main-only-via-pr §1, §4, §5,
+# §6; NUC-checks-are-bash §6), and the refusals of a hook without nuc or with a nuc older than
+# nuc.toml requires (NUC-hooks-run-nuc §5).
 #
 # Each case builds a throwaway repository under a temporary directory with core.hooksPath pointing
 # at this repository's .githooks/, runs a real 'git commit' or 'git push' in it — the push goes to
-# a bare repository next to it — and asserts the exit code and, for a refused command, the message.
-# A push case ships its own scripts/check-all.sh, green or red, so the test decides what the hook
-# finds.
+# a bare repository next to it — and asserts the exit code and, for a refused command, the key its
+# refusal ends in, never its wording (NUC-hooks-run-nuc §6): a normalization moves the citations
+# of the template's files, and nuc's messages keep theirs. A push case ships its own
+# scripts/check-all.sh, green or red, so the test decides what the hook finds; a needle that is no
+# key is that script's output or git's.
 #
-# Verifies: NUC-main-only-via-pr NUC-checks-are-bash
-# Inputs: .githooks/ scripts/lib/
+# The hooks hand their work to nuc, so the test needs a released nuc on the PATH no older than the
+# minimum of this repository's nuc.toml, and refuses to run without it.
+#
+# Verifies: NUC-main-only-via-pr NUC-checks-are-bash NUC-hooks-run-nuc
+# Inputs: .githooks/ scripts/lib/ nuc.toml
 #
 # Usage:
 #     scripts/test-git-hooks.sh
@@ -22,6 +28,16 @@ set -uo pipefail
 # shellcheck source-path=SCRIPTDIR source=lib/selftest.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib/selftest.sh"
 HOOKS="$ROOT/.githooks"
+
+# The nuc the hooks hand their work to: on the PATH, and no older than nuc.toml's minimum.
+minimum="$(sed -nE 's/^[[:space:]]*minimum[[:space:]]*=[[:space:]]*"([0-9]+\.[0-9]+\.[0-9]+)".*/\1/p' "$ROOT/nuc.toml" | head -n 1)"
+[[ -n "$minimum" ]] || { echo "git hooks self-test: nuc.toml names no minimum '<X.Y.Z>'" >&2; exit 1; }
+have="$(nuc --version 2>/dev/null | sed -nE 's/^nuc ([0-9]+\.[0-9]+\.[0-9]+).*/\1/p')"
+if [[ -z "$have" ]] \
+   || [[ "$(printf '%s\n%s\n' "$minimum" "$have" | sort -t. -k1,1n -k2,2n -k3,3n | head -n 1)" != "$minimum" ]]; then
+  echo "git hooks self-test: needs nuc $minimum or later on the PATH, as nuc.toml requires, and found '${have:-none}' — install it from https://github.com/hivevm/nuc-tools/releases (NUC-hooks-run-nuc §6)" >&2
+  exit 1
+fi
 
 # g <dir> <git args...> — git in the fixture with an identity, so that commits need no config.
 # It refuses a path that is no fixture: a helper that printed git output with its path would
@@ -62,14 +78,20 @@ docs() {
 }
 
 # expect <pass|refuse> <name> <dir> <needle> <git args...> — run the git command; a refused one
-# must exit non-zero with the needle in its output, a passing one exit zero.
+# must exit non-zero with the needle in its output, a passing one exit zero. A needle '[<key>]'
+# holds where a line of the output ends in it; any other needle holds anywhere in the output.
 expect() {
   local want="$1" name="$2" dir="$3" needle="$4"
   shift 4
-  local out rc
+  local out rc found=0
   out="$(g "$dir" "$@" 2>&1)"; rc=$?
+  if [[ "$needle" == \[*\] ]]; then
+    [[ $'\n'"$out"$'\n' == *"$needle"$'\n'* ]] && found=1
+  else
+    [[ "$out" == *"$needle"* ]] && found=1
+  fi
   if [[ "$want" == "pass" && $rc -eq 0 ]] \
-     || [[ "$want" == "refuse" && $rc -ne 0 && "$out" == *"$needle"* ]]; then
+     || [[ "$want" == "refuse" && $rc -ne 0 && $found -eq 1 ]]; then
     passed=$((passed + 1))
     return
   fi
@@ -81,8 +103,8 @@ expect() {
 # --- cases ---------------------------------------------------------------------------------
 
 d="$(repo on-main)"
-expect refuse "a commit on main" "$d" "on 'main'" commit -q --allow-empty -m x
-expect refuse "a push to the remote's main" "$d" "through a pull request, not a push" push -q origin main
+expect refuse "a commit on main" "$d" "[hook/commit-on-main:main]" commit -q --allow-empty -m x
+expect refuse "a push to the remote's main" "$d" "[hook/push-to-main:main]" push -q origin main
 expect pass "a push of main to a branch of its own with no check script to run" "$d" "" push -q origin main:other
 
 d="$(repo on-branch)"
@@ -92,15 +114,13 @@ expect pass "a commit on a branch" "$d" "" commit -q --allow-empty -m x
 d="$(repo red)"
 git -C "${d:?}" switch -q -c feature
 checks "$d" 1
-expect refuse "a push while the checks are red" "$d" "the checks are red" push -q origin feature
-expect refuse "the push refusal names the clause that runs the checks before a push" "$d" \
-  "pushed (NUC-checks-are-bash §6)" push -q origin feature
+expect refuse "a push while the checks are red" "$d" "[hook/push-checks:red]" push -q origin feature
 expect refuse "the refusal shows the check output" "$d" "check output for the test" push -q origin feature
 expect refuse "the hook runs the checks with --changed" "$d" "args: --changed" push -q origin feature
 expect pass "a commit is not gated by the checks" "$d" "" commit -q --allow-empty -m x
 docs "$d" 1
-expect refuse "a commit on a branch while the documentation check is red, naming the clause" "$d" \
-  "pre-commit: refused — the documentation check is red, and the checks pass before a commit (NUC-checks-are-bash §6)" \
+expect refuse "a commit on a branch while the documentation check is red" "$d" \
+  "[hook/commit-docs:red]" \
   commit -q --allow-empty -m x
 expect refuse "the commit refusal shows the documentation check's output" "$d" "docs output for the test" \
   commit -q --allow-empty -m x
@@ -113,9 +133,9 @@ git -C "${d:?}" switch -q -c feature
 g "$d" push -q --no-verify origin main feature feature:other
 checks "$d" 1
 expect pass "a deletion of a branch while the checks are red" "$d" "" push -q origin --delete feature
-expect refuse "a push of a branch while the checks are red, after a deletion passed" "$d" "the checks are red" push -q origin feature
-expect refuse "a deletion together with a push of a branch is checked" "$d" "the checks are red" push -q origin :other feature
-expect refuse "a deletion of the remote's main while the checks are red" "$d" "through a pull request, not a push" push -q origin --delete main
+expect refuse "a push of a branch while the checks are red, after a deletion passed" "$d" "[hook/push-checks:red]" push -q origin feature
+expect refuse "a deletion together with a push of a branch is checked" "$d" "[hook/push-checks:red]" push -q origin :other feature
+expect refuse "a deletion of the remote's main while the checks are red" "$d" "[hook/push-to-main:main]" push -q origin --delete main
 
 d="$(repo green)"
 git -C "${d:?}" switch -q -c feature
@@ -140,11 +160,11 @@ g "$d" commit -q --amend -m regrouped
 expect pass "a reworked branch on a tree that passed before, while the checks are red" "$d" "" \
   push -q --force origin feature
 touch "$d/untracked"
-expect refuse "the same tree with an untracked file is checked again" "$d" "the checks are red" \
+expect refuse "the same tree with an untracked file is checked again" "$d" "[hook/push-checks:red]" \
   push -q --force origin feature
 rm "$d/untracked"
 echo x > "$d/new" && g "$d" add new && g "$d" commit -q -m new
-expect refuse "a new tree is checked again" "$d" "the checks are red" push -q origin feature
+expect refuse "a new tree is checked again" "$d" "[hook/push-checks:red]" push -q origin feature
 
 # In a linked worktree git hands the hook GIT_DIR, and 'git -c' adds GIT_CONFIG_PARAMETERS. The
 # checks build fixture repositories of their own; with either inherited, those land in the
@@ -250,11 +270,7 @@ merging() {
 }
 
 d="$(merging merge-red 1 0)"
-expect refuse "a merge into a branch while the documentation check is red" "$d" "the documentation check is red on the merge" merge -q -m m feature
-
-d="$(merging merge-red-clause 1 0)"
-expect refuse "the merge refusal names the clause that runs the checks before a merge" "$d" \
-  "takes up another (NUC-checks-are-bash §6)" merge -q -m m feature
+expect refuse "a merge into a branch while the documentation check is red" "$d" "[hook/merge-docs:red]" merge -q -m m feature
 
 d="$(merging merge-red-output 1 0)"
 expect refuse "the refusal shows the documentation check's output" "$d" "docs output for the test" merge -q -m m feature
@@ -263,19 +279,19 @@ d="$(merging merge-suite 0 1)"
 expect pass "a clean merge is not gated by the rest of the checks" "$d" "" merge -q -m m feature
 
 d="$(merging merge-ff 1 0)"
-expect refuse "merge.ff false keeps a fast-forward from passing the hook" "$d" "pre-merge-commit: refused" merge -q feature
+expect refuse "merge.ff false keeps a fast-forward from passing the hook" "$d" "[hook/merge-docs:red]" merge -q feature
 
 d="$(merging merge-green 0 0)"
 expect pass "a merge into a branch while the checks are green" "$d" "" merge -q -m m feature
 
 d="$(merging merge-main 0 0)"
 git -C "${d:?}" switch -q main
-expect refuse "a merge on main, though the checks are green" "$d" "on 'main'" merge -q -m m feature
+expect refuse "a merge on main, though the checks are green" "$d" "[hook/merge-on-main:main]" merge -q -m m feature
 
 d="$(merging merge-feat 0 0)"
 git -C "${d:?}" switch -q -c feat/x main
 expect refuse "a merge on a feat/ branch, though the checks are green" "$d" \
-  "which carries no merge commit (NUC-main-only-via-pr §5)" merge -q -m m feature
+  "[hook/merge-on-feat:feat]" merge -q -m m feature
 
 d="$(merging merge-feat-ff 1 0)"
 git -C "${d:?}" switch -q -c feat/x main
@@ -300,11 +316,7 @@ conflict() {
 }
 
 d="$(conflict conflict-red 1 topic)"
-expect refuse "concluding a conflicted merge while the checks are red" "$d" "pre-commit: refused — the checks are red" commit -q --no-edit
-
-d="$(conflict conflict-red-clause 1 topic)"
-expect refuse "the refusal of a conflicted merge names the clause that runs the checks" "$d" \
-  "takes up another (NUC-checks-are-bash §6)" commit -q --no-edit
+expect refuse "concluding a conflicted merge while the checks are red" "$d" "[hook/merge-checks:red]" commit -q --no-edit
 
 d="$(conflict conflict-changed 1 topic)"
 expect refuse "concluding a conflicted merge runs the checks with --changed" "$d" "args: --changed" commit -q --no-edit
@@ -314,10 +326,10 @@ expect pass "concluding a conflicted merge while the checks are green" "$d" "" c
 
 d="$(conflict conflict-feat 0 feat/x)"
 expect refuse "concluding a conflicted merge on a feat/ branch, though the checks are green" "$d" \
-  "which carries no merge commit (NUC-main-only-via-pr §5)" commit -q --no-edit
+  "[hook/concluded-merge-on-feat:feat]" commit -q --no-edit
 
 d="$(conflict conflict-main 0 main)"
-expect refuse "concluding a conflicted merge on main, though the checks are green" "$d" "on 'main'" commit -q --no-edit
+expect refuse "concluding a conflicted merge on main, though the checks are green" "$d" "[hook/commit-on-main:main]" commit -q --no-edit
 
 # edit_index <index> <rule> <row> <after> — set the rule above the table, append the row to it,
 # and set the line right below it.
@@ -398,19 +410,19 @@ moves() {
 }
 
 d="$(moves moves)"
-expect refuse "a fast-forward of main to a local branch" "$d" "main moves only to what origin/main has" merge -q --ff-only ahead
+expect refuse "a fast-forward of main to a local branch" "$d" "[hook/main-moves:main]" merge -q --ff-only ahead
 g "$d" restore --source=HEAD --staged --worktree .
 expect pass "a refused fast-forward leaves main where it was" "$d" "" diff --quiet origin/main main
 expect pass "the documented restore takes the index and the working tree back" "$d" "" diff --quiet HEAD
 check "the documented restore removes the file the refused fast-forward brought" test ! -e "$d/a"
-expect refuse "a commit on main that skips pre-commit" "$d" "main moves only to what origin/main has" commit -q --no-verify --allow-empty -m x
-expect refuse "a cherry-pick onto main" "$d" "main moves only to what origin/main has" cherry-pick ahead
+expect refuse "a commit on main that skips pre-commit" "$d" "[hook/main-moves:main]" commit -q --no-verify --allow-empty -m x
+expect refuse "a cherry-pick onto main" "$d" "[hook/main-moves:main]" cherry-pick ahead
 g "$d" cherry-pick --abort >/dev/null 2>&1
-expect refuse "a reset of main to a local branch" "$d" "main moves only to what origin/main has" reset -q --hard ahead
-expect refuse "an update of main by its ref" "$d" "main moves only to what origin/main has" update-ref refs/heads/main ahead
+expect refuse "a reset of main to a local branch" "$d" "[hook/main-moves:main]" reset -q --hard ahead
+expect refuse "an update of main by its ref" "$d" "[hook/main-moves:main]" update-ref refs/heads/main ahead
 git -C "${d:?}" switch -q ahead
 expect pass "a commit on another branch is no move of main" "$d" "" commit -q --allow-empty -m on-ahead
-expect refuse "git branch -f of main from another branch" "$d" "main moves only to what origin/main has" branch -f main ahead
+expect refuse "git branch -f of main from another branch" "$d" "[hook/main-moves:main]" branch -f main ahead
 # Pushed by path, the remote's main moves while origin/main stays behind, as when another clone
 # moved it; the fetch then moves origin/main and main in one transaction.
 g "$d" push -q --no-verify "$d.git" ahead:main
@@ -418,15 +430,14 @@ expect pass "a fetch that moves main with origin/main" "$d" "" fetch -q origin m
 git -C "${d:?}" switch -q main
 expect pass "main takes up the remote's main" "$d" "" merge -q --ff-only origin/main
 expect pass "main is reset to the remote's main" "$d" "" reset -q --hard origin/main
-expect refuse "a deletion of the remote's main" "$d" "through a pull request, not a push" push -q origin --delete main
+expect refuse "a deletion of the remote's main" "$d" "[hook/push-to-main:main]" push -q origin --delete main
 
 # A clone whose main is ahead of the remote's, as one that took up these hooks with unpushed work.
 d="$(moves ahead-of-remote)"
 g "$d" -c core.hooksPath=/dev/null commit -q --allow-empty -m unpushed
 expect pass "pack-refs writes main where it already is" "$d" "" pack-refs --all
 expect pass "a reset of main to where it is moves nothing" "$d" "" reset -q --hard HEAD
-expect refuse "main ahead still moves no further" "$d" "main moves only to what origin/main has" commit -q --no-verify --allow-empty -m more
-expect refuse "the refusal says how to keep the commits of a main ahead" "$d" "git switch -c feat/<topic> main, then git branch -f main origin/main" commit -q --no-verify --allow-empty -m more
+expect refuse "main ahead still moves no further" "$d" "[hook/main-moves:main]" commit -q --no-verify --allow-empty -m more
 expect pass "the commits of a main ahead move to a branch" "$d" "" switch -q -c feat/kept main
 expect pass "main is taken back to the remote's main" "$d" "" branch -f main origin/main
 check "the branch keeps the commit the main ahead had" \
@@ -435,11 +446,75 @@ d="$(moves delete-main)"
 git -C "${d:?}" switch -q ahead
 expect pass "a deletion of the local main" "$d" "" branch -q -D main
 
-d="$(moves behind-remote-hint)"
-expect refuse "a main not ahead is told to take up the remote's main" "$d" "Take up the remote's main" merge -q --ff-only ahead
-
 d="$(repo no-remote-main)"
 expect pass "without origin/main nothing is decided" "$d" "" commit -q --no-verify --allow-empty -m x
+
+# --- without nuc, and with a nuc too old (NUC-hooks-run-nuc §5) ---------------------------
+
+# no_nuc — a PATH that finds every command of this one but nuc: each directory that holds a nuc is
+# replaced by one of links to its other commands.
+no_nuc() {
+  local dir path="" i=0 f
+  IFS=: read -r -a dirs <<< "$PATH"
+  for dir in "${dirs[@]}"; do
+    if [[ -n "$dir" && -e "$dir/nuc" ]]; then
+      i=$((i + 1))
+      mkdir -p "$work/no-nuc-$i"
+      for f in "$dir"/*; do
+        [[ "${f##*/}" == nuc || "${f##*/}" == nuc.exe ]] || ln -s "$f" "$work/no-nuc-$i/" 2>/dev/null
+      done
+      dir="$work/no-nuc-$i"
+    fi
+    path="${path:+$path:}$dir"
+  done
+  echo "$path"
+}
+bare_path="$(no_nuc)"
+# shellcheck disable=SC2016 # expanded by the inner shell
+check "the PATH without nuc finds no nuc" bash -c '! PATH="$1" command -v nuc' _ "$bare_path"
+# shellcheck disable=SC2016 # expanded by the inner shell
+check "the PATH without nuc finds git" bash -c 'PATH="$1" command -v git >/dev/null' _ "$bare_path"
+
+# Each hook refuses without nuc, in its key, and names where to install nuc.
+d="$(repo no-nuc)"
+git -C "${d:?}" switch -q -c feature
+PATH="$bare_path" expect refuse "a commit without nuc" "$d" "[shim/pre-commit:missing]" \
+  commit -q --allow-empty -m x
+check "the refusal without nuc names where to install it" \
+  grep -qF "https://github.com/hivevm/nuc-tools/releases" \
+  <<< "$(PATH="$bare_path" g "$d" commit -q --allow-empty -m x 2>&1)"
+PATH="$bare_path" expect refuse "a push without nuc" "$d" "[shim/pre-push:missing]" push -q origin feature
+PATH="$bare_path" expect refuse "a ref update without nuc" "$d" "[shim/reference-transaction:missing]" \
+  update-ref refs/heads/other HEAD
+# Without nuc, reference-transaction refuses the first ref a merge writes, before pre-merge-commit
+# or the merge driver runs; these fixtures enable only the hook a case is about.
+# only <dir> [hook] — point the fixture's core.hooksPath at a directory with only that hook, or
+# with none.
+only() {
+  mkdir -p "$work/only-${2:-none}"
+  [[ -z "${2:-}" ]] || ln -sf "$HOOKS/$2" "$work/only-$2/$2"
+  git -C "${1:?}" config core.hooksPath "$work/only-${2:-none}"
+}
+d="$(merging no-nuc-merge 0 0)"
+only "$d" pre-merge-commit
+PATH="$bare_path" expect refuse "a merge without nuc" "$d" "[shim/pre-merge-commit:missing]" \
+  merge -q -m m feature
+d="$(indexed no-nuc-index one one one)"
+only "$d"
+PATH="$bare_path" expect refuse "a merge of the ADR index without nuc" "$d" "[shim/merge-adr-index:missing]" \
+  merge -q -m m feature
+
+# A nuc older than the minimum of the tree's nuc.toml refuses in its key and names where to update.
+d="$(repo too-old)"
+git -C "${d:?}" switch -q -c feature
+printf 'minimum = "999.0.0"\n' > "$d/nuc.toml"
+expect refuse "a commit with a nuc older than nuc.toml's minimum" "$d" "[config/toml:old]" \
+  commit -q --allow-empty -m x
+check "the refusal of a nuc too old names where to update it" \
+  grep -qF "https://github.com/hivevm/nuc-tools/releases" \
+  <<< "$(g "$d" commit -q --allow-empty -m x 2>&1)"
+expect refuse "a push with a nuc older than nuc.toml's minimum" "$d" "[config/toml:old]" \
+  push -q origin feature
 
 # --- summary -------------------------------------------------------------------------------
 

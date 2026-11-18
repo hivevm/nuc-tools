@@ -55,7 +55,8 @@ The rest of this skill holds as written.
 3. Claim each with [`claim.sh`](claim.sh): `.agents/skills/work-tickets/claim.sh <ticket path>`
    creates the branch `ticket/<spec>/<NN>-<slug>` at `main`. Only a ticket on `main` is
    claimable ([NUC-large-work-is-planned §4](../../../docs/adr/NUC-large-work-is-planned.md)):
-   the worker's branch starts there, and other clones read the frontier there.
+   the worker's branch starts there, and other clones read the frontier there. A plan still on a
+   branch lands first, as the `plan-feature` skill says.
    - Among sessions that share the repository, the claim is the local branch, which git refuses
      to create twice. It needs no commit and nothing pushed.
    - Among clones that share a remote, pass the remote the harness ADR names as a second

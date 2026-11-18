@@ -31,6 +31,8 @@
 # them. A file is written only when the map changes its text, and then keeps every other byte,
 # a missing final newline included; a file with a NUL byte, which grep -I takes for binary, is
 # skipped, and so is the map file itself, so that a map shipped in the tree applies as it stands.
+# A file the hooks' blob list pins is skipped as well: it is another repository's file, held by its
+# blob, and its references stay as that repository wrote them (scripts/lib/pin.sh).
 #
 # Pure bash, git, and awk. Usage, anywhere in the repository:
 #     .agents/skills/normalize/remap.sh [--check] <map file>
@@ -48,6 +50,8 @@ set -uo pipefail
 
 # shellcheck source-path=SCRIPTDIR source=../../../scripts/lib/bash.sh
 source "$(dirname "${BASH_SOURCE[0]}")/../../../scripts/lib/bash.sh"
+# shellcheck source-path=SCRIPTDIR source=../../../scripts/lib/pin.sh
+source "$(dirname "${BASH_SOURCE[0]}")/../../../scripts/lib/pin.sh"
 
 # The script may rewrite its own text, so bash reads all of it before running any: one block.
 {
@@ -224,8 +228,10 @@ END { if (held) printf "%s%s", last, (open_end ? "" : "\n") }
 AWK
 
 changed=0
+declare -A pinned=()
+while IFS= read -r f; do pinned["$f"]=1; done < <(pinned_files "$top")
 while IFS= read -r f; do
-  [[ -f "$f" && ! -L "$f" && "$top/$f" != "$map" ]] || continue
+  [[ -f "$f" && ! -L "$f" && "$top/$f" != "$map" && ! -v pinned["$f"] ]] || continue
   grep -Iq . "$f" 2>/dev/null || continue
   adr_on=1 crit_on=1 all_crit=0
   [[ "$f" == docs/adr/* ]] && adr_on=0

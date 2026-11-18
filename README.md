@@ -32,8 +32,10 @@ live in [`docs/SPECIFICATION.md`](docs/SPECIFICATION.md), the vocabulary in
   [Dev Containers](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
   extension, or any DevContainer-compatible IDE
 - Docker / Podman (rootless) available on the host
-- Outside the Dev Container: bash 4.4 or later for the checks, 3.2 for the git hooks
-  ([NUC-checks-are-bash §1](docs/adr/NUC-checks-are-bash.md)); macOS ships 3.2
+- Outside the Dev Container: bash 4.4 or later for the checks
+  ([NUC-checks-are-bash §1](docs/adr/NUC-checks-are-bash.md)), which macOS does not ship, and
+  [`nuc`](https://github.com/hivevm/nuc-tools/releases) for the git hooks
+  ([NUC-hooks-run-nuc](docs/adr/NUC-hooks-run-nuc.md))
 
 ## Getting Started
 
@@ -51,7 +53,7 @@ live in [`docs/SPECIFICATION.md`](docs/SPECIFICATION.md), the vocabulary in
 - **Lint:** `cargo fmt --check` and `cargo clippy --all-targets --locked -- -D warnings`
 - **Run:** `cargo run --locked -- <command>`, such as `cargo run --locked -- check`; for
   development only, since the gates never run the build
-  ([SEC-gates-never-run-build](docs/adr/SEC-gates-never-run-build.md))
+  ([SEC-gates-run-released-nuc](docs/adr/SEC-gates-run-released-nuc.md))
 
 [`scripts/check-build.sh`](scripts/check-build.sh) runs the lint, the build, and the tests;
 [`scripts/check-deps.sh`](scripts/check-deps.sh) audits the dependencies.
@@ -170,9 +172,10 @@ criteria no test cites yet in the summary on standard error, and, from v0.9.0 on
 ### Git hooks
 
 The shims under [`shims/`](shims/), in POSIX sh, are the reference hooks the template copies
-when it switches over from its bash hooks; until it does, a project keeps the hooks its template
-release carries
-([API-hook-contract-keyed-shims](docs/adr/API-hook-contract-keyed-shims.md)).
+unchanged and pins by their blobs from release v0.12.0 on
+([API-hook-contract-keyed-shims](docs/adr/API-hook-contract-keyed-shims.md),
+[NUC-hooks-run-nuc](docs/adr/NUC-hooks-run-nuc.md)); this repository's `.githooks/` are those of
+its template release.
 Each shim hands its hook to `nuc hook <name>`: `nuc` decides, and where a hook's check is due
 the shim runs the project's `scripts/check-all.sh` or `scripts/check-docs.sh` itself. Without `nuc`
 on the `PATH`, or with one older than `nuc.toml` requires, every shim refuses and names where to
@@ -181,7 +184,7 @@ git settings as the template's hooks, listed under [Git hooks](CONTRIBUTING.md#g
 
 ## Template
 
-- **Template release:** v0.11.1 — the release of [NUC](https://github.com/hivevm/nuc) this
+- **Template release:** v0.12.0 — the release of [NUC](https://github.com/hivevm/nuc) this
   repository carries; a project moves the line when it takes up a later one
   ([NUC-releases-are-semver-tags §5](docs/adr/NUC-releases-are-semver-tags.md)).
 

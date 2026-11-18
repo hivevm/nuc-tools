@@ -60,8 +60,9 @@
     // Rust through rustup; the toolchain itself is the one rust-toolchain.toml pins, installed on
     // the first cargo call (OPS-dev-container-carries-and-reaches).
     "ghcr.io/devcontainers/features/rust:1": {},
-    // nuc, released and checksum-verified, for running it by hand; no gate runs it until the
-    // switch SEC-gates-never-run-build describes. The lock pins the release.
+    // nuc, released and checksum-verified, the binary the git hooks under .githooks/ hand their
+    // work to (NUC-hooks-run-nuc §4, §5). The lock pins the release; no gate runs a build of this
+    // tree (SEC-gates-run-released-nuc).
     "ghcr.io/hivevm/features/nuc:0": {}
   },
 

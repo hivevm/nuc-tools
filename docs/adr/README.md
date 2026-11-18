@@ -62,9 +62,9 @@ verifies.
     did not stand, becomes an entry under *Alternatives considered* in the new ADR that governs
     its topic.
   - **References.** Each step moves its references with a map, old to new, applied by the map
-    script of the `normalize` skill. The map stands in the hand-off and the
-    commit body, and in no document. A commit older than the normalization cites the identifiers
-    it had then.
+    script of the `normalize` skill. The map stands in the hand-off, and in the commit body under a
+    line that reads `ADR map:` alone, and in no document. A commit older than the normalization
+    cites the identifiers it had then.
 - **Cite only what exists.** Every citation, `<CAT>-<slug>` or a clause `<CAT>-<slug> §n`, names a
   file already in this directory. An anticipated follow-up is described by topic ("a follow-up ADR
   on session storage"). What counts as a citation, and its form in Markdown, is

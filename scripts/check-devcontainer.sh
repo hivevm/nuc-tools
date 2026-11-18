@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Dev Container check for this repository (NUC-container-hides-host-daemon).
+# Dev Container check for this repository (NUC-container-hides-host-daemon, NUC-hooks-run-nuc §4).
 #
 # NUC-container-hides-host-daemon keeps the host daemon out of a Dev Container's reach, locks its
 # Features, and mounts each project under a path of its own. A tree without .devcontainer/ has no
@@ -21,6 +21,9 @@
 #      inside the 'remote.extensionKind' object). A tree without .vscode/ is not checked for it.
 #   §5 Mount path: 'workspaceFolder' and the target of 'workspaceMount', where the file sets them,
 #      are '/workspaces/${localWorkspaceFolderBasename}', the default of Dev Containers.
+#   nuc: devcontainer.json adds the Feature ghcr.io/hivevm/features/nuc, which installs the nuc the
+#      git hooks hand their work to (NUC-hooks-run-nuc §4); §3 holds its tag and its lock as any
+#      Feature's.
 #   §6 Git settings: the postStartCommand of devcontainer.json runs 'git config core.hooksPath
 #      .githooks', 'git config merge.ff false', 'git config pull.ff only', and 'git config
 #      merge.adr-index.driver' with the driver's command as CONTRIBUTING.md writes it. The value is
@@ -151,6 +154,14 @@ else
         || add_error "$LOCK: lists Feature '$id', which $CONFIG no longer adds — the lock was not regenerated (NUC-container-hides-host-daemon §3) [devcontainer/lock:stale]"
     done
   fi
+
+  # NUC-hooks-run-nuc §4: the nuc Feature, on any tag; §3 above holds the tag.
+  nuc_feature=0
+  for id in "${features[@]}"; do
+    [[ "$id" == ghcr.io/hivevm/features/nuc || "$id" == ghcr.io/hivevm/features/nuc:* ]] && nuc_feature=1
+  done
+  ((nuc_feature)) \
+    || add_error "$CONFIG: adds no Feature 'ghcr.io/hivevm/features/nuc' — the git hooks hand their work to nuc, and a hook without it refuses (NUC-hooks-run-nuc §4) [devcontainer/nuc:absent]"
 
   # §6 Git settings: the text from the postStartCommand key to the next top-level key, its
   # whitespace collapsed.

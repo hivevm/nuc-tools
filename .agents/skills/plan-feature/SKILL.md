@@ -62,7 +62,11 @@ spec: chart it with the human in the conversation until the questions run out.
    [`AGENTS.md` §4](../../../AGENTS.md#4-working-style), each answered on the ticket; the stop
    is concrete, the attempts, time, or criterion past which the session hands off. Otherwise
    "with the human", and why.
-5. Commit the plan on a branch and hand it to the human; it is on `main` once merged.
+5. Commit the plan on a branch and hand it to the human; it is on `main` once merged. Its
+   tickets are claimable only from then on
+   ([NUC-large-work-is-planned §4](../../../docs/adr/NUC-large-work-is-planned.md)): the plan's
+   pull request lands before any ticket's work starts, and a `feat/` branch gathers tickets, not
+   the plan they come from.
 
 Unfinished work a session leaves behind is a single ticket in a directory of its own,
 `docs/plan/<slug>/01-<slug>.md`, without a spec.

@@ -1,52 +1,49 @@
-#!/usr/bin/env bash
+#!/bin/sh
 #
-# Git pre-merge-commit hook: no merge on main or on a feat/ branch, and a merge into any other
-# branch passes the documentation check before the branch moves.
+# Git pre-merge-commit hook, the reference shim of nuc (API-hook-contract-keyed-shims): 'nuc
+# hook pre-merge-commit' decides from the git state, and this shim runs the project's
+# documentation check where nuc answers that it runs.
 #
-# Changes reach main through a pull request, and the local main only takes up the remote's by a
-# fast-forward (NUC-main-only-via-pr §4). A feat/ branch carries no merge commit: a branch is
-# rebased onto it, and it moves forward by a fast-forward (NUC-main-only-via-pr §5), which makes no
-# commit and runs no hook. Any other merge, on a branch of its own, still passes the gate below.
-# Two branches green on their own collide at a merge mostly in the record: the same ADR identifier,
-# an index row, a link or an anchor the other moved. scripts/check-docs.sh decides those in about a
-# second, so it runs here on the merged tree, which git has written before this hook and before the
-# commit. The rest of scripts/check-all.sh runs before the push (pre-push), where it sees every
-# merge at once; a merge that stops on a conflict, the one carrying edits by hand, runs all of it
-# when concluded (pre-commit). A fast-forward makes no commit and runs no hook; 'merge.ff' false
-# prevents one, and the push still gates what it brought. Enabled as the "Git hooks" of
-# CONTRIBUTING.md says.
+# nuc refuses a merge on main, and from template release v0.11.0 on a feat/ branch, and answers 3
+# on a merge into any other branch whose repository has scripts/check-docs.sh: the shim then runs
+# it on the merged tree, with the variables git hands a hook unset, and refuses while it is red or
+# cannot run. Every answer but 0 and 3 refuses, a panic's 101 and a code a later nuc adds
+# included. Without nuc on the PATH it refuses and names where to install it.
 #
-# A repository without scripts/check-docs.sh has nothing to run, and the merge proceeds.
-# Bypassable with 'git merge --no-verify'; NUC-main-only-via-pr §6 says who may.
-# scripts/test-git-hooks.sh exercises this hook.
+# POSIX sh, so that git for Windows runs it with the sh it bundles. Bypassable with
+# 'git merge --no-verify'; NUC-main-only-via-pr §6 says who may.
 
-set -uo pipefail
-
-branch="$(git symbolic-ref --short -q HEAD 2>/dev/null || true)"
-
-if [[ "$branch" == "main" ]]; then
-  echo "pre-merge-commit: refused — the checkout is on 'main', and changes reach main through a pull request (NUC-main-only-via-pr §1, §4). git merge --abort, then rebase the branch onto a feat/ branch, or take up the remote's main: git merge --ff-only origin/main" >&2
+if ! command -v nuc >/dev/null 2>&1; then
+  echo "pre-merge-commit: refused — nuc is not on the PATH, so no hook decides. Install it from https://github.com/hivevm/nuc-tools/releases [shim/pre-merge-commit:missing]" >&2
   exit 1
 fi
 
-if [[ "$branch" == feat/* ]]; then
-  echo "pre-merge-commit: refused — the checkout is on the feat/ branch '$branch', which carries no merge commit (NUC-main-only-via-pr §5). git merge --abort, then rebase the branch onto it and move it forward: git rebase $branch <branch>, then git switch $branch && git merge --ff-only <branch>" >&2
+nuc hook pre-merge-commit "$@"
+answer=$?
+case "$answer" in
+  0) exit 0 ;;
+  3) ;;
+  1 | 2) exit 1 ;;
+  *)
+    echo "pre-merge-commit: refused — nuc hook pre-merge-commit exited $answer, which this shim does not know [shim/pre-merge-commit:unknown]" >&2
+    exit 1
+    ;;
+esac
+
+if ! root="$(git rev-parse --show-toplevel)"; then
+  echo "pre-merge-commit: refused — git names no work tree, so the documentation check cannot run [shim/pre-merge-commit:outside]" >&2
   exit 1
 fi
 
-root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
-
-# The variables git hands a hook would bind every git command of the check to this repository's
-# git directory instead of the one it finds from its own path (see pre-push).
+# The checks build fixture repositories of their own; the variables git hands a hook would bind
+# every git command in a fixture to this repository.
 # shellcheck disable=SC2046 # one variable name per word
 unset $(git rev-parse --local-env-vars)
 
-if [[ -n "$root" && -f "$root/scripts/check-docs.sh" ]]; then
-  if ! bash "$root/scripts/check-docs.sh"; then
-    echo >&2
-    echo "pre-merge-commit: refused — the documentation check is red on the merge, and it passes before a branch takes up another (NUC-checks-are-bash §6). git merge --abort, fix it on the merged branch, then merge again." >&2
-    exit 1
-  fi
+if ! bash "$root/scripts/check-docs.sh"; then
+  echo >&2
+  echo "pre-merge-commit: refused — the documentation check is red on the merge, and it passes before a branch takes up another (NUC-checks-are-bash §6). git merge --abort, fix it on the merged branch, then merge again. [hook/merge-docs:red]" >&2
+  exit 1
 fi
 
 exit 0

@@ -122,8 +122,10 @@ human has agreed the cut.
 Hand the change to the [`review`](../review/SKILL.md) skill with the old record at the base
 commit, the map, and the clause table. The reviewer walks the table and reads each clause against
 the new ADR that carries it. It reports any decision that moved and any clause the table misses.
-Commit with the map in the commit body, and hand the branch to the human with both maps, the
-cut, the clause table, and the review in its hand-off. One pull request lands the branch
+Commit with the map in the commit body, under a line that reads `ADR map:` alone. By that line a
+check of the record's history tells a normalization's commit from one that changes the text of an
+accepted ADR. Hand the branch to the human with both maps, the cut, the clause table, and the
+review in its hand-off. One pull request lands the branch
 ([NUC-main-only-via-pr §4](../../../docs/adr/NUC-main-only-via-pr.md)).
 
 In the template, a release that merges, splits, or removes a `NUC-` ADR is a major, and its notes
@@ -159,6 +161,8 @@ own ADRs stay as they are; no inherited ADR is merged into its record. Work on a
    list the citations with `git grep -nwE '<old identifiers>'` and move each as the map says, in
    accepted ADRs too
    ([NUC-decisions-are-proposed-then-accepted §6](../../../docs/adr/NUC-decisions-are-proposed-then-accepted.md)).
+   The commit that moves them carries the map under a line that reads `ADR map:` alone, as in
+   [section 6](#6-review-and-hand-off).
    Where the cited clause changed its meaning, hand the ADR to the human for a supersession instead.
 6. **Hand-off.** Hand the branch to the human with the two tags and, for a re-cut, the citations
    that moved. One pull request lands it

@@ -135,6 +135,9 @@ docs/adr-refs | pass | - | a slug of one word is no citation | text README.md AP
 docs/adr-refs | pass | - | a slug of one word in a shell script is no citation | text scripts/lib/note.sh # An API:first design.
 docs/adr-refs | pass | - | a chain longer than an identifier is no citation, not one cut short | text README.md NUC:adrs-record-decisions-and-a-b.
 docs/adr-refs | pass | - | a hyphenated word of no category is no citation | text README.md UTF:8 and SHA:256 and CVE:2025-30066.
+docs/adr-refs | pass | - | a hook the hooks' blob list pins cites an ADR of another repository | layout .githooks/; text .githooks/pre-push # See SEC:y-rule.; write .githooks/nuc.blobs release v1.0.0\n0000000000000000000000000000000000000000 pre-push\n
+docs/adr-refs | fail | docs/adr-refs:unmatched @ SEC:y-rule | a hook the blob list does not pin is read like any file | text .githooks/pre-push # See SEC:y-rule.; write .githooks/nuc.blobs release v1.0.0\n
+docs/adr-refs | fail | docs/adr-refs:unmatched @ SEC:y-rule | a file of the project's own the blob list names is read like any file | text .githooks/own # See SEC:y-rule.; write .githooks/nuc.blobs release v1.0.0\n0000000000000000000000000000000000000000 own\n
 docs/adr-refs | fail | docs/adr-refs:unlisted @ SEC:x-rule.md @ docs/no-such-key | an accepted ADR that names a rule key the header of check-docs.sh lacks | adr SEC:x-rule accepted; applies SEC:x-rule the rule `docs/no-such-key` of `scripts/check-docs.sh`
 docs/adr-refs | fail | docs/adr-refs:unlisted @ SEC:x-rule.md @ docs/no-such-key | a proposed ADR that names a missing key among keys that exist | adr SEC:x-rule proposed; applies SEC:x-rule the rules `docs/links`, `docs/no-such-key`, and `docs/adr-refs` of `scripts/check-docs.sh`
 docs/adr-refs | pass | - | an ADR that names rule keys of the header | adr SEC:x-rule accepted; applies SEC:x-rule the rules `docs/links` and `docs/adr-refs` of `scripts/check-docs.sh`
