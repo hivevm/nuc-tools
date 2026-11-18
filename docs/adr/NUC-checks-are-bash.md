@@ -3,7 +3,7 @@
 - **Status:** 🟢 accepted
 - **Date:** 2026-11-08
 - **Deciders:** NUC maintainer
-- **Applies to:** the checks and sensors and their self-tests under `scripts/`, the scripts `scripts/check-all.sh` names as run on instruction, the root and the arguments of every script `scripts/*.sh` through `scripts/lib/root.sh`, the git hooks under `.githooks/`, the workflows under `.github/workflows/`, and the required checks of `CONTRIBUTING.md`
+- **Applies to:** the checks and sensors and their self-tests under `scripts/`, the scripts `scripts/check-all.sh` names as run on instruction, the root and the arguments of every script `scripts/*.sh` through `scripts/lib/root.sh`, the checks the git hooks under `.githooks/` run, the workflows under `.github/workflows/`, and the required checks of `CONTRIBUTING.md`
 
 ## Context
 
@@ -11,11 +11,12 @@ The template ships no language toolchain. A derived project picks its own, and s
 macOS, Linux, or Windows under Git Bash. The checks that hold the decisions must run on every one
 of them before the project has chosen anything.
 
-Three more forces bound the answer. A git hook runs before any check can say which bash it found,
-and macOS ships bash 3.2. A check that runs in CI and not in the local gate, or the other way
-round, is a gate somebody believes in and does not have. Some settings live only in the GitHub
-repository, and the workflow token cannot read all of them. Some sensors cost a full run of the
-checks or more, and some scripts change the repository instead of reporting on it.
+Three more forces bound the answer. macOS ships bash 3.2, and a git hook runs before any check can
+say which bash it found; [NUC-hooks-run-nuc](NUC-hooks-run-nuc.md) decides what a hook needs. A
+check that runs in CI and not in the local gate, or the other way round, is a gate somebody
+believes in and does not have. Some settings live only in the GitHub repository, and the workflow
+token cannot read all of them. Some sensors cost a full run of the checks or more, and some scripts
+change the repository instead of reporting on it.
 
 ## Decision
 
@@ -26,7 +27,9 @@ hooks and CI run them alike, but for the scripts of clause 7.
    script must need nothing beyond bash 4.4 or later, git, coreutils, grep, sed, awk, find, and
    tar. The shell lint may also need ShellCheck.
 2. **Self-test.** Each script runs after its own self-test, which runs it on fixture repositories.
-3. **Hooks.** A git hook under `.githooks/` must need no more than bash 3.2.
+3. **Hooks.** The git hooks under `.githooks/` are the pinned shims of `nuc`, and what a hook
+   itself needs is decided by [NUC-hooks-run-nuc](NUC-hooks-run-nuc.md). The checks a hook runs
+   are the scripts of clause 1.
 4. **Sensors.** A sensor is a script `scripts/sensor-<name>.sh` whose header says what it counts.
    It must not fail on what it counts until a decision turns it into a check. Its self-test
    `scripts/test-sensor-<name>.sh` must cite this ADR.
@@ -72,8 +75,9 @@ hooks and CI run them alike, but for the scripts of clause 7.
 
 A project may choose:
 
-- a binary in place of the bash scripts, under clause 8. Whether the template itself switches
-  stays open;
+- a binary in place of the bash checks and sensors, under clause 8. The template's git hooks
+  already hand their work to `nuc` ([NUC-hooks-run-nuc](NUC-hooks-run-nuc.md)); whether its checks
+  switch stays open;
 - further checks and sensors of its own, in the language of its toolchain, from the entry
   `toolchain` of the [catalogue](../../.agents/skills/propose-adr/concepts/toolchain.md). A
   sensor of its own in another language falls outside clause 4.
@@ -120,7 +124,8 @@ The catalogue has no entry for the binary, and choosing it needs an ADR that nar
   by name (clause 1). The rule `shell/bash-floor` of `scripts/check-shell.sh` holds each script
   that sources the floor to stop below it with its name.
 - `scripts/test-check-all.sh` holds `--changed`, and `scripts/test-git-hooks.sh` every refusal of
-  the hooks (clause 6).
+  the hooks (clause 6). The enforcement of NUC-hooks-run-nuc holds the hooks to their shims
+  (clause 3).
 - `scripts/check-traceability.sh` fails on a sensor without its self-test, or a self-test that does
   not cite this ADR (clause 4). It names this ADR's identifier, which no normalization moves.
 - The rule `shell/root` of `scripts/check-shell.sh` holds every script `scripts/*.sh` to clause 9,
@@ -136,7 +141,6 @@ The self-tests of these checks cite this ADR.
 
 - whether a script needs a further tool (clause 1);
 - whether a script runs after its self-test (clause 2);
-- whether a hook stays within bash 3.2 (clause 3);
 - whether a sensor's header says what it counts, and whether it never fails on that (clause 4);
 - whether a script named on instruction is one of the three kinds, and whether each of them
   runs on instruction only (clause 7);
