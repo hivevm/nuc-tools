@@ -223,9 +223,15 @@ unless told otherwise, so start it there with
 names the host `host.docker.internal` and reaches the loopback, where the stack starts without the
 variable; Podman and the host itself are in the stack's table of endpoints, with the rest of the
 settings ([Pointing Claude Code at it](.devcontainer/README.md#pointing-claude-code-at-it)).
-The event `claude_code.api_request` carries the tokens of each call. The tokens of a hand-off's
-`Measures:` line come from there, or, once it lands, from `nuc measure` of
-[hivevm/nuc-tools#81](https://github.com/hivevm/nuc-tools/issues/81).
+The event `claude_code.api_request` carries the tokens of each call.
+
+The tokens of a hand-off's `Measures:` line come from `nuc measure`, which reads the harness's
+transcripts of the working tree; its options are in the README's
+[command reference](README.md#commands). On the branch the hand-off is for, `nuc measure` prints
+the line's `tokens <n>`. A `feat/` branch's line gathers its tickets: from `main` or a detached
+HEAD, run `nuc measure --branch feat/<topic>` with one `--branch` for each ticket branch it
+gathered. A `-` there means the work ran in no harness `nuc measure` reads, not that nobody
+measured it.
 
 ## Git hooks
 
