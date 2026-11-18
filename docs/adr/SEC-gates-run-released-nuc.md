@@ -1,6 +1,6 @@
 # SEC-gates-run-released-nuc: This repository's gates never run the `nuc` being built: the checks stay the template's bash, and the hooks run a released `nuc` that CI installs from checksums committed here
 
-- **Status:** 🟡 proposed
+- **Status:** 🟢 accepted
 - **Date:** 2026-11-18
 - **Deciders:** Markus Brigl
 - **Applies to:** `scripts/check-all.sh`, the hooks under `.githooks/`, the jobs of `.github/workflows/checks.yml`, the checksums and the version under `release/gate/`, `release/install-nuc.sh` as a gate runs it, the `minimum` of `nuc.toml`, and every place they name the tool that runs a check
