@@ -1,8 +1,13 @@
 # Every key nuc has printed, '<rule ID>:<reason>', read by tests/contract.rs
-# (API-command-line-with-measure), and every key a shim writes (API-hook-contract-keyed-shims). A
-# key stays once listed: a reader or a test branches on it in place of a message's wording, so no
-# reason is renamed, dropped, or given to another cause.
+# (API-command-line-with-measure), every key a shim writes (API-hook-contract-keyed-shims), and
+# every key a refusal of nuc.toml ends in (API-config-refusals-keyed). A key stays once listed: a
+# reader or a test branches on it in place of a message's wording, so no reason is renamed,
+# dropped, or given to another cause.
 
+config/toml:missing
+config/toml:old
+config/toml:unknown
+config/toml:unreadable
 docs/adr-header:emojis
 docs/adr-header:field
 docs/adr-header:instruction

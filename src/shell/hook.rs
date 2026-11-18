@@ -423,7 +423,10 @@ fn turned_on(root: Option<&Path>) -> Result<Vec<&'static HookRule>, String> {
         return Ok(hook::ALL.iter().collect());
     };
     let tree = Tree::new(root.to_path_buf())?;
-    let Some(text) = tree.read(&root.join("nuc.toml"))? else {
+    let Some(text) = tree
+        .read(&root.join("nuc.toml"))
+        .map_err(config::unreadable)?
+    else {
         return Ok(hook::ALL.iter().collect());
     };
     config::turned_on(&text, running(), hook::ALL).map_err(|refusal| refusal.to_string())

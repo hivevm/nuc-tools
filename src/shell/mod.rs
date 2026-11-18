@@ -134,7 +134,8 @@ fn check(repo: Option<&Path>, format: Format) -> Result<u8, String> {
     let root = git::toplevel(&start)?;
     let tree = Tree::new(root)?;
     let text = tree
-        .read(&tree.root.join("nuc.toml"))?
+        .read(&tree.root.join("nuc.toml"))
+        .map_err(config::unreadable)?
         .ok_or_else(|| config::Refusal::Missing.to_string())?;
     // A hook rule decides in `nuc hook` alone: its ID is known, and it is in no `rules::ALL`, so
     // it runs never here.

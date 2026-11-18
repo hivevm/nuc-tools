@@ -129,7 +129,9 @@ minimum holds like a release's.
   are a SARIF 2.1.0 log, which GitHub's code scanning reads, each with its reason, and the notes
   stay on the standard error. The exit code is 0 without a finding, 1 with one, and 2 where `nuc`
   could not decide, as without a readable `nuc.toml`; then nothing is written on the standard
-  output in any format.
+  output in any format. A refusal of `nuc.toml` ends in its key, `[config/toml:missing]`,
+  `[config/toml:unreadable]`, `[config/toml:old]`, or `[config/toml:unknown]`
+  ([API-config-refusals-keyed](docs/adr/API-config-refusals-keyed.md)).
 - `nuc explain <rule ID>` gives the reason of a rule.
 - `nuc hook <name>` decides a git hook; the shims below call it.
 - `nuc measure [--harness claude-code] [--transcripts <dir>] [--branch <name>]... [--since <time>]
@@ -174,8 +176,8 @@ release carries
 Each shim hands its hook to `nuc hook <name>`: `nuc` decides, and where a hook's check is due
 the shim runs the project's `scripts/check-all.sh` or `scripts/check-docs.sh` itself. Without `nuc`
 on the `PATH`, or with one older than `nuc.toml` requires, every shim refuses and names where to
-install it. They rely on the same git settings as the template's hooks, listed under
-[Git hooks](CONTRIBUTING.md#git-hooks).
+install it, ending in the key `[shim/<hook>:missing]` or `[config/toml:old]`. They rely on the same
+git settings as the template's hooks, listed under [Git hooks](CONTRIBUTING.md#git-hooks).
 
 ## Template
 
