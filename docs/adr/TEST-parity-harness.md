@@ -121,5 +121,5 @@ both are compared. It checks that each of the following fails: a variant that do
 of the trees, one that does not apply to a tree it names, one that names a tree the corpus lacks,
 one that does not make its rule fire, a ported rule without a variant, and a variant that reaches
 outside its copy. In [`scripts/check-docs.sh`](../../scripts/check-docs.sh), the rule
-`docs/check-lists` holds the `parity` job, its `run` line in `scripts/check-all.sh`, and the
-required checks of `CONTRIBUTING.md` together.
+`docs/check-lists` holds the `parity` job, its check runs per shard, its `run` line in
+`scripts/check-all.sh`, and the required checks of `CONTRIBUTING.md` together.

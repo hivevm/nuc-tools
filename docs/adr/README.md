@@ -134,5 +134,3 @@ flips its status.
 
 | ADR | Title | Applies to | Status |
 |-----|-------|------------|--------|
-| [SEC-gates-never-run-build](SEC-gates-never-run-build.md) | This repository's gates never run the `nuc` being built, only the template's bash or a released `nuc` pinned like any dependency | `scripts/check-all.sh`, the hooks under `.githooks/`, the jobs of `.github/workflows/checks.yml`, and every place they name the tool that runs a check | ⚪ superseded by SEC-gates-run-released-nuc |
-| [API-hook-contract-names-check](API-hook-contract-names-check.md) | A POSIX sh shim hands each hook to `nuc hook <name>`, which decides from the git state and answers 0, 1, 2, 3, or 4, and the shim runs the hook's check on 3 and the documentation check on 4 | the `nuc hook` command and its source, the reference shims under `shims/`, the `hook/` rule IDs, the files `nuc hook` writes in the git directory, and the merge driver of the ADR index | ⚪ superseded by API-hook-contract-keyed-shims |

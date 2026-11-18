@@ -4,7 +4,6 @@
 - **Date:** 2026-11-17
 - **Deciders:** Markus Brigl
 - **Applies to:** the `nuc hook` command and its source, the reference shims under `shims/`, the `hook/` rule IDs, the files `nuc hook` writes in the git directory, and the merge driver of the ADR index, and the keys and wording of the shims' own refusals
-- **Supersedes:** [API-hook-contract-names-check](API-hook-contract-names-check.md)
 ## Context
 
 G-2 asks that a hook through the shim refuse or pass exactly as the bash hook of the release does.
@@ -32,8 +31,9 @@ working tree, or could be missing, because the variables of a linked worktree ar
 The bash hooks never read `nuc.toml` or the release line, and the fixtures of the template's hook
 self-test carry neither. The maintainer decided that a hook works without `nuc.toml`, on defaults.
 
-[SEC-gates-never-run-build](SEC-gates-never-run-build.md) keeps this repository's own `.githooks/`
-on the bash, so the shims cannot live there. The template copies them at its switch-over. Git for
+The template copies the shims into its `.githooks/` from release v0.12.0, pinned by their blobs
+([NUC-hooks-run-nuc](NUC-hooks-run-nuc.md)), and this repository's own hooks are those shims, run
+on a released `nuc` ([SEC-gates-run-released-nuc](SEC-gates-run-released-nuc.md)). Git for
 Windows runs hooks with the sh it bundles, and Q-4 tests with no bash on the `PATH`.
 
 Every finding of `nuc hook` ends in its key
@@ -41,9 +41,10 @@ Every finding of `nuc hook` ends in its key
 in four cases: `nuc` is missing, it answers a code the shim does not know, git names no work tree,
 and the check the shim runs is red. Those lines carry no key, and the clause they cite differs from
 shim to shim: `NUC-checks-are-bash §6`, `AGENTS.md, section 6`, or `AGENTS.md, section 5`. The
-template is to switch its hooks to the shims, and its self-test of the hooks is to assert keys and
-exit codes, not wording, so that a normalization's map can run over the tree while the messages of
-`nuc` are compiled. A refusal without a key cannot be asserted that way.
+template was to switch its hooks to the shims, which it did at release v0.12.0, and its self-test
+of the hooks was to assert keys and exit codes, not wording, so that a normalization's map can
+run over the tree while the messages of `nuc` are compiled. A refusal without a key cannot be
+asserted that way.
 
 ## Decision
 
@@ -202,7 +203,7 @@ on 4, and refuses on every code it does not name, each refusal of its own ending
   - the checks a hook runs stay bash until they are ported;
   - a second file in the git directory carries state between two calls, and a push the user
     aborts leaves it behind, which only a later push overwrites.
-- Follow-ups: the switch-over of the template's hooks to the shims.
+- Follow-ups: none; the template switched its hooks to the shims at release v0.12.0.
 
 ## Enforcement
 

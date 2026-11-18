@@ -32,8 +32,9 @@ it, although [`AGENTS.md` §5](../../AGENTS.md#5-quality-bar--definition-of-done
 red in CI. A job with a matrix reports one check run per entry, `<job> (<values>)`. The required
 checks of `CONTRIBUTING.md` name it that way, which the rule `docs/check-lists` of
 `scripts/check-docs.sh` holds. The runners are not the bottleneck: the three platform runs take
-under a minute each, while the required `parity` job takes ten to fifteen. The repository is
-public, and GitHub's billing states that standard GitHub-hosted runners are free there.
+under a minute each, while the slowest of the four required `parity` shards takes about nine to
+ten minutes. The repository is public, and GitHub's billing states that standard GitHub-hosted
+runners are free there.
 
 ## Decision
 
@@ -111,7 +112,7 @@ call for it; a duplication tool; the test layout and harness, a decision of its 
   https://docs.github.com/en/billing/managing-billing-for-your-products/managing-billing-for-github-actions/about-billing-for-github-actions
 - The check runs of this repository: a matrix job reports one check run per entry, named
   `<job> (<values>)`, as `portability (macos-latest)`, where the three platform runs take under a
-  minute each and `parity` ten to fifteen.
+  minute each and the slowest `parity` shard about nine to ten, on 2026-11-18.
 
 ## Consequences
 
