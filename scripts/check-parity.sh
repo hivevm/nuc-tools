@@ -58,7 +58,8 @@
 # Then the hook scenarios run on the template's trees of the corpus, through
 # scripts/lib/hook-parity.sh (TEST-hook-scenario-parity): each scenario of
 # tests/parity/hook-scenarios.sh through git, with the tree's bash hook and with the reference shim
-# and nuc, compared as that file says.
+# and nuc, compared as that file says. A tree whose .githooks/nuc.blobs pins its hooks carries
+# nuc's shims, not bash hooks, and is left out of them.
 #
 # The tree of the corpus runs its own bash scripts: the corpus is pinned by commit, and a pull
 # request that moves a pin is reviewed like code. nuc is built from the working tree by
@@ -108,6 +109,8 @@ RELEASES="${PARITY_RELEASES:-$ROOT/tests/parity/releases.tsv}"
 
 # shellcheck source-path=SCRIPTDIR source=lib/check.sh
 source "$LIB/check.sh"
+# shellcheck source-path=SCRIPTDIR source=lib/pin.sh
+source "$LIB/pin.sh"
 # shellcheck source-path=SCRIPTDIR source=lib/hook-parity.sh
 source "$LIB/hook-parity.sh"
 

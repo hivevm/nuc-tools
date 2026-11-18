@@ -39,7 +39,8 @@
 # scenario whose bash side does not end as its case expects, a notice whose field differs, a record
 # of green trees that differs, a merge driver that writes another index, no tree at all, and a
 # malformed table each fail (TEST-hook-scenario-parity). A case is held only on a tree whose
-# self-test names it.
+# self-test names it. A tree whose .githooks/nuc.blobs pins its hooks, nuc's shims, is left out of
+# the scenarios and their coverage, and a run with no other tree fails.
 #
 # Inputs: scripts/check-parity.sh tests/parity/ scripts/lib/ shims/
 #
@@ -851,6 +852,22 @@ else
   failed=$((failed + 1))
   echo "FAIL: a tree later than the hooks nuc ports is left out (exit $rc)" >&2
   while IFS= read -r l; do printf '    %s\n' "$l"; done <<< "$out" >&2
+fi
+# A tree whose blob list pins its hooks carries nuc's shims: it is left out of the scenarios and of
+# the coverage whatever release it names, so neither its hook's line no row maps nor the case only
+# its self-test names fails; with no other tree, nothing is compared, which fails.
+shim="$(hook_tree shim "pre-commit: a line no row maps" "a case of the shims")"
+printf 'release v0.2.2\n%s pre-commit\n' "$(printf '0%.0s' {1..40})" > "$shim/.githooks/nuc.blobs"
+out="$(run_hooks "$(hook_nuc agrees "$HOOK_AGREES")" "$HOOK_SCENARIOS_FILE" "$NO_CASES" "$tree" "$shim" 2>&1)"; rc=$?
+out_alone="$(run_hooks "$(hook_nuc passes 'exit 0')" "$HOOK_SCENARIOS_FILE" "$NO_CASES" "$shim" 2>&1)"; rc_alone=$?
+if ((rc == 0 && rc_alone == 1)) \
+  && [[ "$out" == *"the tree at v0.7.0 pins its hooks in .githooks/nuc.blobs"* && "$out" == *"on 1 tree(s)"* \
+  && "$out_alone" == *"or pins nuc's shims as its hooks, so no hook is compared"* && "$out_alone" != *"nuc exits"* ]]; then
+  passed=$((passed + 1))
+else
+  failed=$((failed + 1))
+  echo "FAIL: a tree whose blob list pins its hooks is left out (exit $rc, alone $rc_alone)" >&2
+  while IFS= read -r l; do printf '    %s\n' "$l"; done <<< "$out"$'\n'"$out_alone" >&2
 fi
 expect pass "a tree at the bound of the hooks nuc ports is compared" "" \
   env PARITY_HOOKS_PORTED=v0.7.0 PARITY_HOOK_SCENARIOS="$HOOK_SCENARIOS_FILE" PARITY_HOOK_CASES="$NO_CASES" \

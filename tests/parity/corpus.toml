@@ -67,12 +67,35 @@ name = "nuc-v0-11-0"
 url = "https://github.com/hivevm/nuc.git"
 commit = "d48b23f90d61c4230a85e2a3c78d5421764f8b56"
 
+# The template at the commit of its release v0.11.1, whose checks change only in their comments:
+# every rule checks it as v0.10.0.
+[[repository]]
+name = "nuc-v0-11-1"
+url = "https://github.com/hivevm/nuc.git"
+commit = "dfb7774826f02ad6e0b32a277971879f8304c75d"
+
+# The template at the commit of its release v0.12.0, whose hooks are the shims of nuc that
+# .githooks/nuc.blobs pins, which check-docs.sh reads as no text file of the tree and
+# check-shell.sh lints as no script: the rules that check by the release check it as v0.12.0. Its
+# hooks are nuc's own, so the hook scenarios leave the tree out.
+[[repository]]
+name = "nuc-v0-12-0"
+url = "https://github.com/hivevm/nuc.git"
+commit = "aa7847a8c548395c42746c833220f2e18c7bf80a"
+
 # This repository at the commit of its main that merged the first part of the port, on template
 # release v0.11.0: a derived tree of that release.
 [[repository]]
 name = "nuc-tools-v0-11-0"
 url = "https://github.com/hivevm/nuc-tools.git"
 commit = "ec2a93a610523dd2afa895c660f8ba96735d46e2"
+
+# This repository at the commit of its main after the record was restated, on template release
+# v0.12.0: a derived tree of that release, whose hooks the blob list pins.
+[[repository]]
+name = "nuc-tools-v0-12-0"
+url = "https://github.com/hivevm/nuc-tools.git"
+commit = "c86f4fad4887618d06a34956bfed4883d13d39a7"
 
 # A derived repository on template release v0.6.1, at a fixed commit of its main.
 [[repository]]

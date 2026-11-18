@@ -96,36 +96,39 @@ coverage-uncited-path-colon	traceability/coverage	docs/adr/0997-parity:variant.m
 # record, the fixed base, and the traceability of that release. An edit of a NUC- file makes
 # docs/base-blobs fire beside its rule. References are written with \x2d for the hyphen, so that
 # this file carries none the checks would read.
-adr-identifiers-heading-v9	docs/adr-identifiers	docs/adr/NUC-design-is-revised.md	sed	s/^# NUC-design-is-revised:/# NUC\x2ddesign\x2drevised:/	nuc-v0-9-0,nuc-v0-9-1,nuc-v0-10-0,nuc-v0-11-0
-adr-identifiers-form-v9	docs/adr-identifiers	docs/adr/draft-parity-variant.md	write	# A draft the variant writes	nuc-v0-9-0,nuc-v0-9-1,nuc-v0-10-0,nuc-v0-11-0
-adr-identifiers-numbered-v9	docs/adr-identifiers	docs/adr/0999-parity-variant.md	write	- **Status:** 🟢 accepted	nuc-v0-9-0,nuc-v0-9-1,nuc-v0-10-0,nuc-v0-11-0
-adr-index-unlisted-v9	docs/adr-index	docs/adr/VAR-parity-variant.md	write	# VAR\x2dparity\x2dvariant: X\n\n- **Status:** 🟡 proposed\n- **Date:** 2026-01-01\n- **Deciders:** x\n- **Applies to:** x	nuc-v0-9-0,nuc-v0-9-1,nuc-v0-10-0,nuc-v0-11-0
-adr-header-wrong-word-v9	docs/adr-header	docs/adr/NUC-design-is-revised.md	sed	s/^(- \*\*Status:\*\* 🟢) accepted$/\1 proposed/	nuc-v0-9-0,nuc-v0-9-1,nuc-v0-10-0,nuc-v0-11-0
-adr-refs-missing-v9	docs/adr-refs	README.md	sed	1s/$/ SEC\x2dgone\x2daway/	nuc-v0-9-0,nuc-v0-9-1,nuc-v0-10-0,nuc-v0-11-0
-adr-refs-unit-separator-v9	docs/adr-refs	README.md	sed	1s/$/ \x1fSEC\x2dgone\x2dthere/	nuc-v0-9-0,nuc-v0-9-1,nuc-v0-10-0,nuc-v0-11-0
-adr-refs-invalid-utf8-v9	docs/adr-refs	README.md	sed	1s/$/ \xffSEC\x2dgone\x2delsewhere/	nuc-v0-9-0,nuc-v0-9-1,nuc-v0-10-0,nuc-v0-11-0
-adr-link-targets-other-v9	docs/adr-link-targets	docs/adr/NUC-design-is-revised.md	sed	$s/$/\n\nSee [NUC\x2dbase\x2dis\x2dfixed](NUC-checks-are-bash.md)./	nuc-v0-9-0,nuc-v0-9-1,nuc-v0-10-0,nuc-v0-11-0
-adr-supersessions-no-successor-v9	docs/adr-supersessions	docs/adr/NUC-design-is-revised.md	sed	s/^(- \*\*Status:\*\*) 🟢 accepted$/\1 ⚪ superseded/	nuc-v0-9-0,nuc-v0-9-1,nuc-v0-10-0,nuc-v0-11-0
-adr-supersessions-clause-v9	docs/adr-supersessions	docs/adr/VAR-parity-clause.md	write	# VAR\x2dparity\x2dclause: X\n\n- **Status:** 🟡 proposed\n- **Date:** 2026-01-01\n- **Deciders:** x\n- **Applies to:** x\n- **Extends:** NUC\x2dbase\x2dis\x2dfixed §99	nuc-v0-9-0,nuc-v0-9-1,nuc-v0-10-0,nuc-v0-11-0
-adr-supersessions-field-v9	docs/adr-supersessions	docs/adr/VAR-parity-field.md	write	# VAR\x2dparity\x2dfield: X\n\n- **Status:** 🟡 proposed\n- **Date:** 2026-01-01\n- **Deciders:** x\n- **Applies to:** x\n- **Narrows:** the base	nuc-v0-9-0,nuc-v0-9-1,nuc-v0-10-0,nuc-v0-11-0
-adr-supersessions-base-v9	docs/adr-supersessions	docs/adr/VAR-parity-base.md	write	# VAR\x2dparity\x2dbase: X\n\n- **Status:** 🟡 proposed\n- **Date:** 2026-01-01\n- **Deciders:** x\n- **Applies to:** x\n- **Supersedes:** NUC\x2dbase\x2dis\x2dfixed	nuc-v0-9-0,nuc-v0-9-1,nuc-v0-10-0,nuc-v0-11-0
-adr-index-base-v9	docs/adr-index	docs/adr/README.md	sed	s/^### Binding$/&\n\n| [NUC\x2dbase\x2dis\x2dfixed](NUC\x2dbase\x2dis\x2dfixed.md) | x | x | 🟢 accepted |/	nuc-v0-9-0,nuc-v0-9-1,nuc-v0-10-0,nuc-v0-11-0
-sensor-tests-uncited-v9	traceability/sensor-tests	scripts/test-sensor-backlog.sh	sed	/^# Verifies\x3a NUC\x2dchecks\x2dare\x2dbash$/d	nuc-v0-9-0,nuc-v0-9-1,nuc-v0-10-0,nuc-v0-11-0
-base-blobs-absent-v9	docs/base-blobs	docs/adr/NUC.blobs	delete	-	nuc-v0-9-0,nuc-v0-9-1,nuc-v0-10-0,nuc-v0-11-0
-skill-pointers-front-matter-v9	docs/skill-pointers	.agents/skills/review/SKILL.md	sed	1d	nuc-v0-9-0,nuc-v0-9-1,nuc-v0-10-0,nuc-v0-11-0
-sensor-tests-absent-v9	traceability/sensor-tests	scripts/test-sensor-backlog.sh	delete	-	nuc-v0-9-0,nuc-v0-9-1,nuc-v0-10-0,nuc-v0-11-0
-citations-missing-adr-v9	traceability/citations	scripts/check-all.sh	sed	$s/$/\n# Verifies\x3a SEC\x2dgone\x2daway/	nuc-v0-9-0,nuc-v0-9-1,nuc-v0-10-0,nuc-v0-11-0
-citations-malformed-v9	traceability/citations	scripts/check-all.sh	sed	$s/$/\n# Verifies\x3a SEC\x2dgone/	nuc-v0-9-0,nuc-v0-9-1,nuc-v0-10-0,nuc-v0-11-0
-citations-superseded-v9	traceability/citations	docs/adr/NUC-checks-are-bash.md	sed	s/^(- \*\*Status:\*\*) 🟢 accepted$/\1 ⚪ superseded/	nuc-v0-9-0,nuc-v0-9-1,nuc-v0-10-0,nuc-v0-11-0
-coverage-uncited-v9	traceability/coverage	docs/adr/VAR-parity-uncited.md	write	# VAR\x2dparity\x2duncited: X\n\n- **Status:** 🟢 accepted\n- **Date:** 2026-01-01\n- **Deciders:** x\n- **Applies to:** x	nuc-v0-9-0,nuc-v0-9-1,nuc-v0-10-0,nuc-v0-11-0
-coverage-no-reason-v9	traceability/coverage	docs/adr/VAR-parity-reason.md	write	# VAR\x2dparity\x2dreason: X\n\n- **Status:** 🟢 accepted\n- **Date:** 2026-01-01\n- **Deciders:** x\n- **Applies to:** x\n\n## Enforcement\n\n**Not mechanically decidable:**	nuc-v0-9-0,nuc-v0-9-1,nuc-v0-10-0,nuc-v0-11-0
-template-identity-setup-done-v9	docs/template-identity	TEMPLATE-SETUP.md	delete	-	nuc-v0-9-0,nuc-v0-9-1,nuc-v0-10-0,nuc-v0-11-0
+adr-identifiers-heading-v9	docs/adr-identifiers	docs/adr/NUC-design-is-revised.md	sed	s/^# NUC-design-is-revised:/# NUC\x2ddesign\x2drevised:/	nuc-v0-9-0,nuc-v0-9-1,nuc-v0-10-0,nuc-v0-11-0,nuc-v0-11-1,nuc-v0-12-0
+adr-identifiers-form-v9	docs/adr-identifiers	docs/adr/draft-parity-variant.md	write	# A draft the variant writes	nuc-v0-9-0,nuc-v0-9-1,nuc-v0-10-0,nuc-v0-11-0,nuc-v0-11-1,nuc-v0-12-0
+adr-identifiers-numbered-v9	docs/adr-identifiers	docs/adr/0999-parity-variant.md	write	- **Status:** 🟢 accepted	nuc-v0-9-0,nuc-v0-9-1,nuc-v0-10-0,nuc-v0-11-0,nuc-v0-11-1,nuc-v0-12-0
+adr-index-unlisted-v9	docs/adr-index	docs/adr/VAR-parity-variant.md	write	# VAR\x2dparity\x2dvariant: X\n\n- **Status:** 🟡 proposed\n- **Date:** 2026-01-01\n- **Deciders:** x\n- **Applies to:** x	nuc-v0-9-0,nuc-v0-9-1,nuc-v0-10-0,nuc-v0-11-0,nuc-v0-11-1,nuc-v0-12-0
+adr-header-wrong-word-v9	docs/adr-header	docs/adr/NUC-design-is-revised.md	sed	s/^(- \*\*Status:\*\* 🟢) accepted$/\1 proposed/	nuc-v0-9-0,nuc-v0-9-1,nuc-v0-10-0,nuc-v0-11-0,nuc-v0-11-1,nuc-v0-12-0
+adr-refs-missing-v9	docs/adr-refs	README.md	sed	1s/$/ SEC\x2dgone\x2daway/	nuc-v0-9-0,nuc-v0-9-1,nuc-v0-10-0,nuc-v0-11-0,nuc-v0-11-1,nuc-v0-12-0
+adr-refs-unit-separator-v9	docs/adr-refs	README.md	sed	1s/$/ \x1fSEC\x2dgone\x2dthere/	nuc-v0-9-0,nuc-v0-9-1,nuc-v0-10-0,nuc-v0-11-0,nuc-v0-11-1,nuc-v0-12-0
+adr-refs-invalid-utf8-v9	docs/adr-refs	README.md	sed	1s/$/ \xffSEC\x2dgone\x2delsewhere/	nuc-v0-9-0,nuc-v0-9-1,nuc-v0-10-0,nuc-v0-11-0,nuc-v0-11-1,nuc-v0-12-0
+adr-link-targets-other-v9	docs/adr-link-targets	docs/adr/NUC-design-is-revised.md	sed	$s/$/\n\nSee [NUC\x2dbase\x2dis\x2dfixed](NUC-checks-are-bash.md)./	nuc-v0-9-0,nuc-v0-9-1,nuc-v0-10-0,nuc-v0-11-0,nuc-v0-11-1,nuc-v0-12-0
+adr-supersessions-no-successor-v9	docs/adr-supersessions	docs/adr/NUC-design-is-revised.md	sed	s/^(- \*\*Status:\*\*) 🟢 accepted$/\1 ⚪ superseded/	nuc-v0-9-0,nuc-v0-9-1,nuc-v0-10-0,nuc-v0-11-0,nuc-v0-11-1,nuc-v0-12-0
+adr-supersessions-clause-v9	docs/adr-supersessions	docs/adr/VAR-parity-clause.md	write	# VAR\x2dparity\x2dclause: X\n\n- **Status:** 🟡 proposed\n- **Date:** 2026-01-01\n- **Deciders:** x\n- **Applies to:** x\n- **Extends:** NUC\x2dbase\x2dis\x2dfixed §99	nuc-v0-9-0,nuc-v0-9-1,nuc-v0-10-0,nuc-v0-11-0,nuc-v0-11-1,nuc-v0-12-0
+adr-supersessions-field-v9	docs/adr-supersessions	docs/adr/VAR-parity-field.md	write	# VAR\x2dparity\x2dfield: X\n\n- **Status:** 🟡 proposed\n- **Date:** 2026-01-01\n- **Deciders:** x\n- **Applies to:** x\n- **Narrows:** the base	nuc-v0-9-0,nuc-v0-9-1,nuc-v0-10-0,nuc-v0-11-0,nuc-v0-11-1,nuc-v0-12-0
+adr-supersessions-base-v9	docs/adr-supersessions	docs/adr/VAR-parity-base.md	write	# VAR\x2dparity\x2dbase: X\n\n- **Status:** 🟡 proposed\n- **Date:** 2026-01-01\n- **Deciders:** x\n- **Applies to:** x\n- **Supersedes:** NUC\x2dbase\x2dis\x2dfixed	nuc-v0-9-0,nuc-v0-9-1,nuc-v0-10-0,nuc-v0-11-0,nuc-v0-11-1,nuc-v0-12-0
+adr-index-base-v9	docs/adr-index	docs/adr/README.md	sed	s/^### Binding$/&\n\n| [NUC\x2dbase\x2dis\x2dfixed](NUC\x2dbase\x2dis\x2dfixed.md) | x | x | 🟢 accepted |/	nuc-v0-9-0,nuc-v0-9-1,nuc-v0-10-0,nuc-v0-11-0,nuc-v0-11-1,nuc-v0-12-0
+sensor-tests-uncited-v9	traceability/sensor-tests	scripts/test-sensor-backlog.sh	sed	/^# Verifies\x3a NUC\x2dchecks\x2dare\x2dbash$/d	nuc-v0-9-0,nuc-v0-9-1,nuc-v0-10-0,nuc-v0-11-0,nuc-v0-11-1,nuc-v0-12-0
+base-blobs-absent-v9	docs/base-blobs	docs/adr/NUC.blobs	delete	-	nuc-v0-9-0,nuc-v0-9-1,nuc-v0-10-0,nuc-v0-11-0,nuc-v0-11-1,nuc-v0-12-0
+skill-pointers-front-matter-v9	docs/skill-pointers	.agents/skills/review/SKILL.md	sed	1d	nuc-v0-9-0,nuc-v0-9-1,nuc-v0-10-0,nuc-v0-11-0,nuc-v0-11-1,nuc-v0-12-0
+sensor-tests-absent-v9	traceability/sensor-tests	scripts/test-sensor-backlog.sh	delete	-	nuc-v0-9-0,nuc-v0-9-1,nuc-v0-10-0,nuc-v0-11-0,nuc-v0-11-1,nuc-v0-12-0
+citations-missing-adr-v9	traceability/citations	scripts/check-all.sh	sed	$s/$/\n# Verifies\x3a SEC\x2dgone\x2daway/	nuc-v0-9-0,nuc-v0-9-1,nuc-v0-10-0,nuc-v0-11-0,nuc-v0-11-1,nuc-v0-12-0
+citations-malformed-v9	traceability/citations	scripts/check-all.sh	sed	$s/$/\n# Verifies\x3a SEC\x2dgone/	nuc-v0-9-0,nuc-v0-9-1,nuc-v0-10-0,nuc-v0-11-0,nuc-v0-11-1,nuc-v0-12-0
+citations-superseded-v9	traceability/citations	docs/adr/NUC-checks-are-bash.md	sed	s/^(- \*\*Status:\*\*) 🟢 accepted$/\1 ⚪ superseded/	nuc-v0-9-0,nuc-v0-9-1,nuc-v0-10-0,nuc-v0-11-0,nuc-v0-11-1,nuc-v0-12-0
+coverage-uncited-v9	traceability/coverage	docs/adr/VAR-parity-uncited.md	write	# VAR\x2dparity\x2duncited: X\n\n- **Status:** 🟢 accepted\n- **Date:** 2026-01-01\n- **Deciders:** x\n- **Applies to:** x	nuc-v0-9-0,nuc-v0-9-1,nuc-v0-10-0,nuc-v0-11-0,nuc-v0-11-1,nuc-v0-12-0
+coverage-no-reason-v9	traceability/coverage	docs/adr/VAR-parity-reason.md	write	# VAR\x2dparity\x2dreason: X\n\n- **Status:** 🟢 accepted\n- **Date:** 2026-01-01\n- **Deciders:** x\n- **Applies to:** x\n\n## Enforcement\n\n**Not mechanically decidable:**	nuc-v0-9-0,nuc-v0-9-1,nuc-v0-10-0,nuc-v0-11-0,nuc-v0-11-1,nuc-v0-12-0
+template-identity-setup-done-v9	docs/template-identity	TEMPLATE-SETUP.md	delete	-	nuc-v0-9-0,nuc-v0-9-1,nuc-v0-10-0,nuc-v0-11-0,nuc-v0-11-1,nuc-v0-12-0
 
 # shell/mode: the one check of check-shell.sh nuc ports, on the trees whose check-shell.sh has it.
-shell-mode-exec-v10	shell/mode	scripts/check-docs.sh	chmod	-x	nuc-v0-10-0,nuc-v0-11-0,nuc-tools-v0-11-0
+shell-mode-exec-v10	shell/mode	scripts/check-docs.sh	chmod	-x	nuc-v0-10-0,nuc-v0-11-0,nuc-v0-11-1,nuc-v0-12-0,nuc-tools-v0-11-0,nuc-tools-v0-12-0
 
 # The checks of v0.10.0: an issue opened by a script while the setup runs, in two of its forms, the
 # second a command continued over lines; and a rule an ADR names that the header does not list.
-opens-no-issue-cli-v10	docs/opens-no-issue	scripts/parity-variant.sh	write	#!/usr/bin/env bash\ngh issue create --title x	nuc-v0-10-0,nuc-v0-11-0
-opens-no-issue-api-v10	docs/opens-no-issue	.github/parity-variant.yml	write	run: gh api \\\n  repos/o/r/issues -f title=x	nuc-v0-10-0,nuc-v0-11-0
-adr-refs-unlisted-v10	docs/adr-refs	docs/adr/NUC-base-is-fixed.md	sed	s/^(- \*\*Applies to:\*\*.*)`docs\/base-blobs`/\1`docs\/parity-none`/	nuc-v0-10-0,nuc-v0-11-0,nuc-tools-v0-11-0
+opens-no-issue-cli-v10	docs/opens-no-issue	scripts/parity-variant.sh	write	#!/usr/bin/env bash\ngh issue create --title x	nuc-v0-10-0,nuc-v0-11-0,nuc-v0-11-1,nuc-v0-12-0
+opens-no-issue-api-v10	docs/opens-no-issue	.github/parity-variant.yml	write	run: gh api \\\n  repos/o/r/issues -f title=x	nuc-v0-10-0,nuc-v0-11-0,nuc-v0-11-1,nuc-v0-12-0
+adr-refs-unlisted-v10	docs/adr-refs	docs/adr/NUC-base-is-fixed.md	sed	s/^(- \*\*Applies to:\*\*.*)`docs\/base-blobs`/\1`docs\/parity-none`/	nuc-v0-10-0,nuc-v0-11-0,nuc-v0-11-1,nuc-v0-12-0,nuc-tools-v0-11-0,nuc-tools-v0-12-0
+# The check of v0.12.0: a hook the blob list no longer pins, since its line names more than the
+# hook, is read as any text file, and its citations of the ADRs of nuc are unmatched here.
+adr-refs-unpinned-v12	docs/adr-refs	.githooks/nuc.blobs	sed	s/ pre-push$/ pre-push unpinned/	nuc-v0-12-0

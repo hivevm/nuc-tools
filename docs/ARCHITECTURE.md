@@ -128,7 +128,10 @@ golden path and the test pattern an agent copies from are named here.
   scenarios of `tests/parity/hook-scenarios.sh` through git, with the bash hook of each of the
   template's trees and with the shim and `nuc`, maps the hooks' lines by `tests/parity/hooks.tsv`,
   and holds the template's hook self-test to the scenarios and `tests/parity/hook-cases.tsv`
-  ([TEST-hook-scenario-parity](adr/TEST-hook-scenario-parity.md)). Before the comparisons it holds
+  ([TEST-hook-scenario-parity](adr/TEST-hook-scenario-parity.md)). A tree whose blob list
+  `.githooks/nuc.blobs` pins a hook, as the template's trees do from v0.12.0 on, carries nuc's own
+  shims and no bash hook. The scenarios and their coverage leave it out, whatever release it names,
+  and its checks are compared as any tree's. Before the comparisons it holds
   each pin of `tests/tables.blobs` to the template's tag of its release. With `--shard <k>/<n>` a
   run compares only every n-th tree of the corpus, from the k-th, with its variants. The last
   shard also runs the parts that read all the template's trees at once. CI runs four shards, one
