@@ -384,9 +384,10 @@ default_cost="${default_cost:-1}"
 jobs_max="${PARITY_JOBS:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 1)}"
 [[ "$jobs_max" =~ ^[1-9][0-9]*$ ]] || die "PARITY_JOBS is '$jobs_max', not a number of jobs"
 # The seconds the parts that read all the template's trees at once take, which the last shard
-# alone runs, appended at the end of the sequence: PARITY_WHOLE_COST, or WHOLE_COST. Measured with
-# PARITY_JOBS=4, as tests/parity/corpus.toml measures the cost of a tree, the hook scenarios took
-# 146 s, the pins of the copied tables and the releases a few more.
+# alone runs, appended at the end of the sequence: PARITY_WHOLE_COST, or WHOLE_COST. Measured on a
+# runner of CI with PARITY_JOBS=4, as tests/parity/corpus.toml measures the cost of a tree, the
+# hook scenarios took 129 to 155 s in six runs, the pins of the copied tables and the releases a
+# few more.
 WHOLE_COST=150
 whole_cost="${PARITY_WHOLE_COST:-$WHOLE_COST}"
 [[ "$whole_cost" =~ ^[0-9]+(\.[0-9]+)?$ ]] || die "PARITY_WHOLE_COST is '$whole_cost', not a number of seconds"
