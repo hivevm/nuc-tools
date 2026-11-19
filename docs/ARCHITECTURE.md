@@ -131,7 +131,8 @@ golden path and the test pattern an agent copies from are named here.
 - **Sensors** — `src/sense.rs` lists the sensors of the template `nuc sense` ports, `sense::ALL`,
   each a module beside it, as `src/sense/revision_due.rs`: a pure function from the values the
   shell gathered to the report the bash sensor of the tree's release writes on the standard output,
-  byte for byte, or a refusal keyed `sense/<name>:<reason>`. `shell::sense` reads `nuc.toml` as
+  byte for byte, or a refusal keyed `sense/<name>:<reason>`. The sensors that read a change share
+  `src/sense/change.rs`, as the bash's share `resolve_change`. `shell::sense` reads `nuc.toml` as
   `nuc check` does, the README's release line, the files of the tree, and git as the bash asks
   it, and writes the report. A tree whose release has no such sensor is not decided. The
   template's sensors that need a process other than git or the network are none of them

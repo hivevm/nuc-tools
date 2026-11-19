@@ -157,6 +157,9 @@ sense/revision-due:number
 sense/revision-due:overview
 sense/revision-due:release
 sense/revision-due:unreadable
+sense/tests-kept:git
+sense/tests-kept:ref
+sense/tests-kept:release
 sense/unknown:name
 shell/mode:exec
 shim/merge-adr-index:missing

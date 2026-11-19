@@ -3,7 +3,9 @@
 //! of the tree's release writes on the standard output, or a refusal. A sensor reads no file and
 //! runs no process; the shell reads, prints, and exits (API-command-line-with-sense).
 
+pub mod change;
 pub mod revision_due;
+pub mod tests_kept;
 
 use std::fmt;
 
@@ -11,7 +13,8 @@ use crate::config::Version;
 use crate::rules::{self, Carried};
 
 /// A sensor `nuc sense` knows: its name, the part of the script's name after `sensor-` and before
-/// `.sh`; the earliest release whose template has it; the releases from which it reports as their
+/// `.sh`; the earliest release whose bash sensor it reports as, before which the template has none
+/// or one that reported otherwise; the releases from which it reports as their
 /// bash does and the one before did not, which `tests/parity/releases.tsv` holds to the template's
 /// trees; and the reasons of its refusals, each the end of a key `sense/<name>:<reason>`.
 pub struct Sensor {
@@ -23,7 +26,7 @@ pub struct Sensor {
 
 /// Every sensor `nuc sense` knows. The template's sensors that need a process other than git, or
 /// the network, are none of them (API-git-only-sensors-under-sense).
-pub const ALL: &[Sensor] = &[revision_due::SENSOR];
+pub const ALL: &[Sensor] = &[revision_due::SENSOR, tests_kept::SENSOR];
 
 /// The key of a name `nuc sense` does not know.
 pub const UNKNOWN: &str = "sense/unknown:name";
@@ -67,8 +70,9 @@ pub fn release(sensor: &Sensor, carried: Option<Carried>) -> Result<Version, Ref
             sensor: sensor.name,
             reason: RELEASE,
             message: format!(
-                "the tree carries template release v{release}, which has no sensor-{}.sh",
-                sensor.name
+                "the tree carries template release v{release}, before v{}, the earliest whose \
+                 sensor-{}.sh nuc reports as",
+                sensor.since, sensor.name
             ),
         });
     }

@@ -15,3 +15,10 @@ revision-due	revision_uncommitted	-
 revision-due	revision_no_line	-
 revision-due	revision_no_overview	-
 revision-due	revision_unreadable	-
+tests-kept	tree	-
+tests-kept	tests_kept_branch	-
+tests-kept	tests_kept_named	base HEAD
+tests-kept	tests_kept_named	0000000000000000000000000000000000000000 feature
+tests-kept	tests_kept_same	-
+tests-kept	tests_kept_no_main	-
+tests-kept	tests_kept_bad_ref	no-such-ref

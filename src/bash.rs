@@ -104,6 +104,30 @@ pub fn read_pair(line: &[u8]) -> (Vec<u8>, Vec<u8>) {
     (line[start..end].to_vec(), rest[from..to].to_vec())
 }
 
+/// The fields `IFS=$'\t' read -r a b rest` splits a line into: the first two runs of bytes between
+/// tabs, and what follows them without the tabs that lead or end it; tabs at either end and runs of
+/// them count as one, since a tab is IFS whitespace. An absent field is empty. `read` drops each
+/// NUL byte of the line.
+pub fn read_tab_fields(line: &[u8]) -> (Vec<u8>, Vec<u8>, Vec<u8>) {
+    let line: Vec<u8> = line.iter().copied().filter(|&b| b != 0).collect();
+    let tab = |b: &u8| *b == b'\t';
+    let mut rest: &[u8] = &line;
+    let mut word = || {
+        let start = rest.iter().position(|b| !tab(b)).unwrap_or(rest.len());
+        let end = rest[start..]
+            .iter()
+            .position(tab)
+            .map_or(rest.len(), |i| start + i);
+        let word = rest[start..end].to_vec();
+        rest = &rest[end..];
+        word
+    };
+    let (a, b) = (word(), word());
+    let start = rest.iter().position(|b| !tab(b)).unwrap_or(rest.len());
+    let end = rest.iter().rposition(|b| !tab(b)).map_or(start, |i| i + 1);
+    (a, b, rest[start..end].to_vec())
+}
+
 /// The position of the first occurrence of the needle in the bytes; an empty needle is at 0.
 pub fn find(haystack: &[u8], needle: &[u8]) -> Option<usize> {
     if needle.is_empty() {

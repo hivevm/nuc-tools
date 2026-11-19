@@ -87,3 +87,53 @@ revision_unreadable() {
   overview "$1" '**Last design revision:** soon, due after some changes.'
   change "$1" README.md start
 }
+
+# tests_on_main <dir> — main with test files of several toolchains and paths git quotes.
+tests_on_main() {
+  change "$1" src/lib.rs lib
+  change "$1" tests/a_test.rs a
+  change "$1" tests/moved_test.rs moved
+  change "$1" tests/kept_test.rs kept
+  change "$1" spec/x.spec.js x
+  change "$1" "test dir/my test.py" py
+  change "$1" $'t\xc3\xabst/\xc3\xbc.rs' umlaut
+  change "$1" src/Widget.java java
+}
+
+# tests_branch <dir> — a branch off main that deletes, moves, and adds markers in each toolchain,
+# in files of another toolchain, in a file without an extension, in an upper-case extension, and in
+# a path the sensor leaves out.
+tests_branch() {
+  tests_on_main "$1"
+  sp_git "$1" switch -q -c feature
+  sp_git "$1" rm -q tests/a_test.rs
+  sp_git "$1" rm -q $'t\xc3\xabst/\xc3\xbc.rs'
+  mkdir -p "$1/src/moved"
+  sp_git "$1" mv tests/moved_test.rs src/moved/kept.rs
+  sp_git "$1" mv tests/kept_test.rs tests/renamed_test.rs
+  sp_git "$1" commit -q -m moves
+  change "$1" tests/b_test.rs $'fn x() {}\n#[ignore]\nfn fit() {}'
+  change "$1" web/app.test.js $'it.only("x", f)\n  describe.skip(1)\nxit(2)\na.it.only(3)\nfit(4)'
+  change "$1" web/UPPER.TS 'test.only(5)'
+  change "$1" "test dir/my test.py" '@pytest.mark.skip'
+  change "$1" pkg/x_test.go 'func T(t *testing.T) { t.SkipNow() }'
+  change "$1" src/Widget.java $'@Disabled\nenabled = false'
+  change "$1" src/W.cs 'Skip = "why"'
+  change "$1" Makefile '#[ignore]'
+  mkdir -p "$1/scripts"
+  change "$1" scripts/sensor-tests-kept.sh '#[ignore] it.only('
+}
+
+tests_kept_branch() { tests_branch "$1"; }
+
+# The same commits, the change named by its base and head.
+tests_kept_named() { tests_branch "$1"; sp_git "$1" tag base main; }
+
+# On main, the merge base is the head.
+tests_kept_same() { tests_on_main "$1"; }
+
+# A history without a main: nothing to compare.
+tests_kept_no_main() { tests_on_main "$1"; sp_git "$1" branch -q -m trunk; }
+
+# A base that names no commit.
+tests_kept_bad_ref() { tests_on_main "$1"; }
