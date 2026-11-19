@@ -1,5 +1,5 @@
 # Every key nuc has printed, '<rule ID>:<reason>', read by tests/contract.rs
-# (API-command-line-with-measure), every key a shim writes (API-hook-contract-keyed-shims), and
+# (API-command-line-with-sense), every key a shim writes (API-hook-contract-keyed-shims), and
 # every key a refusal of nuc.toml ends in (API-config-refusals-keyed). A key stays once listed: a
 # reader or a test branches on it in place of a message's wording, so no reason is renamed,
 # dropped, or given to another cause.

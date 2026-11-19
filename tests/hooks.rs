@@ -1,5 +1,5 @@
 //! `nuc hook` and the reference shims, through git.
-//! Verifies: API-command-line-with-measure API-hook-contract-keyed-shims
+//! Verifies: API-command-line-with-sense API-hook-contract-keyed-shims
 //! Verifies: API-version-coupling-hook-defaults
 //! Verifies: G-2 G-3 G-5 Q-1 Q-4 Q-7 Q-8 Q-9 Q-10 Q-11
 //!

@@ -1,6 +1,6 @@
 # API-command-line-with-sense: `nuc` reads `nuc.toml` as a TOML subset, writes one finding per line as `<file>[:<line>]: <rule ID>: <message> [<rule ID>:<reason>]`, `nuc measure` its measures ending in `tokens <n>`, `nuc sense` a sensor's report, and exits 0, 1, or 2, and `nuc hook` also 3 or 4
 
-- **Status:** 🟡 proposed
+- **Status:** 🟢 accepted
 - **Date:** 2026-11-19
 - **Deciders:** Markus Brigl
 - **Applies to:** the keys and the syntax of `nuc.toml` and how `src/config.rs` reads them, the text output of every `nuc` command, `nuc measure`'s and `nuc sense`'s among them, the reason every finding carries and the list of keys kept beside its test, and the exit codes

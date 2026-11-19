@@ -29,10 +29,10 @@ const FOUND: u8 = 1;
 /// Exit code of a run that could not decide, whatever the cause: it never passes (Q-1).
 const UNDECIDED: u8 = 2;
 /// Exit code of `nuc hook` alone: the hook passed so far, and its shim runs the check now
-/// (API-command-line-with-measure).
+/// (API-command-line-with-sense).
 const RUN_CHECK: u8 = 3;
 /// Exit code of `nuc hook pre-commit` alone: the hook passed so far, and its shim runs the
-/// documentation check now (API-command-line-with-measure).
+/// documentation check now (API-command-line-with-sense).
 const RUN_DOCS: u8 = 4;
 
 const USAGE: &str = "usage: nuc check [--repo <path>] [--format text|json|sarif] | nuc hook <name> | nuc \
@@ -42,7 +42,7 @@ const USAGE: &str = "usage: nuc check [--repo <path>] [--format text|json|sarif]
 
 /// The entry point of the binary: runs the command named on the command line and returns the exit
 /// code the process ends with. A panic is an internal error: it names its cause and where it arose,
-/// and ends the process with exit 101, never a pass (API-command-line-with-measure, Q-1).
+/// and ends the process with exit 101, never a pass (API-command-line-with-sense, Q-1).
 pub fn main() -> ExitCode {
     panic::set_hook(Box::new(|info| {
         let at = info

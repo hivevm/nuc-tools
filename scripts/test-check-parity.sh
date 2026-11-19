@@ -84,7 +84,7 @@ bash_out() {
 }
 
 # keyed — each finding line of the standard input ending in a key of its rule, as nuc writes it
-# (API-command-line-with-measure), unless it ends in one already; the rule is the first
+# (API-command-line-with-sense), unless it ends in one already; the rule is the first
 # '<area>/<name>' between ': ' and ': '.
 keyed() {
   awk '!/ \[[a-z]+\/[a-z0-9-]+:[a-z]+\]$/ && match($0, /: [a-z]+\/[a-z0-9-]+: /) {

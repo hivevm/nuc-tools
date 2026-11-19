@@ -101,7 +101,7 @@ fn is_on<'a>(on: &'a [&HookRule]) -> impl Fn(&HookRule) -> bool + 'a {
 
 /// The exit code of an answer, its finding printed on the standard output; not decided where the
 /// finding's reason is not one its rule declares, whose key no list holds
-/// (API-command-line-with-measure, Q-1).
+/// (API-command-line-with-sense, Q-1).
 fn carry_out(answer: Answer) -> Result<u8, String> {
     match answer {
         Answer::Pass => Ok(PASSED),

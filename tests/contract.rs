@@ -1,5 +1,5 @@
 //! The command-line contract of `nuc`, clause by clause, on fixture repositories.
-//! Verifies: API-command-line-with-measure
+//! Verifies: API-command-line-with-sense
 
 mod support;
 
@@ -363,7 +363,7 @@ fn shim_keys() -> Vec<(String, String)> {
     keys
 }
 
-/// Verifies: API-command-line-with-measure, API-hook-contract-keyed-shims, G-6
+/// Verifies: API-command-line-with-sense, API-hook-contract-keyed-shims, G-6
 /// Verifies: API-config-refusals-keyed
 #[test]
 fn every_key_stays_once_listed_and_each_reason_is_one_lower_case_word() {

@@ -158,7 +158,7 @@ impl Named for HookRule {
 
 /// The configuration in `text` for a `nuc` of version `running`. The minimum is read before
 /// anything else, so that a newer file, with a key this `nuc` does not know, refuses it as too
-/// old rather than as unreadable (API-command-line-with-measure).
+/// old rather than as unreadable (API-command-line-with-sense).
 fn load(text: &str, running: Version) -> Result<Config, Refusal> {
     if let Some(minimum) = minimum_first(text).filter(|&minimum| minimum > running) {
         return Err(Refusal::TooOld { minimum, running });
