@@ -34,6 +34,13 @@ url = "https://github.com/hivevm/nuc.git"
 commit = "1f5a07c7e1959a52e45ff249a07db7c32bf4939c"
 cost = 0.41
 
+# The template at the commit of its release v0.6.2, whose sensor-revision-due.sh reads an ordinal
+# after the date (API-git-only-sensors-under-sense). No cost measured yet: dealt at the largest.
+[[repository]]
+name = "nuc-v0-6-2"
+url = "https://github.com/hivevm/nuc.git"
+commit = "4979b9bc250205507e3ed9a91ee7b6ecbbe42214"
+
 # The template at the commit of its release v0.7.0, whose check-docs.sh reads the required checks
 # and the Project Layout from CONTRIBUTING.md: the rules that check by the release check it as
 # v0.7.0.
@@ -42,6 +49,13 @@ name = "nuc-v0-7-0"
 url = "https://github.com/hivevm/nuc.git"
 commit = "8ff4cf46bb887cd9471ff05a457a16bb83cc0f42"
 cost = 0.50
+
+# The template at the commit of its release v0.8.0, whose sensors gain the backlog and the plain
+# rules (API-git-only-sensors-under-sense). No cost measured yet: dealt at the largest.
+[[repository]]
+name = "nuc-v0-8-0"
+url = "https://github.com/hivevm/nuc.git"
+commit = "4d0501e9969eac49a29ecdf1aced5e784001debe"
 
 # The template at the commit of its release v0.8.1, whose check-docs.sh reads the ADR patterns
 # from scripts/lib/adr.sh: every rule checks it as v0.7.0.
