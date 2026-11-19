@@ -45,3 +45,23 @@ action-refs	refs_major	--require sha
 action-refs	refs_sha	--require major-tag
 action-refs	refs_sha	--require sha
 action-refs	refs_sha	--require tag
+plain-rules	tree	-
+plain-rules	tree	HEAD
+plain-rules	tree	--require HEAD
+plain-rules	plain_branch	main
+plain-rules	plain_branch	--require main
+plain-rules	plain_branch	main work
+plain-rules	plain_branch	--require 0000000000000000000000000000000000000000 work
+plain-rules	plain_rename	main
+plain-rules	plain_rename	--require main
+plain-rules	plain_worktree	-
+plain-rules	plain_worktree	--require
+plain-rules	plain_head	--require main work
+plain-rules	plain_record	-
+plain-rules	plain_record	--require main
+plain-rules	plain_outside	main
+plain-rules	plain_no_main	-
+plain-rules	plain_branch	no-such-ref
+plain-rules	plain_filtered	-
+plain-rules	plain_filtered	--require
+plain-rules	plain_filtered_added	--require main

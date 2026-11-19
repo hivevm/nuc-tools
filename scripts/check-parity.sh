@@ -742,6 +742,12 @@ for entry in "${repositories[@]}"; do
 
   ready["$name"]=1
 done
+# The newest template tree, whose bash sensors a tree or variant that names no release is compared
+# with, as nuc sense reports there as the newest release it knows.
+if ((${#template_trees[@]})); then
+  SENSOR_NEWEST_TREE="$(printf '%s\n' "${template_trees[@]}" | sort -V -k1,1 | tail -n 1)"
+  SENSOR_NEWEST_TREE="${SENSOR_NEWEST_TREE#* }"
+fi
 
 # check_table_blobs — the pins of the copies of the template's fixture tables
 # (TEST-template-table-cases): each line '<release> <blob> <file>' of TABLE_BLOBS names the

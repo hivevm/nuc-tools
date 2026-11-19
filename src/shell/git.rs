@@ -168,6 +168,32 @@ pub fn run_bytes(repo: &Path, args: &[&str]) -> Result<Vec<u8>, String> {
     Ok(output.stdout)
 }
 
+/// The standard output of git for `args` on `repo` as bytes, the input written to its standard
+/// input, as `--stdin` reads it; or why it could not be had.
+pub fn run_bytes_with_input(repo: &Path, args: &[&str], input: &[u8]) -> Result<Vec<u8>, String> {
+    use std::io::Write;
+    let unrun = |e: std::io::Error| {
+        format!("git could not be run ({e}) — install git and put it on the PATH")
+    };
+    let mut child = command(repo, args)?
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(unrun)?;
+    let mut stdin = child.stdin.take().expect("the standard input is piped");
+    let input = input.to_vec();
+    // Written beside the read, so that neither side waits on a full pipe.
+    let writer = std::thread::spawn(move || stdin.write_all(&input));
+    let output = child.wait_with_output().map_err(unrun)?;
+    let written = writer.join().expect("the writer of the input ends");
+    if !output.status.success() {
+        return Err(failure(args, &output.stderr));
+    }
+    written.map_err(|e| format!("git {} could not read its input: {e}", args.join(" ")))?;
+    Ok(output.stdout)
+}
+
 /// The root of the working tree that contains `dir`.
 pub fn toplevel(dir: &Path) -> Result<PathBuf, String> {
     // A refusal of the repository itself, as of a partial clone on an older git, says so alone.

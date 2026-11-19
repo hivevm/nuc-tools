@@ -135,7 +135,8 @@ golden path and the test pattern an agent copies from are named here.
   each a module beside it, as `src/sense/revision_due.rs`: a pure function from the values the
   shell gathered to the report the bash sensor of the tree's release writes on the standard output,
   byte for byte, or a refusal keyed `sense/<name>:<reason>`. The sensors that read a change share
-  `src/sense/change.rs`, as the bash's share `resolve_change`. `shell::sense` reads `nuc.toml` as
+  `src/sense/change.rs`, as the bash's share `resolve_change`; a change without a head ends in the
+  working tree, its untracked files included. `shell::sense` reads `nuc.toml` as
   `nuc check` does, the README's release line, the files of the tree, and git as the bash asks
   it, and writes the report. A tree whose release has no such sensor is not decided. The
   template's sensors that need a process other than git or the network are none of them
@@ -158,7 +159,8 @@ golden path and the test pattern an agent copies from are named here.
   `tests/parity/hook-cases.tsv`
   ([TEST-hook-scenarios-on-bash-hooks](adr/TEST-hook-scenarios-on-bash-hooks.md)).
   `scripts/lib/sensor-parity.sh` runs each sensor of `tests/parity/sensors.tsv` with the bash and
-  with `nuc sense` on each tree and variant whose release has it, and on the git states of
+  with `nuc sense` on each tree and variant whose release has it, one whose README names no
+  release with the bash sensor of the newest template tree, and on the git states of
   `tests/parity/sensor-scenarios.sh` built for each of the template's trees, and compares the
   standard output byte for byte and the exit status; an exit that differs stands in
   `tests/parity/sensor-exits.tsv` with its cause
@@ -181,9 +183,10 @@ golden path and the test pattern an agent copies from are named here.
   processor.
 - **Table runner** — `tests/tables.rs` builds the tree of each case of the template's fixture
   tables, copied under `tests/tables/` from the newest release `nuc` ports and pinned by their
-  blobs in `tests/tables.blobs`, runs `nuc check` on it, and compares the exit and the keys and
-  subjects each case expects; a case that does not agree stands in `tests/tables.cases`, pending on
-  the ticket that ports it, not ported, or decided by an ADR in force
+  blobs in `tests/tables.blobs`, runs `nuc check` on it, or `nuc sense plain-rules` for the
+  sensor's table, and compares the exit and the keys and subjects each case expects; a case that
+  does not agree stands in `tests/tables.cases`, pending on the ticket that ports it, not ported,
+  or decided by an ADR in force
   ([TEST-template-table-cases](adr/TEST-template-table-cases.md)).
 - **Release tooling** — `release/` builds a binary per target, writes `SHA256SUMS`, checks the
   tag against the crate's version, writes the release commit, and moves the major tag;

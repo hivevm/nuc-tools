@@ -156,6 +156,12 @@ sense/action-refs:require
 sense/backlog:git
 sense/backlog:name
 sense/backlog:release
+sense/plain-rules:file
+sense/plain-rules:filter
+sense/plain-rules:git
+sense/plain-rules:name
+sense/plain-rules:ref
+sense/plain-rules:release
 sense/plan-frontier:file
 sense/plan-frontier:git
 sense/plan-frontier:release

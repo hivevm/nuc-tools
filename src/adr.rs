@@ -290,7 +290,7 @@ pub fn instruction_needle(template: &[u8]) -> Option<Vec<u8>> {
 
 /// The value as awk reads a `-v` assignment: `\\`, `\"`, `\/`, `\a`, `\b`, `\f`, `\n`, `\r`,
 /// `\t`, `\v`, and up to three octal digits are escapes; any other backslash stays.
-fn awk_unescape(value: &[u8]) -> Vec<u8> {
+pub fn awk_unescape(value: &[u8]) -> Vec<u8> {
     let mut out = Vec::with_capacity(value.len());
     let mut i = 0;
     while i < value.len() {

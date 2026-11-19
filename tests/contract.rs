@@ -735,6 +735,449 @@ fn tests_kept_runs_no_driver_of_the_repository() {
     assert!(!marker.exists(), "nuc sense tests-kept ran a driver");
 }
 
+/// The file's modification time a minute ahead, its content as it was: git must read it again to
+/// tell whether it changed, as it does for a file the working tree touched.
+#[cfg(unix)]
+fn stat_changed(path: &std::path::Path) {
+    let later = std::time::SystemTime::now() + std::time::Duration::from_secs(60);
+    std::fs::File::options()
+        .write(true)
+        .open(path)
+        .and_then(|f| f.set_modified(later))
+        .expect("the mtime is set");
+}
+
+/// The diffs of `plain-rules` run no textconv driver and no external diff the repository names
+/// (Q-7).
+#[cfg(unix)]
+#[test]
+fn plain_rules_runs_no_driver_of_the_repository() {
+    let readme = "# Fixture\n\n- **Template release:** v0.12.0\n";
+    let fixture = Fixture::project("sense-plain-rules-bait", CONFIG, readme);
+    fixture.write(".gitattributes", "*.md diff=bait\n");
+    fixture.write("AGENTS.md", "# Agent Guide\n\n- The human decides.\n");
+    fixture.commit("rules");
+    fixture.git(&["switch", "-q", "-c", "feature"]);
+    fixture.write(
+        "AGENTS.md",
+        "# Agent Guide\n\n- The human decides.\n- The session should read it.\n",
+    );
+    fixture.commit("modal");
+    let marker = fixture.root().join(".git").join("driver-ran");
+    let textconv = bait(&fixture, "textconv.sh", &marker);
+    let command = bait(&fixture, "command.sh", &marker);
+    fixture.git(&["config", "diff.bait.textconv", &textconv]);
+    fixture.git(&["config", "diff.bait.command", &command]);
+    fixture.git(&["config", "diff.external", &command]);
+    let output = fixture.nuc(&["sense", "plain-rules", "main", "feature"]);
+    assert_eq!(code(&output), Some(0), "{}", stderr(&output));
+    assert!(
+        stdout(&output)
+            .contains("  - AGENTS.md:4: the soft modal verb \"should\" [rules/soft-modal:verb]\n"),
+        "{}",
+        stdout(&output)
+    );
+    assert!(!marker.exists(), "nuc sense plain-rules ran a driver");
+}
+
+/// A change that ends in the working tree runs no filter the repository names (Q-7): a file of
+/// rules under a filter is not decided, since the bash's git reads it through the filter; and the
+/// diffs leave out a submodule, whose own filter git would run to tell whether it is dirty.
+#[cfg(unix)]
+#[test]
+fn plain_rules_in_the_working_tree_runs_no_filter() {
+    let readme = "# Fixture\n\n- **Template release:** v0.12.0\n";
+    let fixture = Fixture::project("sense-plain-rules-filter", CONFIG, readme);
+    fixture.write(".gitattributes", "*.md filter=bait\n");
+    fixture.write("AGENTS.md", "# Agent Guide\n\n- The human decides.\n");
+    fixture.commit("rules");
+    let marker = fixture.root().join(".git").join("filter-ran");
+    let clean = bait(&fixture, "clean.sh", &marker);
+    fixture.git(&["config", "filter.bait.clean", &clean]);
+    fixture.write(
+        "AGENTS.md",
+        "# Agent Guide\n\n- The human decides.\n- The session should read it.\n",
+    );
+    let output = fixture.nuc(&["sense", "plain-rules", "HEAD"]);
+    assert_eq!(code(&output), Some(2), "{}", stdout(&output));
+    assert_eq!(stdout(&output), "");
+    assert!(
+        stderr(&output)
+            .trim_end()
+            .ends_with("[sense/plain-rules:filter]"),
+        "{}",
+        stderr(&output)
+    );
+    assert!(
+        !marker.exists(),
+        "nuc sense plain-rules ran the clean filter"
+    );
+
+    // A submodule whose own configuration names a filter for a file whose stat changed.
+    let sub = Fixture::project("sense-plain-rules-sub", CONFIG, readme);
+    sub.write(".gitattributes", "*.txt filter=bait\n");
+    sub.write("f.txt", "a\n");
+    sub.commit("sub");
+    let main = Fixture::project("sense-plain-rules-super", CONFIG, readme);
+    let url = sub.root().to_str().expect("UTF-8");
+    let added = main.git(&[
+        "-c",
+        "protocol.file.allow=always",
+        "submodule",
+        "-q",
+        "add",
+        url,
+        "sm",
+    ]);
+    assert!(added.status.success(), "{}", stderr(&added));
+    main.write("AGENTS.md", "# Agent Guide\n\n- The human decides.\n");
+    main.commit("submodule");
+    let marker = main.root().join(".git").join("sub-filter-ran");
+    let clean = bait(&main, "clean.sh", &marker);
+    support::git_in(
+        &main.root().join("sm"),
+        &["config", "filter.bait.clean", &clean],
+    );
+    stat_changed(&main.root().join("sm/f.txt"));
+    main.write(
+        "AGENTS.md",
+        "# Agent Guide\n\n- The human decides.\n- It might run.\n",
+    );
+    let output = main.nuc(&["sense", "plain-rules", "HEAD"]);
+    assert_eq!(code(&output), Some(0), "{}", stderr(&output));
+    assert!(
+        stdout(&output).contains("AGENTS.md:4: the soft modal verb \"might\""),
+        "{}",
+        stdout(&output)
+    );
+    assert!(
+        !marker.exists(),
+        "nuc sense plain-rules ran a submodule's filter"
+    );
+}
+
+/// A filter on a file outside the rules, as Git LFS names one, whose file's stat changed, runs
+/// neither its clean nor its process command, even where it is required, and the sensor reports on
+/// the rules (Q-7). The parity scenario `plain_filtered` holds the report to the bash's.
+#[cfg(unix)]
+#[test]
+fn plain_rules_neutralizes_a_filter_outside_the_rules() {
+    // A filter on a file outside the rules, as Git LFS names one, whose file's stat changed.
+    let readme = "# Fixture\n\n- **Template release:** v0.12.0\n";
+    let other = Fixture::project("sense-plain-rules-lfs", CONFIG, readme);
+    other.write(".gitattributes", "*.png filter=bait\n");
+    other.write("a.png", "image\n");
+    other.write("AGENTS.md", "# Agent Guide\n\n- The human decides.\n");
+    other.commit("rules");
+    let marker = other.root().join(".git").join("lfs-filter-ran");
+    let clean = bait(&other, "clean.sh", &marker);
+    other.git(&["config", "filter.bait.clean", &clean]);
+    other.git(&["config", "filter.bait.process", &clean]);
+    other.git(&["config", "filter.bait.required", "true"]);
+    stat_changed(&other.root().join("a.png"));
+    other.write(
+        "AGENTS.md",
+        "# Agent Guide\n\n- The human decides.\n- The session should read it.\n",
+    );
+    let output = other.nuc(&["sense", "plain-rules", "HEAD"]);
+    assert_eq!(code(&output), Some(0), "{}", stderr(&output));
+    assert!(
+        stdout(&output).ends_with(
+            "..working tree): 1 to read on the lines the change adds to the rules (AGENTS.md section 4):\n  - AGENTS.md:4: the soft modal verb \"should\" [rules/soft-modal:verb]\n"
+        ),
+        "{}",
+        stdout(&output)
+    );
+    assert!(
+        !marker.exists(),
+        "nuc sense plain-rules ran the filter of a.png"
+    );
+}
+
+/// The value of the filter attribute read as git reads it: a driver whose name holds `=`, which
+/// `-c` would split there and so neutralize another key, is not decided and does not run; a bare
+/// `filter` on a file of rules names no driver, and the sensor reads the file's bytes as git does.
+#[cfg(unix)]
+#[test]
+fn plain_rules_reads_the_filter_attribute_as_git_does() {
+    let readme = "# Fixture\n\n- **Template release:** v0.12.0\n";
+    // A driver whose name holds `=`, which `-c` would split there: not decided, and not run.
+    let odd = Fixture::project("sense-plain-rules-odd-driver", CONFIG, readme);
+    odd.write(".gitattributes", "*.png filter=a=b\n");
+    odd.write("a.png", "image\n");
+    odd.write("AGENTS.md", "# Agent Guide\n\n- The human decides.\n");
+    odd.commit("rules");
+    let marker = odd.root().join(".git").join("odd-filter-ran");
+    let clean = bait(&odd, "clean.sh", &marker);
+    odd.git(&["config", "filter.a=b.clean", &clean]);
+    stat_changed(&odd.root().join("a.png"));
+    let output = odd.nuc(&["sense", "plain-rules", "HEAD"]);
+    assert_eq!(code(&output), Some(2), "{}", stdout(&output));
+    assert!(
+        stderr(&output)
+            .trim_end()
+            .ends_with("[sense/plain-rules:filter]"),
+        "{}",
+        stderr(&output)
+    );
+    assert!(!marker.exists(), "nuc sense plain-rules ran the driver a=b");
+
+    // A bare `filter` on a file of rules names no driver: git reads its bytes, and so does nuc.
+    let bare = Fixture::project("sense-plain-rules-bare-filter", CONFIG, readme);
+    bare.write(".gitattributes", "*.md filter\n");
+    bare.write("AGENTS.md", "# Agent Guide\n\n- The human decides.\n");
+    bare.commit("rules");
+    bare.write(
+        "AGENTS.md",
+        "# Agent Guide\n\n- The human decides.\n- It might run.\n",
+    );
+    let output = bare.nuc(&["sense", "plain-rules", "HEAD"]);
+    assert_eq!(code(&output), Some(0), "{}", stderr(&output));
+    assert!(
+        stdout(&output).contains("AGENTS.md:4: the soft modal verb \"might\""),
+        "{}",
+        stdout(&output)
+    );
+}
+
+/// A path the working tree adds under a filter, beside a renamed file of rules, is not decided:
+/// git would find renames through its raw bytes where the bash's git reads the bytes the filter
+/// cleans, and pair the file of rules otherwise (Q-1, Q-7). Here the bash's git pairs the old ADR
+/// with `z.bin`, so the renamed ADR reads with every line added and `--require` fails on its
+/// "should"; read raw, the ADR pairs with its old self and the gate would pass.
+#[cfg(unix)]
+#[test]
+fn plain_rules_refuses_a_rename_a_filter_could_pair_otherwise() {
+    // A name git quotes in its listing, as it quotes one with a `"`, is read unquoted.
+    for (n, name) in ["z.bin", "z\"q.bin"].into_iter().enumerate() {
+        let readme = "# Fixture\n\n- **Template release:** v0.12.0\n";
+        let fixture = Fixture::project(
+            &format!("sense-plain-rules-rename-filter-{n}"),
+            CONFIG,
+            readme,
+        );
+        let adr = "# FIX-rule-x: X\n\n## Decision\n\nIt should run.\nLine two of the rule.\n\
+                   Line three of the rule.\nLine four of the rule.\nLine five of the rule.\n\
+                   Line six of the rule.\n";
+        fixture.write(".gitattributes", "*.bin filter=strip\n");
+        fixture.write("docs/adr/FIX-rule-x.md", adr);
+        fixture.commit("rule");
+        let strip = fixture.root().join(".git").join("strip.sh");
+        std::fs::write(&strip, "#!/bin/sh\ngrep -v '^JUNK'\n").expect("written");
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&strip, std::fs::Permissions::from_mode(0o755)).expect("mode");
+        fixture.git(&[
+            "config",
+            "filter.strip.clean",
+            strip.to_str().expect("UTF-8"),
+        ]);
+        fixture.git(&["mv", "docs/adr/FIX-rule-x.md", "docs/adr/FIX-rule-y.md"]);
+        fixture.write(
+            "docs/adr/FIX-rule-y.md",
+            &adr.replace("Line six of the rule.", "Line six, edited."),
+        );
+        fixture.write(name, &format!("{}{adr}", "JUNK line\n".repeat(30)));
+        fixture.git(&["add", name]);
+        stat_changed(&fixture.root().join(name));
+        let output = fixture.nuc(&["sense", "plain-rules", "--require", "HEAD"]);
+        assert_eq!(code(&output), Some(2), "{name}: {}", stdout(&output));
+        assert_eq!(stdout(&output), "", "{name}");
+        assert!(
+            stderr(&output)
+                .trim_end()
+                .ends_with("[sense/plain-rules:filter]"),
+            "{name}: {}",
+            stderr(&output)
+        );
+    }
+}
+
+/// An ADR the change adds beside a file under a filter, as a new ADR comes with its diagram under
+/// Git LFS, is no refusal where nothing is deleted, so that no rename can pair otherwise: on a
+/// clean checkout, as CI runs the gate, with the driver configured and without one. The parity
+/// scenario `plain_filtered_added` holds the report to the bash's.
+#[cfg(unix)]
+#[test]
+fn plain_rules_runs_on_an_adr_added_beside_a_filtered_file() {
+    let readme = "# Fixture\n\n- **Template release:** v0.12.0\n";
+    for configured in [true, false] {
+        let fixture = Fixture::project(
+            &format!("sense-plain-rules-adr-image-{configured}"),
+            CONFIG,
+            readme,
+        );
+        fixture.write(".gitattributes", "*.png filter=bait\n");
+        fixture.commit("attributes");
+        fixture.write(
+            "docs/adr/FIX-rule-x.md",
+            "# FIX-rule-x: X\n\n## Decision\n\nIt should run.\n",
+        );
+        fixture.write("img/d.png", "image\n");
+        fixture.commit("adr and diagram");
+        let marker = fixture.root().join(".git").join("added-filter-ran");
+        if configured {
+            let clean = bait(&fixture, "clean.sh", &marker);
+            fixture.git(&["config", "filter.bait.clean", &clean]);
+        }
+        let output = fixture.nuc(&["sense", "plain-rules", "--require", "HEAD~1"]);
+        assert_eq!(code(&output), Some(1), "{configured}: {}", stderr(&output));
+        assert!(
+            stdout(&output).contains(
+                "  - docs/adr/FIX-rule-x.md:5: the soft modal verb \"should\" (fails) [rules/soft-modal:verb]\n"
+            ),
+            "{configured}: {}",
+            stdout(&output)
+        );
+        assert!(!marker.exists(), "nuc sense plain-rules ran the filter");
+    }
+}
+
+/// `check-attr` prints `set` for a bare `filter` and for a driver named `set` alike: where a driver
+/// of that name is configured, a file of rules under the value is not decided, and the driver does
+/// not run (Q-1, Q-7).
+#[cfg(unix)]
+#[test]
+fn plain_rules_refuses_a_rule_file_under_a_driver_named_set() {
+    let readme = "# Fixture\n\n- **Template release:** v0.12.0\n";
+    let fixture = Fixture::project("sense-plain-rules-driver-set", CONFIG, readme);
+    fixture.write(".gitattributes", "docs/adr/*.md filter=set\n");
+    fixture.write(
+        "docs/adr/FIX-rule-x.md",
+        "# FIX-rule-x: X\n\n## Decision\n\nIt runs.\n",
+    );
+    fixture.commit("rule");
+    let marker = fixture.root().join(".git").join("set-filter-ran");
+    let clean = bait(&fixture, "clean.sh", &marker);
+    fixture.git(&["config", "filter.set.clean", &clean]);
+    stat_changed(&fixture.root().join("docs/adr/FIX-rule-x.md"));
+    let output = fixture.nuc(&["sense", "plain-rules", "--require", "HEAD"]);
+    assert_eq!(code(&output), Some(2), "{}", stdout(&output));
+    assert!(
+        stderr(&output)
+            .trim_end()
+            .ends_with("[sense/plain-rules:filter]"),
+        "{}",
+        stderr(&output)
+    );
+    assert!(!marker.exists(), "nuc sense plain-rules ran the driver set");
+}
+
+/// A driver that no entry gives a command runs nothing and is left as git reads it: one that is
+/// only `required`, on a file whose stat changed, makes nuc's git die as the bash's does, and the
+/// run is not decided, where the bash exits 2 as well.
+#[cfg(unix)]
+#[test]
+fn plain_rules_leaves_a_driver_without_a_command_to_git() {
+    let readme = "# Fixture\n\n- **Template release:** v0.12.0\n";
+    let fixture = Fixture::project("sense-plain-rules-required-only", CONFIG, readme);
+    fixture.write(".gitattributes", "*.png filter=req\n");
+    fixture.write("a.png", "image\n");
+    fixture.write("AGENTS.md", "# Agent Guide\n\n- The human decides.\n");
+    fixture.commit("rules");
+    fixture.git(&["config", "filter.req.required", "true"]);
+    stat_changed(&fixture.root().join("a.png"));
+    fixture.write(
+        "AGENTS.md",
+        "# Agent Guide\n\n- The human decides.\n- It might run.\n",
+    );
+    let output = fixture.nuc(&["sense", "plain-rules", "HEAD"]);
+    assert_eq!(code(&output), Some(2), "{}", stdout(&output));
+    assert_eq!(stdout(&output), "");
+    assert!(
+        stderr(&output)
+            .trim_end()
+            .ends_with("[sense/plain-rules:git]"),
+        "{}",
+        stderr(&output)
+    );
+}
+
+/// A file of rules the change only deletes from is not read, as the bash does not read it: one
+/// that holds a NUL byte is no refusal there, with a head and in the working tree.
+#[test]
+fn plain_rules_reads_no_file_the_change_adds_no_line_to() {
+    let readme = "# Fixture\n\n- **Template release:** v0.12.0\n";
+    let fixture = Fixture::project("sense-plain-rules-nul", CONFIG, readme);
+    let text = "# FIX-rule-n: N\n\n## Decision\n\nA \0 byte.\nThe human decides.\n";
+    fixture.write("docs/adr/FIX-rule-n.md", text);
+    fixture.commit("nul");
+    fixture.git(&["switch", "-q", "-c", "work"]);
+    fixture.write(
+        "docs/adr/FIX-rule-n.md",
+        &text.replace("The human decides.\n", ""),
+    );
+    fixture.commit("deleted");
+    for args in [
+        &["sense", "plain-rules", "main", "work"][..],
+        &["sense", "plain-rules", "main"],
+    ] {
+        let output = fixture.nuc(args);
+        assert_eq!(code(&output), Some(0), "{args:?}: {}", stderr(&output));
+        assert!(
+            stdout(&output).contains("no long sentence, no soft modal verb"),
+            "{args:?}: {}",
+            stdout(&output)
+        );
+    }
+}
+
+/// `plain-rules --require` fails on a soft modal verb in a project ADR, its report on the standard
+/// output as the bash writes it, and exits 1; without the flag it reports and exits 0. Without a
+/// head, the change ends in the working tree, its untracked files included. A release before the
+/// flag reads `--require` as a base, which names no commit; a release before the sensor has none.
+#[test]
+fn plain_rules_require_fails_on_a_project_adr_and_reads_the_working_tree() {
+    let readme = "# Fixture\n\n- **Template release:** v0.12.0\n";
+    let fixture = Fixture::project("sense-plain-rules", CONFIG, readme);
+    fixture.write(
+        "docs/adr/FIX-rule-x.md",
+        "# FIX-rule-x: X\n\n## Decision\n\nThe human decides.\n",
+    );
+    fixture.commit("rules");
+    fixture.git(&["switch", "-q", "-c", "work"]);
+    fixture.write(
+        "docs/adr/FIX-rule-y.md",
+        "# FIX-rule-y: Y\n\n## Decision\n\nWe might do it.\n",
+    );
+    let output = fixture.nuc(&["sense", "plain-rules", "--require"]);
+    assert_eq!(code(&output), Some(1), "{}", stderr(&output));
+    let text = stdout(&output);
+    assert!(text.contains("..working tree): 1 to read"), "{text}");
+    assert!(
+        text.contains(
+            "  - docs/adr/FIX-rule-y.md:5: the soft modal verb \"might\" (fails) [rules/soft-modal:verb]\n"
+        ),
+        "{text}"
+    );
+    assert!(
+        text.ends_with("1 of them fail: a soft modal verb or an avoided word in a project ADR (NUC-documents-are-fixed §5).\n"),
+        "{text}"
+    );
+    let output = fixture.nuc(&["sense", "plain-rules", "main"]);
+    assert_eq!(code(&output), Some(0), "{}", stderr(&output));
+    assert!(
+        stdout(&output).contains("\"might\" [rules/soft-modal:verb]\n"),
+        "{}",
+        stdout(&output)
+    );
+    for (release, reason) in [("v0.8.1", "ref"), ("v0.7.0", "release")] {
+        fixture.write(
+            "README.md",
+            &format!("# Fixture\n\n- **Template release:** {release}\n"),
+        );
+        let output = fixture.nuc(&["sense", "plain-rules", "--require", "main"]);
+        assert_eq!(code(&output), Some(2), "{release}");
+        assert_eq!(stdout(&output), "", "{release}");
+        assert!(
+            stderr(&output)
+                .trim_end()
+                .ends_with(&format!("[sense/plain-rules:{reason}]")),
+            "{release}: {}",
+            stderr(&output)
+        );
+    }
+}
+
 /// A partial clone's lazy fetch of an object it lacks starts no transport, so that no command the
 /// repository's configuration names for one runs, not even where it turns the transport back on
 /// (Q-7, Q-11); and an entry whose object the clone lacks is not decided, where reading it as an

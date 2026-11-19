@@ -5,10 +5,12 @@
 # Each row of tests/parity/sensors.tsv names a sensor nuc ports, the git state it runs on, and its
 # arguments. The state 'tree' is the tree of the corpus, or the variant, as the comparison has it:
 # the sensor runs there in every comparison, on each tree whose scripts/ holds the sensor, the
-# release that has it. Any other state names a function of tests/parity/sensor-scenarios.sh, which
-# builds a fixture repository through git; it runs on each template tree of the corpus whose
-# scripts/ holds the sensor, the fixture's README carrying the tree's release line, which the
-# bash ignores.
+# release that has it. On one whose README names no release, nuc sense reports as the newest
+# release it knows (API-git-only-sensors-under-sense): the bash sensor run there, and the one whose
+# presence decides the run, is the newest template tree's, SENSOR_NEWEST_TREE. Any other state
+# names a function of tests/parity/sensor-scenarios.sh, which builds a fixture repository through
+# git; it runs on each template tree of the corpus whose scripts/ holds the sensor, the fixture's
+# README carrying the tree's release line, which the bash ignores.
 #
 # Both sides run with the environment cleared to PATH, HOME, and LC_ALL=C: the tree's bash sensor,
 # given the fixture as its root as the release reads it, '--root <dir>' before the arguments where
@@ -28,6 +30,7 @@
 SENSOR_TABLE="${PARITY_SENSOR_TABLE:-$ROOT/tests/parity/sensors.tsv}"
 SENSOR_EXITS="${PARITY_SENSOR_EXITS:-$ROOT/tests/parity/sensor-exits.tsv}"
 SENSOR_SCENARIOS="${PARITY_SENSOR_SCENARIOS:-$ROOT/tests/parity/sensor-scenarios.sh}"
+SENSOR_NEWEST_TREE="${SENSOR_NEWEST_TREE:-}"
 
 # The rows of the two tables.
 st_sensors=() st_states=() st_args=()
@@ -122,11 +125,15 @@ sensor_pair() {
 
 # sensor_tree <nuc> <label> <dir> <out prefix> — the rows of state 'tree' on the tree or variant.
 sensor_tree() {
-  local nuc="$1" label="$2" dir="$3" out="$4" i script release rc=0
-  release="$(release_of "$dir/README.md")"
+  local nuc="$1" label="$2" dir="$3" out="$4" i script scripts release rc=0
+  release="$(release_of "$dir/README.md")" scripts="$dir/scripts"
+  if [[ -z "$release" && -n "$SENSOR_NEWEST_TREE" ]]; then
+    scripts="$SENSOR_NEWEST_TREE/scripts"
+    release="$(release_of "$SENSOR_NEWEST_TREE/README.md")"
+  fi
   for i in "${!st_sensors[@]}"; do
     [[ "${st_states[i]}" == tree ]] || continue
-    script="$dir/scripts/sensor-${st_sensors[i]}.sh"
+    script="$scripts/sensor-${st_sensors[i]}.sh"
     [[ -f "$script" ]] || continue
     sensor_pair "$nuc" "$label" "$script" "${st_sensors[i]}" "${st_args[i]}" "$release" "$dir" \
       "$out.sensor-$i" || rc=1

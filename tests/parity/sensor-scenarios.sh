@@ -235,3 +235,144 @@ refs_major() {
 }
 
 refs_sha() { workflow "$1" ci.yml $'- uses: a/b@0123456789abcdef0123456789abcdef01234567'; }
+
+# The identifier of the fixture's NUC- ADR, assembled so that no reader of references reads one.
+PLAIN_NUC="NUC""-rule-y"
+
+# plain_main <dir> — main with AGENTS.md and an ADR of each name a release reads, each section with
+# one short paragraph, as the template's self-test of the sensor builds it; then the branch work.
+plain_main() {
+  mkdir -p "$1/docs/adr"
+  printf '# Agent Guide\n\n## 1. Rules\n\n- The human decides.\n- Old line that says should.\n' > "$1/AGENTS.md"
+  local name
+  for name in FIX-rule-x "$PLAIN_NUC" 0001-old draft-new; do
+    printf '# %s: X\n\n- **Status:** accepted\n\n## Context\n\nThe human decides.\n\n## Decision\n\nThe human decides.\n\n## Enforcement\n\nThe human decides.\n' \
+      "$name" > "$1/docs/adr/$name.md"
+  done
+  sp_git "$1" add -A
+  sp_git "$1" commit -q -m start
+  sp_git "$1" switch -q -c work
+}
+
+# plain_after <dir> <file> <heading> <text> — the text as a paragraph right after the heading, not
+# committed.
+plain_after() {
+  T="$4" awk -v h="$3" '{ print } $0 == h { print ""; print ENVIRON["T"] }' "$1/$2" > "$1/$2.new"
+  mv "$1/$2.new" "$1/$2"
+}
+
+# plain_glossary <dir> — a glossary whose entries list words under _Avoid:_ in each form the
+# readers of the releases take: a qualifier, a wrapped item, items they cannot read, and a sub-list.
+# shellcheck disable=SC2016 # the backticks are Markdown, not a command substitution
+plain_glossary() {
+  mkdir -p "$1/docs"
+  printf '%s\n' '# Glossary' '' 'One term per concept; list under _Avoid:_ the synonyms it displaces.' '' \
+    '- **Git hook** — a script git runs.' '  _Avoid:_ hook script, trigger.' \
+    '- **Node shape** — the form in which a node is drawn.' '  _Avoid:_ *shape* alone, figure.' \
+    '- **Loop** — an edge from a node back to itself.' '  _Avoid:_ self-edge in prose, self-loop.' \
+    '- **Culling** — leaving out what lies outside the viewport.' \
+    '  _Avoid:_ frustum culling, outside the wording of the constraint that requires it.' \
+    '- **Chapter** — a part of the book.' '  _Avoid:_ include' '  file, part,' '  ci/cd.' \
+    '- **User interface** — what a human sees.' '  _Avoid:_ UI, daemon; `pin`, -flag, Größe.' \
+    '- **Ticket** — one slice of work.' '  _Avoid:_ story,' '  - kept apart from boards,' '    lanes.' \
+    '- **Spec** — the destination of a feature.' '  It is disposable.' '  _Avoid:_ epic, <placeholder>.' \
+    > "$1/docs/GLOSSARY.md"
+}
+
+# plain_added <dir> — on the branch, rules added in every form the readers of the releases tell
+# apart, committed: long sentences, soft modal verbs, and avoided words in prose, in italics, in
+# code spans, wrapped, in fences, in quotes, in identifiers, and across a paragraph.
+# shellcheck disable=SC2016 # the backticks and the dollar sign are Markdown and the rule's text
+plain_added() {
+  local long="The session that reads this rule before it starts any work must find every single word of it in the glossary and must also know who acts here."
+  plain_glossary "$1"
+  printf '# ADRs\n\n## Categories\n\n- **UI** — K.\n' > "$1/docs/adr/README.md"
+  plain_after "$1" AGENTS.md "## 1. Rules" "$(printf -- '- The session should read the glossary.\n- **Plain.** Say *must*; _should_ leaves the reader guessing.\n- **Cache.** A session writes with *write\n  mode*, and it could flush before the *next* run.\n- **Stop.** Run `make it so it\n  should stop` first.\n- The run_should_stop flag might be set.\n> A quote that should not count.\n- Compute a * b from $_ENV, and then\n  run a hook script.\n- Each Trigger runs.')"
+  plain_after "$1" docs/adr/FIX-rule-x.md "## Decision" "$(printf '%s\n%s\n\n%s\n\n%s\n\n%s\n%s\n\n%s\n\n%s\n\n%s' \
+    "$long" "${long%% before it*}" "before it${long#* before it}" \
+    "${long/ any work / any [\`docs/GLOSSARY.md\`](docs/GLOSSARY.md). Then it }" \
+    "It runs a hook" "  script before each commit, and the shape of the node shape." \
+    "Each glyph, self-edge, frustum culling, include file, story, and lanes; the UI and [UI-some-view](UI-some-view.md) and NUC-container-hides-host-daemon and xNUC-a-b-daemon run." \
+    "It runs on each hook" "Script authors read it. A card, an epic, Größe, and a pin.")"
+  plain_after "$1" docs/adr/FIX-rule-x.md "## Enforcement" "$(printf '````md\n```sh\nit should run\n````\n\nIt might run.\n\n```md\n## Notes\n```\n\nIt ideally runs.')"
+  plain_after "$1" docs/adr/FIX-rule-x.md "## Context" "$long It should run."
+  plain_after "$1" "docs/adr/$PLAIN_NUC.md" "## Decision" "Each trigger should run."
+  plain_after "$1" docs/adr/0001-old.md "## Decision" "The session should read it, a hook script."
+  plain_after "$1" docs/adr/draft-new.md "## Decision" "The check might run."
+  printf '%s should\n' "$long" > "$1/README-more.md"
+  sp_git "$1" add -A
+  sp_git "$1" commit -q -m rules
+}
+
+# The rules added on a branch, read against main; the base of zeros reads main's merge base.
+plain_branch() { plain_main "$1"; plain_added "$1"; }
+
+# A renamed ADR: the lines its rename changes are read from v0.9.0, the whole file before.
+plain_rename() {
+  plain_main "$1"
+  plain_after "$1" docs/adr/FIX-rule-x.md "## Decision" "The session should read it."
+  sp_git "$1" commit -q -am decision
+  sp_git "$1" branch -q -f main HEAD
+  sp_git "$1" mv docs/adr/FIX-rule-x.md docs/adr/FIX-rule-z.md
+  sp_git "$1" mv "docs/adr/$PLAIN_NUC.md" docs/adr/FIX-rule-w.md
+  plain_after "$1" docs/adr/FIX-rule-w.md "## Enforcement" "It could run."
+  sp_git "$1" add -A
+  sp_git "$1" commit -q -m rename
+}
+
+# The change in the working tree: the committed rules, an uncommitted edit, an untracked ADR, and a
+# glossary only the working tree has.
+plain_worktree() {
+  plain_main "$1"
+  plain_added "$1"
+  sp_git "$1" rm -q --cached docs/GLOSSARY.md
+  sp_git "$1" commit -q -m "no glossary"
+  plain_after "$1" AGENTS.md "## 1. Rules" "- It runs a hook script, and it should."
+  printf '# FIX-rule-y: Y\n\n## Decision\n\nWe might do it, with each trigger.\n' > "$1/docs/adr/FIX-rule-y.md"
+}
+
+# With a head, the glossary is the head's, not the working tree's.
+plain_head() { plain_branch "$1"; rm "$1/docs/GLOSSARY.md"; }
+
+# This repository's record on a branch off a main that has none of it: every line is added.
+plain_record() {
+  change "$1" README.md start
+  sp_git "$1" switch -q -c work
+  mkdir -p "$1/docs/adr"
+  cp "$ROOT"/docs/adr/*.md "$1/docs/adr/"
+  cp "$ROOT/AGENTS.md" "$1/AGENTS.md"
+  cp "$ROOT/docs/GLOSSARY.md" "$1/docs/GLOSSARY.md"
+  sp_git "$1" add -A
+  sp_git "$1" commit -q -m record
+}
+
+# A change outside the rules: nothing to report.
+plain_outside() { plain_main "$1"; change "$1" src/x.rs should; }
+
+# A history without a main: nothing to compare.
+plain_no_main() { plain_main "$1"; sp_git "$1" branch -q -D main; }
+
+# A filter on a file outside the rules, as Git LFS names one, the file's stat changed: the bash's
+# git runs its clean command, a harmless cat here, and nuc's runs none, with the same report.
+plain_filtered() {
+  plain_main "$1"
+  printf '*.png filter=bait\n' > "$1/.gitattributes"
+  printf 'image\n' > "$1/a.png"
+  sp_git "$1" add -A
+  sp_git "$1" commit -q -m image
+  sp_git "$1" config filter.bait.clean cat
+  touch -d '+1 min' "$1/a.png"
+  plain_after "$1" "docs/adr/FIX-rule-x.md" "## Decision" "It should run a hook script."
+}
+
+# A branch that adds an ADR beside an image under a filter, committed and checked out clean, as CI
+# runs the gate: no path is deleted, so no rename can pair otherwise, and both report alike.
+plain_filtered_added() {
+  plain_main "$1"
+  printf '*.png filter=bait\n' > "$1/.gitattributes"
+  printf '# FIX-rule-n: N\n\n## Decision\n\nIt should run.\n' > "$1/docs/adr/FIX-rule-n.md"
+  printf 'image\n' > "$1/d.png"
+  sp_git "$1" add -A
+  sp_git "$1" commit -q -m "adr and image"
+  sp_git "$1" config filter.bait.clean cat
+}

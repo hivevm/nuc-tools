@@ -29,7 +29,8 @@
 # rules. The Dev Container cases read the '  - ' lines of check-devcontainer.sh as findings, fail
 # one that fails without a finding, and compare its wording. The sensor cases compare a sensor's
 # report byte for byte, fail an exit that differs where tests/parity/sensor-exits.tsv lists no row
-# for the sensor, and pass one it lists. The pin
+# for the sensor, and pass one it lists; a tree that names no release has its tree rows compared
+# with the sensor of the newest template tree, one that names its release with its own. The pin
 # cases pass a pin of a copied fixture table that the tag of a template tree bears out, and fail
 # one the tag does not, one whose tag cannot be read, and one without a template tree, and exit 2
 # on a malformed or missing list of pins. The shard cases cut the comparisons, tree by tree in the
@@ -268,6 +269,49 @@ expect pass "a sensor's exit that differs where a row lists it passes" "" \
   sense revision-due v0.12.0 "$work/sense.empty" 1 "$work/sense.empty" 2
 expect fail "a listed exit of one sensor does not hold for another" "which no row of" \
   sense backlog v0.12.0 "$work/sense.empty" 1 "$work/sense.empty" 2
+
+# The tree rows of a sensor: a tree whose README names no release is compared with the bash sensor
+# of the newest template tree, SENSOR_NEWEST_TREE, as nuc sense reports there as the newest
+# release it knows, also where the tree itself has no such sensor; a tree that names its release
+# with its own.
+# sensor_stub <dir> <report> — a tree whose sensor x writes the report.
+sensor_stub() {
+  mkdir -p "$1/scripts"
+  printf '#!/usr/bin/env bash\necho %s\n' "$2" > "$1/scripts/sensor-x.sh"
+}
+sensor_stub "$work/st-old" old
+sensor_stub "$work/st-newest" new
+mkdir -p "$work/st-none"
+printf '# T\n\n- **Template release:** v0.6.2\n' > "$work/st-old/README.md"
+printf '# T\n\n- **Template release:** v0.12.0\n' > "$work/st-newest/README.md"
+printf '# T\n' > "$work/st-none/README.md"
+cp -R "$work/st-old" "$work/st-unnamed" && printf '# T\n' > "$work/st-unnamed/README.md"
+printf '#!/usr/bin/env bash\necho new\n' > "$work/st-nuc" && chmod +x "$work/st-nuc"
+printf 'x\ttree\t-\n' > "$work/st-table.tsv"
+: > "$work/st-scenarios.sh"
+# shellcheck disable=SC2317,SC2329 # run through expect
+tree_rows() {
+  (
+    eval "$(sed -n '/^release_of() {/,/^}/p' "$HARNESS")"
+    export PARITY_SENSOR_TABLE="$work/st-table.tsv" PARITY_SENSOR_SCENARIOS="$work/st-scenarios.sh"
+    # shellcheck source=/dev/null # the library, read as the harness reads it
+    source "$ROOT/scripts/lib/sensor-parity.sh"
+    load_sensor_tables || exit 2
+    # shellcheck disable=SC2034 # read by sensor_tree of the library
+    SENSOR_NEWEST_TREE="$1"
+    out="$work/st-out-${2##*/}"
+    sensor_tree "$work/st-nuc" "${2##*/}" "$2" "$out" || exit 1
+    [[ -f "$out.sensor-0.sb" ]] || { echo "no sensor ran"; exit 1; }
+  )
+}
+expect pass "a tree that names no release is compared with the newest tree's sensor" "" \
+  tree_rows "$work/st-newest" "$work/st-unnamed"
+expect fail "without the newest tree, the tree's own sensor differs" "the standard output differs" \
+  tree_rows "" "$work/st-unnamed"
+expect pass "a tree that names no release and lacks the sensor still compares it" "" \
+  tree_rows "$work/st-newest" "$work/st-none"
+expect fail "a tree that names its release is compared with its own sensor" "the standard output differs" \
+  tree_rows "$work/st-newest" "$work/st-old"
 
 # A record named by category: the ADR's file is its identifier.
 NAMED="$(printf '%s-%s' SEC a-b)"

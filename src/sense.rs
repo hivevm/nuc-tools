@@ -6,6 +6,7 @@
 pub mod action_refs;
 pub mod backlog;
 pub mod change;
+pub mod plain_rules;
 pub mod plan_frontier;
 pub mod revision_due;
 pub mod tests_kept;
@@ -32,6 +33,7 @@ pub struct Sensor {
 pub const ALL: &[Sensor] = &[
     action_refs::SENSOR,
     backlog::SENSOR,
+    plain_rules::SENSOR,
     plan_frontier::SENSOR,
     revision_due::SENSOR,
     tests_kept::SENSOR,
