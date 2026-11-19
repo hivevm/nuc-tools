@@ -18,12 +18,20 @@
 # The comparisons run in parallel, one job per processor or PARITY_JOBS, and their outputs follow
 # in the order of the corpus and the variants, after what the preparation of the trees reports,
 # such as a refused tree. Every run computes every tree and variant anew. With --shard <k>/<n>, a
-# run compares only the trees of the corpus whose place in it, counted from 1, is k, k + n,
-# k + 2n, and so on, each with its variants; the n runs from 1/n to n/n compare every tree once,
-# on as many machines. Every shard fills and checks the whole cache, so that a malformed corpus or
-# a tree it refuses fails each. The parts that read all the template's trees at once, the pins of
-# the copied fixture tables, the releases a rule's check changed at, and the hook scenarios, run
-# in the last shard alone, n/n. For each repository and each variant:
+# run makes only its share of the comparisons: each tree as pinned and each variant for it is one,
+# in the order of the corpus, each tree as pinned first and then its variants, and the n shards
+# take contiguous slices of that sequence of about equal cost. A comparison costs the 'cost' of its
+# tree in the corpus. WHOLE_COST, the seconds of the parts that read all the template's trees at
+# once, the pins of the copied fixture tables, the releases a rule's check changed at, and the
+# hook scenarios, which run in the last shard alone, n/n, is appended at the end of the sequence.
+# The deal reads the corpus and the variants alone, so that every shard deals the same, a tree it
+# refuses or cannot fetch included. A slice that starts inside a tree also compares that tree as
+# pinned, since its variants are measured against it, but reports that comparison only where it is
+# its own; the n runs from 1/n to n/n report every comparison once, on as many machines, and a
+# shard fails only on its own. A variant whose tree as pinned gave no whole bash output fails.
+# Every shard fills and checks the whole cache, so that a malformed corpus, a tree it refuses or
+# cannot fetch, and a variant that names a tree the corpus lacks are reported by and fail each.
+# For each repository and each variant:
 #   1. The bash scripts with a ported rule run in the tree, one after the other, with the
 #      environment cleared to PATH, HOME, LC_ALL=C, and that of a pull request into main marked
 #      ready (CI_ENV): scripts/check-docs.sh and scripts/check-traceability.sh (BASH_CHECKS),
@@ -80,16 +88,18 @@
 # harness changes into it, so a relative path given to an option or in PARITY_TABLE or
 # PARITY_RELEASES is read from that root, not from the directory it was called in.
 # --nuc runs the given binary instead of building one; --no-hooks leaves the hook scenarios out;
-# --hooks runs them alone, on the trees given; --shard runs one of n slices of the comparisons;
+# --hooks runs them alone, on the trees given; --shard runs one of n shares of the comparisons;
 # --compare compares one pair of outputs, for scripts/test-check-parity.sh. PARITY_TABLE names
 # another normalization table, PARITY_RELEASES another table of releases, PARITY_TABLE_BLOBS
-# another list of the blobs of the copied fixture tables, and PARITY_JOBS the number of
-# comparisons that run at once.
+# another list of the blobs of the copied fixture tables, PARITY_JOBS the number of comparisons
+# that run at once, and PARITY_WHOLE_COST other seconds for the parts the last shard alone runs.
 # Exit code 0 when every repository and variant agrees, 1 on a difference, a refused tree, a
 # variant that fits no tree or does not fire, a cache that cannot be filled, or a pin of a copied
 # table the template's tag does not bear out, 2 on a missing or malformed list of pins, a malformed
-# corpus, table, or variants file, a PARITY_JOBS that is no number of jobs, a shard that is not
-# <k>/<n> with 1 <= k <= n, a root that does not exist, or an argument it does not read.
+# corpus, table, or variants file, a cost of a tree that is no number of seconds above 0, a
+# PARITY_JOBS that is no number of jobs, a PARITY_WHOLE_COST that is none, a shard that is not
+# <k>/<n> with 1 <= k <= n, a deal of the comparisons that does not come out whole, a root that
+# does not exist, or an argument it does not read.
 
 set -uo pipefail
 
@@ -315,7 +325,7 @@ variants="$ROOT/tests/parity/variants.tsv"
 # Whether the hook scenarios run, and the trees they run on alone under --hooks.
 hooks=1 hooks_only=0
 hook_trees=()
-# The slice of the comparisons this run makes, k of n; 1/1 is all of them.
+# The share of the comparisons this run makes, k of n; 1/1 is all of them.
 shard=1/1
 # The earliest template release a tree of the corpus may carry.
 FLOOR=v0.5.0
@@ -339,32 +349,47 @@ shard_k="${BASH_REMATCH[1]}" shard_n="${BASH_REMATCH[2]}"
 whole=$((shard_k == shard_n))
 load_table
 
-# The corpus, one 'name url commit' line per repository.
+# The corpus, one 'name url commit' line per repository, and the cost of one comparison of each
+# tree, its key 'cost' or '-' where it has none.
 mapfile -t repositories < <(awk '
   /^[[:space:]]*(#|$)/ { next }
-  /^\[\[repository\]\]$/ { if (n++) print name, url, commit; name = url = commit = ""; next }
+  /^\[\[repository\]\]$/ { if (n++) print name, url, commit, cost; name = url = commit = ""; cost = "-"; costed = 0; next }
   match($0, /^(name|url|commit) = "[^"]*"$/) {
     value = $0; sub(/^[a-z]+ = "/, "", value); sub(/"$/, "", value)
     if ($1 == "name") name = value; else if ($1 == "url") url = value; else commit = value
     next
   }
+  n && /^cost = [^ ]+$/ && !costed++ { cost = $3; next }
   { print "malformed: " $0; exit }
-  END { if (n) print name, url, commit }
+  END { if (n) print name, url, commit, cost }
 ' "$corpus" 2>/dev/null) || die "$corpus: unreadable"
 ((${#repositories[@]})) || die "$corpus: no repository"
-seen_names=()
+seen_names=() costs=()
 for entry in "${repositories[@]}"; do
-  read -r name url commit <<< "$entry"
-  [[ "$name" =~ ^[a-z0-9-]+$ && -n "$url" && "$commit" =~ ^[0-9a-f]{40}$ ]] \
+  read -r name url commit cost extra <<< "$entry"
+  [[ "$name" =~ ^[a-z0-9-]+$ && -n "$url" && "$commit" =~ ^[0-9a-f]{40}$ && -z "$extra" ]] \
     || die "$corpus: an entry needs a name of [a-z0-9-], a url, and a 40-hex commit: '$entry'"
+  [[ "$cost" == - || ( "$cost" =~ ^[0-9]+(\.[0-9]+)?$ && "$cost" =~ [1-9] ) ]] \
+    || die "$corpus: the repository '$name' has the cost '$cost', not a number of seconds above 0"
   # A name is the directory of its tree in the cache and the files of its comparisons.
   _contains "$name" "${seen_names[@]}" && die "$corpus: the repository '$name' is named twice"
-  seen_names+=("$name")
+  seen_names+=("$name") costs+=("$cost")
 done
+# A tree without a cost takes the largest cost of the corpus, or 1 where no tree has one: an
+# unmeasured tree is dealt as the dearest, so that its shard is not overloaded.
+default_cost="$(printf '%s\n' "${costs[@]}" | grep -vx -- - | sort -g | tail -n 1)"
+default_cost="${default_cost:-1}"
 
 # The number of comparisons that run at once: PARITY_JOBS, or one per processor.
 jobs_max="${PARITY_JOBS:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 1)}"
 [[ "$jobs_max" =~ ^[1-9][0-9]*$ ]] || die "PARITY_JOBS is '$jobs_max', not a number of jobs"
+# The seconds the parts that read all the template's trees at once take, which the last shard
+# alone runs, appended at the end of the sequence: PARITY_WHOLE_COST, or WHOLE_COST. Measured with
+# PARITY_JOBS=4, as tests/parity/corpus.toml measures the cost of a tree, the hook scenarios took
+# 146 s, the pins of the copied tables and the releases a few more.
+WHOLE_COST=150
+whole_cost="${PARITY_WHOLE_COST:-$WHOLE_COST}"
+[[ "$whole_cost" =~ ^[0-9]+(\.[0-9]+)?$ ]] || die "PARITY_WHOLE_COST is '$whole_cost', not a number of seconds"
 
 # The table of releases, one 'rule<TAB>script<TAB>function<TAB>releases' entry per row; the fields
 # after them, the releases a reason covers and the reason, are tests/releases.rs's, not the
@@ -539,6 +564,8 @@ run_pair() {
       ((bash_rc)) || bash_rc=1
     fi
   fi
+  # The bash output is whole: a variant may be measured against it.
+  : > "$out.whole"
   env -i PATH="$PATH" HOME="$HOME" "${CI_ENV[@]}" "$nuc" check --repo "$dir" > "$out.nuc" 2> "$out.nuc.err"
   nuc_rc=$?
   compare "$label" "$out.bash" "$bash_rc" "$out.nuc" "$nuc_rc"
@@ -659,11 +686,14 @@ for i in "${!variant_names[@]}"; do
     fi
   done
 done
-template_trees=() trees=() template_url="" place=0
+# The trees of the corpus, in its order, and those whose cache is filled and whose release is
+# compared.
+template_trees=() trees=() template_url=""
+declare -A ready=()
 for entry in "${repositories[@]}"; do
-  read -r name url commit <<< "$entry"
+  read -r name url commit _ <<< "$entry"
   dir="$cache/$name"
-  place=$((place + 1))
+  trees+=("$name $commit $dir")
   if [[ "$(cgit "$dir" rev-parse -q --verify HEAD 2>/dev/null)" != "$commit" ]]; then
     if ! { rm -rf "$dir" && mkdir -p "$dir" && cgit "$dir" init -q \
       && cgit "$dir" fetch -q --depth 1 "$url" "$commit" \
@@ -688,8 +718,7 @@ for entry in "${repositories[@]}"; do
   tree_config "$dir" > "$dir/nuc.toml.harness" && mv "$dir/nuc.toml.harness" "$dir/nuc.toml"
   grep -qx '/nuc.toml' "$dir/.git/info/exclude" 2>/dev/null || echo '/nuc.toml' >> "$dir/.git/info/exclude"
 
-  # This shard compares the tree at its place k, k + n, and so on.
-  (((place - shard_k) % shard_n == 0)) && trees+=("$name $commit $dir")
+  ready["$name"]=1
 done
 
 # check_table_blobs — the pins of the copies of the template's fixture tables
@@ -747,7 +776,12 @@ run_variant() {
   fi
   out="$work/$name.${variant_names[i]}"
   run_pair "$name at ${commit:0:12}, variant ${variant_names[i]}" "$vdir" "$out" || rc=1
-  if ! fires "$work/$name.bash" "$out.bash" "${variant_rules[i]}"; then
+  # A tree as pinned whose bash run ended early gives nothing to measure the variant against, and
+  # the shard that does not report that comparison would pass the variant on it.
+  if [[ ! -f "$work/$name.whole" ]]; then
+    echo "Parity check: $label — the tree as pinned gave no whole bash output to measure the variant against" >&2
+    rc=1
+  elif ! fires "$work/$name.bash" "$out.bash" "${variant_rules[i]}"; then
     echo "Parity check: $label — bash reports no finding of ${variant_rules[i]} beyond the tree's own; the variant does not make its rule fire" >&2
     rc=1
   fi
@@ -755,8 +789,9 @@ run_variant() {
   return "$rc"
 }
 
-# First each tree as pinned, whose bash output its variants are measured against once it is whole,
-# then every variant of every tree, each a job of its own, writing into files of its own.
+# First the trees as pinned that the shard needs, whose bash output their variants are measured
+# against once it is whole, then the shard's own variants, each a job of its own, writing into
+# files of its own.
 # spawn <unit> <command...> — run the command as a job into the unit's files, once a slot is free.
 spawn() {
   local unit="$1"
@@ -770,21 +805,73 @@ report() {
   cat "$work/$1.err" >&2
   [[ "$(cat "$work/$1.rc" 2>/dev/null)" == 0 ]] || failed=1
 }
+# The comparisons of one whole run, tree by tree in the order of the corpus: each tree as pinned,
+# then each variant that is for it, in the order of the variants, each costing its tree's cost.
+# The shards take contiguous slices of this sequence of about equal cost. The cost of the parts
+# that read all the template's trees, which the last shard alone runs, is appended at the end of
+# the sequence, so that it falls in the last slice: a comparison goes to the shard in whose share
+# of the whole cost its middle falls. The deal reads the corpus and the variants alone, never what
+# a fetch did, so that every shard deals the same. A shard keeps its own, '<tree> -' for a tree as
+# pinned and '<tree> <variant index>' for a variant, of the trees that are ready.
+sequence=()
+for j in "${!trees[@]}"; do
+  read -r name commit dir <<< "${trees[j]}"
+  cost="${costs[j]/#-/$default_cost}"
+  for i in - "${!variant_names[@]}"; do
+    # A variant that names its trees is for those alone.
+    [[ "$i" == - || -z "${variant_trees[i]}" || ",${variant_trees[i]}," == *",$name,"* ]] || continue
+    sequence+=("$name $i $cost")
+  done
+done
+count="${#sequence[@]}"
+mapfile -t dealt < <(printf '%s\n' "${sequence[@]}" | awk -v n="$shard_n" -v whole="$whole_cost" '
+  { cost[NR] = $3; total += $3 }
+  END {
+    total += whole
+    for (u = 1; u <= NR; u++) {
+      s = int((at + cost[u] / 2) * n / total) + 1
+      print (s > n ? n : s)
+      at += cost[u]
+    }
+  }')
+# A deal that lost a comparison would leave a shard nothing to compare, and pass it.
+((${#dealt[@]} == count)) || die "the deal of the comparisons failed"
+for slice_of in "${dealt[@]}"; do
+  if ! [[ "$slice_of" =~ ^[1-9][0-9]*$ ]] || ((slice_of > shard_n)); then
+    die "the deal of the comparisons failed"
+  fi
+done
+mine=()
+declare -A needed=() at=()
 for tree in "${trees[@]}"; do
   read -r name commit dir <<< "$tree"
-  spawn "unit-$name" run_pair "$name at ${commit:0:12}" "$dir" "$work/$name"
+  at["$name"]="$commit $dir"
+done
+for u in "${!sequence[@]}"; do
+  read -r name i _ <<< "${sequence[u]}"
+  if ((dealt[u] == shard_k)) && [[ -v ready["$name"] ]]; then
+    mine+=("$name $i")
+    needed["$name"]=1
+  fi
+done
+# A variant is measured against its tree's own bash output, so the shard compares every tree as
+# pinned that one of its variants is for; it reports that comparison only where it is its own, so
+# that the shards together report each one once.
+for tree in "${trees[@]}"; do
+  read -r name commit dir <<< "$tree"
+  [[ -v needed["$name"] ]] && spawn "unit-$name" run_pair "$name at ${commit:0:12}" "$dir" "$work/$name"
 done
 wait
 units=()
-for tree in "${trees[@]}"; do
-  read -r name commit dir <<< "$tree"
-  units+=("unit-$name")
-  for i in "${!variant_names[@]}"; do
-    # A variant that names its trees is for those alone.
-    [[ -z "${variant_trees[i]}" || ",${variant_trees[i]}," == *",$name,"* ]] || continue
-    spawn "unit-$name.$i" run_variant "$name" "$commit" "$dir" "$i"
-    units+=("unit-$name.$i")
-  done
+for unit in "${mine[@]}"; do
+  read -r name i <<< "$unit"
+  if [[ "$i" == - ]]; then
+    units+=("unit-$name")
+    continue
+  fi
+  read -r commit dir <<< "${at["$name"]}"
+  spawn "unit-$name.$i" run_variant "$name" "$commit" "$dir" "$i"
+  units+=("unit-$name.$i")
 done
 wait
 for unit in "${units[@]}"; do report "$unit"; done
@@ -844,5 +931,5 @@ if ((failed)); then
   exit 1
 fi
 slice=""
-((shard_n > 1)) && slice=", shard $shard: ${#trees[@]} of them compared"
+((shard_n > 1)) && slice=", shard $shard: ${#mine[@]} of the $count comparisons"
 echo "Parity check passed (${#repositories[@]} repositories$slice, ${#variant_names[@]} variants, rules: ${ported:-none})."

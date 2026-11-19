@@ -330,16 +330,17 @@ jobs:
   # The parity harness (TEST-parity-harness, Q-2): the bash checks of each repository of the
   # corpus and nuc on the same tree, any difference a failure. It fetches the corpus and builds nuc
   # with the toolchain rust-toolchain.toml pins; Linux only. Its comparisons are bound by the
-  # processor, about 18 minutes on one runner, so each entry of the matrix makes one shard of them,
-  # one required check run per entry; together they compare every tree once. The last shard also
-  # runs the parts that read all the template's trees, the hook scenarios among them, and the
-  # first runs the self-tests, by its place in the matrix, so that they run whatever its values.
-  # fail-fast is off so that one red shard does not hide another.
+  # processor, about 40 minutes on one runner, so each entry of the matrix makes one shard of them,
+  # one required check run per entry, a contiguous slice of the comparisons of about equal cost by
+  # the costs of the corpus; together they report every comparison once. The last shard also runs
+  # the parts that read all the template's trees, the hook scenarios among them, and the first runs
+  # the self-tests, by its place in the matrix, so that they run whatever its values. fail-fast is
+  # off so that one red shard does not hide another.
   parity:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1/4, 2/4, 3/4, 4/4]
+        shard: [1/6, 2/6, 3/6, 4/6, 5/6, 6/6]
     runs-on: ubuntu-latest
     timeout-minutes: 40
     permissions:

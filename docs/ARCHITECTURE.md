@@ -150,9 +150,16 @@ golden path and the test pattern an agent copies from are named here.
   whatever release it names, and its checks are compared as any tree's. They also leave out a tree
   later than the bound `HOOKS_PORTED`, v0.11.1, and the scenario of the defaults runs on the newest
   tree left in. Before the comparisons it holds each pin of `tests/tables.blobs` to the template's
-  tag of its release. With `--shard <k>/<n>` a run compares only every n-th tree of the corpus, from
-  the k-th, with its variants. The last shard also runs the parts that read all the template's trees
-  at once. CI runs four shards, one required check run each, since the comparisons are bound by the
+  tag of its release. With `--shard <k>/<n>` a run makes a contiguous slice of the comparisons,
+  tree by tree in the order of the corpus, each tree as pinned first and then its variants. The
+  slices are of about equal cost by the `cost` of each tree in the corpus, the seconds one of its
+  comparisons takes, measured with four jobs. The cost of the parts that read all the template's
+  trees at once, which the last shard alone runs, is appended at the end of the sequence. A slice
+  that starts inside a tree also compares that tree as pinned, since its variants are measured
+  against it, but only the slice that holds that comparison reports it. The deal reads the corpus
+  and the variants alone, so every shard deals the same, a refused or unfetched tree included.
+  Every shard reports such a tree, and a variant that names a tree the corpus lacks, and fails on
+  it. CI runs six shards, one required check run each, since the comparisons are bound by the
   processor.
 - **Table runner** — `tests/tables.rs` builds the tree of each case of the template's fixture
   tables, copied under `tests/tables/` from the newest release `nuc` ports and pinned by their
