@@ -71,6 +71,9 @@ Only a normalization renumbers them
 8. **G-8** — When a maintainer hands off a change, `nuc measure` prints the tokens the harness's
    sessions on that branch read and wrote, as the Measures line of the pull request template
    counts them, or stops with exit 2 where it cannot read them.
+9. **G-9** — When a project runs `nuc sense <name>` for a sensor of the template that needs only
+   git, it prints the report the bash sensor of the release the project carries prints on the
+   same tree, byte for byte, or stops with exit 2 where it cannot decide.
 
 ## Quality Goals
 
@@ -200,7 +203,7 @@ maintained.
 - The repositories of the parity corpus stay readable to the harness, each on template release
   v0.5.0 or later.
 - A git CLI is present wherever `nuc` runs, and its output is stable across the versions in use;
-  the minimum git version is not yet fixed.
+  a git before 2.45.0 does not decide a partial clone (SEC-git-cleared-without-lazy-fetch).
 - `nuc` reads the template release a project carries from the `Template release` line of its
   README, and that line keeps the form the template's rule `docs/template-release` holds.
 - The template switches its hooks and checks over to `nuc` once parity is reached, and keeps its
