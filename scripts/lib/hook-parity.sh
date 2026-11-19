@@ -1,5 +1,6 @@
 # shellcheck shell=bash
-# The scenario harness of the hooks (TEST-hook-scenario-parity), sourced by scripts/check-parity.sh.
+# The scenario harness of the hooks (TEST-hook-scenarios-on-bash-hooks), sourced by
+# scripts/check-parity.sh.
 #
 # Each scenario of tests/parity/hook-scenarios.sh builds a fixture repository through git and runs
 # one git command in it, once with the bash hook of each template tree given and once with the
@@ -28,6 +29,12 @@
 # output, until the port of its hooks lifts the bound. Its checks are compared as any tree's. A
 # tree whose README names no release is compared, and fails where its hooks are not ported.
 #
+# A tree whose blob list .githooks/nuc.blobs pins a hook, as pinned_files of scripts/lib/pin.sh
+# reads it, from template release v0.12.0 on, carries nuc's own shims, which hand the decision to
+# nuc: it has no bash hook to compare nuc with, and its self-test tests nuc. It is left out of the
+# scenarios and of the coverage, named on standard output, whatever release it names; its checks
+# are compared as any tree's. Leaving out every tree given fails, as no hook is compared.
+#
 # PARITY_HOOK_SCENARIOS, PARITY_HOOK_TABLE, PARITY_HOOK_CASES, and PARITY_HOOKS_PORTED name other
 # files and another bound, for scripts/test-check-parity.sh.
 #
@@ -38,7 +45,7 @@ HOOK_SCENARIOS="${PARITY_HOOK_SCENARIOS:-$ROOT/tests/parity/hook-scenarios.sh}"
 HOOK_TABLE="${PARITY_HOOK_TABLE:-$ROOT/tests/parity/hooks.tsv}"
 HOOK_CASES="${PARITY_HOOK_CASES:-$ROOT/tests/parity/hook-cases.tsv}"
 SHIMS="$ROOT/shims"
-HOOKS_PORTED="${PARITY_HOOKS_PORTED:-v0.11.0}"
+HOOKS_PORTED="${PARITY_HOOKS_PORTED:-v0.11.1}"
 
 # The scenarios, filled by hook_scenario as the scenario file is sourced.
 hs_names=() hs_hooks=() hs_cases=() hs_setups=() hs_args=() hs_bare=()
@@ -229,6 +236,10 @@ hook_parity() {
   local failed=0 pattern id field extra name reason
   for given in "$@"; do
     release="$(release_of "$given/README.md")"
+    if [[ -n "$(pinned_files "$given")" ]]; then
+      echo "Parity check: hooks — the tree at ${release:-$given} pins its hooks in .githooks/nuc.blobs, the shims of nuc; it has no bash hook to compare, so its hooks are not compared"
+      continue
+    fi
     if [[ -n "$release" && "$(printf '%s\n%s\n' "$HOOKS_PORTED" "$release" | sort -V | tail -1)" != "$HOOKS_PORTED" ]]; then
       echo "Parity check: hooks — the tree at $release is later than $HOOKS_PORTED, whose hooks nuc ports; its hooks are not compared"
       continue
@@ -236,7 +247,7 @@ hook_parity() {
     trees+=("$given")
   done
   if (($# && ${#trees[@]} == 0)); then
-    echo "Parity check: hooks — every tree of the template is later than $HOOKS_PORTED, whose hooks nuc ports, so no hook is compared" >&2
+    echo "Parity check: hooks — every tree of the template is later than $HOOKS_PORTED, whose hooks nuc ports, or pins nuc's shims as its hooks, so no hook is compared" >&2
     return 1
   fi
 

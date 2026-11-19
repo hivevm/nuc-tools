@@ -1,13 +1,19 @@
 # The corpus of the parity harness (TEST-parity-harness), read by
 # scripts/check-parity.sh: each repository by URL and commit, on template release v0.5.0 or later,
 # run with the bash checks it carries and with nuc. A pull request moves a pin. The format is one
-# '[[repository]]' table per entry with the three keys below, each a string on a line of its own.
+# '[[repository]]' table per entry with the three keys below, each a string on a line of its own,
+# and the key 'cost', a number on a line of its own: the seconds one comparison of the tree takes,
+# its run alone divided by its comparisons, the tree as pinned and each variant for it. It is
+# measured with PARITY_JOBS=4, as CI runs it, on a corpus of the one entry with --no-hooks and an
+# empty PARITY_TABLE_BLOBS. The shards of the harness cut the comparisons into slices of about
+# equal cost by it; a tree without it is dealt at the largest cost of the corpus.
 
 # The template at the commit of its release v0.5.0.
 [[repository]]
 name = "nuc"
 url = "https://github.com/hivevm/nuc.git"
 commit = "1bc9c65fe48e893aaf4e3b49f1bc803c0c753a98"
+cost = 1.03
 
 # The template at the commit of its release v0.6.0, where check 8 flips an old ADR on the
 # acceptance of its successor: the rules that check by the release check it as v0.6.0.
@@ -15,6 +21,7 @@ commit = "1bc9c65fe48e893aaf4e3b49f1bc803c0c753a98"
 name = "nuc-v0-6-0"
 url = "https://github.com/hivevm/nuc.git"
 commit = "f9d3c56b9bc238c975ee4d1b4f5a9bb4cfdc8f33"
+cost = 1.07
 
 # The template at the commit of its release v0.6.1, whose check-docs.sh ends the template's name
 # in a badge, so that a derived repository named after it keeps its own badges.
@@ -22,6 +29,7 @@ commit = "f9d3c56b9bc238c975ee4d1b4f5a9bb4cfdc8f33"
 name = "nuc-v0-6-1"
 url = "https://github.com/hivevm/nuc.git"
 commit = "1f5a07c7e1959a52e45ff249a07db7c32bf4939c"
+cost = 1.09
 
 # The template at the commit of its release v0.7.0, whose check-docs.sh reads the required checks
 # and the Project Layout from CONTRIBUTING.md: the rules that check by the release check it as
@@ -30,6 +38,7 @@ commit = "1f5a07c7e1959a52e45ff249a07db7c32bf4939c"
 name = "nuc-v0-7-0"
 url = "https://github.com/hivevm/nuc.git"
 commit = "8ff4cf46bb887cd9471ff05a457a16bb83cc0f42"
+cost = 1.13
 
 # The template at the commit of its release v0.8.1, whose check-docs.sh reads the ADR patterns
 # from scripts/lib/adr.sh: every rule checks it as v0.7.0.
@@ -37,6 +46,7 @@ commit = "8ff4cf46bb887cd9471ff05a457a16bb83cc0f42"
 name = "nuc-v0-8-1"
 url = "https://github.com/hivevm/nuc.git"
 commit = "2129a9dc34f33b463584c45ea699cee6ba22f0f6"
+cost = 0.79
 
 # The template at the commit of its release v0.9.0, whose record names each ADR by category and
 # slug: the rules that check by the release check it as v0.9.0.
@@ -44,6 +54,7 @@ commit = "2129a9dc34f33b463584c45ea699cee6ba22f0f6"
 name = "nuc-v0-9-0"
 url = "https://github.com/hivevm/nuc.git"
 commit = "06a19f6cfa9cc7c96fbefc57267ea785fda0129d"
+cost = 1.08
 
 # The template at the commit of its release v0.9.1, whose checks end each finding in its key and
 # count a line's width in code points whatever the locale: every rule checks it as v0.9.0.
@@ -51,6 +62,7 @@ commit = "06a19f6cfa9cc7c96fbefc57267ea785fda0129d"
 name = "nuc-v0-9-1"
 url = "https://github.com/hivevm/nuc.git"
 commit = "0a19dabc467be930c838cae7a3b3df24320397e5"
+cost = 1.28
 
 # The template at the commit of its release v0.10.0, whose check-docs.sh holds the release line to
 # the accepted NUC- ADRs and refuses an issue the template opens, and whose check-shell.sh holds
@@ -59,6 +71,7 @@ commit = "0a19dabc467be930c838cae7a3b3df24320397e5"
 name = "nuc-v0-10-0"
 url = "https://github.com/hivevm/nuc.git"
 commit = "ba51afe2be37bfa8143de8d289d0cabb7ed8dd9e"
+cost = 11.24
 
 # The template at the commit of its release v0.11.0, whose checks change only in their comments
 # and the root they read: every rule checks it as v0.10.0.
@@ -66,6 +79,25 @@ commit = "ba51afe2be37bfa8143de8d289d0cabb7ed8dd9e"
 name = "nuc-v0-11-0"
 url = "https://github.com/hivevm/nuc.git"
 commit = "d48b23f90d61c4230a85e2a3c78d5421764f8b56"
+cost = 10.77
+
+# The template at the commit of its release v0.11.1, whose checks change only in their comments:
+# every rule checks it as v0.10.0.
+[[repository]]
+name = "nuc-v0-11-1"
+url = "https://github.com/hivevm/nuc.git"
+commit = "dfb7774826f02ad6e0b32a277971879f8304c75d"
+cost = 10.81
+
+# The template at the commit of its release v0.12.0, whose hooks are the shims of nuc that
+# .githooks/nuc.blobs pins, which check-docs.sh reads as no text file of the tree and
+# check-shell.sh lints as no script: the rules that check by the release check it as v0.12.0. Its
+# hooks are nuc's own, so the hook scenarios leave the tree out.
+[[repository]]
+name = "nuc-v0-12-0"
+url = "https://github.com/hivevm/nuc.git"
+commit = "aa7847a8c548395c42746c833220f2e18c7bf80a"
+cost = 9.45
 
 # This repository at the commit of its main that merged the first part of the port, on template
 # release v0.11.0: a derived tree of that release.
@@ -73,12 +105,22 @@ commit = "d48b23f90d61c4230a85e2a3c78d5421764f8b56"
 name = "nuc-tools-v0-11-0"
 url = "https://github.com/hivevm/nuc-tools.git"
 commit = "ec2a93a610523dd2afa895c660f8ba96735d46e2"
+cost = 13.89
+
+# This repository at the commit of its main after the record was restated, on template release
+# v0.12.0: a derived tree of that release, whose hooks the blob list pins.
+[[repository]]
+name = "nuc-tools-v0-12-0"
+url = "https://github.com/hivevm/nuc-tools.git"
+commit = "c86f4fad4887618d06a34956bfed4883d13d39a7"
+cost = 16.15
 
 # A derived repository on template release v0.6.1, at a fixed commit of its main.
 [[repository]]
 name = "nectar"
 url = "https://github.com/hivevm/nectar.git"
 commit = "4892160534f5b8f22dd51b980b7275429c9ef9d0"
+cost = 0.53
 
 # This repository on template release v0.7.0, at a fixed commit of its main after the port of
 # the hooks and the regrouping of its history, whose open tickets stand in docs/plan/: the one
@@ -87,15 +129,18 @@ commit = "4892160534f5b8f22dd51b980b7275429c9ef9d0"
 name = "nuc-tools"
 url = "https://github.com/hivevm/nuc-tools.git"
 commit = "637631932668c2fbf736b3cd20cce2f2b210501b"
+cost = 0.65
 
 # A derived repository on template release v0.6.1, at a fixed commit of its main.
 [[repository]]
 name = "ocelli"
 url = "https://github.com/hivevm/ocelli.git"
 commit = "0657ed0f9823d1d8ef2e678a616f8683214bea7c"
+cost = 1.73
 
 # A derived repository on template release v0.6.1, at a fixed commit of its main.
 [[repository]]
 name = "opamp-fleet"
 url = "https://github.com/mbrigl/opamp-fleet.git"
 commit = "2188e86e4b53030c18861ac9c4d86a03ae36325a"
+cost = 6.78

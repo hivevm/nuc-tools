@@ -167,7 +167,16 @@ carries checks it, v0.5.0 or later: `docs/adr-index`, `docs/adr-numbering`, `doc
 `docs/template-release`. They port every part of the template's `check-traceability.sh` too:
 `traceability/criteria`, `traceability/citations`, `traceability/coverage`, which names the
 criteria no test cites yet in the summary on standard error, and, from v0.9.0 on,
-`traceability/sensor-tests`.
+`traceability/sensor-tests`. From v0.10.0 on, `shell/mode` ports the one rule of `check-shell.sh`
+that needs only git. From v0.12.0 on, `hooks/pin` and `hooks/toml` port `check-hooks.sh`: the
+blob list `.githooks/nuc.blobs` pins each hook unchanged, and `nuc.toml` names a minimum no older
+than the hooks' release and every `hook/` rule the list names. The rules of the area
+`devcontainer` port every rule of `check-devcontainer.sh`, each as the release a tree carries
+checks it: `devcontainer/definition`, `devcontainer/socket`, `devcontainer/lock`,
+`devcontainer/settings`, `devcontainer/git-settings`, from v0.7.0 on `devcontainer/mount-path`,
+and from v0.12.0 on `devcontainer/nuc`. From v0.9.0 on, a tree without
+`.devcontainer/` has no Dev Container and is held to nothing, its settings included, and a tree with
+it is held to its settings only with `.vscode/`.
 
 ### Git hooks
 

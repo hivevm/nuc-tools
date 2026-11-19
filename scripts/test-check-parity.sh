@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Self-test of scripts/check-parity.sh.
-# Verifies: TEST-parity-harness TEST-hook-scenario-parity Q-1 Q-2
+# Verifies: TEST-parity-harness TEST-hook-scenarios-on-bash-hooks Q-1 Q-2
 #
 # The comparison cases feed the harness pairs of outputs through '--compare': pairs that differ in
 # one finding, in one exit status, by one bash message the table does not know, or by a line nuc
@@ -23,13 +23,24 @@
 # applies and is compared, does not apply to a mode left as it was or to a file git does not track,
 # and takes +x or -x alone. The shell cases compare the lines of check-shell.sh keyed shell/ alone,
 # map a rule nuc leaves to the bash to none, and run no check-shell.sh without the key of
-# shell/mode. The pin
+# shell/mode. The hooks cases read the '  - ' lines of check-hooks.sh as findings, fail one that
+# fails without a finding, and hand it the harness's nuc.toml with the tree's minimum and hook/
+# rules. The Dev Container cases read the '  - ' lines of check-devcontainer.sh as findings, fail
+# one that fails without a finding, and compare its wording. The pin
 # cases pass a pin of a copied fixture table that the tag of a template tree bears out, and fail
 # one the tag does not, one whose tag cannot be read, and one without a template tree, and exit 2
-# on a malformed or missing list of pins. The shard cases compare in each shard the trees at its
-# places, the shards together each tree and variant once, as one run does, and the pins, the
-# releases, and the hook scenarios in the last shard alone, and exit 2 on a shard that is not
-# <k>/<n> with 1 <= k <= n. No network and no build.
+# on a malformed or missing list of pins. The shard cases cut the comparisons, tree by tree in the
+# order of the corpus, into contiguous slices of about equal cost by the costs of the corpus, a
+# tree without one taking the largest, the last slice ending with the cost of the whole-corpus
+# parts; they report in the shards together each comparison and each finding of a tree as pinned
+# once, as one run does, measure a variant against its tree as pinned in a shard that does not
+# report that tree, fail a shard on its own comparisons alone, keep a tree that cannot be fetched
+# in the deal, report an unfit variant in its own shard alone, read a decimal cost, fail a variant
+# whose tree as pinned gave no whole bash output, run the pins, the releases, and the hook
+# scenarios in the last shard alone, and exit 2 on a shard that is not <k>/<n> with 1 <= k <= n,
+# on a cost that is no number of seconds above 0, on two costs in one entry, on a cost of the
+# whole-corpus parts that is none, and on a deal that does not come out whole. No network and no
+# build.
 #
 # The hook cases run the scenarios alone, through '--hooks', on a tree of the template whose bash
 # pre-commit refuses a commit on main, with the reference shim and a stand-in nuc: an agreeing nuc
@@ -38,8 +49,10 @@
 # self-test case, a listed case the self-test lacks, a scenario that names a case no release has, a
 # scenario whose bash side does not end as its case expects, a notice whose field differs, a record
 # of green trees that differs, a merge driver that writes another index, no tree at all, and a
-# malformed table each fail (TEST-hook-scenario-parity). A case is held only on a tree whose
-# self-test names it.
+# malformed table each fail (TEST-hook-scenarios-on-bash-hooks). A case is held only on a tree whose
+# self-test names it. A tree whose .githooks/nuc.blobs pins its hooks, nuc's shims, is left out of
+# the scenarios and their coverage, and a run with no other tree fails. The bound of the hooks nuc
+# ports is v0.11.1 by default, and the scenario of the defaults runs on the newest tree left in.
 #
 # Inputs: scripts/check-parity.sh tests/parity/ scripts/lib/ shims/
 #
@@ -296,12 +309,14 @@ source_repo() {
   echo "$dir"
 }
 
-# corpus <file> <name>... — a corpus with the source repositories of the names, through file://.
+# corpus <file> <name>[:<cost>]... — a corpus with the source repositories of the names, through
+# file://, each with the cost given.
 corpus() {
   local f="$1" n; shift
   for n in "$@"; do
     printf '[[repository]]\nname = "%s"\nurl = "file://%s"\ncommit = "%s"\n' \
-      "$n" "$work/src-$n" "$(cat "$work/src-$n.commit")"
+      "${n%%:*}" "$work/src-${n%%:*}" "$(cat "$work/src-${n%%:*}.commit")"
+    [[ "$n" == *:* ]] && printf 'cost = %s\n' "${n#*:}"
   done > "$f"
   echo "$f"
 }
@@ -400,6 +415,65 @@ expect pass "a finding of shell/mode maps to the rule by its row" "" \
 expect fail "a finding of shell/mode nuc does not report is a difference" "only bash reports: shell/mode scripts/x.sh" \
   compare "$(bash_out shell-mode-only "$MODE_FINDING")" 1 "$(nuc_out shell-mode-only)" 0
 
+# check-hooks.sh of a tree that has it: its '  - ' lines are findings, and it fails only with one.
+# The harness's nuc.toml keeps the tree's minimum and its hook/ rules, read as check-hooks.sh reads
+# them, a rule in a comment left out, and adds no other rule of the tree's.
+# hooked <name> <script body> — a source repository whose check-hooks.sh runs the body, and whose
+# nuc.toml names the minimum 0.2.2, a hook/ rule, one in a comment, and a rule of docs/.
+TOML_FINDING="nuc.toml: its rules do not name 'hook/x' — with a nuc.toml its list governs which rules run, and no project removes a hook/ rule (NUC-hooks-run-nuc §3) [hooks/toml:rule]"
+hooked() {
+  local src name="$1"
+  src="$(source_repo "$name")"
+  printf '%s\n' '#!/usr/bin/env bash' "$2" > "$src/scripts/check-hooks.sh"
+  printf '%s\n' '# The nuc of the hooks.' 'minimum = "0.2.2"' 'rules = [' '  "hook/push-checks", # "hook/x",' \
+    '  "docs/x",' ']' > "$src/nuc.toml"
+  git -C "$src" add -A
+  git -C "$src" -c user.name=F -c user.email=f@example.invalid -c core.hooksPath=/dev/null commit -q -m hooked
+  git -C "$src" rev-parse HEAD > "$work/src-$name.commit"
+  corpus "$work/$name.toml" "$name"
+}
+# The harness's nuc.toml as the tree's check-hooks.sh sees it: a finding unless it is the one the
+# tree's own minimum and hook/ rules make.
+# shellcheck disable=SC2016 # the body is the stub's
+KEPT='grep -qx "minimum = \"0.2.2\"" nuc.toml && grep -q ",\"hook/push-checks\"\]$" nuc.toml && ! grep -q "docs/x\|hook/x" nuc.toml && exit 0
+printf "Hooks pin check FAILED:\n  - %s\n" "$(cat nuc.toml)"; exit 1'
+expect pass "the harness's nuc.toml keeps the tree's minimum and hook/ rules, and nothing in a comment" "" \
+  run "$(hooked hooks-kept "$KEPT")" "$(reactive_nuc)"
+expect fail "a line of check-hooks.sh is read as a finding" "bash message the table does not know" \
+  run "$(hooked hooks-finding "printf '  - %s\n' $(printf %q "$TOML_FINDING"); exit 1")" "$(reactive_nuc)"
+expect fail "a check-hooks.sh that fails without a finding fails the harness" "check-hooks.sh exited 1 without a finding" \
+  run "$(hooked hooks-silent 'exit 1')" "$(reactive_nuc)"
+
+# check-devcontainer.sh of a tree that has it, every release from v0.5.0 on: its '  - ' lines are
+# findings, and it fails only with one; its finding maps to the rule by its row, the wording of
+# each release compared.
+# devcontained <name> <script body> — a source repository whose check-devcontainer.sh runs the
+# body.
+devcontained() {
+  local src name="$1"
+  src="$(source_repo "$name")"
+  printf '%s\n' '#!/usr/bin/env bash' "$2" > "$src/scripts/check-devcontainer.sh"
+  git -C "$src" add -A
+  git -C "$src" -c user.name=F -c user.email=f@example.invalid -c core.hooksPath=/dev/null commit -q -m devcontained
+  git -C "$src" rev-parse HEAD > "$work/src-$name.commit"
+  corpus "$work/$name.toml" "$name"
+}
+LOCK_TEXT="not found — the lock is committed so that the same commit yields the same Features"
+LOCK_FINDING=".devcontainer/devcontainer-lock.json: $LOCK_TEXT (NUC-container-hides-host-daemon §3) [devcontainer/lock:absent]"
+expect pass "a check-devcontainer.sh that passes adds no finding" "" \
+  run "$(devcontained devcontainer-passes 'echo "Dev Container check passed."')" "$(reactive_nuc)"
+expect fail "a line of check-devcontainer.sh is read as a finding" "bash message the table does not know" \
+  run "$(devcontained devcontainer-finding "printf 'Dev Container check FAILED:\n  - %s\n' $(printf %q "$LOCK_FINDING") >&2; exit 1")" "$(reactive_nuc)"
+expect fail "a check-devcontainer.sh that fails without a finding fails the harness" "check-devcontainer.sh exited 1 without a finding" \
+  run "$(devcontained devcontainer-silent 'exit 1')" "$(reactive_nuc)"
+expect pass "a finding of devcontainer/lock maps to the rule by its row" "" \
+  compare "$(bash_out devcontainer-lock "$LOCK_FINDING")" 1 \
+  "$(raw_nuc_out devcontainer-lock ".devcontainer/devcontainer-lock.json: devcontainer/lock: $LOCK_TEXT (NUC-container-hides-host-daemon §3) [devcontainer/lock:absent]")" 1
+OLD_LOCK="$(printf '.devcontainer/devcontainer-lock.json: %s (%s-0004)' "$LOCK_TEXT" ADR)"
+expect fail "a finding of devcontainer/lock worded as another release is a difference" "only bash reports: devcontainer/lock .devcontainer/devcontainer-lock.json" \
+  compare "$(bash_out devcontainer-old "$OLD_LOCK")" 1 \
+  "$(raw_nuc_out devcontainer-old ".devcontainer/devcontainer-lock.json: devcontainer/lock: $LOCK_TEXT (NUC-container-hides-host-daemon §3) [devcontainer/lock:absent]")" 1
+
 # The pins of the copied fixture tables (TEST-template-table-cases): a tree of the template,
 # TEMPLATE-SETUP.md in it, whose tag v9.9.9 the harness fetches from its source through file://.
 src="$(source_repo tables)"
@@ -488,29 +562,200 @@ expect fail "a number of jobs that is none is refused" "PARITY_JOBS is 'many'" \
 # shellcheck disable=SC2317,SC2329 # run through check
 exits_two() { "$@" > /dev/null 2>&1; (($? == 2)); }
 
-# A shard compares the trees at its places of the corpus, k, k + n, and so on, and the shards
-# together compare each tree once: on the corpus agree, trace-fails, agree-too, the shard 1/2 has
-# the two that agree, and 2/2 the one that fails.
-# run_shard <shard> <corpus> <nuc> — the harness as run does it, on one shard.
+# A shard makes a contiguous slice of the comparisons, each tree as pinned and each variant one,
+# tree by tree in the order of the corpus, the slices of about equal cost by the costs of the
+# corpus. The cases that a shard compares the trees at its places, 1/2 the first and third tree
+# and 2/2 the second, are replaced, since their premise, the place of a tree, is gone: the cases
+# below hold the slices, their cost, and a tree cut by a slice instead.
+# run_shard <shard> <corpus> <nuc> [variants] — the harness as run does it, on one shard; a
+# PARITY_WHOLE_COST in the environment holds.
 # shellcheck disable=SC2317,SC2329 # run through expect
 run_shard() {
   env PARITY_TABLE="$work/one-rule.tsv" bash "$HARNESS" --no-hooks --shard "$1" --corpus "$2" \
-    --cache "$work/cache" --nuc "$3" --variants "$DEFAULT"
+    --cache "$work/cache" --nuc "$3" --variants "${4:-$DEFAULT}"
 }
-expect pass "the shard 1/2 compares the first and the third tree" "" run_shard 1/2 "$many" "$(reactive_nuc)"
-expect fail "the shard 2/2 compares the second tree" "trace-fails at" \
-  run_shard 2/2 "$many" "$(reactive_nuc)"
-# names <file> — the trees and variants a run's output compared, sorted.
-names() { sed -nE 's/^Parity check: ([a-z-]+) at [0-9a-f]+(, variant [a-z]+)? — .*/\1\2/p' "$1" | sort; }
-for sh in 1/1 1/3 2/3 3/3; do
-  run_shard "$sh" "$many" "$(stand_in silent)" > "$work/shard-${sh/\//-}.out" 2>&1
+# reported <file> — the trees and variants a run's output compared, in the order of its output.
+reported() { sed -nE 's/^Parity check: ([a-z-]+) at [0-9a-f]+(, variant [a-z0-9]+)? — .*/\1\2/p' "$1"; }
+# names <file> — the same, sorted, each as often as reported.
+names() { reported "$1" | sort; }
+# slice <file> <shard> <corpus> [variants] — what the shard reports, in order, into the file.
+slice() { run_shard "$2" "$3" "$(stand_in silent)" "${4:-$DEFAULT}" > "$1.out" 2>&1; reported "$1.out" > "$1"; }
+# lists <file> <line>... — whether the file holds the lines, in this order, and nothing else.
+# shellcheck disable=SC2317,SC2329 # run through check
+lists() { local f="$1"; shift; cmp -s "$f" <((($#)) && printf '%s\n' "$@"); }
+# lines_are <file> <n> — whether the file has n lines.
+# shellcheck disable=SC2317,SC2329 # run through check
+lines_are() { (($(wc -l < "$1") == $2)); }
+
+# The slices are contiguous, cut where the cost is: on agree, trace-fails, agree-too of cost 1
+# each, one variant each, and no cost for the whole-corpus parts, four shards cut the six
+# comparisons 1, 2, 1, 2, so that 2/4 and 3/4 each begin inside a tree.
+uniform="$(corpus "$work/uniform.toml" agree:1 trace-fails:1 agree-too:1)"
+for sh in 1/4 2/4 3/4 4/4; do PARITY_WHOLE_COST=0 slice "$work/cut-${sh/\//-}" "$sh" "$uniform"; done
+check "the slice 1/4 is agree as pinned" lists "$work/cut-1-4" agree
+check "the slice 2/4 is agree's variant and trace-fails as pinned" \
+  lists "$work/cut-2-4" 'agree, variant deleted' trace-fails
+check "the slice 3/4 is trace-fails's variant" lists "$work/cut-3-4" 'trace-fails, variant deleted'
+check "the slice 4/4 is agree-too as pinned and its variant" \
+  lists "$work/cut-4-4" agree-too 'agree-too, variant deleted'
+run_shard 1/1 "$uniform" "$(stand_in silent)" > "$work/cut-1-1.out" 2>&1
+names "$work/cut-1-1.out" > "$work/cut-all.names"
+cat "$work"/cut-[1-4]-4 | sort > "$work/cut-quarters.names"
+check "a run without --shard compares every tree as pinned and every variant" \
+  lines_are "$work/cut-all.names" 6
+check "four shards together report each comparison once, as one run does" \
+  cmp -s "$work/cut-all.names" "$work/cut-quarters.names"
+# A tree cut by a slice is compared as pinned in both, and reported by the slice that holds it: on
+# agree and agree-too of cost 1, four shards take one comparison each, and a nuc that reports the
+# missing release line on every tree differs from bash on each tree as pinned; the four shards
+# report each such finding once, as one run does.
+pair="$(corpus "$work/pair.toml" agree:1 agree-too:1)"
+always="$(stand_in always "README.md: docs/template-release: $MISSING_TEXT")"
+run_shard 1/1 "$pair" "$always" 2>&1 | grep 'only nuc reports' > "$work/once-all.found"
+for sh in 1/4 2/4 3/4 4/4; do
+  PARITY_WHOLE_COST=0 run_shard "$sh" "$pair" "$always" > "$work/once-${sh/\//-}.out" 2>&1
 done
-names "$work/shard-1-1.out" > "$work/shard-all.names"
-cat "$work/shard-1-3.out" "$work/shard-2-3.out" "$work/shard-3-3.out" > "$work/shard-thirds.out"
-names "$work/shard-thirds.out" > "$work/shard-thirds.names"
-check "three shards together compare each tree and variant once, as one run does" \
-  cmp -s "$work/shard-all.names" "$work/shard-thirds.names"
-check "a run without --shard compares every tree" test -s "$work/shard-all.names"
+cat "$work"/once-[1-4]-4.out | grep 'only nuc reports' > "$work/once-quarters.found"
+check "the one run reports the finding of each tree as pinned that nuc alone reports" \
+  lines_are "$work/once-all.found" 2
+check "the shards together report each finding of a tree as pinned once" \
+  cmp -s "$work/once-all.found" "$work/once-quarters.found"
+# A shard fails on its own comparisons alone: 1/4 holds agree as pinned, which differs, and 2/4
+# holds only agree's variant, which agrees, measured against agree as pinned, which 2/4 compares,
+# does not report, and does not fail on.
+PARITY_WHOLE_COST=0 expect fail "the shard that holds a differing tree as pinned fails" "agree at" \
+  run_shard 1/4 "$pair" "$always"
+PARITY_WHOLE_COST=0 expect pass "a shard with only a variant of a tree whose comparison as pinned differs passes" "" \
+  run_shard 2/4 "$pair" "$always"
+check "that shard leaves the tree as pinned out of its output" \
+  lists <(PARITY_WHOLE_COST=0 run_shard 2/4 "$pair" "$always" 2>&1 | reported /dev/stdin) 'agree, variant deleted'
+# The slice that holds a variant alone measures it against its tree as pinned, which the other
+# slice reports: the variant notes adds no finding to the slow tree's own, in 2/2.
+sliced_slow="$(corpus "$work/slow-cut.toml" slow-bare:1)"
+PARITY_WHOLE_COST=0 expect fail "a shard measures a variant against its tree as pinned, which it does not report" \
+  "variant notes — bash reports no finding of docs/template-release beyond the tree's own" \
+  run_shard 2/2 "$sliced_slow" "$always" "$work/notes.tsv"
+PARITY_WHOLE_COST=0 run_shard 2/2 "$sliced_slow" "$always" "$work/notes.tsv" > "$work/notes-2-2.out" 2>&1
+check "the shard that does not hold a tree as pinned leaves it out of its output" \
+  lists <(reported "$work/notes-2-2.out") 'slow-bare, variant notes'
+# The cut follows the cost: agree of cost 3 against 1 each for the others fills 1/2 alone.
+dear="$(corpus "$work/dear.toml" agree:3 trace-fails:1 agree-too:1)"
+for sh in 1/2 2/2; do PARITY_WHOLE_COST=0 slice "$work/dear-${sh/\//-}" "$sh" "$dear"; done
+check "a dear tree fills the slice 1/2 alone" lists "$work/dear-1-2" agree 'agree, variant deleted'
+check "the cheap trees fill the slice 2/2" lists "$work/dear-2-2" \
+  trace-fails 'trace-fails, variant deleted' agree-too 'agree-too, variant deleted'
+# A tree without a cost takes the largest of the corpus: trace-fails without one costs 2, as
+# agree-too does, which cuts trace-fails; at a cost of 1, the cut would fall after it.
+unpriced="$(corpus "$work/unpriced.toml" agree:1 trace-fails agree-too:2)"
+for sh in 1/2 2/2; do PARITY_WHOLE_COST=0 slice "$work/unpriced-${sh/\//-}" "$sh" "$unpriced"; done
+check "a tree without a cost takes the largest: 1/2 ends at trace-fails as pinned" \
+  lists "$work/unpriced-1-2" agree 'agree, variant deleted' trace-fails
+check "a tree without a cost takes the largest: 2/2 begins at its variant" \
+  lists "$work/unpriced-2-2" 'trace-fails, variant deleted' agree-too 'agree-too, variant deleted'
+for bad in 0 0.0 -1 abc '"2"' '1.'; do
+  printf '[[repository]]\nname = "agree"\nurl = "file://%s"\ncommit = "%s"\ncost = %s\n' \
+    "$work/src-agree" "$(cat "$work/src-agree.commit")" "$bad" > "$work/cost-bad.toml"
+  check "a cost '$bad' exits 2, as a malformed input does" \
+    exits_two run_shard 1/1 "$work/cost-bad.toml" "$(reactive_nuc)"
+done
+check "a cost of the whole-corpus parts that is none exits 2, as a malformed input does" \
+  exits_two env PARITY_WHOLE_COST=x PARITY_TABLE="$work/one-rule.tsv" bash "$HARNESS" --no-hooks \
+    --shard 1/2 --corpus "$uniform" --cache "$work/cache" --nuc "$(reactive_nuc)" --variants "$DEFAULT"
+# The last slice ends with the cost of the whole-corpus parts: at 2, the six comparisons of cost
+# 1 cut 4 to 2 instead of 3 to 3; at the default, far above them, the last shard compares none.
+for sh in 1/2 2/2; do
+  PARITY_WHOLE_COST=0 slice "$work/whole-0-${sh/\//-}" "$sh" "$uniform"
+  PARITY_WHOLE_COST=2 slice "$work/whole-2-${sh/\//-}" "$sh" "$uniform"
+  slice "$work/whole-default-${sh/\//-}" "$sh" "$uniform"
+done
+check "without a cost of the whole-corpus parts the slice 1/2 holds 3" lines_are "$work/whole-0-1-2" 3
+check "without a cost of the whole-corpus parts the slice 2/2 holds 3" lines_are "$work/whole-0-2-2" 3
+check "with a cost of 2 for the whole-corpus parts the last slice holds 2" \
+  lists "$work/whole-2-2-2" agree-too 'agree-too, variant deleted'
+check "with the default cost the last shard compares none of three cheap trees" \
+  lists "$work/whole-default-2-2"
+check "with the default cost the first shard compares all of them" lines_are "$work/whole-default-1-2" 6
+# A tree the harness cannot fetch stays in the deal, so that it shifts no slice: on agree, gone,
+# agree-too of cost 1, one variant each, three shards take a tree each, 2/3 gone and nothing else;
+# every shard reports the failed fetch.
+printf '[[repository]]\nname = "%s"\nurl = "file://%s"\ncommit = "%s"\ncost = 1\n' \
+  gone "$work/src-none" "$(printf '0%.0s' {1..40})" > "$work/gone.entry"
+corpus "$work/agree-only.toml" agree:1 > /dev/null
+corpus "$work/agree-too-only.toml" agree-too:1 > /dev/null
+cat "$work/agree-only.toml" "$work/gone.entry" "$work/agree-too-only.toml" > "$work/gone.toml"
+for sh in 1/3 2/3 3/3; do PARITY_WHOLE_COST=0 slice "$work/gone-${sh/\//-}" "$sh" "$work/gone.toml"; done
+check "a tree that cannot be fetched shifts no slice: 1/3 compares agree" \
+  lists "$work/gone-1-3" agree 'agree, variant deleted'
+check "a tree that cannot be fetched shifts no slice: 2/3 compares none" lists "$work/gone-2-3"
+check "a tree that cannot be fetched shifts no slice: 3/3 compares agree-too" \
+  lists "$work/gone-3-3" agree-too 'agree-too, variant deleted'
+# all_name_gone <file>... — whether each output reports that gone could not be fetched.
+# shellcheck disable=SC2317,SC2329 # run through check
+all_name_gone() { local f; for f; do grep -q "gone — the cache could not be filled" "$f" || return 1; done; }
+check "every shard reports the tree that cannot be fetched" all_name_gone "$work"/gone-[1-3]-3.out
+# A variant that does not apply is reported by the shard that holds it alone: on agree and
+# agree-too with the variants deleted and unfit, three shards cut the six comparisons 2, 2, 2, so
+# 2/3 holds agree's unfit variant and 3/3 agree-too's.
+UNFIT=$'unfit\tdocs/template-release\tNO-SUCH.md\tdelete\t-'
+unfit="$(variants "$work/unfit.tsv" "$DELETE" "$UNFIT")"
+for sh in 1/3 2/3 3/3; do PARITY_WHOLE_COST=0 slice "$work/unfit-${sh/\//-}" "$sh" "$pair" "$unfit"; done
+# unfit_in <file> — the trees whose unfit variant the shard's output names, one per line.
+unfit_in() { sed -nE 's/^Parity check: ([a-z-]+), variant unfit — its edit .*/\1/p' "$1"; }
+check "a shard without an unfit variant reports none" lists <(unfit_in "$work/unfit-1-3.out")
+check "the shard of agree's unfit variant reports it alone" lists <(unfit_in "$work/unfit-2-3.out") agree
+check "the shard of agree-too's unfit variant reports it alone" \
+  lists <(unfit_in "$work/unfit-3-3.out") agree-too
+# A cost may be a decimal: agree of 0.5 and agree-too of 1.5 cut 3 to 1 at two shards.
+decimal="$(corpus "$work/decimal.toml" agree:0.5 agree-too:1.5)"
+expect pass "a decimal cost is read" "" run "$decimal" "$(reactive_nuc)"
+PARITY_WHOLE_COST=0 slice "$work/decimal-1-2" 1/2 "$decimal"
+check "a decimal cost deals as its value" lists "$work/decimal-1-2" agree 'agree, variant deleted' agree-too
+for bad in -1 1.; do
+  check "a cost of the whole-corpus parts '$bad' exits 2, as a malformed input does" \
+    exits_two env PARITY_WHOLE_COST="$bad" PARITY_TABLE="$work/one-rule.tsv" bash "$HARNESS" --no-hooks \
+      --shard 1/2 --corpus "$pair" --cache "$work/cache" --nuc "$(reactive_nuc)" --variants "$DEFAULT"
+done
+{ cat "$work/agree-only.toml"; echo 'cost = 2'; } > "$work/cost-twice.toml"
+check "an entry with two costs exits 2, as a malformed input does" \
+  exits_two run_shard 1/1 "$work/cost-twice.toml" "$(reactive_nuc)"
+{ grep -v '^cost' "$work/agree-only.toml"; printf 'cost = -\ncost = 2\n'; } > "$work/cost-dash-twice.toml"
+check "an entry with two costs exits 2 when the first reads '-'" \
+  exits_two run_shard 1/1 "$work/cost-dash-twice.toml" "$(reactive_nuc)"
+# A deal that does not come out whole fails rather than leave a shard nothing to compare: an awk
+# that fails on the deal alone makes the one run exit 2.
+mkdir -p "$work/broken-awk"
+# shellcheck disable=SC2016 # the script is the stand-in's
+printf '%s\n' '#!/usr/bin/env bash' 'for a; do [[ "$a" == whole=* ]] && exit 1; done' \
+  "exec $(command -v awk) \"\$@\"" > "$work/broken-awk/awk"
+chmod +x "$work/broken-awk/awk"
+expect fail "a deal that does not come out whole fails" "the deal of the comparisons failed" \
+  env PATH="$work/broken-awk:$PATH" PARITY_TABLE="$work/one-rule.tsv" bash "$HARNESS" --no-hooks \
+    --corpus "$pair" --cache "$work/cache" --nuc "$(reactive_nuc)" --variants "$DEFAULT"
+check "that run exits 2, as a malformed input does" \
+  exits_two env PATH="$work/broken-awk:$PATH" PARITY_TABLE="$work/one-rule.tsv" bash "$HARNESS" \
+    --no-hooks --corpus "$pair" --cache "$work/cache" --nuc "$(reactive_nuc)" --variants "$DEFAULT"
+# A variant is measured only against a whole bash output of its tree as pinned: a tree whose
+# check-traceability.sh fails without a finding unless notes.txt is there, and a variant that
+# writes it and makes check-docs.sh report the release line. In 2/2, which does not report the tree
+# as pinned, the variant agrees, and fires against the cut-short output, yet fails.
+source_repo early-base "" '[[ -f notes.txt ]] || exit 1; '"$TRACE_PASSES" > /dev/null
+d="$work/src-early-base"
+f="$d/scripts/check-docs.sh"
+sed 's/^if grep -q/if [[ ! -f notes.txt ]] \&\& grep -q/' "$f" > "$f.tmp" && cat "$f.tmp" > "$f" && rm "$f.tmp"
+git -C "$d" -c user.name=F -c user.email=f@example.invalid -c core.hooksPath=/dev/null commit -qam early
+git -C "$d" rev-parse HEAD > "$work/src-early-base.commit"
+noted="$work/nuc-noted"
+# shellcheck disable=SC2016 # the script is the stand-in's
+printf '%s\n' '#!/usr/bin/env bash' '[[ -f "$3/notes.txt" ]] || exit 0' \
+  "echo $(printf %q "README.md: docs/template-release: $MISSING_TEXT [docs/template-release:line]"); exit 1" > "$noted"
+chmod +x "$noted"
+early="$(corpus "$work/early.toml" early-base:1)"
+PARITY_WHOLE_COST=0 expect fail "a variant whose tree as pinned gave no whole bash output fails" \
+  "variant notes — the tree as pinned gave no whole bash output to measure the variant against" \
+  run_shard 2/2 "$early" "$noted" "$work/notes.tsv"
+PARITY_WHOLE_COST=0 run_shard 2/2 "$early" "$noted" "$work/notes.tsv" > "$work/early-2-2.out" 2>&1
+check "that variant agrees itself, so the cut-short tree as pinned alone fails it" \
+  grep -q 'early-base at [0-9a-f]*, variant notes — 1 finding(s) of the ported rules, the same' "$work/early-2-2.out"
 # The pins of the copied tables and the hook scenarios read all the template's trees, so they run
 # in the last shard alone: a pin the tag does not bear out, and a corpus with no tree of the
 # template for the hooks, fail 2/2 and pass 1/2, which compares the one tree.
@@ -851,6 +1096,56 @@ else
   failed=$((failed + 1))
   echo "FAIL: a tree later than the hooks nuc ports is left out (exit $rc)" >&2
   while IFS= read -r l; do printf '    %s\n' "$l"; done <<< "$out" >&2
+fi
+# A tree whose blob list pins its hooks carries nuc's shims: it is left out of the scenarios and of
+# the coverage whatever release it names, so neither its hook's line no row maps nor the case only
+# its self-test names fails; with no other tree, nothing is compared, which fails.
+shim="$(hook_tree shim "pre-commit: a line no row maps" "a case of the shims")"
+printf 'release v0.2.2\n%s pre-commit\n' "$(printf '0%.0s' {1..40})" > "$shim/.githooks/nuc.blobs"
+out="$(run_hooks "$(hook_nuc agrees "$HOOK_AGREES")" "$HOOK_SCENARIOS_FILE" "$NO_CASES" "$tree" "$shim" 2>&1)"; rc=$?
+out_alone="$(run_hooks "$(hook_nuc passes 'exit 0')" "$HOOK_SCENARIOS_FILE" "$NO_CASES" "$shim" 2>&1)"; rc_alone=$?
+if ((rc == 0 && rc_alone == 1)) \
+  && [[ "$out" == *"the tree at v0.7.0 pins its hooks in .githooks/nuc.blobs"* && "$out" == *"on 1 tree(s)"* \
+  && "$out_alone" == *"or pins nuc's shims as its hooks, so no hook is compared"* && "$out_alone" != *"nuc exits"* ]]; then
+  passed=$((passed + 1))
+else
+  failed=$((failed + 1))
+  echo "FAIL: a tree whose blob list pins its hooks is left out (exit $rc, alone $rc_alone)" >&2
+  while IFS= read -r l; do printf '    %s\n' "$l"; done <<< "$out"$'\n'"$out_alone" >&2
+fi
+# The bound of the hooks nuc ports is v0.11.1 unless PARITY_HOOKS_PORTED names another: a tree at
+# v0.11.1 is compared, one at v0.11.2 left out.
+at_bound="$(HOOK_TREE_RELEASE=v0.11.1 hook_tree bound "")"
+past_bound="$(HOOK_TREE_RELEASE=v0.11.2 hook_tree past "")"
+out="$(run_hooks "$(hook_nuc agrees "$HOOK_AGREES")" "$HOOK_SCENARIOS_FILE" "$NO_CASES" "$at_bound" "$past_bound" 2>&1)"; rc=$?
+if ((rc == 0)) && [[ "$out" == *"the tree at v0.11.2 is later than v0.11.1, whose hooks nuc ports"* \
+  && "$out" == *"on 1 tree(s)"* ]]; then
+  passed=$((passed + 1))
+else
+  failed=$((failed + 1))
+  echo "FAIL: the default bound of the hooks nuc ports is v0.11.1 (exit $rc)" >&2
+  while IFS= read -r l; do printf '    %s\n' "$l"; done <<< "$out" >&2
+fi
+# The scenario of the defaults, without README and nuc.toml, runs on the newest tree left in, not
+# on a newer one left out by the bound or by its pinned hooks: a nuc that differs there alone fails
+# on the tree of v0.7.0.
+cp "$HOOK_SCENARIOS_FILE" "$work/hook-scenarios-bare.sh"
+echo 'hook_scenario --bare bare-main pre-commit "a commit on main" : commit -q --allow-empty -m x' >> "$work/hook-scenarios-bare.sh"
+newer="$(HOOK_TREE_RELEASE=v0.8.0 hook_tree newer "")"
+pinned_newer="$(HOOK_TREE_RELEASE=v0.9.0 hook_tree pinned-newer "")"
+printf 'release v0.2.2\n%s pre-commit\n' "$(printf '0%.0s' {1..40})" > "$pinned_newer/.githooks/nuc.blobs"
+out="$(env PARITY_HOOKS_PORTED=v0.8.0 PARITY_HOOK_SCENARIOS="$work/hook-scenarios-bare.sh" PARITY_HOOK_CASES="$NO_CASES" \
+  bash "$HARNESS" --nuc "$(hook_nuc bare-differs "[ -f README.md ] || exit 0; $HOOK_AGREES")" --hooks "$tree" "$newer" "$pinned_newer" 2>&1)"; rc=$?
+out_newest="$(env PARITY_HOOKS_PORTED=v0.7.0 PARITY_HOOK_SCENARIOS="$work/hook-scenarios-bare.sh" PARITY_HOOK_CASES="$NO_CASES" \
+  bash "$HARNESS" --nuc "$(hook_nuc bare-differs "[ -f README.md ] || exit 0; $HOOK_AGREES")" --hooks "$tree" "$newer" "$pinned_newer" 2>&1)"; rc_newest=$?
+if ((rc == 1 && rc_newest == 1)) && [[ "$out" == *"bare-main at v0.8.0"* && "$out" != *"bare-main at v0.7.0"* \
+  && "$out_newest" == *"bare-main at v0.7.0"* && "$out_newest" == *"the tree at v0.8.0 is later than v0.7.0"* \
+  && "$out_newest" == *"the tree at v0.9.0 pins its hooks"* ]]; then
+  passed=$((passed + 1))
+else
+  failed=$((failed + 1))
+  echo "FAIL: the scenario of the defaults runs on the newest tree left in (exit $rc, $rc_newest)" >&2
+  while IFS= read -r l; do printf '    %s\n' "$l"; done <<< "$out"$'\n'"$out_newest" >&2
 fi
 expect pass "a tree at the bound of the hooks nuc ports is compared" "" \
   env PARITY_HOOKS_PORTED=v0.7.0 PARITY_HOOK_SCENARIOS="$HOOK_SCENARIOS_FILE" PARITY_HOOK_CASES="$NO_CASES" \

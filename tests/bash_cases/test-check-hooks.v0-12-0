@@ -1,0 +1,23 @@
+# The case lines of scripts/test-check-hooks.sh of template release v0.12.0, the self-test whose cases
+# the ports of nuc copy, read by tests/bash_cases.rs. Taken whole from that release, in order;
+# the rest of the script stays in the release.
+expect 0 "the repository's hooks, blob list, and nuc.toml pass" "$d" "hooks/check:passed"
+expect 1 "a hook edited by hand" "$d" "hooks/pin:differs"
+expect 1 "a hook the list does not pin" "$d" "hooks/pin:unlisted"
+expect 1 "a hook the list pins and the tree lacks" "$d" "hooks/pin:missing"
+expect 1 "a list without a release" "$d" "hooks/pin:release"
+expect 1 "a line the list cannot read" "$d" "hooks/pin:entry"
+expect 1 "a list that pins a file of the project's own, though its blob holds" "$d" "hooks/pin:foreign"
+expect 1 "a list that pins a path outside the hooks" "$d" "hooks/pin:foreign"
+expect 1 "no blob list" "$d" "hooks/pin:absent"
+GIT_CONFIG_COUNT=0 expect 0 "a hook checked out with CRLF under core.autocrlf passes as git stores it" "$d" "hooks/check:passed"
+expect 1 "no nuc.toml" "$d" "hooks/toml:absent"
+expect 1 "a minimum older than the release of the hooks" "$d" "hooks/toml:minimum"
+expect 1 "a nuc.toml without a minimum" "$d" "hooks/toml:minimum"
+expect 0 "a minimum newer than the release, on one line of rules" "$d" "hooks/check:passed"
+expect 0 "further rules besides the hook/ rules" "$d" "hooks/check:passed"
+expect 0 "a minimum of a newer major" "$d" "hooks/check:passed"
+expect 1 "a rules list that lacks a hook/ rule" "$d" "hooks/toml:rule"
+expect 1 "a hook/ rule only in a comment after a rule" "$d" "hooks/toml:rule"
+expect 0 "a '#' inside a string starts no comment" "$d" "hooks/check:passed"
+expect 1 "a hook/ rule only in a comment of the rules list" "$d" "hooks/toml:rule"

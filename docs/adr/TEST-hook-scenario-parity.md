@@ -1,6 +1,6 @@
 # TEST-hook-scenario-parity: A scenario harness runs each hook through git, once with the bash hooks of each pinned template release and once with the shims and `nuc`, and fails on any difference or on a self-test case no scenario covers
 
-- **Status:** 🟢 accepted
+- **Status:** ⚪ superseded by TEST-hook-scenarios-on-bash-hooks
 - **Date:** 2026-11-06
 - **Deciders:** Markus Brigl
 - **Applies to:** the scenarios of the hooks and the merge driver under `tests/parity/`, the map from bash hook messages to `hook/` rule IDs and notices, their run from `scripts/check-parity.sh`, and the coverage of the template's `scripts/test-git-hooks.sh`

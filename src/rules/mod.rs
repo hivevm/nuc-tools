@@ -5,6 +5,13 @@
 use crate::config::Version;
 use crate::finding::Finding;
 
+pub mod devcontainer_definition;
+pub mod devcontainer_git_settings;
+pub mod devcontainer_lock;
+pub mod devcontainer_mount_path;
+pub mod devcontainer_nuc;
+pub mod devcontainer_settings;
+pub mod devcontainer_socket;
 pub mod docs_adr_header;
 pub mod docs_adr_identifiers;
 pub mod docs_adr_index;
@@ -24,6 +31,8 @@ pub mod docs_section_refs;
 pub mod docs_skill_pointers;
 pub mod docs_template_identity;
 pub mod docs_template_release;
+pub mod hooks_pin;
+pub mod hooks_toml;
 pub mod shell_mode;
 pub mod traceability_citations;
 pub mod traceability_coverage;
@@ -89,6 +98,14 @@ pub struct Inputs {
     pub rule_keys: Option<std::collections::BTreeSet<String>>,
     /// The index entries of the scripts `shell/mode` holds, as `git ls-files -s` lists them.
     pub index_modes: Vec<shell_mode::IndexEntry>,
+    /// The blob list of the hooks and the blob of each hook, as `scripts/check-hooks.sh` reads
+    /// them.
+    pub hooks: crate::pin::Hooks,
+    /// `nuc.toml` as `nuc` read it for the run. The shell always gives it, since `nuc check`
+    /// refuses a tree without one before any rule runs: none occurs only in unit tests.
+    pub toml: Option<crate::config::Config>,
+    /// The Dev Container's files, as `scripts/check-devcontainer.sh` reads them.
+    pub devcontainer: crate::devcontainer::Devcontainer,
 }
 
 pub use crate::bash::read_lines;
@@ -117,9 +134,17 @@ pub const RELEASES: &[Version] = &[
     Version(0, 6, 0),
     Version(0, 6, 1),
     Version(0, 7, 0),
+    crate::devcontainer::HERE_STRINGS,
     CATEGORY_IDENTIFIERS,
     TEMPLATE_FINDINGS,
+    HOOK_PINS,
 ];
+
+/// The release from which a hook the blob list `.githooks/nuc.blobs` pins is another repository's
+/// file, held by its pin, and no text file of the tree a rule reads (NUC-hooks-run-nuc §2): the
+/// bash's collect_text_files leaves it out, which `docs/adr-refs`, `docs/section-refs`, and
+/// `docs/opens-no-issue` read, while the functions of those rules stay as they were.
+pub const HOOK_PINS: Version = Version(0, 12, 0);
 
 /// The release from which a derived project sends its findings about the template by hand, the
 /// release line moves only over accepted `NUC-` ADRs, and each rule key of `scripts/check-docs.sh`
@@ -194,6 +219,18 @@ pub enum Input {
     RuleKeys,
     /// The modes in git's index of the scripts under `scripts/` and the skills.
     IndexModes,
+    /// The blob list of the hooks, `.githooks/nuc.blobs`.
+    HookList,
+    /// The blob git would store for each hook of the five under `.githooks/`.
+    HookBlobs,
+    /// `nuc.toml` as `nuc` read it.
+    Toml,
+    /// Whether `.devcontainer/` is a directory, and `.devcontainer/devcontainer.json`.
+    Devcontainer,
+    /// `.devcontainer/devcontainer-lock.json`.
+    DevcontainerLock,
+    /// Whether `.vscode/` is a directory, and `.vscode/settings.json`.
+    VscodeSettings,
 }
 
 /// One rule: its ID, the reason `nuc explain` gives, what it reads, and the check.
@@ -278,6 +315,15 @@ pub const ALL: &[Rule] = &[
     docs_no_draft_on_main::RULE,
     docs_opens_no_issue::RULE,
     docs_template_release::RULE,
+    devcontainer_definition::RULE,
+    devcontainer_socket::RULE,
+    devcontainer_lock::RULE,
+    devcontainer_settings::RULE,
+    devcontainer_mount_path::RULE,
+    devcontainer_nuc::RULE,
+    devcontainer_git_settings::RULE,
+    hooks_pin::RULE,
+    hooks_toml::RULE,
     shell_mode::RULE,
     traceability_criteria::RULE,
     traceability_citations::RULE,

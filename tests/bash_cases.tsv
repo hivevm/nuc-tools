@@ -144,3 +144,54 @@ test-check-traceability.sh	a marker citing a draft that does not exist	traceabil
 test-check-traceability.sh	markers in Markdown do not count	-	which files carry a marker is the shell's reading of the tree, which no rule decides
 test-check-traceability.sh	markers in gitignored files do not count	-	which files carry a marker is the shell's reading of the tree, which no rule decides
 test-check-traceability.sh	the inherited ADRs, once accepted, pass — TEMPLATE-SETUP step 2 keeps CI green	-	the template's own promise on its own tree, run only while TEMPLATE-SETUP.md exists
+
+# test-check-hooks.sh, from template release v0.12.0
+test-check-hooks.sh	the repository's hooks, blob list, and nuc.toml pass	-	the baseline every case breaks one thing of; tests/check.rs runs it through nuc check
+test-check-hooks.sh	a hook edited by hand	hooks/pin
+test-check-hooks.sh	a hook the list does not pin	hooks/pin
+test-check-hooks.sh	a hook the list pins and the tree lacks	hooks/pin
+test-check-hooks.sh	a list without a release	hooks/pin
+test-check-hooks.sh	a line the list cannot read	hooks/pin
+test-check-hooks.sh	a list that pins a file of the project's own, though its blob holds	hooks/pin
+test-check-hooks.sh	a list that pins a path outside the hooks	hooks/pin
+test-check-hooks.sh	no blob list	hooks/pin
+test-check-hooks.sh	a hook checked out with CRLF under core.autocrlf passes as git stores it	-	the blob is git's, which the shell asks git for; tests/check.rs runs it under core.autocrlf
+test-check-hooks.sh	no nuc.toml	-	nuc refuses first, config/toml:missing, which tests/check.rs asserts
+test-check-hooks.sh	a minimum older than the release of the hooks	hooks/toml
+test-check-hooks.sh	a nuc.toml without a minimum	-	nuc refuses first, config/toml:unreadable, which tests/check.rs asserts
+test-check-hooks.sh	a minimum newer than the release, on one line of rules	hooks/toml
+test-check-hooks.sh	further rules besides the hook/ rules	hooks/toml
+test-check-hooks.sh	a minimum of a newer major	hooks/toml
+test-check-hooks.sh	a rules list that lacks a hook/ rule	hooks/toml
+test-check-hooks.sh	a hook/ rule only in a comment after a rule	hooks/toml
+test-check-hooks.sh	a '#' inside a string starts no comment	-	nuc refuses first, config/toml:unknown, since it reads the '#' as part of a rule ID no nuc knows, which tests/check.rs asserts
+test-check-hooks.sh	a hook/ rule only in a comment of the rules list	hooks/toml
+
+# test-check-devcontainer.sh, from template release v0.8.1, the last before v0.9.0 binds a tree only
+# with .devcontainer/ and the table holds the cases
+test-check-devcontainer.sh	a container without a socket, pinned and locked, passes	devcontainer/lock
+test-check-devcontainer.sh	a host socket mount	devcontainer/socket
+test-check-devcontainer.sh	a host socket mount in a config longer than a pipe holds	devcontainer/socket
+test-check-devcontainer.sh	a host socket passed as a run argument	devcontainer/socket
+test-check-devcontainer.sh	a Feature that mounts the socket	devcontainer/socket
+test-check-devcontainer.sh	an engine inside the container talks to no host engine and is the project's choice	devcontainer/socket
+test-check-devcontainer.sh	a Feature on a mutable tag	devcontainer/lock
+test-check-devcontainer.sh	a Feature without a tag	devcontainer/lock
+test-check-devcontainer.sh	no lock committed	devcontainer/lock
+test-check-devcontainer.sh	a Feature the lock does not resolve	devcontainer/lock
+test-check-devcontainer.sh	a lock entry for a Feature no longer added	devcontainer/lock
+test-check-devcontainer.sh	a Feature on a full version instead of the major tag	devcontainer/lock
+test-check-devcontainer.sh	a features block on one line, with a string-valued Feature, is read like any other	devcontainer/socket
+test-check-devcontainer.sh	the container-management extension not pinned to the host	devcontainer/settings
+test-check-devcontainer.sh	the pair under a key other than remote.extensionKind	devcontainer/settings
+test-check-devcontainer.sh	no Dev Container at all	devcontainer/definition
+test-check-devcontainer.sh	the git settings in a postStartCommand string pass	devcontainer/git-settings
+test-check-devcontainer.sh	a brace or bracket in an entry before the git settings	devcontainer/git-settings
+test-check-devcontainer.sh	a postStartCommand without 'git config $setting'	devcontainer/git-settings
+test-check-devcontainer.sh	the merge driver without the arguments git passes it	devcontainer/git-settings
+test-check-devcontainer.sh	a project mounted under a path of its own	devcontainer/mount-path
+test-check-devcontainer.sh	a mount whose target comes last, under another of its names	devcontainer/mount-path
+test-check-devcontainer.sh	a workspaceFolder every project shares	devcontainer/mount-path
+test-check-devcontainer.sh	a workspaceMount that targets a path every project shares	devcontainer/mount-path
+test-check-devcontainer.sh	no postStartCommand at all	devcontainer/git-settings
+test-check-devcontainer.sh	the git settings in another command than postStartCommand	devcontainer/git-settings

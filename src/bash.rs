@@ -64,6 +64,29 @@ pub fn first_word(text: &[u8]) -> &[u8] {
     &text[start..end]
 }
 
+/// The fields `read -r a b rest` splits a line into with the default IFS: the first two words, and
+/// what follows them without the IFS whitespace that leads or ends it; an absent field is empty.
+/// `read` drops each NUL byte of the line.
+pub fn read_fields(line: &[u8]) -> (Vec<u8>, Vec<u8>, Vec<u8>) {
+    let ifs = |b: &u8| matches!(b, b' ' | b'\t' | b'\n');
+    let line: Vec<u8> = line.iter().copied().filter(|&b| b != 0).collect();
+    let mut rest: &[u8] = &line;
+    let mut word = || {
+        let start = rest.iter().position(|b| !ifs(b)).unwrap_or(rest.len());
+        let end = rest[start..]
+            .iter()
+            .position(ifs)
+            .map_or(rest.len(), |i| start + i);
+        let word = rest[start..end].to_vec();
+        rest = &rest[end..];
+        word
+    };
+    let (a, b) = (word(), word());
+    let start = rest.iter().position(|b| !ifs(b)).unwrap_or(rest.len());
+    let end = rest.iter().rposition(|b| !ifs(b)).map_or(start, |i| i + 1);
+    (a, b, rest[start..end].to_vec())
+}
+
 /// The position of the first occurrence of the needle in the bytes; an empty needle is at 0.
 pub fn find(haystack: &[u8], needle: &[u8]) -> Option<usize> {
     if needle.is_empty() {
@@ -99,6 +122,19 @@ mod tests {
         );
         assert_eq!(first_word(b"\x0Baccepted"), b"\x0Baccepted");
         assert_eq!(first_word(b"\taccepted by X"), b"accepted");
+    }
+
+    #[test]
+    fn read_splits_two_words_and_a_rest_trimmed_of_its_ifs_whitespace() {
+        let fields = |a: &[u8], b: &[u8], c: &[u8]| (a.to_vec(), b.to_vec(), c.to_vec());
+        assert_eq!(read_fields(b" a\tb  c d \t"), fields(b"a", b"b", b"c d"));
+        assert_eq!(read_fields(b"a"), fields(b"a", b"", b""));
+        assert_eq!(read_fields(b"a b\r"), fields(b"a", b"b\r", b""));
+        assert_eq!(read_fields(b"a b \r"), fields(b"a", b"b", b"\r"));
+        assert_eq!(
+            read_fields(b"a\0b c\0d  e f "),
+            fields(b"ab", b"cd", b"e f")
+        );
     }
 
     #[test]

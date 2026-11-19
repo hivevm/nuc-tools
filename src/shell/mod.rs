@@ -139,8 +139,8 @@ fn check(repo: Option<&Path>, format: Format) -> Result<u8, String> {
         .ok_or_else(|| config::Refusal::Missing.to_string())?;
     // A hook rule decides in `nuc hook` alone: its ID is known, and it is in no `rules::ALL`, so
     // it runs never here.
-    let selected =
-        config::turned_on(&text, running(), rules::ALL).map_err(|refusal| refusal.to_string())?;
+    let config = config::read(&text, running()).map_err(|refusal| refusal.to_string())?;
+    let selected = config::select(&config, rules::ALL);
     // Only what a rule turned on reads: an input no rule needs can neither refuse nor cost.
     let needs = |input: Input| selected.iter().any(|rule| rule.reads.contains(&input));
     let mut inputs = Inputs::default();
@@ -156,6 +156,9 @@ fn check(repo: Option<&Path>, format: Format) -> Result<u8, String> {
     let carried = rules::docs_template_release::carried(&readme);
     if needs(Input::Readme) {
         inputs.readme = Some(readme);
+    }
+    if needs(Input::Toml) {
+        inputs.toml = Some(config);
     }
     if needs(Input::Release) {
         let reported = selected
@@ -202,6 +205,7 @@ fn check(repo: Option<&Path>, format: Format) -> Result<u8, String> {
         inputs.landing = tree.read_landing()?;
     }
     read_by_git(&tree, &mut inputs, &needs, carried.as_ref())?;
+    read_devcontainer(&tree, &mut inputs, &needs)?;
     read_traceability(&tree, &mut inputs, &needs, carried.as_ref())?;
     // While the setup file exists the identity rule is silent, so it reads nothing (check 13).
     if needs(Input::Identity) && !inputs.setup_file {
@@ -348,8 +352,10 @@ const EARLIEST_RELEASE: Version = rules::RELEASES[0];
 
 /// The findings of a rule that checks by the release on a tree whose README names none: those it
 /// reports on every release it knows, which no release could take back. A finding is the same on
-/// two releases when only the citation that ends its message differs, since a later release cites
-/// a renamed ADR; the message is the newest release's.
+/// two releases when only its citations differ, as `uncited` strips them: the citation groups
+/// wherever they stand in the message, since a later release cites a renamed ADR, and the two
+/// guides the Dev Container's git settings cite before v0.9.0. The message is the newest
+/// release's.
 fn on_every_release(rule: &rules::Rule, inputs: &Inputs) -> Outcome {
     let runs: Vec<Outcome> = rules::RELEASES
         .iter()
@@ -387,22 +393,32 @@ fn on_every_release(rule: &rules::Rule, inputs: &Inputs) -> Outcome {
     }
 }
 
-/// A message without the citation that ends it, ` (ADR-NNNN)` or a group with a section sign such
-/// as ` (<ADR> §N)`; any other message as it is. It holds by a convention of the rules: a closing
-/// group with a section sign is a fixed citation, and what tells two findings apart stands before.
-fn uncited(message: &str) -> &str {
-    let Some(open) = message.strip_suffix(')').and_then(|m| m.rfind(" (")) else {
-        return message;
-    };
-    let cited = &message[open + 2..message.len() - 1];
-    let numbered = cited
-        .strip_prefix("ADR-")
-        .is_some_and(|n| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()));
-    if numbered || cited.contains('\u{a7}') {
-        &message[..open]
-    } else {
-        message
+/// A message without its citations: each group ` (ADR-NNNN)`, each group with a section sign such
+/// as ` (<ADR> \u{a7}N)`, and each of the guides the Dev Container's git settings cite before
+/// v0.9.0, ` (README, Git hooks)` and ` (CONTRIBUTING.md, Git hooks)`, wherever it stands; every
+/// other group stays. It holds by a convention of the rules: such a group is a fixed citation, and
+/// what tells two findings apart stands outside it.
+fn uncited(message: &str) -> String {
+    let mut out = String::with_capacity(message.len());
+    let mut rest = message;
+    while let Some(open) = rest.find(" (") {
+        let Some(close) = rest[open + 2..].find(')').map(|at| open + 2 + at) else {
+            break;
+        };
+        let cited = &rest[open + 2..close];
+        let numbered = cited
+            .strip_prefix("ADR-")
+            .is_some_and(|n| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()));
+        let guide = matches!(cited, "README, Git hooks" | "CONTRIBUTING.md, Git hooks");
+        if numbered || guide || cited.contains('\u{a7}') {
+            out.push_str(&rest[..open]);
+        } else {
+            out.push_str(&rest[..=close]);
+        }
+        rest = &rest[close + 1..];
     }
+    out.push_str(rest);
+    out
 }
 
 /// The template release the tree carries, as its README's line names it, for the rules whose bash
@@ -437,7 +453,12 @@ fn read_text(
     links: bool,
     carried: Option<&rules::Carried>,
 ) -> Result<std::collections::BTreeSet<String>, String> {
-    let text = tree.read_text_files()?;
+    let pinned = if hooks_pinned(carried) {
+        tree.read_pinned()?
+    } else {
+        std::collections::BTreeSet::new()
+    };
+    let text = tree.read_text_files(&pinned)?;
     inputs.text_files = text.files;
     if links {
         inputs.link_targets =
@@ -532,7 +553,8 @@ fn rule_keys(text: &[u8]) -> std::collections::BTreeSet<String> {
 
 /// What the rules read through git, and the header of `scripts/check-docs.sh`, each where a rule
 /// turned on needs it: the blobs of the base, the history of the deleted ADRs, `README.md` at the
-/// merge base with `main`, and the rule keys the header lists, none without the script.
+/// merge base with `main`, the modes of the scripts in the index, the blob list of the hooks and
+/// their blobs, and the rule keys the header lists, none without the script.
 fn read_by_git(
     tree: &Tree,
     inputs: &mut Inputs,
@@ -551,6 +573,12 @@ fn read_by_git(
     if needs(Input::IndexModes) {
         inputs.index_modes = read_index_modes(&tree.root)?;
     }
+    if needs(Input::HookList) && hooks_pinned(carried) {
+        inputs.hooks.list = tree.read_hook_list()?;
+    }
+    if needs(Input::HookBlobs) && hooks_pinned(carried) {
+        inputs.hooks.blobs = tree.read_hook_blobs()?;
+    }
     if needs(Input::RuleKeys) {
         let script = tree.root.join("scripts/check-docs.sh");
         inputs.rule_keys = if script.is_file() {
@@ -558,6 +586,30 @@ fn read_by_git(
         } else {
             None
         };
+    }
+    Ok(())
+}
+
+/// What the rules of `scripts/check-devcontainer.sh` read, each where a rule turned on needs it:
+/// whether `.devcontainer/` and `.vscode/` are directories, as `-d` finds them, and each of their
+/// files that is a file, as `-f` finds it.
+fn read_devcontainer(
+    tree: &Tree,
+    inputs: &mut Inputs,
+    needs: &dyn Fn(Input) -> bool,
+) -> Result<(), String> {
+    use crate::devcontainer::{CONFIG, LOCK, SETTINGS};
+    let files = &mut inputs.devcontainer;
+    if needs(Input::Devcontainer) {
+        files.dir = tree.root.join(".devcontainer").is_dir();
+        files.config = tree.read_file(CONFIG)?;
+    }
+    if needs(Input::DevcontainerLock) {
+        files.lock = tree.read_file(LOCK)?;
+    }
+    if needs(Input::VscodeSettings) {
+        files.vscode = tree.root.join(".vscode").is_dir();
+        files.settings = tree.read_file(SETTINGS)?;
     }
     Ok(())
 }
@@ -589,6 +641,17 @@ fn read_release_base(root: &Path) -> Result<Option<Vec<u8>>, String> {
 fn named_record(carried: Option<&rules::Carried>) -> bool {
     match carried {
         Some(rules::Carried::Release(release)) => *release >= rules::CATEGORY_IDENTIFIERS,
+        _ => true,
+    }
+}
+
+/// Whether the blob list pins the hooks, from template release v0.12.0 on, and for `unreleased` or
+/// a README that names none, as the newest release (NUC-hooks-run-nuc §2): the files it pins are
+/// left out of the text files, and the list and the hooks' blobs are read for the rules of
+/// `scripts/check-hooks.sh`.
+fn hooks_pinned(carried: Option<&rules::Carried>) -> bool {
+    match carried {
+        Some(rules::Carried::Release(release)) => *release >= rules::HOOK_PINS,
         _ => true,
     }
 }
@@ -712,6 +775,40 @@ mod tests {
         assert_eq!(uncited("no (ADR-0003)"), "no");
         assert_eq!(uncited("no (see a.md)"), "no (see a.md)");
         assert_eq!(uncited("no (ADR-x)"), "no (ADR-x)");
+        // A citation inside the message, and the guides of the Dev Container's git settings.
+        assert_eq!(
+            uncited(&format!("a ({}); b", crate::testing::adr_id(4))),
+            uncited(&format!("a ({} \u{a7}2); b", cat_id("NUC", "x-y")))
+        );
+        assert_eq!(uncited("a (README, Git hooks)"), "a");
+        assert_eq!(uncited("a (CONTRIBUTING.md, Git hooks)"), "a");
+        assert_eq!(uncited("a (b) c (d"), "a (b) c (d");
+    }
+
+    #[test]
+    fn the_dev_container_findings_every_release_words_otherwise_are_kept_without_a_release_line() {
+        let mut tree = crate::devcontainer::fixture::Tree::base();
+        tree.post = None;
+        tree.extra("\"runArgs\": [\"/var/run/docker.sock\"],");
+        let inputs = tree.inputs();
+        let kept = |id| {
+            let rule = rules::find(id).expect("a rule of nuc");
+            on_every_release(rule, &inputs).findings.len()
+        };
+        assert_eq!(kept("devcontainer/git-settings"), 4);
+        assert_eq!(kept("devcontainer/socket"), 1);
+        // A known gap: before v0.9.0 the definition's message writes its ADR inline, not as a
+        // citation group, so `uncited` cannot equate it with the later one, and the finding drops
+        // out although every release reports it.
+        tree.files.config = None;
+        let inputs = tree.inputs();
+        let definition = rules::find("devcontainer/definition").expect("a rule of nuc");
+        let earliest = Inputs {
+            release: Some(EARLIEST_RELEASE),
+            ..inputs.clone()
+        };
+        assert_eq!((definition.check)(&earliest).findings.len(), 1);
+        assert!(on_every_release(definition, &inputs).findings.is_empty());
     }
 
     #[test]

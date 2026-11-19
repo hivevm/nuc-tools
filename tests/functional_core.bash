@@ -11,6 +11,8 @@ is_space_char
 trim
 # The first word `read -r word _` splits off with the default IFS.
 first_word
+# The fields `read -r a b rest` splits a line into with the default IFS.
+read_fields
 
 # `find` and `contains` of src/bash.rs are no reader: they read no byte otherwise than Rust, and
 # the names are taken by `rules::find` and a method of src/glob.rs. The test reads names only, so

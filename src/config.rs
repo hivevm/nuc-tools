@@ -38,9 +38,11 @@ impl fmt::Display for Version {
 
 /// What `nuc.toml` says.
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct Config {
-    minimum: Version,
-    rules: Vec<String>,
+pub struct Config {
+    pub minimum: Version,
+    /// The minimum as the file writes it between its quotes, which a message quotes as written.
+    pub minimum_text: String,
+    pub rules: Vec<String>,
 }
 
 /// The ID in the key every refusal of `nuc.toml` ends in, `[config/toml:<reason>]`; it names no
@@ -119,12 +121,22 @@ pub fn turned_on<'a, R: Named>(
     running: Version,
     all: &'a [R],
 ) -> Result<Vec<&'a R>, Refusal> {
+    Ok(select(&read(text, running)?, all))
+}
+
+/// The configuration in `text` for a `nuc` of version `running`, refused as [`load`] and then
+/// [`known`] refuse.
+pub fn read(text: &str, running: Version) -> Result<Config, Refusal> {
     let config = load(text, running)?;
     known(&config)?;
-    Ok(all
-        .iter()
+    Ok(config)
+}
+
+/// The rules of `all` the configuration turns on, in the order of `all`.
+pub fn select<'a, R: Named>(config: &Config, all: &'a [R]) -> Vec<&'a R> {
+    all.iter()
         .filter(|rule| config.rules.iter().any(|id| id == rule.id()))
-        .collect())
+        .collect()
 }
 
 /// A rule `nuc.toml` can turn on by its ID: a rule of `nuc check` or a hook rule.
@@ -166,7 +178,7 @@ fn minimum_first(text: &str) -> Option<Version> {
 
 /// The configuration in `text`, or why it cannot be read.
 fn parse(text: &str) -> Result<Config, Refusal> {
-    let mut minimum = None;
+    let mut minimum: Option<(Version, String)> = None;
     let mut rules = None;
     let mut lines = text.split('\n').enumerate().map(|(i, line)| (i + 1, line));
     while let Some((n, line)) = lines.next() {
@@ -191,8 +203,11 @@ fn parse(text: &str) -> Result<Config, Refusal> {
         }
     }
     let end = text.split('\n').count();
+    let (minimum, minimum_text) =
+        minimum.ok_or(Refusal::Unreadable(end, "no 'minimum' version"))?;
     Ok(Config {
-        minimum: minimum.ok_or(Refusal::Unreadable(end, "no 'minimum' version"))?,
+        minimum,
+        minimum_text,
         rules: rules.ok_or(Refusal::Unreadable(end, "no 'rules' list"))?,
     })
 }
@@ -216,9 +231,9 @@ fn string(value: &str) -> Option<&str> {
     (!inner.contains(['"', '\\'])).then_some(inner)
 }
 
-fn parse_minimum(n: usize, value: &str) -> Result<Version, Refusal> {
+fn parse_minimum(n: usize, value: &str) -> Result<(Version, String), Refusal> {
     string(value)
-        .and_then(Version::parse)
+        .and_then(|text| Some((Version::parse(text)?, text.to_owned())))
         .ok_or(Refusal::Unreadable(
             n,
             "'minimum' is not a string \"X.Y.Z\"",
@@ -296,6 +311,7 @@ mod tests {
         let text = "# Shipped by the template.\nminimum = \"0.1.0\" # floor\nrules = [\n  \"docs/a\", # first\n  \"docs/b\",\n]\n";
         let config = parse(text).unwrap();
         assert_eq!(config.minimum, V);
+        assert_eq!(config.minimum_text, "0.1.0");
         assert_eq!(config.rules, ["docs/a", "docs/b"]);
     }
 
@@ -402,6 +418,7 @@ mod tests {
     fn a_rule_and_a_hook_rule_are_known_and_any_other_id_is_refused() {
         let config = |rules: &[&str]| Config {
             minimum: V,
+            minimum_text: V.to_string(),
             rules: rules.iter().map(|r| (*r).to_owned()).collect(),
         };
         assert_eq!(

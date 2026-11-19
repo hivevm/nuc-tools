@@ -4,8 +4,10 @@
 //! what the bash reports on inputs the corpus lacks as well, as the convention "A port copies the
 //! bash, quirks included" of `docs/CONVENTIONS.md` asks. `tests/bash_cases.tsv`, the list kept
 //! beside this test, names each case of `scripts/test-check-docs.sh` and
-//! `scripts/test-check-traceability.sh` of template release v0.8.1, the last release `nuc` ports,
-//! as its `expect` line writes it, with the rule whose part of the bash it tries, or `-` and the
+//! `scripts/test-check-traceability.sh` of template release v0.8.1, of
+//! `scripts/test-check-hooks.sh` of v0.12.0, the release that brings it, and of
+//! `scripts/test-check-devcontainer.sh` of v0.8.1, the last before its table, as its `expect` line
+//! writes it, with the rule whose part of the bash it tries, or `-` and the
 //! reason no rule of `nuc` decides it. A unit test under `src/` that copies a case says so in a
 //! comment `// bash: <name>`. The test fails on an `expect` line whose name it cannot read, on a
 //! case the list leaves out or a row whose case the scripts lack, on a case of a rule no such
@@ -22,13 +24,18 @@ use support::sources::{root, rule_id, rule_modules, rust_files};
 
 const LIST: &str = include_str!("bash_cases.tsv");
 
-/// The self-tests whose cases the list holds. Their case lines at v0.8.1 stand under
-/// `tests/bash_cases/` as `<name without .sh>.v0-8-1`: the scripts under `scripts/` follow the
-/// release this repository carries, which `nuc` need not port.
-const SCRIPTS: [&str; 2] = ["test-check-docs.sh", "test-check-traceability.sh"];
+/// The self-tests whose cases the list holds, each with the release its case lines are frozen at.
+/// Those lines stand under [`FROZEN`] as `<name without .sh>.<release>`: the scripts under
+/// `scripts/` follow the release this repository carries, which `nuc` need not port.
+const SCRIPTS: [(&str, &str); 4] = [
+    ("test-check-docs.sh", "v0-8-1"),
+    ("test-check-traceability.sh", "v0-8-1"),
+    ("test-check-hooks.sh", "v0-12-0"),
+    ("test-check-devcontainer.sh", "v0-8-1"),
+];
 
-/// The directory of the frozen case lines, and the suffix of each file.
-const FROZEN: (&str, &str) = ("tests/bash_cases", ".v0-8-1");
+/// The directory of the frozen case lines.
+const FROZEN: &str = "tests/bash_cases";
 
 /// The comment that names the case a unit test copies.
 const NAMES: &str = "// bash: ";
@@ -42,13 +49,13 @@ struct Row {
 }
 
 /// The name of each case of a self-test, in order: the text between the quotes of each
-/// `expect pass "<name>"` or `expect fail "<name>"` on a line, or the first line that runs
-/// `expect pass` or `expect fail` with a name in another form, which would drop out of the list
-/// and the comments alike.
+/// `expect pass "<name>"` or `expect fail "<name>"` on a line, or of `expect 0` or `expect 1`, the
+/// exit code a later self-test expects, or the first line that runs one of them with a name in
+/// another form, which would drop out of the list and the comments alike.
 fn cases(script: &str) -> Result<Vec<String>, String> {
     let mut found = Vec::new();
     for (i, line) in script.lines().enumerate() {
-        for run in ["expect pass", "expect fail"] {
+        for run in ["expect pass", "expect fail", "expect 0", "expect 1"] {
             let Some(at) = line.find(run) else {
                 continue;
             };
@@ -184,9 +191,9 @@ fn each_case_of_a_rule_is_named_by_a_unit_test_that_copies_it() {
     let root = root();
     let scripts: Vec<(&str, Vec<String>)> = SCRIPTS
         .iter()
-        .map(|name| {
-            let frozen = format!("{}{}", name.trim_end_matches(".sh"), FROZEN.1);
-            let text = fs::read_to_string(root.join(FROZEN.0).join(frozen))
+        .map(|(name, release)| {
+            let frozen = format!("{}.{release}", name.trim_end_matches(".sh"));
+            let text = fs::read_to_string(root.join(FROZEN).join(frozen))
                 .expect("the self-test is readable");
             (
                 *name,
@@ -247,6 +254,12 @@ fn a_case_name_is_read_as_the_expect_line_writes_it() {
         cases(SCRIPT),
         Ok(vec!["a baseline".to_owned(), "a case of ${x}".to_owned()])
     );
+    assert_eq!(
+        cases(
+            "GIT_CONFIG_COUNT=0 expect 0 \"by its exit\" \"$d\" \"a/b:c\"\nexpect 1 \"one\" \"$d\"\n"
+        ),
+        Ok(vec!["by its exit".to_owned(), "one".to_owned()])
+    );
 }
 
 #[test]
@@ -256,6 +269,7 @@ fn a_name_in_another_form_is_refused() {
         "expect fail \\\n  \"continued\" \"$d\"",
         "expect pass \"a \\\"quoted\\\" name\" \"$d\"",
         "expect fail \"unclosed",
+        "expect 1 'single' \"$d\"",
     ] {
         assert!(cases(line).is_err(), "{line}");
     }

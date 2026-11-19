@@ -407,6 +407,56 @@ fn the_text_files_are_those_git_lists_that_grep_reads_as_text() {
 }
 
 #[test]
+fn from_v0_12_0_a_hook_the_blob_list_pins_is_no_text_file() {
+    // A citation of no ADR, a reference to no section of the rule file, and an issue opened by
+    // the hook, each assembled so that the gate does not read them here: each a finding of one of
+    // the three rules that read the text files.
+    let hook = format!(
+        "# See {}.\n# See {}, section 9.\ngh issue create --title x\n",
+        format_args!("{}-y-rule", "SEC"),
+        "AGENTS.md"
+    );
+    let list = format!(
+        "release v1.0.0\n{} pre-push\n{} own\n",
+        "0".repeat(40),
+        "0".repeat(40)
+    );
+    let rules = ["docs/adr-refs", "docs/section-refs", "docs/opens-no-issue"];
+    let reports = |out: &str, file: &str, rule: &str| {
+        out.lines().any(|line| {
+            line.starts_with(&format!("{file}:")) && line.contains(&format!(": {rule}: "))
+        })
+    };
+    for (release, found) in [("v0.11.1", true), ("v0.12.0", false), ("unreleased", false)] {
+        let readme = format!("# Fixture\n\n- **Template release:** {release}\n");
+        let config = format!(
+            "minimum = \"0.0.0\"\nrules = [{}]\n",
+            rules.map(|rule| format!("\"{rule}\"")).join(", ")
+        );
+        let fixture = Fixture::project(&format!("pinned-{release}"), &config, &readme);
+        fixture.write("AGENTS.md", "# Agents\n\n## 1. One\n");
+        fixture.write("TEMPLATE-SETUP.md", "# Setup\n");
+        fixture.write(".githooks/pre-push", &hook);
+        fixture.write(".githooks/own", &hook);
+        fixture.write(".githooks/nuc.blobs", &list);
+        let output = fixture.nuc(&["check"]);
+        let out = stdout(&output);
+        for rule in rules {
+            assert_eq!(
+                reports(&out, ".githooks/pre-push", rule),
+                found,
+                "{release}, {rule}: {out}"
+            );
+            // A file the list names that is no hook of the five is read like any file.
+            assert!(
+                reports(&out, ".githooks/own", rule),
+                "{release}, {rule}: {out}"
+            );
+        }
+    }
+}
+
+#[test]
 fn a_path_git_quotes_names_no_file_as_for_the_bash() {
     let fixture = references("quoted-path");
     fixture.write("caf\u{e9}.md", &missing_reference());
@@ -1703,5 +1753,511 @@ fn the_retired_rules_report_nothing_from_v0_9_0_on() {
         stdout(&output).contains("[docs/adr-numbering:gap]"),
         "{}",
         stdout(&output)
+    );
+}
+
+/// The five hooks a blob list pins.
+const HOOKS: [&str; 5] = [
+    "merge-adr-index",
+    "pre-commit",
+    "pre-merge-commit",
+    "pre-push",
+    "reference-transaction",
+];
+
+/// A project of template release v0.12.0 with `hooks/pin` and `hooks/toml` on: five hooks of its
+/// own, a blob list of the release `v<release>` that pins each by the blob git computes and names
+/// two `hook/` rules, and a `nuc.toml` of that minimum that names both, committed.
+fn pinned_hooks(name: &str, release: &str) -> Fixture {
+    let config = format!(
+        "minimum = \"{release}\"\nrules = [\"hooks/pin\", \"hooks/toml\", \
+         \"hook/commit-on-main\", \"hook/push-checks\"]\n"
+    );
+    let fixture = Fixture::project(
+        name,
+        &config,
+        "# Fixture\n\n- **Template release:** v0.12.0\n",
+    );
+    let mut list = format!("# The pin\nrelease v{release}\n");
+    for hook in HOOKS {
+        let path = format!(".githooks/{hook}");
+        fixture.write(&path, &format!("#!/bin/sh\nexec nuc hook {hook} \"$@\"\n"));
+        let blob = stdout(&fixture.git(&["hash-object", "--", &path]));
+        list.push_str(&format!("{} {hook}\n", blob.trim()));
+    }
+    list.push_str("rule hook/commit-on-main\nrule hook/push-checks\n");
+    fixture
+        .write(".githooks/nuc.blobs", &list)
+        .commit("The pinned hooks");
+    fixture
+}
+
+/// Read and change a file of the fixture.
+fn edit(fixture: &Fixture, path: &str, change: impl FnOnce(String) -> String) {
+    let text = std::fs::read_to_string(fixture.root().join(path)).expect("readable");
+    fixture.write(path, &change(text));
+}
+
+/// Verifies: NUC-hooks-run-nuc
+#[test]
+fn the_hooks_their_blob_list_and_nuc_toml_pass_and_a_tree_before_v0_12_0_is_not_held() {
+    // test-check-hooks.sh: the repository's hooks, blob list, and nuc.toml pass
+    let fixture = pinned_hooks("hooks-pass", "0.2.2");
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(0), "{}", stderr(&output));
+    assert!(stderr(&output).contains("nuc check passed (2 rules)"));
+    std::fs::remove_file(fixture.root().join(".githooks/nuc.blobs")).expect("removed");
+    fixture.write(
+        "nuc.toml",
+        "minimum = \"0.0.1\"\nrules = [\"hooks/pin\", \"hooks/toml\"]\n",
+    );
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(1), "{}", stdout(&output));
+    fixture.write(
+        "README.md",
+        "# Fixture\n\n- **Template release:** v0.11.1\n",
+    );
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(0), "{}", stdout(&output));
+}
+
+/// A change a case makes to the fixture.
+type Change<'a> = &'a dyn Fn(&Fixture);
+
+/// Verifies: NUC-hooks-run-nuc
+#[test]
+fn a_blob_list_that_breaks_the_pin_fails_as_hooks_pin() {
+    let cases: [(&str, Change, &str); 8] = [
+        // test-check-hooks.sh: a hook edited by hand
+        (
+            "edited",
+            &|f| edit(f, ".githooks/pre-push", |t| t + "# edited by hand\n"),
+            "differs",
+        ),
+        // test-check-hooks.sh: a hook the list does not pin
+        (
+            "unlisted",
+            &|f| {
+                edit(f, ".githooks/nuc.blobs", |t| {
+                    t.lines()
+                        .filter(|l| !l.ends_with(" pre-commit"))
+                        .map(|l| format!("{l}\n"))
+                        .collect()
+                })
+            },
+            "unlisted",
+        ),
+        // test-check-hooks.sh: a hook the list pins and the tree lacks
+        (
+            "missing",
+            &|f| {
+                std::fs::remove_file(f.root().join(".githooks/reference-transaction"))
+                    .expect("removed")
+            },
+            "missing",
+        ),
+        // test-check-hooks.sh: a list without a release
+        (
+            "no-release",
+            &|f| {
+                edit(f, ".githooks/nuc.blobs", |t| {
+                    t.replace("release v0.2.2\n", "")
+                })
+            },
+            "release",
+        ),
+        // test-check-hooks.sh: a line the list cannot read
+        (
+            "bad-entry",
+            &|f| edit(f, ".githooks/nuc.blobs", |t| t + "pre-push 1234\n"),
+            "entry",
+        ),
+        // test-check-hooks.sh: a list that pins a file of the project's own, though its blob holds
+        (
+            "foreign",
+            &|f| {
+                let blob = stdout(&f.git(&["hash-object", "--", ".githooks/pre-push"]));
+                f.write(
+                    ".githooks/own",
+                    &std::fs::read_to_string(f.root().join(".githooks/pre-push"))
+                        .expect("readable"),
+                );
+                edit(f, ".githooks/nuc.blobs", |t| {
+                    format!("{t}{} own\n", blob.trim())
+                });
+            },
+            "foreign",
+        ),
+        // test-check-hooks.sh: a list that pins a path outside the hooks
+        (
+            "outside",
+            &|f| {
+                edit(f, ".githooks/nuc.blobs", |t| {
+                    format!("{t}{} ../pre-push\n", "0".repeat(40))
+                })
+            },
+            "foreign",
+        ),
+        // test-check-hooks.sh: no blob list
+        (
+            "no-list",
+            &|f| std::fs::remove_file(f.root().join(".githooks/nuc.blobs")).expect("removed"),
+            "absent",
+        ),
+    ];
+    for (name, change, reason) in cases {
+        let fixture = pinned_hooks(&format!("hooks-pin-{name}"), "0.2.2");
+        change(&fixture);
+        let output = fixture.nuc(&["check"]);
+        assert_eq!(code(&output), Some(1), "{name}: {}", stderr(&output));
+        assert!(
+            stdout(&output).contains(&format!("[hooks/pin:{reason}]\n")),
+            "{name}: {}",
+            stdout(&output)
+        );
+        if name == "edited" {
+            assert!(
+                stdout(&output).starts_with(
+                    ".githooks/pre-push: hooks/pin: differs from the shim \
+                                             of nuc-tools v0.2.2 that .githooks/nuc.blobs pins"
+                ),
+                "the finding names the hook: {}",
+                stdout(&output)
+            );
+        }
+    }
+}
+
+/// Verifies: NUC-hooks-run-nuc
+#[test]
+fn a_hook_checked_out_with_crlf_under_core_autocrlf_holds_its_blob_as_git_stores_it() {
+    // test-check-hooks.sh: a hook checked out with CRLF under core.autocrlf passes as git stores it
+    let fixture = pinned_hooks("hooks-crlf", "0.2.2");
+    edit(&fixture, ".githooks/pre-commit", |t| {
+        t.replace('\n', "\r\n")
+    });
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(1), "{}", stderr(&output));
+    assert_eq!(
+        stdout(&output).lines().next(),
+        Some(
+            ".githooks/pre-commit: hooks/pin: differs from the shim of nuc-tools v0.2.2 that \
+             .githooks/nuc.blobs pins — a hook is the release's file unchanged; take it again \
+             from shims/ of that release (NUC-hooks-run-nuc §1, §2) [hooks/pin:differs]"
+        )
+    );
+    fixture.git(&["config", "core.autocrlf", "true"]);
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(0), "{}", stdout(&output));
+}
+
+/// The rules of the `nuc.toml` of [`pinned_hooks`] without `hook/push-checks`, and with it.
+const TOML_RULES: &str = "\"hooks/pin\", \"hooks/toml\", \"hook/commit-on-main\"";
+const TOML_ALL: &str =
+    "\"hooks/pin\", \"hooks/toml\", \"hook/commit-on-main\", \"hook/push-checks\"";
+
+/// `nuc check` on the hooks of [`pinned_hooks`] of the release with the `nuc.toml` given, none
+/// for no file.
+fn check_toml(name: &str, release: &str, toml: Option<&str>) -> std::process::Output {
+    let fixture = pinned_hooks(&format!("hooks-toml-{name}"), release);
+    match toml {
+        Some(toml) => {
+            fixture.write("nuc.toml", toml);
+        }
+        None => std::fs::remove_file(fixture.root().join("nuc.toml")).expect("removed"),
+    }
+    fixture.nuc(&["check"])
+}
+
+/// Verifies: NUC-hooks-run-nuc
+#[test]
+fn a_nuc_toml_that_breaks_clause_3_fails_as_hooks_toml() {
+    let cases = [
+        // test-check-hooks.sh: a minimum older than the release of the hooks
+        (
+            "old",
+            format!("minimum = \"0.1.0\"\nrules = [{TOML_ALL}]\n"),
+            "minimum",
+        ),
+        // test-check-hooks.sh: a rules list that lacks a hook/ rule
+        (
+            "lacks-rule",
+            format!("minimum = \"0.2.2\"\nrules = [{TOML_RULES}]\n"),
+            "rule",
+        ),
+        // test-check-hooks.sh: a hook/ rule only in a comment after a rule
+        (
+            "trailing-comment",
+            format!("minimum = \"0.2.2\"\nrules = [\n{TOML_RULES}, # \"hook/push-checks\",\n]\n"),
+            "rule",
+        ),
+        // test-check-hooks.sh: a hook/ rule only in a comment of the rules list
+        (
+            "commented-rule",
+            format!("minimum = \"0.2.2\"\nrules = [\n  # \"hook/push-checks\",\n{TOML_RULES}\n]\n"),
+            "rule",
+        ),
+    ];
+    for (name, toml, reason) in cases {
+        let output = check_toml(name, "0.2.2", Some(&toml));
+        assert_eq!(code(&output), Some(1), "{name}: {}", stderr(&output));
+        assert!(
+            stdout(&output).contains(&format!("[hooks/toml:{reason}]\n")),
+            "{name}: {}",
+            stdout(&output)
+        );
+        if name == "lacks-rule" {
+            assert!(
+                stdout(&output).contains("'hook/push-checks'"),
+                "the finding names the rule"
+            );
+        }
+    }
+    // test-check-hooks.sh: a minimum newer than the release, on one line of rules
+    // test-check-hooks.sh: further rules besides the hook/ rules
+    for toml in [
+        format!("minimum = \"0.0.2\"\nrules = [{TOML_ALL}]\n"),
+        format!("minimum = \"0.1.0\"\nrules = [{TOML_ALL}, \"docs/template-release\"]\n"),
+    ] {
+        let output = check_toml("newer", "0.0.1", Some(&toml));
+        assert_eq!(code(&output), Some(0), "{toml}: {}", stdout(&output));
+    }
+}
+
+/// A `nuc.toml` the bash's check of clause 3 reads and `nuc` refuses before any rule runs, as it
+/// refuses it for every command: none, one without a minimum, one that requires a newer `nuc`, and
+/// one that names a rule no `nuc` knows.
+/// Verifies: NUC-hooks-run-nuc
+#[test]
+fn a_nuc_toml_nuc_cannot_take_is_refused_before_hooks_toml_runs() {
+    let cases = [
+        // test-check-hooks.sh: no nuc.toml
+        ("no-toml", None, "config/toml:missing"),
+        // test-check-hooks.sh: a nuc.toml without a minimum
+        (
+            "no-minimum",
+            Some(format!("minimum = \"\"\nrules = [{TOML_ALL}]\n")),
+            "config/toml:unreadable",
+        ),
+        // G-5: a minimum newer than the running nuc, which the bash's check does not compare
+        (
+            "major",
+            Some(format!("minimum = \"99.0.0\"\nrules = [{TOML_ALL}]\n")),
+            "config/toml:old",
+        ),
+        // test-check-hooks.sh: a '#' inside a string starts no comment
+        (
+            "hash-in-string",
+            Some(format!(
+                "minimum = \"0.2.2\"\nrules = [{TOML_ALL}, \"docs/x#y\"] # a comment\n"
+            )),
+            "config/toml:unknown",
+        ),
+    ];
+    for (name, toml, key) in cases {
+        let output = check_toml(name, "0.2.2", toml.as_deref());
+        assert_eq!(code(&output), Some(2), "{name}: {}", stdout(&output));
+        assert!(
+            stderr(&output).contains(&format!("[{key}]")),
+            "{name}: {}",
+            stderr(&output)
+        );
+    }
+}
+
+/// Verifies: Q-1
+#[test]
+fn a_release_of_the_hooks_beyond_64_bits_is_not_decided() {
+    let fixture = pinned_hooks("hooks-release-wide", "0.2.2");
+    edit(&fixture, ".githooks/nuc.blobs", |t| {
+        t.replace("release v0.2.2", "release v18446744073709551616.0.0")
+    });
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(2), "{}", stdout(&output));
+    assert!(
+        stderr(&output).contains("which the bash's arithmetic wraps — not decided"),
+        "{}",
+        stderr(&output)
+    );
+}
+
+/// Verifies: Q-7
+#[test]
+fn a_hook_whose_attributes_name_a_filter_is_not_hashed_and_not_decided() {
+    let fixture = pinned_hooks("hooks-filter", "0.2.2");
+    let canary = fixture.root().join("canary-ran");
+    let driver = format!(
+        "sh -c 'echo ran > \"{}\"; cat'",
+        canary.display().to_string().replace('\\', "/")
+    );
+    fixture.write(".gitattributes", ".githooks/pre-push filter=bait\n");
+    fixture.git(&["config", "filter.bait.clean", &driver]);
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(2), "{}", stdout(&output));
+    assert!(
+        stderr(&output).contains(
+            ".githooks/pre-push: its attributes name a filter, whose driver git would run to hash \
+             it — not decided"
+        ),
+        "{}",
+        stderr(&output)
+    );
+    assert!(!canary.exists(), "nuc check ran the filter's driver");
+}
+
+/// Verifies: Q-12
+#[cfg(unix)]
+#[test]
+fn a_hook_that_links_outside_the_repository_is_not_decided() {
+    let (_probe, up) = outside("hook-outside-probe", "pre-push", "#!/bin/sh\n");
+    let fixture = pinned_hooks("hook-outside", "0.2.2");
+    let hook = fixture.root().join(".githooks/pre-push");
+    std::fs::remove_file(&hook).expect("removed");
+    // The link stands one directory below the root, so its target climbs one more.
+    std::os::unix::fs::symlink(format!("../{up}"), &hook).expect("linked");
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(2), "{}", stdout(&output));
+    assert!(
+        stderr(&output).contains(".githooks/pre-push: resolves outside the repository"),
+        "{}",
+        stderr(&output)
+    );
+}
+
+/// The rules of `scripts/check-devcontainer.sh`, all turned on.
+const DEVCONTAINER_RULES: &str = "minimum = \"0.0.0\"\nrules = [\"devcontainer/definition\", \
+                                  \"devcontainer/socket\", \"devcontainer/lock\", \
+                                  \"devcontainer/settings\", \"devcontainer/mount-path\", \
+                                  \"devcontainer/nuc\", \"devcontainer/git-settings\"]\n";
+
+/// A project of the release with the rules of the Dev Container on and no `.devcontainer/` and
+/// no `.vscode/`.
+fn devcontainer(name: &str, release: &str) -> Fixture {
+    Fixture::project(
+        name,
+        DEVCONTAINER_RULES,
+        &format!("# Fixture\n\n- **Template release:** {release}\n"),
+    )
+}
+
+/// Verifies: NUC-container-hides-host-daemon
+#[test]
+fn a_tree_without_a_dev_container_is_bound_by_the_release_it_carries() {
+    // check-devcontainer.txt: a project without a Dev Container or VS Code settings
+    let output = devcontainer("devcontainer-unbound", "v0.12.0").nuc(&["check"]);
+    assert_eq!(code(&output), Some(0), "{}", stdout(&output));
+    assert!(stderr(&output).contains("nuc check passed (7 rules)"));
+    // Before v0.9.0, every tree has a Dev Container and VS Code settings to check.
+    let output = devcontainer("devcontainer-bound", "v0.8.1").nuc(&["check"]);
+    assert_eq!(code(&output), Some(1), "{}", stderr(&output));
+    let adr = support::id("0004");
+    assert_eq!(
+        stdout(&output),
+        format!(
+            ".devcontainer/devcontainer.json: devcontainer/definition: not found — the Dev \
+             Container {adr} governs has nothing to check [devcontainer/definition:absent]\n\
+             .vscode/settings.json: devcontainer/settings: not found — it pins the \
+             container-management extension to the host side ({adr}) \
+             [devcontainer/settings:absent]\n"
+        )
+    );
+    // Unpinned settings without .devcontainer/ bind nothing from v0.9.0 on, and fail before.
+    let fixture = devcontainer("devcontainer-settings-unbound", "v0.9.0");
+    fixture.write(
+        ".vscode/settings.json",
+        "{ \"remote.extensionKind\": { \"ms-azuretools.vscode-containers\": [\"workspace\"] } }\n",
+    );
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(0), "{}", stdout(&output));
+    fixture.write("README.md", "# Fixture\n\n- **Template release:** v0.8.1\n");
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(1), "{}", stderr(&output));
+    let found = stdout(&output);
+    assert_eq!(found.lines().count(), 2, "{found}");
+    assert!(
+        found.contains("[devcontainer/definition:absent]"),
+        "{found}"
+    );
+    assert!(
+        found.contains("[devcontainer/settings:unpinned]"),
+        "{found}"
+    );
+}
+
+/// Verifies: NUC-container-hides-host-daemon NUC-hooks-run-nuc
+#[test]
+fn a_dev_container_without_its_lock_and_the_nuc_feature_fails_as_each_rule() {
+    let fixture = devcontainer("devcontainer-found", "v0.12.0");
+    fixture.write(
+        ".devcontainer/devcontainer.json",
+        "{\n  // \"mounts\": [\"/var/run/docker.sock\"]\n  \"features\": {\n    \
+         \"ghcr.io/devcontainers/features/node\": {}\n  }\n}\n",
+    );
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(1), "{}", stderr(&output));
+    let found = stdout(&output);
+    let keys: Vec<&str> = found
+        .lines()
+        .filter_map(|line| line.rsplit_once(" [").map(|(_, key)| key))
+        .collect();
+    assert_eq!(
+        keys,
+        [
+            "devcontainer/lock:tag]",
+            "devcontainer/lock:absent]",
+            "devcontainer/nuc:absent]",
+            "devcontainer/git-settings:absent]",
+            "devcontainer/git-settings:absent]",
+            "devcontainer/git-settings:absent]",
+            "devcontainer/git-settings:absent]",
+        ],
+        "{found}"
+    );
+    // The same tree checked as v0.11.1 has no check of the nuc Feature.
+    fixture.write(
+        "README.md",
+        "# Fixture\n\n- **Template release:** v0.11.1\n",
+    );
+    let output = fixture.nuc(&["check"]);
+    assert!(
+        !stdout(&output).contains("devcontainer/nuc"),
+        "{}",
+        stdout(&output)
+    );
+}
+
+/// Verifies: Q-1
+#[test]
+fn a_dev_container_file_with_a_nul_byte_is_not_decided() {
+    let fixture = devcontainer("devcontainer-nul", "v0.12.0");
+    fixture.write(".devcontainer/devcontainer.json", "{\n\0}\n");
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(2), "{}", stdout(&output));
+    assert!(
+        stderr(&output).contains(".devcontainer/devcontainer.json: holds a NUL byte"),
+        "{}",
+        stderr(&output)
+    );
+}
+
+/// Verifies: Q-12
+#[cfg(unix)]
+#[test]
+fn vs_code_settings_that_link_outside_the_repository_are_not_decided() {
+    let (_probe, up) = outside("devcontainer-outside-probe", "settings.json", "{}\n");
+    let fixture = devcontainer("devcontainer-outside", "v0.12.0");
+    std::fs::create_dir_all(fixture.root().join(".vscode")).expect("created");
+    // The link stands one directory below the root, so its target climbs one more.
+    std::os::unix::fs::symlink(
+        format!("../{up}"),
+        fixture.root().join(".vscode/settings.json"),
+    )
+    .expect("linked");
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(2), "{}", stdout(&output));
+    assert!(
+        stderr(&output).contains(".vscode/settings.json: resolves outside the repository"),
+        "{}",
+        stderr(&output)
     );
 }

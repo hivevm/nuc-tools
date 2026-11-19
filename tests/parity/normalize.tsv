@@ -151,3 +151,34 @@
 ^[^ ].*: reads a value after '[^']+', which its usage does not write as 	-	-
 ^[^ ].*: does not refuse --verbose with exit 2 and its name 	-	-
 ^[^ ].*: does not refuse a --root that is no directory with exit 2 	-	-
+
+# check-hooks.sh of v0.12.0 on: the pin of the git hooks and nuc.toml (NUC-hooks-run-nuc §2, §3).
+^\.githooks/nuc\.blobs: not found — the hooks are pinned by their blobs beside them 	hooks/pin	-
+^\.githooks/nuc\.blobs: pins '.*', which is none of the five hooks — 	hooks/pin	-
+^\.githooks/nuc\.blobs: '.*' is no entry — write 	hooks/pin	-
+^\.githooks/nuc\.blobs: names no release — 	hooks/pin	-
+^\.githooks/nuc\.blobs: names no blob for the hook '[a-z-]+' — 	hooks/pin	-
+^\.githooks/[a-z-]+: not found, though \.githooks/nuc\.blobs pins it 	hooks/pin	-
+^\.githooks/[a-z-]+: git cannot hash it 	hooks/pin	-
+^\.githooks/[a-z-]+: differs from the shim of nuc-tools v.* that \.githooks/nuc\.blobs pins — 	hooks/pin	-
+^nuc\.toml: not found — it names the minimum nuc and the hook/ rules 	hooks/toml	-
+^nuc\.toml: names no minimum 	hooks/toml	-
+^nuc\.toml: its minimum .* is older than nuc-tools v.*, the release of the hooks — 	hooks/toml	-
+^nuc\.toml: its rules do not name '.*' — 	hooks/toml	-
+
+# check-devcontainer.sh, every release from v0.5.0 on: the Dev Container
+# (NUC-container-hides-host-daemon, the numbered ADR 4 of the template before v0.9.0;
+# NUC-hooks-run-nuc §4).
+^\.devcontainer/devcontainer\.json: not found — 	devcontainer/definition	-
+^\.devcontainer/devcontainer\.json: mounts the host Docker socket — 	devcontainer/socket	-
+^\.devcontainer/devcontainer\.json: Feature '.*' would mount the host Docker socket — 	devcontainer/socket	-
+^\.devcontainer/devcontainer\.json: Feature '.*' is not pinned by its major version tag alone 	devcontainer/lock	-
+^\.devcontainer/devcontainer-lock\.json: not found — the lock is committed 	devcontainer/lock	-
+^\.devcontainer/devcontainer-lock\.json: has no entry for Feature '.*' — 	devcontainer/lock	-
+^\.devcontainer/devcontainer-lock\.json: lists Feature '.*', which 	devcontainer/lock	-
+^\.vscode/settings\.json: not found — it pins the container-management extension 	devcontainer/settings	-
+^\.vscode/settings\.json: does not pin 'ms-azuretools\.vscode-containers' 	devcontainer/settings	-
+^\.devcontainer/devcontainer\.json: workspaceFolder is not 	devcontainer/mount-path	-
+^\.devcontainer/devcontainer\.json: workspaceMount does not target 	devcontainer/mount-path	-
+^\.devcontainer/devcontainer\.json: adds no Feature 'ghcr\.io/hivevm/features/nuc' — 	devcontainer/nuc	-
+^\.devcontainer/devcontainer\.json: postStartCommand does not run 'git config 	devcontainer/git-settings	-

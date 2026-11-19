@@ -1,0 +1,29 @@
+# The case lines of scripts/test-check-devcontainer.sh of template release v0.8.1, the self-test
+# whose cases the ports of nuc copy, read by tests/bash_cases.rs. Taken whole from that release, in
+# order; the rest of the script stays in the release.
+expect pass "a container without a socket, pinned and locked, passes" "$d" "1 Features pinned and locked"
+expect fail "a host socket mount" "$d" "mounts the host Docker socket"
+expect fail "a host socket mount in a config longer than a pipe holds" "$d" "mounts the host Docker socket"
+expect fail "a host socket passed as a run argument" "$d" "mounts the host Docker socket"
+expect fail "a Feature that mounts the socket" "$d" "would mount the host Docker socket"
+expect pass "an engine inside the container talks to no host engine and is the project's choice" "$d" "1 Features pinned and locked"
+expect fail "a Feature on a mutable tag" "$d" "major version tag alone"
+expect fail "a Feature without a tag" "$d" "major version tag alone"
+expect fail "no lock committed" "$d" "devcontainer-lock.json: not found"
+expect fail "a Feature the lock does not resolve" "$d" "has no entry for Feature 'ghcr.io/devcontainers/features/node:1'"
+expect fail "a lock entry for a Feature no longer added" "$d" "lists Feature 'ghcr.io/devcontainers/features/node:1'"
+expect fail "a Feature on a full version instead of the major tag" "$d" "major version tag alone"
+expect fail "a features block on one line, with a string-valued Feature, is read like any other" "$d" \
+expect fail "the container-management extension not pinned to the host" "$d" "does not pin 'ms-azuretools.vscode-containers'"
+expect fail "the pair under a key other than remote.extensionKind" "$d" "does not pin 'ms-azuretools.vscode-containers'"
+expect fail "no Dev Container at all" "$d" "devcontainer.json: not found"
+expect pass "the git settings in a postStartCommand string pass" "$d" "git hooks enabled"
+expect pass "a brace or bracket in an entry before the git settings" "$d" "git hooks enabled"
+expect fail "a postStartCommand without 'git config $setting'" "$d" \
+expect fail "the merge driver without the arguments git passes it" "$d" \
+expect pass "a project mounted under a path of its own" "$d" "a path of its own"
+expect pass "a mount whose target comes last, under another of its names" "$d" "a path of its own"
+expect fail "a workspaceFolder every project shares" "$d" "workspaceFolder is not '$own'"
+expect fail "a workspaceMount that targets a path every project shares" "$d" \
+expect fail "no postStartCommand at all" "$d" "postStartCommand does not run 'git config core.hooksPath .githooks'"
+expect fail "the git settings in another command than postStartCommand" "$d" \
