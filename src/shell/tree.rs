@@ -655,6 +655,38 @@ impl Tree {
         Ok(names)
     }
 
+    /// The tickets of the plan as `find docs/plan -mindepth 2 -maxdepth 2 -type f -name
+    /// '[0-9][0-9]-*.md' | LC_ALL=C sort` lists them, each with its text: a regular file in a
+    /// directory of the plan, neither a symbolic link, and none where the plan itself is one, since
+    /// `find` follows none. A ticket with a NUL byte, which awk and grep do not read as the other
+    /// bytes, is not decided.
+    pub(super) fn read_tickets(&self) -> Result<Vec<(String, Vec<u8>)>, String> {
+        use crate::sense::plan_frontier::{PLAN, is_ticket_name};
+        let plan = self.root.join(PLAN);
+        if !fs::symlink_metadata(&plan).is_ok_and(|m| m.is_dir()) {
+            return Ok(Vec::new());
+        }
+        let mut tickets = Vec::new();
+        for spec in self.list(&plan)? {
+            let dir = plan.join(&spec);
+            if !fs::symlink_metadata(&dir).is_ok_and(|m| m.is_dir()) {
+                continue;
+            }
+            for name in self.list(&dir)? {
+                let file = dir.join(&name);
+                if !is_ticket_name(name.as_bytes())
+                    || !fs::symlink_metadata(&file).is_ok_and(|m| m.is_file())
+                {
+                    continue;
+                }
+                let text = self.read_record_file(&file)?.unwrap_or_default();
+                tickets.push((format!("{PLAN}/{spec}/{name}"), text));
+            }
+        }
+        tickets.sort();
+        Ok(tickets)
+    }
+
     /// The files of check 9: `checks.yml`, `check-all.sh`, the workflows as the bash's globs
     /// list them, and the scripts as `find -type f` lists them.
     pub(super) fn read_check_lists(&self) -> Result<rules::docs_check_lists::CheckLists, String> {

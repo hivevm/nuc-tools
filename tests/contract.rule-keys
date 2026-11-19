@@ -150,6 +150,12 @@ hooks/pin:unlisted
 hooks/toml:absent
 hooks/toml:minimum
 hooks/toml:rule
+sense/backlog:git
+sense/backlog:release
+sense/plan-frontier:file
+sense/plan-frontier:git
+sense/plan-frontier:release
+sense/plan-frontier:ticket
 sense/revision-due:file
 sense/revision-due:git
 sense/revision-due:line

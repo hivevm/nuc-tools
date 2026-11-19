@@ -3,7 +3,9 @@
 //! of the tree's release writes on the standard output, or a refusal. A sensor reads no file and
 //! runs no process; the shell reads, prints, and exits (API-command-line-with-sense).
 
+pub mod backlog;
 pub mod change;
+pub mod plan_frontier;
 pub mod revision_due;
 pub mod tests_kept;
 
@@ -26,7 +28,12 @@ pub struct Sensor {
 
 /// Every sensor `nuc sense` knows. The template's sensors that need a process other than git, or
 /// the network, are none of them (API-git-only-sensors-under-sense).
-pub const ALL: &[Sensor] = &[revision_due::SENSOR, tests_kept::SENSOR];
+pub const ALL: &[Sensor] = &[
+    backlog::SENSOR,
+    plan_frontier::SENSOR,
+    revision_due::SENSOR,
+    tests_kept::SENSOR,
+];
 
 /// The key of a name `nuc sense` does not know.
 pub const UNKNOWN: &str = "sense/unknown:name";

@@ -22,3 +22,13 @@ tests-kept	tests_kept_named	0000000000000000000000000000000000000000 feature
 tests-kept	tests_kept_same	-
 tests-kept	tests_kept_no_main	-
 tests-kept	tests_kept_bad_ref	no-such-ref
+backlog	tree	-
+backlog	backlog_no_commit	-
+backlog	backlog_none	-
+backlog	backlog_branches	-
+backlog	backlog_origin	-
+plan-frontier	tree	-
+plan-frontier	plan_none	-
+plan-frontier	plan_tickets	-
+plan-frontier	plan_odd	-
+plan-frontier	plan_no_mode	-

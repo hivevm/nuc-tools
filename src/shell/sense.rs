@@ -9,7 +9,7 @@ use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
 use crate::config;
-use crate::sense::{self, Refusal, change, revision_due, tests_kept};
+use crate::sense::{self, Refusal, backlog, change, plan_frontier, revision_due, tests_kept};
 
 use super::tree::Tree;
 use super::{PASSED, git};
@@ -54,6 +54,8 @@ pub(super) fn run(name: &str, options: &[&str]) -> Result<u8, String> {
     let carried = super::template_release(&tree.root)?;
     let release = sense::release(sensor, carried).map_err(|refusal| refusal.to_string())?;
     let report = match (sensor.name, args) {
+        ("backlog", []) => backlog(&tree),
+        ("plan-frontier", []) => plan_frontier(&tree),
         ("revision-due", []) => revision_due(&tree, release),
         ("tests-kept", [] | [_] | [_, _]) => tests_kept(&tree, release, args.first(), args.get(1)),
         _ => return Err(super::usage()),
@@ -287,6 +289,176 @@ fn tests_kept(
         &commit(&head, true)?,
         &findings,
     ))
+}
+
+/// The lines of git's output as `while IFS= read -r` reads them.
+fn lines_of(
+    root: &Path,
+    args: &[&str],
+    undecided: impl Fn(String) -> Refusal,
+) -> Result<Vec<Vec<u8>>, Refusal> {
+    let out = git::run_bytes(root, args).map_err(undecided)?;
+    Ok(crate::bash::read_lines(&out)
+        .into_iter()
+        .map(<[u8]>::to_vec)
+        .collect())
+}
+
+/// What `backlog` needs: main, the first of the candidates that names a commit; the entries of
+/// main's tree; and those each local branch that main does not hold adds after its merge base,
+/// each with the text git shows of it.
+fn backlog(tree: &Tree) -> Result<Vec<u8>, Refusal> {
+    let root = &tree.root;
+    let undecided = git_refusal(backlog::SENSOR.name);
+    let mut main = None;
+    for candidate in backlog::MAINS {
+        let commit = format!("{candidate}^{{commit}}");
+        if git::probe(root, &["rev-parse", "-q", "--verify", &commit])
+            .map_err(undecided)?
+            .is_some()
+        {
+            main = Some(candidate);
+            break;
+        }
+    }
+    let Some(main) = main else {
+        return Ok(backlog::no_commit());
+    };
+    let dir = format!("{}/", backlog::DIR);
+    let shown = |reference: &[u8], path: &[u8]| -> Result<Option<Vec<u8>>, Refusal> {
+        let mut object = reference.to_vec();
+        object.push(b':');
+        object.extend_from_slice(path);
+        let object = String::from_utf8_lossy(&object).into_owned();
+        let (code, out) = git::status_and_output(root, &["show", &object]).map_err(undecided)?;
+        Ok((code == 0).then_some(out))
+    };
+    let mut entries = Vec::new();
+    let mut on_main = std::collections::BTreeSet::new();
+    for path in lines_of(
+        root,
+        &["ls-tree", "-r", "--name-only", main, "--", &dir],
+        undecided,
+    )? {
+        if !backlog::is_entry(&path) {
+            continue;
+        }
+        let title = backlog::title(shown(main.as_bytes(), &path)?.as_deref(), &path);
+        on_main.insert(path.clone());
+        entries.push(backlog::Entry {
+            path,
+            title,
+            branch: None,
+        });
+    }
+    let branches = lines_of(
+        root,
+        &["for-each-ref", "--format=%(refname:short)", "refs/heads/"],
+        undecided,
+    )?;
+    for branch in branches {
+        if branch == b"main" {
+            continue;
+        }
+        let name = String::from_utf8_lossy(&branch).into_owned();
+        let (merged, _) =
+            git::status_and_output(root, &["merge-base", "--is-ancestor", &name, main])
+                .map_err(undecided)?;
+        if merged == 0 {
+            continue;
+        }
+        let (code, base) =
+            git::status_and_output(root, &["merge-base", main, &name]).map_err(undecided)?;
+        if code != 0 {
+            continue;
+        }
+        let base = String::from_utf8_lossy(&base).trim_end().to_owned();
+        let added = lines_of(
+            root,
+            &[
+                "diff",
+                "--no-ext-diff",
+                "--no-renames",
+                "--name-only",
+                "--diff-filter=A",
+                &base,
+                &name,
+                "--",
+                &dir,
+            ],
+            undecided,
+        )?;
+        for path in added {
+            if !backlog::is_entry(&path) || on_main.contains(&path) {
+                continue;
+            }
+            let title = backlog::title(shown(&branch, &path)?.as_deref(), &path);
+            entries.push(backlog::Entry {
+                path,
+                title,
+                branch: Some(branch.clone()),
+            });
+        }
+    }
+    Ok(backlog::report(main, &entries))
+}
+
+/// What `plan-frontier` needs: the tickets as `find` lists them, with their texts; the ticket
+/// branches, local or remote; and which blockers of each are still files.
+fn plan_frontier(tree: &Tree) -> Result<Vec<u8>, Refusal> {
+    let root = &tree.root;
+    let sensor = plan_frontier::SENSOR.name;
+    let tickets = tree.read_tickets().map_err(|message| Refusal {
+        sensor,
+        reason: "file",
+        message: unwrapped(message),
+    })?;
+    let refs = git::run_bytes(
+        root,
+        &[
+            "for-each-ref",
+            "--format=%(refname)",
+            "refs/heads/ticket",
+            "refs/remotes",
+        ],
+    )
+    .map_err(git_refusal(sensor))?;
+    let claims = plan_frontier::claims(&refs);
+    let (mut placed, mut errors) = (Vec::new(), Vec::new());
+    for (path, text) in &tickets {
+        let ticket = match plan_frontier::read(path, text) {
+            Ok(ticket) => ticket,
+            Err(error) => {
+                errors.push(error);
+                continue;
+            }
+        };
+        if claims.contains(ticket.branch.as_bytes()) {
+            placed.push((ticket, plan_frontier::Place::Claimed));
+            continue;
+        }
+        let open: Vec<Vec<u8>> = ticket
+            .blockers
+            .iter()
+            .filter(|p| p.as_slice() != path.as_bytes() && is_file(root, p))
+            .cloned()
+            .collect();
+        let place = if open.is_empty() {
+            plan_frontier::Place::Frontier
+        } else {
+            plan_frontier::Place::Blocked(open)
+        };
+        placed.push((ticket, place));
+    }
+    plan_frontier::report(tickets.len(), &placed, &errors)
+}
+
+/// Whether the path under the root is a file, as the bash's `-f` tests it: it follows a symbolic
+/// link and reads nothing (Q-12).
+fn is_file(root: &Path, relative: &[u8]) -> bool {
+    std::str::from_utf8(relative)
+        .map(|relative| root.join(relative).is_file())
+        .unwrap_or(false)
 }
 
 /// The message of a refusal the tree or git gave, without the words `Refusal` adds itself.

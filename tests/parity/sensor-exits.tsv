@@ -6,3 +6,4 @@
 # and the cause. A difference no row lists fails the harness.
 
 revision-due	-	1	2	docs/ARCHITECTURE.md is missing, or has no Last design revision line, or one it cannot read
+plan-frontier	-	1	2	a ticket the sensor cannot place: a name the claim refuses, no Blocked by or Mode section, or a blocker that is no path under docs/plan/

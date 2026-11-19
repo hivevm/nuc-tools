@@ -137,3 +137,76 @@ tests_kept_no_main() { tests_on_main "$1"; sp_git "$1" branch -q -m trunk; }
 
 # A base that names no commit.
 tests_kept_bad_ref() { tests_on_main "$1"; }
+
+# entry <dir> <name> <text> — one commit that writes a backlog entry.
+entry() { change "$1" "docs/backlog/$2" "$3"; }
+
+backlog_no_commit() { :; }
+
+backlog_none() { change "$1" README.md start; }
+
+# Entries on main, with and without a heading, one that is no Markdown; a branch that adds one, a
+# branch main holds, a branch cut before main deleted an entry, and one that adds an entry main
+# has as well.
+backlog_branches() {
+  entry "$1" one.md $'Intro\n# First entry\n# Later'
+  entry "$1" two.md 'no heading'
+  entry "$1" notes.txt '# not an entry'
+  sp_git "$1" switch -q -c feat/old
+  sp_git "$1" switch -q main
+  sp_git "$1" rm -q docs/backlog/two.md
+  sp_git "$1" commit -q -m gone
+  sp_git "$1" switch -q -c feat/new
+  entry "$1" three.md $'#  Spaced title\r'
+  entry "$1" one-more.md '#'
+  sp_git "$1" switch -q -c feat/same main
+  entry "$1" one.md 'again'
+  sp_git "$1" switch -q main
+  sp_git "$1" branch -q merged
+}
+
+# origin/main stands behind main: it is the one read.
+backlog_origin() {
+  entry "$1" one.md '# One'
+  sp_git "$1" update-ref refs/remotes/origin/main HEAD
+  entry "$1" two.md '# Two'
+}
+
+# ticket <dir> <path> <blocked by> <mode> — a ticket file, not committed.
+ticket() {
+  mkdir -p "$(dirname "$1/$2")"
+  printf '# Ticket\n\n## What to build\n\n<!-- a comment\nthat spans -->\n\n## Blocked by\n\n%s\n\n## Mode\n\n%s\n' "$3" "$4" > "$1/$2"
+}
+
+plan_none() { change "$1" README.md start; }
+
+plan_tickets() {
+  change "$1" README.md start
+  ticket "$1" docs/plan/s/01-first.md '- None (can start immediately)' 'unattended: the test decides'
+  ticket "$1" docs/plan/s/02-second.md '- docs/plan/s/01-first.md' 'with the human'
+  ticket "$1" docs/plan/s/03-third.md $'- docs/plan/s/09-gone.md\n- docs/plan/s/03-third.md' '<!-- x --> unattended'
+  ticket "$1" docs/plan/s/04-claimed.md '- None' 'with the human'
+  ticket "$1" docs/plan/t/01-remote.md '* docs/plan/s/02-second.md and docs/plan/s/01-first.md' '  unattended'
+  ticket "$1" docs/plan/t/02-empty.md '' ''
+  printf 'not a ticket\n' > "$1/docs/plan/s/README.md"
+  printf 'not a ticket\n' > "$1/docs/plan/s/1-x.md"
+  mkdir -p "$1/docs/plan/s/deeper"
+  ticket "$1" docs/plan/s/deeper/05-nested.md '- None' 'x'
+  ln -s 01-first.md "$1/docs/plan/s/06-link.md"
+  sp_git "$1" branch -q ticket/s/04-claimed
+  sp_git "$1" update-ref refs/remotes/origin/ticket/t/01-remote HEAD
+}
+
+# A ticket whose blocker is a link, which the sensor cannot place.
+plan_odd() {
+  change "$1" README.md start
+  ticket "$1" docs/plan/s/01-first.md '- [second](02-second.md)' 'x'
+  ticket "$1" docs/plan/s/02-second.md '- None' 'x'
+}
+
+plan_no_mode() {
+  change "$1" README.md start
+  printf '## Blocked by\n\nNone\n' > "$1/docs/plan/01-flat.md"
+  mkdir -p "$1/docs/plan/s"
+  printf '## Blocked by\n\nNone\n' > "$1/docs/plan/s/01-a.md"
+}
