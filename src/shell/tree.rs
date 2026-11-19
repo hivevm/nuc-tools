@@ -223,7 +223,7 @@ impl Tree {
     /// is hashed only where it resolves inside the repository, since git would read it (Q-12).
     /// git hashes each file as it would store it, its line endings converted, so it applies the
     /// filters `.gitattributes` names, as the bash does: a filter's clean command comes from the
-    /// user's configuration, which SEC-git-cleared-environment trusts, and no key of
+    /// user's configuration, which SEC-git-cleared-without-lazy-fetch trusts, and no key of
     /// `tests/git_cli.neutralized` can name every filter; `--no-filters` would hash other blobs
     /// than the bash where line endings are converted.
     pub(super) fn read_base(&self) -> Result<rules::docs_base_blobs::Base, String> {
@@ -265,7 +265,7 @@ impl Tree {
             .collect();
         let mut args = vec!["hash-object", "--"];
         args.extend(paths.iter().map(String::as_str));
-        let output = git::command(&self.root, &args).output().map_err(|e| {
+        let output = git::command(&self.root, &args)?.output().map_err(|e| {
             format!("git could not be run ({e}) — install git and put it on the PATH")
         })?;
         let blobs = if output.status.success() {

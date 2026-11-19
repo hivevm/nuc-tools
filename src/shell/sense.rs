@@ -392,12 +392,9 @@ fn backlog(tree: &Tree) -> Result<Vec<u8>, Refusal> {
     };
     let dir = format!("{}/", backlog::DIR);
     let shown = |reference: &[u8], path: &[u8]| -> Result<Option<Vec<u8>>, Refusal> {
-        let mut object = reference.to_vec();
-        object.push(b':');
-        object.extend_from_slice(path);
-        let object = spelled(&object)?;
-        let (code, out) = git::status_and_output(root, &["show", &object]).map_err(undecided)?;
-        Ok((code == 0).then_some(out))
+        // `git show` of a blob is its bytes; a path the commit lacks shows nothing, and an object
+        // the clone lacks is not decided.
+        git::blob_at(root, &spelled(reference)?, &spelled(path)?).map_err(undecided)
     };
     let mut entries = Vec::new();
     let mut on_main = std::collections::BTreeSet::new();

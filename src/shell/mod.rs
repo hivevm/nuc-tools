@@ -631,9 +631,8 @@ fn read_release_base(root: &Path) -> Result<Option<Vec<u8>>, String> {
             continue;
         }
         let base = String::from_utf8_lossy(&out).trim().to_owned();
-        let (code, blob) =
-            git::status_and_output(root, &["cat-file", "blob", &format!("{base}:README.md")])?;
-        return Ok(Some(if code == 0 { blob } else { Vec::new() }));
+        let blob = git::blob_at(root, &base, "README.md")?;
+        return Ok(Some(blob.unwrap_or_default()));
     }
     Ok(None)
 }
@@ -688,7 +687,7 @@ fn read_history(
     if git::probe(root, &["rev-parse", "-q", "--verify", "HEAD^{commit}"])?.is_none() {
         return Ok(History::default());
     }
-    let output = git::command(root, &LOG)
+    let output = git::command(root, &LOG)?
         .output()
         .map_err(|e| format!("git could not be run ({e}) — install git and put it on the PATH"))?;
     if output.status.success() {

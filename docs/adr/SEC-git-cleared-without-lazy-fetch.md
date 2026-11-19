@@ -1,6 +1,6 @@
 # SEC-git-cleared-without-lazy-fetch: The shell spawns the git CLI with a cleared environment, an allowlist passed through, no lazy fetch, the repository named by `-C`, and command-running configuration neutralized
 
-- **Status:** 🟡 proposed
+- **Status:** 🟢 accepted
 - **Date:** 2026-11-19
 - **Deciders:** Markus Brigl
 - **Applies to:** every spawn of git in `src/shell/`, the environment and arguments it passes, the list of neutralized configuration keys kept beside its test, the git versions that block the lazy fetch, and every read of an object a partial clone may lack

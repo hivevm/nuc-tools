@@ -1576,13 +1576,14 @@ fn the_driver_keeps_both_rows_and_stops_on_a_rule_both_sides_changed() {
     assert!(index.contains("\n>>>>>>> feature\n"), "{index}");
 }
 
-/// Verifies: SEC-git-cleared-environment, Q-9
+/// Verifies: SEC-git-cleared-without-lazy-fetch, Q-9
 #[test]
 fn the_driver_takes_the_conflict_style_from_the_repository_never_from_the_environment() {
     let base_section = "\n||||||| ";
 
     // `git -c` hands the setting on in GIT_CONFIG_PARAMETERS, which the cleared environment of
-    // SEC-git-cleared-environment does not pass to the git `nuc` runs: the markers stay plain.
+    // SEC-git-cleared-without-lazy-fetch does not pass to the git `nuc` runs: the markers stay
+    // plain.
     let fixture = shimmed_only("hooks-driver-style-env", "merge-adr-index");
     indexed(&fixture, "two", "three");
     // Plain in the repository as well; `-c` outranks it.

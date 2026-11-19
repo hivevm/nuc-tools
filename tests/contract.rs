@@ -736,8 +736,10 @@ fn tests_kept_runs_no_driver_of_the_repository() {
 }
 
 /// A partial clone's lazy fetch of an object it lacks starts no transport, so that no command the
-/// repository's configuration names for one runs (Q-7, Q-11): `backlog` shows its entries, and
-/// falls back to their file names where the object is missing.
+/// repository's configuration names for one runs, not even where it turns the transport back on
+/// (Q-7, Q-11); and an entry whose object the clone lacks is not decided, where reading it as an
+/// absent file would name the entry by its file name (Q-1).
+/// Verifies: SEC-git-cleared-without-lazy-fetch
 #[cfg(unix)]
 #[test]
 fn a_lazy_fetch_of_a_partial_clone_runs_no_command_of_the_repository() {
@@ -766,6 +768,7 @@ fn a_lazy_fetch_of_a_partial_clone_runs_no_command_of_the_repository() {
     let marker = holder.root().join(".git").join("transport-ran");
     let ssh = bait(&holder, "ssh.sh", &marker);
     git(&["config", "core.sshCommand", &ssh]);
+    git(&["config", "protocol.ssh.allow", "always"]);
     // The files nuc reads before the sensor, in the work tree that the clone left unchecked out.
     std::fs::write(clone.join("nuc.toml"), CONFIG).expect("written");
     std::fs::write(
@@ -776,5 +779,47 @@ fn a_lazy_fetch_of_a_partial_clone_runs_no_command_of_the_repository() {
     let repo = clone.to_str().expect("UTF-8");
     let output = holder.nuc(&["sense", "backlog", "--repo", repo]);
     assert!(!marker.exists(), "nuc sense backlog started a transport");
-    assert_eq!(code(&output), Some(0), "{}", stderr(&output));
+    assert_eq!(code(&output), Some(2), "{}", stderr(&output));
+    assert_eq!(stdout(&output), "");
+    assert!(
+        stderr(&output).contains("as in a partial clone"),
+        "{}",
+        stderr(&output)
+    );
+}
+
+/// `nuc check` reads the README at the merge base with main for `docs/template-release`: where a
+/// partial clone lacks its object, the run is not decided, rather than read as a README the base
+/// does not have (Q-1).
+/// Verifies: SEC-git-cleared-without-lazy-fetch
+#[test]
+fn the_readme_at_the_base_that_a_partial_clone_lacks_is_not_decided() {
+    let readme = "# Fixture\n\n- **Template release:** v0.12.0\n";
+    let config = "minimum = \"0.0.0\"\nrules = [\"docs/template-release\"]\n";
+    let source = Fixture::project("base-promisor-source", config, readme);
+    let base = support::stdout(&source.git(&["rev-parse", "HEAD"]));
+    source.write("README.md", &format!("{readme}\nMore.\n"));
+    source.commit("more");
+    source.git(&["config", "uploadpack.allowFilter", "true"]);
+    let holder = Fixture::new("base-promisor-clone");
+    let url = format!("file://{}", source.root().display());
+    let cloned = holder.git(&["clone", "-q", "--filter=blob:none", &url, "pc"]);
+    assert!(
+        cloned.status.success(),
+        "{}",
+        String::from_utf8_lossy(&cloned.stderr)
+    );
+    let clone = holder.root().join("pc");
+    support::git_in(
+        &clone,
+        &["update-ref", "refs/remotes/origin/main", base.trim()],
+    );
+    let repo = clone.to_str().expect("UTF-8");
+    let output = holder.nuc(&["check", "--repo", repo]);
+    assert_eq!(code(&output), Some(2), "{}", stderr(&output));
+    assert!(
+        stderr(&output).contains("as in a partial clone"),
+        "{}",
+        stderr(&output)
+    );
 }

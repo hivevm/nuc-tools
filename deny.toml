@@ -16,7 +16,7 @@ ignore = []
 multiple-versions = "warn"
 wildcards = "deny"
 # Crates that would bring a second way to reach git than its CLI (constraints of the
-# specification, SEC-git-cleared-environment).
+# specification, SEC-git-cleared-without-lazy-fetch).
 deny = [
   { crate = "git2", reason = "git is reached only through its CLI" },
   { crate = "gix", reason = "git is reached only through its CLI" },
