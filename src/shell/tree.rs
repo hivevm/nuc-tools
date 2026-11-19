@@ -151,6 +151,17 @@ impl Tree {
         }
     }
 
+    /// The bytes of the file at the path under the root where it is a file, as `-f` finds it, read
+    /// as grep reads it; a NUL byte, which makes grep read it as binary, is not decided (Q-1).
+    pub(super) fn read_file(&self, relative: &str) -> Result<Option<Vec<u8>>, String> {
+        let path = self.root.join(relative);
+        if path.is_file() {
+            self.read_record_file(&path)
+        } else {
+            Ok(None)
+        }
+    }
+
     /// The bytes of a file awk or `read` reads for a rule of the record, `None` when it is
     /// missing; a NUL byte, which they do not read as the other bytes, is not decided (Q-1).
     fn read_record_file(&self, path: &Path) -> Result<Option<Vec<u8>>, String> {

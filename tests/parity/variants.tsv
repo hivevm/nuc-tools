@@ -144,3 +144,22 @@ hooks-pin-entry-v12	hooks/pin	.githooks/nuc.blobs	sed	s/^release (.*)$/release \
 hooks-pin-foreign-v12	hooks/pin	.githooks/nuc.blobs	sed	s/^([0-9a-f]{40}) pre-push$/&\n\1 own/	nuc-v0-12-0,nuc-tools-v0-12-0
 hooks-toml-minimum-v12	hooks/toml	nuc.toml	sed	s/^minimum = .*/minimum = "0.1.0"/	nuc-v0-12-0,nuc-tools-v0-12-0
 hooks-toml-rule-v12	hooks/toml	nuc.toml	sed	s/,"hook\/push-checks"//	nuc-v0-12-0,nuc-tools-v0-12-0
+
+# devcontainer/: check-devcontainer.sh, on a tree of the template before v0.7.0, before v0.9.0, at
+# v0.9.0, and at v0.12.0, whose messages cite differently. A tree without .devcontainer/, which
+# from v0.9.0 on binds nothing, its settings included, or one without .vscode/, whose settings bind
+# from v0.9.0 on no more, is no one-path edit: the unit tests and the table hold it.
+devcontainer-definition-deleted	devcontainer/definition	.devcontainer/devcontainer.json	delete	-	nuc-v0-6-0,nuc-v0-12-0
+devcontainer-socket-mount	devcontainer/socket	.devcontainer/devcontainer.json	sed	1s#$#\n  "runArgs": ["-v", "/var/run/docker.sock:/var/run/docker.sock"],#	nuc-v0-6-0,nuc-v0-12-0
+devcontainer-socket-feature	devcontainer/socket	.devcontainer/devcontainer.json	sed	s#features/github-cli:1"#features/docker-outside-of-docker:1"#	nuc-v0-8-1,nuc-v0-12-0
+devcontainer-lock-tag	devcontainer/lock	.devcontainer/devcontainer.json	sed	s#features/github-cli:1"#features/github-cli:latest"#	nuc-v0-9-0,nuc-v0-12-0
+devcontainer-lock-absent	devcontainer/lock	.devcontainer/devcontainer-lock.json	delete	-	nuc-v0-8-1,nuc-v0-12-0
+devcontainer-lock-stale	devcontainer/lock	.devcontainer/devcontainer-lock.json	sed	s#features/github-cli:1"#features/github-cli:2"#	nuc-v0-6-0,nuc-v0-12-0
+devcontainer-settings-absent	devcontainer/settings	.vscode/settings.json	delete	-	nuc-v0-8-1,nuc-v0-12-0
+devcontainer-settings-unpinned	devcontainer/settings	.vscode/settings.json	sed	s#"ms-azuretools\.vscode-containers": \["ui"\]#"ms-azuretools.vscode-containers": ["workspace"]#	nuc-v0-6-0,nuc-v0-12-0
+devcontainer-mount-folder	devcontainer/mount-path	.devcontainer/devcontainer.json	sed	1s#$#\n  "workspaceFolder": "/workspace",#	nuc-v0-8-1,nuc-v0-12-0
+devcontainer-mount-target	devcontainer/mount-path	.devcontainer/devcontainer.json	sed	1s#$#\n  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind",#	nuc-v0-9-0,nuc-v0-12-0
+devcontainer-nuc-absent	devcontainer/nuc	.devcontainer/devcontainer.json	sed	s#features/nuc:0"#features/nucx:0"#	nuc-v0-12-0,nuc-tools-v0-12-0
+devcontainer-git-settings	devcontainer/git-settings	.devcontainer/devcontainer.json	sed	s# && git config pull\.ff only##	nuc-v0-6-0,nuc-v0-8-1,nuc-v0-12-0
+# A byte of no valid UTF-8 in a Feature id, which nuc names as U+FFFD where the bash writes it.
+devcontainer-lock-tag-invalid-utf8	devcontainer/lock	.devcontainer/devcontainer.json	sed	s#features/github-cli:1"#features/github-cli\xff:latest"#	nuc-v0-12-0

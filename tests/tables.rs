@@ -22,8 +22,12 @@
 //! `check-shell.txt` write are stand-ins with the kind's name, and the copy of the template's
 //! `scripts/lib/` that table's tree holds is left out: `nuc` reads no script's content and no file
 //! below `scripts/lib/` (ARCH-rules-need-only-git). In that table `nuc` runs `shell/mode`, the one
-//! rule of the area it ports. Every tree starts on the branch `main`, which the bash of the
-//! traceability and the shell tables leaves to git's default and no case reads. The trees hold
+//! rule of the area it ports. The tree of `check-devcontainer.txt` is written as its header
+//! describes it and staged nowhere, since the bash's tree is not under git; a case that passes
+//! expects the key of the bash's line of a passing check, which `nuc` does not print, and stands
+//! in the list as decided, where it must still exit 0 without a finding of its area. Every tree
+//! starts on the branch `main`, which the bash of the traceability, the shell, and the Dev
+//! Container tables leaves to git's default and no case reads. The trees hold
 //! symbolic links, so the cases run on Unix; the pins and the list are held on every platform.
 
 // The runner and its helpers serve the cases alone, which run on Unix only; elsewhere they stand
@@ -40,7 +44,7 @@ use std::process::Output;
 use support::{Fixture, stderr, stdout};
 
 /// The copies, by file name under `tests/tables/`.
-const TABLES: [(&str, &str); 3] = [
+const TABLES: [(&str, &str); 4] = [
     (
         "check-docs-record.txt",
         include_str!("tables/check-docs-record.txt"),
@@ -50,6 +54,10 @@ const TABLES: [(&str, &str); 3] = [
         include_str!("tables/check-traceability.txt"),
     ),
     ("check-shell.txt", include_str!("tables/check-shell.txt")),
+    (
+        "check-devcontainer.txt",
+        include_str!("tables/check-devcontainer.txt"),
+    ),
 ];
 const BLOBS: &str = include_str!("tables.blobs");
 const CASES: &str = include_str!("tables.cases");
@@ -784,11 +792,140 @@ fn shell_step(fixture: &Fixture, step: &str) {
     }
 }
 
+/// The base fixture of the Dev Container table, and what its steps keep: the Feature, the second
+/// Feature, nuc's, the postStartCommand, and the extra lines of devcontainer.json.
+struct Devcontainer {
+    feature: String,
+    nuc: String,
+    post: String,
+    extras: Vec<String>,
+}
+
+/// The postStartCommand of the Dev Container table's base.
+const DEVCONTAINER_POST: &str = "{ \"hooks\": \"git config core.hooksPath .githooks\", \"merge\": \
+                                 \"git config merge.ff false && git config pull.ff only\", \
+                                 \"index\": \"git config merge.adr-index.driver \
+                                 '.githooks/merge-adr-index %O %A %B %S %X %Y'\" }";
+/// The first Feature of the base.
+const DEVCONTAINER_FEATURE: &str = "ghcr.io/devcontainers/features/github-cli:1";
+/// The second Feature of the base, nuc's.
+const DEVCONTAINER_NUC: &str = "ghcr.io/hivevm/features/nuc:0";
+
+impl Devcontainer {
+    fn new() -> Self {
+        Self {
+            feature: DEVCONTAINER_FEATURE.to_owned(),
+            nuc: DEVCONTAINER_NUC.to_owned(),
+            post: DEVCONTAINER_POST.to_owned(),
+            extras: Vec::new(),
+        }
+    }
+
+    /// devcontainer.json as the header writes it: the postStartCommand where one is kept, the
+    /// extra lines before the features block, and the second Feature where one is kept.
+    fn config(&self, fixture: &Fixture) {
+        let mut text = String::from(
+            "{\n  \"name\": \"fixture\",\n  // A comment: the container has no socket mount.\n  \
+             \"image\": \"mcr.microsoft.com/devcontainers/base:debian\",\n",
+        );
+        if !self.post.is_empty() {
+            text.push_str(&format!("  \"postStartCommand\": {},\n", self.post));
+        }
+        for extra in &self.extras {
+            text.push_str(&format!("  {extra}\n"));
+        }
+        text.push_str("  \"features\": {\n    // The Features.\n");
+        if self.nuc.is_empty() {
+            text.push_str(&format!("    \"{}\": {{}}\n", self.feature));
+        } else {
+            text.push_str(&format!(
+                "    \"{}\": {{}},\n    \"{}\": {{}}\n",
+                self.feature, self.nuc
+            ));
+        }
+        text.push_str("  },\n  \"customizations\": { \"vscode\": { \"extensions\": [] } }\n}\n");
+        fixture.write(".devcontainer/devcontainer.json", &text);
+    }
+}
+
+/// devcontainer-lock.json resolving each id, as the header writes it.
+fn devcontainer_lock(fixture: &Fixture, ids: &[&str]) {
+    let mut text = String::from("{\n  \"features\": {\n");
+    for id in ids {
+        text.push_str(&format!(
+            "    \"{id}\": {{\n      \"version\": \"1.0.0\",\n      \"resolved\": \
+             \"example@sha256:0000\",\n      \"integrity\": \"sha256:0000\"\n    }},\n"
+        ));
+    }
+    text.push_str("  }\n}\n");
+    fixture.write(".devcontainer/devcontainer-lock.json", &text);
+}
+
+/// .vscode/settings.json with the json as the value of remote.extensionKind.
+fn devcontainer_settings(fixture: &Fixture, kind: &str) {
+    fixture.write(
+        ".vscode/settings.json",
+        &format!(
+            "{{\n  // Keep the container-management extension on the host side.\n  \
+             \"remote.extensionKind\": {kind}\n}}\n"
+        ),
+    );
+}
+
+/// The tree of a case of the Dev Container table: the base, then each step, `<pad N>` read as N
+/// times the letter z, the words of a step split as `read -r op arg` splits them.
+fn devcontainer_case(fixture: &Fixture, steps: &[String]) {
+    let mut kept = Devcontainer::new();
+    kept.config(fixture);
+    devcontainer_lock(fixture, &[DEVCONTAINER_FEATURE, DEVCONTAINER_NUC]);
+    devcontainer_settings(fixture, "{ \"ms-azuretools.vscode-containers\": [\"ui\"] }");
+    for step in steps {
+        let mut step = step.clone();
+        while let Some(at) = step.find("<pad ") {
+            let end = at + step[at..].find('>').expect("a closed placeholder");
+            let n: usize = step[at + 5..end].parse().expect("a number of letters");
+            step.replace_range(at..=end, &"z".repeat(n));
+        }
+        let ifs = [' ', '\t', '\n'];
+        let trimmed = step.trim_start_matches(ifs);
+        let (op, arg) = trimmed.split_once(ifs).unwrap_or((trimmed, ""));
+        let arg = arg.trim_matches(ifs);
+        match op {
+            "rm" => {
+                let path = fixture.root().join(arg);
+                if path.is_dir() {
+                    fs::remove_dir_all(path).expect("the directory is removed");
+                } else {
+                    fs::remove_file(path).expect("the file is removed");
+                }
+            }
+            "extra" => kept.extras.push(arg.to_owned()),
+            "post" => arg.clone_into(&mut kept.post),
+            "feature" => arg.clone_into(&mut kept.feature),
+            "nuc" => arg.clone_into(&mut kept.nuc),
+            "lock" => devcontainer_lock(fixture, &arg.split_whitespace().collect::<Vec<_>>()),
+            "settings" => devcontainer_settings(fixture, arg),
+            "write" => {
+                let path = arg.split(' ').next().expect("a path");
+                let text = step
+                    .strip_prefix(&format!("write {path} "))
+                    .expect("the text after the path");
+                fixture.write(path, &text.replace("\\n", "\n"));
+            }
+            _ => panic!("fixture table: unknown step '{op}'"),
+        }
+        if matches!(op, "extra" | "post" | "feature" | "nuc") {
+            kept.config(fixture);
+        }
+    }
+}
+
 /// The rules a case turns on.
 fn rules_of(case: &Case) -> Vec<String> {
     let area = match case.table {
         "check-docs-record.txt" => "docs/",
         "check-traceability.txt" => "traceability/",
+        "check-devcontainer.txt" => "devcontainer/",
         _ => "shell/",
     };
     match case.rule.as_deref() {
@@ -826,6 +963,11 @@ fn run(case: &Case, n: usize) -> Run {
                 record_step(&fixture, step, &mut deleted);
             }
             git(&fixture, &["add", "-A"]);
+        }
+        "check-devcontainer.txt" => {
+            devcontainer_case(&fixture, &case.steps);
+            // The bash's tree is not under git, so nothing is staged.
+            fixture.write("README.md", STAND_IN_README);
         }
         "check-traceability.txt" => {
             fs::create_dir_all(fixture.root().join("docs/adr")).expect("docs/adr/");
@@ -967,6 +1109,26 @@ fn judge(
     problems
 }
 
+/// What a passing case decided by an ADR still holds `nuc` to, where it expects the key of the
+/// bash's line of a passing check, `<area>/check:<word>`, which `nuc` does not print: exit 0, and
+/// no finding of the area. None where the run meets it, or the case is no such case.
+fn decided_pass(case: &Case, status: Option<&str>, code: Option<i32>, out: &str) -> Option<String> {
+    let area = case.field.split_once("/check:").map(|(area, _)| area)?;
+    if !case.pass || !status.is_some_and(|s| s.starts_with("decided by ")) {
+        return None;
+    }
+    let finding = out
+        .lines()
+        .find(|line| line.contains(&format!(" [{area}/")));
+    match (code, finding) {
+        (Some(0), None) => None,
+        (_, Some(line)) => Some(format!(
+            "a passing case reports a finding of {area}/: {line}"
+        )),
+        (code, None) => Some(format!("a passing case exits {code:?}, not 0")),
+    }
+}
+
 /// The rules `nuc` leaves to the bash (ARCH-rules-need-only-git).
 const NOT_PORTED: [&str; 2] = ["shell/bash-floor", "shell/root"];
 
@@ -1034,6 +1196,14 @@ fn every_case_agrees_or_is_listed() {
             agrees: run.agrees,
         };
         let exists = |ticket: &str| root.join(ticket).is_file();
+        if let Some(problem) = decided_pass(
+            case,
+            entry.as_ref().map(|(_, status)| status.as_str()),
+            run.output.status.code(),
+            &stdout(&run.output),
+        ) {
+            problems.push(format!("{table} | {}: {problem}", case.name));
+        }
         for problem in judge(&verdict, entry, &exists, &accepted) {
             problems.push(if problem.ends_with("does not agree") {
                 format!(
@@ -1058,6 +1228,36 @@ fn every_case_agrees_or_is_listed() {
         problems.len(),
         problems.join("\n  ")
     );
+}
+
+#[test]
+fn a_decided_passing_case_still_exits_0_without_a_finding_of_its_area() {
+    let case = Case {
+        table: "check-devcontainer.txt",
+        rule: None,
+        pass: true,
+        field: "devcontainer/check:passed @ 2".to_owned(),
+        name: "n".to_owned(),
+        steps: Vec::new(),
+    };
+    let status = format!("decided by {}-{} r", "API", "x-y");
+    let decided = Some(status.as_str());
+    assert_eq!(decided_pass(&case, decided, Some(0), ""), None);
+    assert!(decided_pass(&case, decided, Some(1), "").is_some());
+    let found = "a.json: devcontainer/lock: m [devcontainer/lock:tag]";
+    assert!(decided_pass(&case, decided, Some(0), found).is_some());
+    // Another case, or one not decided, is the judge's alone.
+    assert_eq!(decided_pass(&case, None, Some(1), ""), None);
+    let failing = Case {
+        pass: false,
+        ..case.clone()
+    };
+    assert_eq!(decided_pass(&failing, decided, Some(1), found), None);
+    let keyed = Case {
+        field: "devcontainer/lock:tag".to_owned(),
+        ..case
+    };
+    assert_eq!(decided_pass(&keyed, decided, Some(1), found), None);
 }
 
 #[test]

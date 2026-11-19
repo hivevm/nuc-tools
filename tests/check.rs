@@ -2123,3 +2123,141 @@ fn a_hook_that_links_outside_the_repository_is_not_decided() {
         stderr(&output)
     );
 }
+
+/// The rules of `scripts/check-devcontainer.sh`, all turned on.
+const DEVCONTAINER_RULES: &str = "minimum = \"0.0.0\"\nrules = [\"devcontainer/definition\", \
+                                  \"devcontainer/socket\", \"devcontainer/lock\", \
+                                  \"devcontainer/settings\", \"devcontainer/mount-path\", \
+                                  \"devcontainer/nuc\", \"devcontainer/git-settings\"]\n";
+
+/// A project of the release with the rules of the Dev Container on and no `.devcontainer/` and
+/// no `.vscode/`.
+fn devcontainer(name: &str, release: &str) -> Fixture {
+    Fixture::project(
+        name,
+        DEVCONTAINER_RULES,
+        &format!("# Fixture\n\n- **Template release:** {release}\n"),
+    )
+}
+
+/// Verifies: NUC-container-hides-host-daemon
+#[test]
+fn a_tree_without_a_dev_container_is_bound_by_the_release_it_carries() {
+    // check-devcontainer.txt: a project without a Dev Container or VS Code settings
+    let output = devcontainer("devcontainer-unbound", "v0.12.0").nuc(&["check"]);
+    assert_eq!(code(&output), Some(0), "{}", stdout(&output));
+    assert!(stderr(&output).contains("nuc check passed (7 rules)"));
+    // Before v0.9.0, every tree has a Dev Container and VS Code settings to check.
+    let output = devcontainer("devcontainer-bound", "v0.8.1").nuc(&["check"]);
+    assert_eq!(code(&output), Some(1), "{}", stderr(&output));
+    let adr = support::id("0004");
+    assert_eq!(
+        stdout(&output),
+        format!(
+            ".devcontainer/devcontainer.json: devcontainer/definition: not found — the Dev \
+             Container {adr} governs has nothing to check [devcontainer/definition:absent]\n\
+             .vscode/settings.json: devcontainer/settings: not found — it pins the \
+             container-management extension to the host side ({adr}) \
+             [devcontainer/settings:absent]\n"
+        )
+    );
+    // Unpinned settings without .devcontainer/ bind nothing from v0.9.0 on, and fail before.
+    let fixture = devcontainer("devcontainer-settings-unbound", "v0.9.0");
+    fixture.write(
+        ".vscode/settings.json",
+        "{ \"remote.extensionKind\": { \"ms-azuretools.vscode-containers\": [\"workspace\"] } }\n",
+    );
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(0), "{}", stdout(&output));
+    fixture.write("README.md", "# Fixture\n\n- **Template release:** v0.8.1\n");
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(1), "{}", stderr(&output));
+    let found = stdout(&output);
+    assert_eq!(found.lines().count(), 2, "{found}");
+    assert!(
+        found.contains("[devcontainer/definition:absent]"),
+        "{found}"
+    );
+    assert!(
+        found.contains("[devcontainer/settings:unpinned]"),
+        "{found}"
+    );
+}
+
+/// Verifies: NUC-container-hides-host-daemon NUC-hooks-run-nuc
+#[test]
+fn a_dev_container_without_its_lock_and_the_nuc_feature_fails_as_each_rule() {
+    let fixture = devcontainer("devcontainer-found", "v0.12.0");
+    fixture.write(
+        ".devcontainer/devcontainer.json",
+        "{\n  // \"mounts\": [\"/var/run/docker.sock\"]\n  \"features\": {\n    \
+         \"ghcr.io/devcontainers/features/node\": {}\n  }\n}\n",
+    );
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(1), "{}", stderr(&output));
+    let found = stdout(&output);
+    let keys: Vec<&str> = found
+        .lines()
+        .filter_map(|line| line.rsplit_once(" [").map(|(_, key)| key))
+        .collect();
+    assert_eq!(
+        keys,
+        [
+            "devcontainer/lock:tag]",
+            "devcontainer/lock:absent]",
+            "devcontainer/nuc:absent]",
+            "devcontainer/git-settings:absent]",
+            "devcontainer/git-settings:absent]",
+            "devcontainer/git-settings:absent]",
+            "devcontainer/git-settings:absent]",
+        ],
+        "{found}"
+    );
+    // The same tree checked as v0.11.1 has no check of the nuc Feature.
+    fixture.write(
+        "README.md",
+        "# Fixture\n\n- **Template release:** v0.11.1\n",
+    );
+    let output = fixture.nuc(&["check"]);
+    assert!(
+        !stdout(&output).contains("devcontainer/nuc"),
+        "{}",
+        stdout(&output)
+    );
+}
+
+/// Verifies: Q-1
+#[test]
+fn a_dev_container_file_with_a_nul_byte_is_not_decided() {
+    let fixture = devcontainer("devcontainer-nul", "v0.12.0");
+    fixture.write(".devcontainer/devcontainer.json", "{\n\0}\n");
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(2), "{}", stdout(&output));
+    assert!(
+        stderr(&output).contains(".devcontainer/devcontainer.json: holds a NUL byte"),
+        "{}",
+        stderr(&output)
+    );
+}
+
+/// Verifies: Q-12
+#[cfg(unix)]
+#[test]
+fn vs_code_settings_that_link_outside_the_repository_are_not_decided() {
+    let (_probe, up) = outside("devcontainer-outside-probe", "settings.json", "{}\n");
+    let fixture = devcontainer("devcontainer-outside", "v0.12.0");
+    std::fs::create_dir_all(fixture.root().join(".vscode")).expect("created");
+    // The link stands one directory below the root, so its target climbs one more.
+    std::os::unix::fs::symlink(
+        format!("../{up}"),
+        fixture.root().join(".vscode/settings.json"),
+    )
+    .expect("linked");
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(2), "{}", stdout(&output));
+    assert!(
+        stderr(&output).contains(".vscode/settings.json: resolves outside the repository"),
+        "{}",
+        stderr(&output)
+    );
+}

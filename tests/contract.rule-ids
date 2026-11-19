@@ -1,6 +1,13 @@
 # Every rule ID nuc has had, read by tests/contract.rs (G-6). An ID stays once listed: nuc.toml
 # files name it, so no rule is renamed or dropped while a project may still turn it on.
 
+devcontainer/definition
+devcontainer/git-settings
+devcontainer/lock
+devcontainer/mount-path
+devcontainer/nuc
+devcontainer/settings
+devcontainer/socket
 docs/adr-header
 docs/adr-identifiers
 docs/adr-index

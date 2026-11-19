@@ -165,3 +165,20 @@
 ^nuc\.toml: names no minimum 	hooks/toml	-
 ^nuc\.toml: its minimum .* is older than nuc-tools v.*, the release of the hooks — 	hooks/toml	-
 ^nuc\.toml: its rules do not name '.*' — 	hooks/toml	-
+
+# check-devcontainer.sh, every release from v0.5.0 on: the Dev Container
+# (NUC-container-hides-host-daemon, the numbered ADR 4 of the template before v0.9.0;
+# NUC-hooks-run-nuc §4).
+^\.devcontainer/devcontainer\.json: not found — 	devcontainer/definition	-
+^\.devcontainer/devcontainer\.json: mounts the host Docker socket — 	devcontainer/socket	-
+^\.devcontainer/devcontainer\.json: Feature '.*' would mount the host Docker socket — 	devcontainer/socket	-
+^\.devcontainer/devcontainer\.json: Feature '.*' is not pinned by its major version tag alone 	devcontainer/lock	-
+^\.devcontainer/devcontainer-lock\.json: not found — the lock is committed 	devcontainer/lock	-
+^\.devcontainer/devcontainer-lock\.json: has no entry for Feature '.*' — 	devcontainer/lock	-
+^\.devcontainer/devcontainer-lock\.json: lists Feature '.*', which 	devcontainer/lock	-
+^\.vscode/settings\.json: not found — it pins the container-management extension 	devcontainer/settings	-
+^\.vscode/settings\.json: does not pin 'ms-azuretools\.vscode-containers' 	devcontainer/settings	-
+^\.devcontainer/devcontainer\.json: workspaceFolder is not 	devcontainer/mount-path	-
+^\.devcontainer/devcontainer\.json: workspaceMount does not target 	devcontainer/mount-path	-
+^\.devcontainer/devcontainer\.json: adds no Feature 'ghcr\.io/hivevm/features/nuc' — 	devcontainer/nuc	-
+^\.devcontainer/devcontainer\.json: postStartCommand does not run 'git config 	devcontainer/git-settings	-

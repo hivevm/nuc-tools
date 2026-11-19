@@ -4,8 +4,9 @@
 //! what the bash reports on inputs the corpus lacks as well, as the convention "A port copies the
 //! bash, quirks included" of `docs/CONVENTIONS.md` asks. `tests/bash_cases.tsv`, the list kept
 //! beside this test, names each case of `scripts/test-check-docs.sh` and
-//! `scripts/test-check-traceability.sh` of template release v0.8.1, and of
-//! `scripts/test-check-hooks.sh` of v0.12.0, the release that brings it, as its `expect` line
+//! `scripts/test-check-traceability.sh` of template release v0.8.1, of
+//! `scripts/test-check-hooks.sh` of v0.12.0, the release that brings it, and of
+//! `scripts/test-check-devcontainer.sh` of v0.8.1, the last before its table, as its `expect` line
 //! writes it, with the rule whose part of the bash it tries, or `-` and the
 //! reason no rule of `nuc` decides it. A unit test under `src/` that copies a case says so in a
 //! comment `// bash: <name>`. The test fails on an `expect` line whose name it cannot read, on a
@@ -26,10 +27,11 @@ const LIST: &str = include_str!("bash_cases.tsv");
 /// The self-tests whose cases the list holds, each with the release its case lines are frozen at.
 /// Those lines stand under [`FROZEN`] as `<name without .sh>.<release>`: the scripts under
 /// `scripts/` follow the release this repository carries, which `nuc` need not port.
-const SCRIPTS: [(&str, &str); 3] = [
+const SCRIPTS: [(&str, &str); 4] = [
     ("test-check-docs.sh", "v0-8-1"),
     ("test-check-traceability.sh", "v0-8-1"),
     ("test-check-hooks.sh", "v0-12-0"),
+    ("test-check-devcontainer.sh", "v0-8-1"),
 ];
 
 /// The directory of the frozen case lines.

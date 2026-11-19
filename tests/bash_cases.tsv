@@ -166,3 +166,32 @@ test-check-hooks.sh	a rules list that lacks a hook/ rule	hooks/toml
 test-check-hooks.sh	a hook/ rule only in a comment after a rule	hooks/toml
 test-check-hooks.sh	a '#' inside a string starts no comment	-	nuc refuses first, config/toml:unknown, since it reads the '#' as part of a rule ID no nuc knows, which tests/check.rs asserts
 test-check-hooks.sh	a hook/ rule only in a comment of the rules list	hooks/toml
+
+# test-check-devcontainer.sh, from template release v0.8.1, the last before v0.9.0 binds a tree only
+# with .devcontainer/ and the table holds the cases
+test-check-devcontainer.sh	a container without a socket, pinned and locked, passes	devcontainer/lock
+test-check-devcontainer.sh	a host socket mount	devcontainer/socket
+test-check-devcontainer.sh	a host socket mount in a config longer than a pipe holds	devcontainer/socket
+test-check-devcontainer.sh	a host socket passed as a run argument	devcontainer/socket
+test-check-devcontainer.sh	a Feature that mounts the socket	devcontainer/socket
+test-check-devcontainer.sh	an engine inside the container talks to no host engine and is the project's choice	devcontainer/socket
+test-check-devcontainer.sh	a Feature on a mutable tag	devcontainer/lock
+test-check-devcontainer.sh	a Feature without a tag	devcontainer/lock
+test-check-devcontainer.sh	no lock committed	devcontainer/lock
+test-check-devcontainer.sh	a Feature the lock does not resolve	devcontainer/lock
+test-check-devcontainer.sh	a lock entry for a Feature no longer added	devcontainer/lock
+test-check-devcontainer.sh	a Feature on a full version instead of the major tag	devcontainer/lock
+test-check-devcontainer.sh	a features block on one line, with a string-valued Feature, is read like any other	devcontainer/socket
+test-check-devcontainer.sh	the container-management extension not pinned to the host	devcontainer/settings
+test-check-devcontainer.sh	the pair under a key other than remote.extensionKind	devcontainer/settings
+test-check-devcontainer.sh	no Dev Container at all	devcontainer/definition
+test-check-devcontainer.sh	the git settings in a postStartCommand string pass	devcontainer/git-settings
+test-check-devcontainer.sh	a brace or bracket in an entry before the git settings	devcontainer/git-settings
+test-check-devcontainer.sh	a postStartCommand without 'git config $setting'	devcontainer/git-settings
+test-check-devcontainer.sh	the merge driver without the arguments git passes it	devcontainer/git-settings
+test-check-devcontainer.sh	a project mounted under a path of its own	devcontainer/mount-path
+test-check-devcontainer.sh	a mount whose target comes last, under another of its names	devcontainer/mount-path
+test-check-devcontainer.sh	a workspaceFolder every project shares	devcontainer/mount-path
+test-check-devcontainer.sh	a workspaceMount that targets a path every project shares	devcontainer/mount-path
+test-check-devcontainer.sh	no postStartCommand at all	devcontainer/git-settings
+test-check-devcontainer.sh	the git settings in another command than postStartCommand	devcontainer/git-settings

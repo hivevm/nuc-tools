@@ -5,6 +5,13 @@
 use crate::config::Version;
 use crate::finding::Finding;
 
+pub mod devcontainer_definition;
+pub mod devcontainer_git_settings;
+pub mod devcontainer_lock;
+pub mod devcontainer_mount_path;
+pub mod devcontainer_nuc;
+pub mod devcontainer_settings;
+pub mod devcontainer_socket;
 pub mod docs_adr_header;
 pub mod docs_adr_identifiers;
 pub mod docs_adr_index;
@@ -97,6 +104,8 @@ pub struct Inputs {
     /// `nuc.toml` as `nuc` read it for the run. The shell always gives it, since `nuc check`
     /// refuses a tree without one before any rule runs: none occurs only in unit tests.
     pub toml: Option<crate::config::Config>,
+    /// The Dev Container's files, as `scripts/check-devcontainer.sh` reads them.
+    pub devcontainer: crate::devcontainer::Devcontainer,
 }
 
 pub use crate::bash::read_lines;
@@ -125,6 +134,7 @@ pub const RELEASES: &[Version] = &[
     Version(0, 6, 0),
     Version(0, 6, 1),
     Version(0, 7, 0),
+    crate::devcontainer::HERE_STRINGS,
     CATEGORY_IDENTIFIERS,
     TEMPLATE_FINDINGS,
     HOOK_PINS,
@@ -215,6 +225,12 @@ pub enum Input {
     HookBlobs,
     /// `nuc.toml` as `nuc` read it.
     Toml,
+    /// Whether `.devcontainer/` is a directory, and `.devcontainer/devcontainer.json`.
+    Devcontainer,
+    /// `.devcontainer/devcontainer-lock.json`.
+    DevcontainerLock,
+    /// Whether `.vscode/` is a directory, and `.vscode/settings.json`.
+    VscodeSettings,
 }
 
 /// One rule: its ID, the reason `nuc explain` gives, what it reads, and the check.
@@ -299,6 +315,13 @@ pub const ALL: &[Rule] = &[
     docs_no_draft_on_main::RULE,
     docs_opens_no_issue::RULE,
     docs_template_release::RULE,
+    devcontainer_definition::RULE,
+    devcontainer_socket::RULE,
+    devcontainer_lock::RULE,
+    devcontainer_settings::RULE,
+    devcontainer_mount_path::RULE,
+    devcontainer_nuc::RULE,
+    devcontainer_git_settings::RULE,
     hooks_pin::RULE,
     hooks_toml::RULE,
     shell_mode::RULE,

@@ -28,7 +28,8 @@
 #      environment cleared to PATH, HOME, LC_ALL=C, and that of a pull request into main marked
 #      ready (CI_ENV): scripts/check-docs.sh and scripts/check-traceability.sh (BASH_CHECKS),
 #      whose findings are their '  - ' lines; scripts/check-hooks.sh where the tree has it, from
-#      v0.12.0 on, whose findings are its '  - ' lines too; and scripts/check-shell.sh where it has
+#      v0.12.0 on, and scripts/check-devcontainer.sh where it has it, from v0.5.0 on, whose
+#      findings are their '  - ' lines too; and scripts/check-shell.sh where it has
 #      the rule shell/mode, from v0.10.0 on, whose findings are its lines that end in a key of
 #      shell/.
 #      Their outputs are read as one, and bash fails when
@@ -486,11 +487,12 @@ at_least_floor() {
 # that reads where a change lands (check 16) speaks as it does in CI.
 CI_ENV=(GITHUB_BASE_REF=main PULL_REQUEST_DRAFT=false)
 
-# The bash scripts whose rules nuc ports, run in this order; check-hooks.sh, run where the tree has
-# it; and check-shell.sh, run where it has the one rule of it nuc ports, whose finding lines end in
-# a key of shell/.
+# The bash scripts whose rules nuc ports, run in this order; check-hooks.sh and
+# check-devcontainer.sh, each run where the tree has it; and check-shell.sh, run where it has the
+# one rule of it nuc ports, whose finding lines end in a key of shell/.
 BASH_CHECKS=(scripts/check-docs.sh scripts/check-traceability.sh)
 HOOKS_CHECK=scripts/check-hooks.sh
+DEVCONTAINER_CHECK=scripts/check-devcontainer.sh
 SHELL_CHECK=scripts/check-shell.sh
 SHELL_FINDING_RE='^[^ ].* \[shell/[a-z-]+:[a-z]+\]$'
 
@@ -513,18 +515,20 @@ run_pair() {
     cat "$out.script" >> "$out.bash"
     ((bash_rc)) || bash_rc=$rc
   done
-  # check-hooks.sh of a tree that has it, from v0.12.0 on: its findings are its '  - ' lines, as
-  # those of check-docs.sh are, and it fails only with one.
-  if [[ -f "$dir/$HOOKS_CHECK" ]]; then
-    (cd "$dir" && env -i PATH="$PATH" HOME="$HOME" LC_ALL=C "${CI_ENV[@]}" bash "$HOOKS_CHECK") > "$out.script" 2>&1
+  # check-hooks.sh of a tree that has it, from v0.12.0 on, and check-devcontainer.sh, which every
+  # release from v0.5.0 on has: their findings are their '  - ' lines, as those of check-docs.sh
+  # are, and each fails only with one.
+  for script in "$HOOKS_CHECK" "$DEVCONTAINER_CHECK"; do
+    [[ -f "$dir/$script" ]] || continue
+    (cd "$dir" && env -i PATH="$PATH" HOME="$HOME" LC_ALL=C "${CI_ENV[@]}" bash "$script") > "$out.script" 2>&1
     rc=$?
     if ((rc)) && ! grep -q '^  - ' "$out.script"; then
-      echo "Parity check: $label — bash: $HOOKS_CHECK exited $rc without a finding" >&2
+      echo "Parity check: $label — bash: $script exited $rc without a finding" >&2
       return 1
     fi
     grep '^  - ' "$out.script" >> "$out.bash"
     ((bash_rc)) || bash_rc=$rc
-  fi
+  done
   # check-shell.sh of a tree that has the rule shell/mode, from v0.10.0 on: its findings are the
   # lines that end in a key of shell/, read as findings of the other scripts are; the rest of its
   # output, ShellCheck's among it, and its exit, which a rule nuc leaves to the bash sets too, are

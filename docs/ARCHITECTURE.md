@@ -69,6 +69,12 @@ golden path and the test pattern an agent copies from are named here.
   `nuc`, or an unknown rule ID ends the run before it.
   The blob of a hook is git's, `git hash-object` as the bash runs it. A hook whose attributes name
   a filter is not decided, since git would run the filter's driver (Q-7).
+  The rules of `scripts/check-devcontainer.sh`, one per rule ID of its keys under `devcontainer/`,
+  share one reading of the Dev Container's files in `src/devcontainer.rs`: text without its
+  full-line `//` comments, the Features by the depth of the braces, and the value of a top-level
+  key up to the next one, as the bash's awk reads them, never as JSON. A file of the Dev Container
+  with a NUL byte is not decided. Before v0.8.0 the bash pipes `devcontainer.json` into `grep -q`
+  for the socket, so a match in one longer than a pipe holds is not decided either.
   `src/adr.rs` reads the record in each of its two forms, numbered and named by category, through
   pairs of functions, and each rule, and the shell for the inputs, chooses one by the release.
   `tests/parity/releases.tsv` names the releases at which each
@@ -124,29 +130,28 @@ golden path and the test pattern an agent copies from are named here.
   ([API-measure-reads-harness-transcripts](adr/API-measure-reads-harness-transcripts.md)).
 - **Binary** — `src/main.rs` calls the shell and nothing else.
 - **Parity harness** — `scripts/check-parity.sh` runs the bash checks of each repository of the
-  corpus, `check-docs.sh` and `check-traceability.sh`, from v0.10.0 on `check-shell.sh`, and from
-  v0.12.0 on `check-hooks.sh`, all on template release v0.5.0 or later, and `nuc` on the same tree
-  and on each variant of `tests/parity/variants.tsv` that is for it, both as a pull request into
-  `main` marked ready, and compares their findings, normalized by `tests/parity/normalize.tsv`,
-  and their exit status. The `nuc.toml` it writes for `nuc` turns on every rule the table maps
-  to, and keeps the minimum and the `hook/` rules of the tree's own, which `check-hooks.sh` reads
-  as well. A
-  variant edits, deletes, or writes one path inside a copy of the tree, never under its `.git`
-  ([TEST-parity-harness](adr/TEST-parity-harness.md)). Across the template's trees of the
-  corpus it compares each rule's bash function with `tests/parity/releases.tsv`; a change to a
-  helper the function calls shows in no row. Then `scripts/lib/hook-parity.sh` runs the
-  scenarios of `tests/parity/hook-scenarios.sh` through git, with the bash hook of each of the
-  template's trees and with the shim and `nuc`, maps the hooks' lines by `tests/parity/hooks.tsv`,
-  and holds the template's hook self-test to the scenarios and `tests/parity/hook-cases.tsv`
-  ([TEST-hook-scenario-parity](adr/TEST-hook-scenario-parity.md)). A tree whose blob list
-  `.githooks/nuc.blobs` pins a hook, as the template's trees do from v0.12.0 on, carries nuc's own
-  shims and no bash hook. The scenarios and their coverage leave it out, whatever release it names,
-  and its checks are compared as any tree's. They also leave out a tree later than the bound
-  `HOOKS_PORTED`, v0.11.1, and the scenario of the defaults runs on the newest tree left in.
-  Before the comparisons it holds each pin of `tests/tables.blobs` to the template's tag of its
-  release. With `--shard <k>/<n>` a run compares only every n-th tree of the corpus, from the k-th,
-  with its variants. The last shard also runs the parts that read all the template's trees at once.
-  CI runs four shards, one required check run each, since the comparisons are bound by the
+  corpus, `check-docs.sh`, `check-traceability.sh`, and `check-devcontainer.sh`, from v0.10.0 on
+  `check-shell.sh`, and from v0.12.0 on `check-hooks.sh`, all on template release v0.5.0 or later,
+  and `nuc` on the same tree and on each variant of `tests/parity/variants.tsv` that is for it, both
+  as a pull request into `main` marked ready, and compares their findings, normalized by
+  `tests/parity/normalize.tsv`, and their exit status. The `nuc.toml` it writes for `nuc` turns on
+  every rule the table maps to, and keeps the minimum and the `hook/` rules of the tree's own, which
+  `check-hooks.sh` reads as well. A variant edits, deletes, or writes one path inside a copy of the
+  tree, never under its `.git` ([TEST-parity-harness](adr/TEST-parity-harness.md)). Across the
+  template's trees of the corpus it compares each rule's bash function with
+  `tests/parity/releases.tsv`; a change to a helper the function calls shows in no row. Then
+  `scripts/lib/hook-parity.sh` runs the scenarios of `tests/parity/hook-scenarios.sh` through git,
+  with the bash hook of each of the template's trees and with the shim and `nuc`, maps the hooks'
+  lines by `tests/parity/hooks.tsv`, and holds the template's hook self-test to the scenarios and
+  `tests/parity/hook-cases.tsv` ([TEST-hook-scenario-parity](adr/TEST-hook-scenario-parity.md)). A
+  tree whose blob list `.githooks/nuc.blobs` pins a hook, as the template's trees do from v0.12.0
+  on, carries nuc's own shims and no bash hook. The scenarios and their coverage leave it out,
+  whatever release it names, and its checks are compared as any tree's. They also leave out a tree
+  later than the bound `HOOKS_PORTED`, v0.11.1, and the scenario of the defaults runs on the newest
+  tree left in. Before the comparisons it holds each pin of `tests/tables.blobs` to the template's
+  tag of its release. With `--shard <k>/<n>` a run compares only every n-th tree of the corpus, from
+  the k-th, with its variants. The last shard also runs the parts that read all the template's trees
+  at once. CI runs four shards, one required check run each, since the comparisons are bound by the
   processor.
 - **Table runner** — `tests/tables.rs` builds the tree of each case of the template's fixture
   tables, copied under `tests/tables/` from the newest release `nuc` ports and pinned by their

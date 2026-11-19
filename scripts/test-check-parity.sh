@@ -25,7 +25,8 @@
 # map a rule nuc leaves to the bash to none, and run no check-shell.sh without the key of
 # shell/mode. The hooks cases read the '  - ' lines of check-hooks.sh as findings, fail one that
 # fails without a finding, and hand it the harness's nuc.toml with the tree's minimum and hook/
-# rules. The pin
+# rules. The Dev Container cases read the '  - ' lines of check-devcontainer.sh as findings, fail
+# one that fails without a finding, and compare its wording. The pin
 # cases pass a pin of a copied fixture table that the tag of a template tree bears out, and fail
 # one the tag does not, one whose tag cannot be read, and one without a template tree, and exit 2
 # on a malformed or missing list of pins. The shard cases compare in each shard the trees at its
@@ -432,6 +433,36 @@ expect fail "a line of check-hooks.sh is read as a finding" "bash message the ta
   run "$(hooked hooks-finding "printf '  - %s\n' $(printf %q "$TOML_FINDING"); exit 1")" "$(reactive_nuc)"
 expect fail "a check-hooks.sh that fails without a finding fails the harness" "check-hooks.sh exited 1 without a finding" \
   run "$(hooked hooks-silent 'exit 1')" "$(reactive_nuc)"
+
+# check-devcontainer.sh of a tree that has it, every release from v0.5.0 on: its '  - ' lines are
+# findings, and it fails only with one; its finding maps to the rule by its row, the wording of
+# each release compared.
+# devcontained <name> <script body> — a source repository whose check-devcontainer.sh runs the
+# body.
+devcontained() {
+  local src name="$1"
+  src="$(source_repo "$name")"
+  printf '%s\n' '#!/usr/bin/env bash' "$2" > "$src/scripts/check-devcontainer.sh"
+  git -C "$src" add -A
+  git -C "$src" -c user.name=F -c user.email=f@example.invalid -c core.hooksPath=/dev/null commit -q -m devcontained
+  git -C "$src" rev-parse HEAD > "$work/src-$name.commit"
+  corpus "$work/$name.toml" "$name"
+}
+LOCK_TEXT="not found — the lock is committed so that the same commit yields the same Features"
+LOCK_FINDING=".devcontainer/devcontainer-lock.json: $LOCK_TEXT (NUC-container-hides-host-daemon §3) [devcontainer/lock:absent]"
+expect pass "a check-devcontainer.sh that passes adds no finding" "" \
+  run "$(devcontained devcontainer-passes 'echo "Dev Container check passed."')" "$(reactive_nuc)"
+expect fail "a line of check-devcontainer.sh is read as a finding" "bash message the table does not know" \
+  run "$(devcontained devcontainer-finding "printf 'Dev Container check FAILED:\n  - %s\n' $(printf %q "$LOCK_FINDING") >&2; exit 1")" "$(reactive_nuc)"
+expect fail "a check-devcontainer.sh that fails without a finding fails the harness" "check-devcontainer.sh exited 1 without a finding" \
+  run "$(devcontained devcontainer-silent 'exit 1')" "$(reactive_nuc)"
+expect pass "a finding of devcontainer/lock maps to the rule by its row" "" \
+  compare "$(bash_out devcontainer-lock "$LOCK_FINDING")" 1 \
+  "$(raw_nuc_out devcontainer-lock ".devcontainer/devcontainer-lock.json: devcontainer/lock: $LOCK_TEXT (NUC-container-hides-host-daemon §3) [devcontainer/lock:absent]")" 1
+OLD_LOCK="$(printf '.devcontainer/devcontainer-lock.json: %s (%s-0004)' "$LOCK_TEXT" ADR)"
+expect fail "a finding of devcontainer/lock worded as another release is a difference" "only bash reports: devcontainer/lock .devcontainer/devcontainer-lock.json" \
+  compare "$(bash_out devcontainer-old "$OLD_LOCK")" 1 \
+  "$(raw_nuc_out devcontainer-old ".devcontainer/devcontainer-lock.json: devcontainer/lock: $LOCK_TEXT (NUC-container-hides-host-daemon §3) [devcontainer/lock:absent]")" 1
 
 # The pins of the copied fixture tables (TEST-template-table-cases): a tree of the template,
 # TEMPLATE-SETUP.md in it, whose tag v9.9.9 the harness fetches from its source through file://.
