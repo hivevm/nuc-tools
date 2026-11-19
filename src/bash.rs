@@ -87,6 +87,23 @@ pub fn read_fields(line: &[u8]) -> (Vec<u8>, Vec<u8>, Vec<u8>) {
     (a, b, rest[start..end].to_vec())
 }
 
+/// The fields `read -r a rest` splits a line into with the default IFS: the first word, and what
+/// follows it without the IFS whitespace that leads or ends it; an absent field is empty. `read`
+/// drops each NUL byte of the line.
+pub fn read_pair(line: &[u8]) -> (Vec<u8>, Vec<u8>) {
+    let ifs = |b: &u8| matches!(b, b' ' | b'\t' | b'\n');
+    let line: Vec<u8> = line.iter().copied().filter(|&b| b != 0).collect();
+    let start = line.iter().position(|b| !ifs(b)).unwrap_or(line.len());
+    let end = line[start..]
+        .iter()
+        .position(ifs)
+        .map_or(line.len(), |i| start + i);
+    let rest = &line[end..];
+    let from = rest.iter().position(|b| !ifs(b)).unwrap_or(rest.len());
+    let to = rest.iter().rposition(|b| !ifs(b)).map_or(from, |i| i + 1);
+    (line[start..end].to_vec(), rest[from..to].to_vec())
+}
+
 /// The position of the first occurrence of the needle in the bytes; an empty needle is at 0.
 pub fn find(haystack: &[u8], needle: &[u8]) -> Option<usize> {
     if needle.is_empty() {
@@ -105,6 +122,16 @@ pub fn contains(haystack: &[u8], needle: &[u8]) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn read_pair_splits_off_the_first_word_and_trims_the_rest_by_ifs_alone() {
+        assert_eq!(
+            read_pair(b"      3 a b \t"),
+            (b"3".to_vec(), b"a b".to_vec())
+        );
+        assert_eq!(read_pair(b"1 x\r"), (b"1".to_vec(), b"x\r".to_vec()));
+        assert_eq!(read_pair(b"  "), (Vec::new(), Vec::new()));
+    }
 
     #[test]
     fn read_drops_an_unterminated_last_line_and_awk_keeps_it() {

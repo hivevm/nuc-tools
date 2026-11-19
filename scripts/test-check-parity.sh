@@ -2,6 +2,7 @@
 #
 # Self-test of scripts/check-parity.sh.
 # Verifies: TEST-parity-harness TEST-hook-scenarios-on-bash-hooks Q-1 Q-2
+# Verifies: API-git-only-sensors-under-sense
 #
 # The comparison cases feed the harness pairs of outputs through '--compare': pairs that differ in
 # one finding, in one exit status, by one bash message the table does not know, or by a line nuc
@@ -26,7 +27,9 @@
 # shell/mode. The hooks cases read the '  - ' lines of check-hooks.sh as findings, fail one that
 # fails without a finding, and hand it the harness's nuc.toml with the tree's minimum and hook/
 # rules. The Dev Container cases read the '  - ' lines of check-devcontainer.sh as findings, fail
-# one that fails without a finding, and compare its wording. The pin
+# one that fails without a finding, and compare its wording. The sensor cases compare a sensor's
+# report byte for byte, fail an exit that differs where tests/parity/sensor-exits.tsv lists no row
+# for the sensor, and pass one it lists. The pin
 # cases pass a pin of a copied fixture table that the tag of a template tree bears out, and fail
 # one the tag does not, one whose tag cannot be read, and one without a template tree, and exit 2
 # on a malformed or missing list of pins. The shard cases cut the comparisons, tree by tree in the
@@ -246,6 +249,25 @@ expect pass "a bash message without a key among keyed ones compares no reason" "
 expect fail "a reason of nuc other than the bash's is a difference" "nuc gives the reason 'line' where bash gives 'version'" \
   compare "$(bash_out keyed-other "$MALFORMED [docs/template-release:version]")" 1 \
   "$(nuc_out keyed-other "README.md:5: docs/template-release: $MALFORMED_TEXT [docs/template-release:line]")" 1
+
+# The sensors (API-git-only-sensors-under-sense): the standard output byte for byte, and an exit
+# that differs only where tests/parity/sensor-exits.tsv lists it.
+# shellcheck disable=SC2317,SC2329 # run through expect
+sense() { bash "$HARNESS" --sense-compare "$@"; }
+printf 'Design revision sensor: 1 of 2 changes outside docs/ since the first commit — not yet due.\n' > "$work/sense.a"
+cp "$work/sense.a" "$work/sense.same"
+sed 's/1 of 2/1 of 3/' "$work/sense.a" > "$work/sense.byte"
+: > "$work/sense.empty"
+expect pass "a sensor's report the same from both, exits alike, passes" "" \
+  sense revision-due v0.12.0 "$work/sense.a" 0 "$work/sense.same" 0
+expect fail "a sensor's report that differs in one byte is a difference" "the standard output differs" \
+  sense revision-due v0.12.0 "$work/sense.a" 0 "$work/sense.byte" 0
+expect fail "a sensor's exit that differs where no row lists it is a difference" "which no row of" \
+  sense revision-due v0.12.0 "$work/sense.a" 0 "$work/sense.same" 2
+expect pass "a sensor's exit that differs where a row lists it passes" "" \
+  sense revision-due v0.12.0 "$work/sense.empty" 1 "$work/sense.empty" 2
+expect fail "a listed exit of one sensor does not hold for another" "which no row of" \
+  sense plan-frontier v0.12.0 "$work/sense.empty" 1 "$work/sense.empty" 2
 
 # A record named by category: the ADR's file is its identifier.
 NAMED="$(printf '%s-%s' SEC a-b)"

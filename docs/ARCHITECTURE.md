@@ -128,6 +128,14 @@ golden path and the test pattern an agent copies from are named here.
   `tests/functional_core.guarded` names for it, the one read outside the repository, following no
   symbolic link
   ([API-measure-reads-harness-transcripts](adr/API-measure-reads-harness-transcripts.md)).
+- **Sensors** — `src/sense.rs` lists the sensors of the template `nuc sense` ports, `sense::ALL`,
+  each a module beside it, as `src/sense/revision_due.rs`: a pure function from the values the
+  shell gathered to the report the bash sensor of the tree's release writes on the standard output,
+  byte for byte, or a refusal keyed `sense/<name>:<reason>`. `shell::sense` reads `nuc.toml` as
+  `nuc check` does, the README's release line, the files of the tree, and git as the bash asks
+  it, and writes the report. A tree whose release has no such sensor is not decided. The
+  template's sensors that need a process other than git or the network are none of them
+  ([API-git-only-sensors-under-sense](adr/API-git-only-sensors-under-sense.md)).
 - **Binary** — `src/main.rs` calls the shell and nothing else.
 - **Parity harness** — `scripts/check-parity.sh` runs the bash checks of each repository of the
   corpus, `check-docs.sh`, `check-traceability.sh`, and `check-devcontainer.sh`, from v0.10.0 on
@@ -138,13 +146,19 @@ golden path and the test pattern an agent copies from are named here.
   every rule the table maps to, and keeps the minimum and the `hook/` rules of the tree's own, which
   `check-hooks.sh` reads as well. A variant edits, deletes, or writes one path inside a copy of the
   tree, never under its `.git` ([TEST-parity-harness](adr/TEST-parity-harness.md)). Across the
-  template's trees of the corpus it compares each rule's bash function with
-  `tests/parity/releases.tsv`; a change to a helper the function calls shows in no row. Then
+  template's trees of the corpus it compares each rule's bash function, and each sensor's script,
+  with `tests/parity/releases.tsv`; a change to a helper the function calls shows in no row. Then
   `scripts/lib/hook-parity.sh` runs the scenarios of `tests/parity/hook-scenarios.sh` through git,
   with the bash hook of each of the template's trees and with the shim and `nuc`, maps the hooks'
   lines by `tests/parity/hooks.tsv`, and holds the template's hook self-test to the scenarios and
   `tests/parity/hook-cases.tsv`
-  ([TEST-hook-scenarios-on-bash-hooks](adr/TEST-hook-scenarios-on-bash-hooks.md)). A
+  ([TEST-hook-scenarios-on-bash-hooks](adr/TEST-hook-scenarios-on-bash-hooks.md)).
+  `scripts/lib/sensor-parity.sh` runs each sensor of `tests/parity/sensors.tsv` with the bash and
+  with `nuc sense` on each tree and variant whose release has it, and on the git states of
+  `tests/parity/sensor-scenarios.sh` built for each of the template's trees, and compares the
+  standard output byte for byte and the exit status; an exit that differs stands in
+  `tests/parity/sensor-exits.tsv` with its cause
+  ([API-git-only-sensors-under-sense](adr/API-git-only-sensors-under-sense.md)). A
   tree whose blob list `.githooks/nuc.blobs` pins a hook, as the template's trees do from v0.12.0
   on, carries nuc's own shims and no bash hook. The scenarios and their coverage leave it out,
   whatever release it names, and its checks are compared as any tree's. They also leave out a tree

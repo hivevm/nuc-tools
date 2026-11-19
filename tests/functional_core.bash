@@ -13,6 +13,8 @@ trim
 first_word
 # The fields `read -r a b rest` splits a line into with the default IFS.
 read_fields
+# The fields `read -r a rest` splits a line into with the default IFS.
+read_pair
 
 # `find` and `contains` of src/bash.rs are no reader: they read no byte otherwise than Rust, and
 # the names are taken by `rules::find` and a method of src/glob.rs. The test reads names only, so

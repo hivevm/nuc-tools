@@ -2,7 +2,8 @@
 # (API-command-line-with-sense), every key a shim writes (API-hook-contract-keyed-shims), and
 # every key a refusal of nuc.toml ends in (API-config-refusals-keyed). A key stays once listed: a
 # reader or a test branches on it in place of a message's wording, so no reason is renamed,
-# dropped, or given to another cause.
+# dropped, or given to another cause. Also every key `nuc sense` ends a refusal in
+# (API-git-only-sensors-under-sense).
 
 config/toml:missing
 config/toml:old
@@ -149,6 +150,14 @@ hooks/pin:unlisted
 hooks/toml:absent
 hooks/toml:minimum
 hooks/toml:rule
+sense/revision-due:file
+sense/revision-due:git
+sense/revision-due:line
+sense/revision-due:number
+sense/revision-due:overview
+sense/revision-due:release
+sense/revision-due:unreadable
+sense/unknown:name
 shell/mode:exec
 shim/merge-adr-index:missing
 shim/merge-adr-index:unknown

@@ -6,9 +6,13 @@
 //! changed reads the release the tree carries, and `rules::RELEASES` knows each release it changed
 //! at, unless its row gives the reason it checks some or every release alike. The releases a reason
 //! covers stand in a field of their own before it, "-" for every release of the row.
+//!
+//! A row `sense/<name>` is a sensor's, held the same way to the releases its report changes at.
+//! Verifies: API-git-only-sensors-under-sense
 
 use nuc::config::Version;
 use nuc::rules::{self, Input};
+use nuc::sense;
 
 const TABLE: &str = include_str!("parity/releases.tsv");
 
@@ -118,7 +122,10 @@ fn rows(table: &str) -> Vec<Row<'_>> {
 /// release that is none, a malformed reason, a reason for a release the row does not list, and a
 /// rule whose check changed at a release no reason covers that does not read the release.
 fn disagreements(table: &str, all: &[rules::Rule], known: &[Version]) -> Vec<String> {
-    let rows = rows(table);
+    let rows: Vec<Row> = rows(table)
+        .into_iter()
+        .filter(|row| !row.rule.starts_with("sense/"))
+        .collect();
     let mut found = Vec::new();
     for rule in all {
         let n = rows.iter().filter(|row| row.rule == rule.id).count();
@@ -178,6 +185,89 @@ fn disagreements(table: &str, all: &[rules::Rule], known: &[Version]) -> Vec<Str
 fn every_rule_whose_check_changed_reads_the_release() {
     let found = disagreements(TABLE, rules::ALL, rules::RELEASES);
     assert!(found.is_empty(), "{}", found.join("\n"));
+}
+
+/// What the table says against the sensors: a sensor without a row or with two, a row of no
+/// sensor, a release a reason covers that the row does not list, and a release its report changes
+/// at that is not one the sensor reports by, or the other way round.
+fn sensor_disagreements(table: &str) -> Vec<String> {
+    let rows: Vec<Row> = rows(table)
+        .into_iter()
+        .filter(|row| row.rule.starts_with("sense/"))
+        .collect();
+    let mut found = Vec::new();
+    for sensor in sense::ALL {
+        let id = format!("sense/{}", sensor.name);
+        let n = rows.iter().filter(|row| row.rule == id).count();
+        if n != 1 {
+            found.push(format!("{id}: {n} rows, not one"));
+        }
+    }
+    for row in &rows {
+        let Some(sensor) = sense::find(&row.rule["sense/".len()..]) else {
+            found.push(format!("{}: a row of no sensor of nuc", row.rule));
+            continue;
+        };
+        let covered: &[&str] = match &row.covered {
+            Covered::Releases(releases) => releases,
+            Covered::All => &row.changed,
+            Covered::Malformed(what) => {
+                found.push(format!("{}: {what}", row.rule));
+                &[]
+            }
+        };
+        for release in covered.iter().filter(|r| !row.changed.contains(r)) {
+            found.push(format!(
+                "{}: its reason covers {release}, which the row does not list",
+                row.rule
+            ));
+        }
+        let reported: Vec<Version> = row
+            .changed
+            .iter()
+            .filter(|r| !covered.contains(r))
+            .filter_map(|r| r.strip_prefix('v').and_then(Version::parse))
+            .collect();
+        for release in &reported {
+            if !sensor.changes.contains(release) {
+                found.push(format!(
+                    "{}: its report changed at v{release}, which the sensor does not report by",
+                    row.rule
+                ));
+            }
+        }
+        for release in sensor.changes {
+            if !reported.contains(release) {
+                found.push(format!(
+                    "{}: the sensor reports by v{release}, at which the row says its report did \
+                     not change",
+                    row.rule
+                ));
+            }
+        }
+    }
+    found
+}
+
+#[test]
+fn every_sensor_reports_by_the_releases_its_report_changed_at() {
+    let found = sensor_disagreements(TABLE);
+    assert!(found.is_empty(), "{}", found.join("\n"));
+}
+
+#[test]
+fn a_sensor_row_at_odds_with_the_sensor_is_named() {
+    let table = "sense/revision-due\ts\t-\tv0.6.2,v0.8.0\nsense/nothing\ts\t-\t-\n";
+    let found = sensor_disagreements(table).join("\n");
+    assert!(
+        found.contains("v0.8.0, which the sensor does not report by"),
+        "{found}"
+    );
+    assert!(found.contains("reports by v0.9.0"), "{found}");
+    assert!(
+        found.contains("sense/nothing: a row of no sensor"),
+        "{found}"
+    );
 }
 
 /// Two rules for the tables of the tests: `docs/x` reads no release, `docs/y` reads it; and the

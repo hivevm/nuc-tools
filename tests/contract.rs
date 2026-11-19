@@ -1,5 +1,8 @@
-//! The command-line contract of `nuc`, clause by clause, on fixture repositories.
-//! Verifies: API-command-line-with-sense
+//! The command-line contract of `nuc`, clause by clause, on fixture repositories, and `nuc sense`:
+//! the names it knows and refuses, `nuc.toml` judged first, `--repo` in place of the bash's
+//! `--root`, the release a sensor reports as, and the exits and keys of its refusals. The reports
+//! themselves are compared with the bash sensors by the parity harness.
+//! Verifies: API-command-line-with-sense, API-git-only-sensors-under-sense, G-9
 
 mod support;
 
@@ -364,7 +367,7 @@ fn shim_keys() -> Vec<(String, String)> {
 }
 
 /// Verifies: API-command-line-with-sense, API-hook-contract-keyed-shims, G-6
-/// Verifies: API-config-refusals-keyed
+/// Verifies: API-config-refusals-keyed, API-git-only-sensors-under-sense
 #[test]
 fn every_key_stays_once_listed_and_each_reason_is_one_lower_case_word() {
     let listed: Vec<&str> = RULE_KEYS
@@ -382,6 +385,20 @@ fn every_key_stays_once_listed_and_each_reason_is_one_lower_case_word() {
         )
         .map(|(id, reason)| (id.to_owned(), reason.to_owned()))
         .chain(shim_keys())
+        .chain(nuc::sense::ALL.iter().flat_map(|sensor| {
+            sensor
+                .reasons
+                .iter()
+                .map(move |reason| (format!("sense/{}", sensor.name), (*reason).to_owned()))
+        }))
+        .chain(std::iter::once((
+            "sense/unknown".to_owned(),
+            nuc::sense::UNKNOWN
+                .rsplit(':')
+                .next()
+                .expect("a reason")
+                .to_owned(),
+        )))
         .chain(
             nuc::config::Refusal::REASONS
                 .iter()
@@ -447,4 +464,168 @@ fn a_rule_left_to_the_bash_is_refused_as_one_this_nuc_does_not_know() {
             stderr(&output)
         );
     }
+}
+
+const LINE: &str = "**Last design revision:** none yet, due after 2 changes.";
+
+/// A project whose overview carries the line, with one commit.
+fn project(name: &str, readme: &str, overview: &str) -> Fixture {
+    let fixture = Fixture::project(name, CONFIG, readme);
+    fixture.write("docs/ARCHITECTURE.md", &format!("# A\n\n{overview}\n"));
+    fixture.commit("start");
+    fixture
+}
+
+#[test]
+fn the_sensors_left_to_the_bash_and_an_unknown_name_exit_two_with_their_key() {
+    let fixture = project("sense-unknown", README, LINE);
+    for name in [
+        "red-commits",
+        "release-notes",
+        "repo-settings",
+        "work-measures",
+        "no-such-sensor",
+    ] {
+        let output = fixture.nuc(&["sense", name]);
+        assert_eq!(code(&output), Some(2), "{name}");
+        assert_eq!(stdout(&output), "", "{name}");
+        assert!(
+            stderr(&output).trim_end().ends_with("[sense/unknown:name]"),
+            "{name}: {}",
+            stderr(&output)
+        );
+    }
+}
+
+#[test]
+fn a_nuc_toml_above_this_nuc_refuses_before_the_name_is_judged() {
+    let fixture = Fixture::project("sense-newer", "minimum = \"99.0.0\"\nrules = []\n", README);
+    for name in ["revision-due", "no-such-sensor"] {
+        let output = fixture.nuc(&["sense", name]);
+        assert_eq!(code(&output), Some(2), "{name}");
+        assert!(
+            stderr(&output).contains("requires nuc 99.0.0 or later"),
+            "{name}: {}",
+            stderr(&output)
+        );
+    }
+}
+
+#[test]
+fn repo_names_the_repository_and_root_is_refused() {
+    let fixture = project("sense-repo", README, LINE);
+    let root = fixture.root().to_str().expect("UTF-8");
+    let output = fixture.nuc_in("docs", &["sense", "revision-due", "--repo", root]);
+    assert_eq!(code(&output), Some(0), "{}", stderr(&output));
+    assert_eq!(
+        stdout(&output),
+        "Design revision sensor: 1 of 2 changes outside docs/ since the first commit — not yet due.\n"
+    );
+    let output = fixture.nuc(&["sense", "revision-due", "--root", root]);
+    assert_eq!(code(&output), Some(2));
+    assert!(stderr(&output).contains("usage:"), "{}", stderr(&output));
+}
+
+#[test]
+fn a_tree_whose_release_has_no_such_sensor_is_not_decided() {
+    let fixture = project(
+        "sense-release",
+        "# Fixture\n\n- **Template release:** v0.0.9\n",
+        LINE,
+    );
+    let output = fixture.nuc(&["sense", "revision-due"]);
+    assert_eq!(code(&output), Some(2));
+    assert_eq!(stdout(&output), "");
+    assert!(
+        stderr(&output)
+            .trim_end()
+            .ends_with("[sense/revision-due:release]"),
+        "{}",
+        stderr(&output)
+    );
+}
+
+#[test]
+fn a_sensor_that_cannot_read_its_input_exits_two_with_its_key() {
+    for (name, overview, reason) in [
+        ("sense-no-line", "No line.", "line"),
+        (
+            "sense-unreadable",
+            "**Last design revision:** soon, due after some changes.",
+            "unreadable",
+        ),
+    ] {
+        let fixture = project(name, README, overview);
+        let output = fixture.nuc(&["sense", "revision-due"]);
+        assert_eq!(code(&output), Some(2), "{name}");
+        assert_eq!(stdout(&output), "", "{name}");
+        assert!(
+            stderr(&output)
+                .trim_end()
+                .ends_with(&format!("[sense/revision-due:{reason}]")),
+            "{name}: {}",
+            stderr(&output)
+        );
+    }
+}
+
+#[test]
+fn a_due_revision_names_the_entries_its_changes_touched() {
+    let fixture = project(
+        "sense-due",
+        "# Fixture\n\n- **Template release:** v0.12.0\n",
+        LINE,
+    );
+    fixture.write("src/a.rs", "a\n");
+    fixture.commit("a");
+    fixture.write("src/b.rs", "b\n");
+    fixture.commit("b");
+    let output = fixture.nuc(&["sense", "revision-due"]);
+    assert_eq!(code(&output), Some(0), "{}", stderr(&output));
+    let text = stdout(&output);
+    assert!(
+        text.starts_with(
+            "Design revision sensor: 3 changes outside docs/ since the first commit, due after 2 — DUE:"
+        ),
+        "{text}"
+    );
+    // The ties stand in the order `sort -rn` gives them in the C locale: by the line, descending.
+    assert!(
+        text.ends_with(
+            "(NUC-design-is-revised §5).\n  - src/ (2 changes)\n  - nuc.toml (1 change)\n  - README.md (1 change)\n"
+        ),
+        "{text}"
+    );
+}
+
+/// The diffs `git log -G` reads to find the commit that set the date run no textconv driver the
+/// repository names (Q-7): the driver here would write a file. A shell script is the driver, so
+/// the test runs where one can run.
+#[cfg(unix)]
+#[test]
+fn the_anchor_runs_no_textconv_driver_of_the_repository() {
+    let fixture = Fixture::project("sense-textconv", CONFIG, README);
+    fixture.write(".gitattributes", "*.md diff=conv\n");
+    let marker = fixture.root().join(".git").join("textconv-ran");
+    let script = fixture.root().join(".git").join("conv.sh");
+    std::fs::write(
+        &script,
+        format!("#!/bin/sh\ntouch '{}'\ncat \"$1\"\n", marker.display()),
+    )
+    .expect("written");
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).expect("mode");
+    fixture.git(&[
+        "config",
+        "diff.conv.textconv",
+        script.to_str().expect("UTF-8"),
+    ]);
+    fixture.write(
+        "docs/ARCHITECTURE.md",
+        "# A\n\n**Last design revision:** 2026-01-01, due after 9 changes.\n",
+    );
+    fixture.commit("start");
+    let output = fixture.nuc(&["sense", "revision-due"]);
+    assert_eq!(code(&output), Some(0), "{}", stderr(&output));
+    assert!(!marker.exists(), "nuc sense ran the textconv driver");
 }

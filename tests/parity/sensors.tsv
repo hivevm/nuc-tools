@@ -1,0 +1,17 @@
+# The sensors nuc ports and the runs that compare them with the bash
+# (API-git-only-sensors-under-sense), read by scripts/lib/sensor-parity.sh. One row per run, three
+# fields separated by tabs: the sensor, the name after 'sensor-' of its script; the state it runs
+# on, 'tree' for each tree and variant of the corpus, or a function of
+# tests/parity/sensor-scenarios.sh that builds a fixture repository on each template tree of the
+# corpus; and its arguments, separated by spaces, or '-' for none.
+
+revision-due	tree	-
+revision-due	revision_no_history	-
+revision-due	revision_not_due	-
+revision-due	revision_due	-
+revision-due	revision_due_ordinal	-
+revision-due	revision_none_yet	-
+revision-due	revision_uncommitted	-
+revision-due	revision_no_line	-
+revision-due	revision_no_overview	-
+revision-due	revision_unreadable	-
