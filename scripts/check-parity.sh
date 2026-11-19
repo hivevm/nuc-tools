@@ -61,7 +61,7 @@
 # (TEST-template-table-cases).
 #
 # Then the hook scenarios run on the template's trees of the corpus, through
-# scripts/lib/hook-parity.sh (TEST-hook-scenario-parity): each scenario of
+# scripts/lib/hook-parity.sh (TEST-hook-scenarios-on-bash-hooks): each scenario of
 # tests/parity/hook-scenarios.sh through git, with the tree's bash hook and with the reference shim
 # and nuc, compared as that file says. A tree whose .githooks/nuc.blobs pins its hooks carries
 # nuc's shims, not bash hooks, and is left out of them.
@@ -831,7 +831,7 @@ if ((whole && ${#template_trees[@]} >= 2)); then
   done
 fi
 
-# The hook scenarios, on the template's trees of the corpus (TEST-hook-scenario-parity).
+# The hook scenarios, on the template's trees of the corpus (TEST-hook-scenarios-on-bash-hooks).
 if ((hooks && whole)); then
   tree_dirs=()
   for tree in "${template_trees[@]}"; do tree_dirs+=("${tree#* }"); done

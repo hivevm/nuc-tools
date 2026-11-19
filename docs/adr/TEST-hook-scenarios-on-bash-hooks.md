@@ -1,6 +1,6 @@
 # TEST-hook-scenarios-on-bash-hooks: A scenario harness runs each hook through git, with the bash hooks of each pinned template tree up to the bound of the hooks `nuc` ports and with the shims and `nuc`, leaves out a tree whose blob list pins its hooks, and fails on any difference, on a self-test case no scenario covers, or when no tree is left
 
-- **Status:** 🟡 proposed
+- **Status:** 🟢 accepted
 - **Date:** 2026-11-18
 - **Deciders:** Markus Brigl
 - **Applies to:** the scenarios of the hooks and the merge driver under `tests/parity/`, the map from bash hook messages to `hook/` rule IDs and notices, the trees they run on and the bound `HOOKS_PORTED` in `scripts/lib/hook-parity.sh`, their run from `scripts/check-parity.sh`, and the coverage of the template's `scripts/test-git-hooks.sh`

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Self-test of scripts/check-parity.sh.
-# Verifies: TEST-parity-harness TEST-hook-scenario-parity Q-1 Q-2
+# Verifies: TEST-parity-harness TEST-hook-scenarios-on-bash-hooks Q-1 Q-2
 #
 # The comparison cases feed the harness pairs of outputs through '--compare': pairs that differ in
 # one finding, in one exit status, by one bash message the table does not know, or by a line nuc
@@ -41,7 +41,7 @@
 # self-test case, a listed case the self-test lacks, a scenario that names a case no release has, a
 # scenario whose bash side does not end as its case expects, a notice whose field differs, a record
 # of green trees that differs, a merge driver that writes another index, no tree at all, and a
-# malformed table each fail (TEST-hook-scenario-parity). A case is held only on a tree whose
+# malformed table each fail (TEST-hook-scenarios-on-bash-hooks). A case is held only on a tree whose
 # self-test names it. A tree whose .githooks/nuc.blobs pins its hooks, nuc's shims, is left out of
 # the scenarios and their coverage, and a run with no other tree fails. The bound of the hooks nuc
 # ports is v0.11.1 by default, and the scenario of the defaults runs on the newest tree left in.

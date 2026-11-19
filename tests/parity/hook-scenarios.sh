@@ -1,5 +1,6 @@
 # shellcheck shell=bash
-# The scenarios of the hooks (TEST-hook-scenario-parity), sourced by scripts/lib/hook-parity.sh.
+# The scenarios of the hooks (TEST-hook-scenarios-on-bash-hooks), sourced by
+# scripts/lib/hook-parity.sh.
 # Each restates the setup of the template's scripts/test-git-hooks.sh for the cases it names, '|'
 # between them, and runs one git command on every tree, a case held only where the tree's own
 # self-test names it:

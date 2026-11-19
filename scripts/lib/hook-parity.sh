@@ -1,5 +1,6 @@
 # shellcheck shell=bash
-# The scenario harness of the hooks (TEST-hook-scenario-parity), sourced by scripts/check-parity.sh.
+# The scenario harness of the hooks (TEST-hook-scenarios-on-bash-hooks), sourced by
+# scripts/check-parity.sh.
 #
 # Each scenario of tests/parity/hook-scenarios.sh builds a fixture repository through git and runs
 # one git command in it, once with the bash hook of each template tree given and once with the
