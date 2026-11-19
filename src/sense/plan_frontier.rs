@@ -101,8 +101,8 @@ pub fn read(path: &str, text: &[u8]) -> Result<Ticket, String> {
     }
     let branch = format!(
         "ticket/{}",
-        path.trim_start_matches("docs/plan/")
-            .strip_suffix(".md")
+        path.strip_prefix("docs/plan/")
+            .and_then(|rest| rest.strip_suffix(".md"))
             .unwrap_or(path)
     );
     let blockers = section(text, "Blocked by").ok_or_else(|| {

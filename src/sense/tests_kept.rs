@@ -10,11 +10,12 @@ use super::Sensor;
 use crate::bash;
 use crate::config::Version;
 
-/// The sensor, from the release `nuc` ports first: the releases before read their markers alike
-/// but resolve the change otherwise.
+/// The sensor, which reports alike from the template's first release up to `BY_EXTENSION`: the
+/// releases before v0.5.0 take the root and find main's merge base in their own lines, with the
+/// same result.
 pub const SENSOR: Sensor = Sensor {
     name: "tests-kept",
-    since: Version(0, 5, 0),
+    since: Version(0, 1, 0),
     changes: &[BY_EXTENSION],
     reasons: &["ref", "git", super::RELEASE],
 };

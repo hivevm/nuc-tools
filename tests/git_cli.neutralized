@@ -5,3 +5,4 @@
 core.fsmonitor=false
 core.hooksPath=/dev/null
 log.showSignature=false
+protocol.allow=never

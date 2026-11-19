@@ -267,7 +267,7 @@ expect fail "a sensor's exit that differs where no row lists it is a difference"
 expect pass "a sensor's exit that differs where a row lists it passes" "" \
   sense revision-due v0.12.0 "$work/sense.empty" 1 "$work/sense.empty" 2
 expect fail "a listed exit of one sensor does not hold for another" "which no row of" \
-  sense plan-frontier v0.12.0 "$work/sense.empty" 1 "$work/sense.empty" 2
+  sense backlog v0.12.0 "$work/sense.empty" 1 "$work/sense.empty" 2
 
 # A record named by category: the ADR's file is its identifier.
 NAMED="$(printf '%s-%s' SEC a-b)"

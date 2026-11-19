@@ -629,3 +629,152 @@ fn the_anchor_runs_no_textconv_driver_of_the_repository() {
     assert_eq!(code(&output), Some(0), "{}", stderr(&output));
     assert!(!marker.exists(), "nuc sense ran the textconv driver");
 }
+
+/// A `--require` that fails exits 1, its references on the standard error where the bash writes
+/// them and nothing on the standard output; one that holds exits 0 with its line.
+#[test]
+fn a_failed_require_exits_one_and_one_that_holds_exits_zero() {
+    let fixture = Fixture::project("sense-require", CONFIG, README);
+    fixture.write(
+        ".github/workflows/ci.yml",
+        "jobs:\n  x:\n    steps:\n      - uses: actions/checkout@v4\n",
+    );
+    fixture.commit("workflow");
+    let output = fixture.nuc(&["sense", "action-refs", "--require", "sha"]);
+    assert_eq!(code(&output), Some(1), "{}", stderr(&output));
+    assert_eq!(stdout(&output), "");
+    assert!(
+        stderr(&output).contains("is on a major tag, not on a commit SHA"),
+        "{}",
+        stderr(&output)
+    );
+    fixture.write(
+        ".github/dependabot.yml",
+        "updates:\n  - package-ecosystem: github-actions\n",
+    );
+    let output = fixture.nuc(&["sense", "action-refs", "--require", "major-tag"]);
+    assert_eq!(code(&output), Some(0), "{}", stderr(&output));
+    assert!(
+        stdout(&output).ends_with("every reference is in the decided form.\n"),
+        "{}",
+        stdout(&output)
+    );
+    let output = fixture.nuc(&["sense", "action-refs", "--require", "tag"]);
+    assert_eq!(code(&output), Some(2));
+    assert!(
+        stderr(&output)
+            .trim_end()
+            .ends_with("[sense/action-refs:require]"),
+        "{}",
+        stderr(&output)
+    );
+}
+
+/// A sensor's argument that reads as an option is refused, as the bash of v0.10.0 on refuses it.
+#[test]
+fn a_sensor_argument_that_reads_as_an_option_is_refused() {
+    let fixture = Fixture::project(
+        "sense-option",
+        CONFIG,
+        "# Fixture\n\n- **Template release:** v0.12.0\n",
+    );
+    for args in [
+        &["sense", "tests-kept", "", "-x"][..],
+        &["sense", "tests-kept", "a", "b", "c"],
+        &["sense", "backlog", "x"],
+    ] {
+        let output = fixture.nuc(args);
+        assert_eq!(code(&output), Some(2), "{args:?}");
+        assert!(stderr(&output).contains("usage:"), "{args:?}");
+    }
+}
+
+/// A script that writes the marker where it runs, for the drivers and commands a repository's
+/// configuration names.
+#[cfg(unix)]
+fn bait(fixture: &Fixture, name: &str, marker: &std::path::Path) -> String {
+    use std::os::unix::fs::PermissionsExt;
+    let script = fixture.root().join(".git").join(name);
+    std::fs::write(
+        &script,
+        format!(
+            "#!/bin/sh\ntouch '{}'\ncat \"$1\" 2>/dev/null\nexit 0\n",
+            marker.display()
+        ),
+    )
+    .expect("written");
+    std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).expect("mode");
+    script.to_str().expect("UTF-8").to_owned()
+}
+
+/// The diffs of `tests-kept` run no textconv driver and no external diff the repository names
+/// (Q-7).
+#[cfg(unix)]
+#[test]
+fn tests_kept_runs_no_driver_of_the_repository() {
+    let fixture = Fixture::project("sense-tests-kept-bait", CONFIG, README);
+    fixture.write(".gitattributes", "*.rs diff=bait\n");
+    fixture.write("tests/a_test.rs", "fn a() {}\n");
+    fixture.commit("tests");
+    fixture.git(&["switch", "-q", "-c", "feature"]);
+    fixture.write("tests/a_test.rs", "#[ignore]\nfn a() {}\n");
+    fixture.commit("ignore");
+    let marker = fixture.root().join(".git").join("driver-ran");
+    let textconv = bait(&fixture, "textconv.sh", &marker);
+    let command = bait(&fixture, "command.sh", &marker);
+    fixture.git(&["config", "diff.bait.textconv", &textconv]);
+    fixture.git(&["config", "diff.bait.command", &command]);
+    fixture.git(&["config", "diff.external", &command]);
+    let output = fixture.nuc(&["sense", "tests-kept"]);
+    assert_eq!(code(&output), Some(0), "{}", stderr(&output));
+    assert!(
+        stdout(&output).contains("skip or focus marker added: tests/a_test.rs:1: #[ignore]"),
+        "{}",
+        stdout(&output)
+    );
+    assert!(!marker.exists(), "nuc sense tests-kept ran a driver");
+}
+
+/// A partial clone's lazy fetch of an object it lacks starts no transport, so that no command the
+/// repository's configuration names for one runs (Q-7, Q-11): `backlog` shows its entries, and
+/// falls back to their file names where the object is missing.
+#[cfg(unix)]
+#[test]
+fn a_lazy_fetch_of_a_partial_clone_runs_no_command_of_the_repository() {
+    let source = Fixture::project("sense-promisor-source", CONFIG, README);
+    source.write("docs/backlog/one.md", "# One\n");
+    source.commit("entry");
+    source.git(&["config", "uploadpack.allowFilter", "true"]);
+    let holder = Fixture::new("sense-promisor-clone");
+    let url = format!("file://{}", source.root().display());
+    let cloned = holder.git(&[
+        "clone",
+        "-q",
+        "--filter=blob:none",
+        "--no-checkout",
+        &url,
+        "pc",
+    ]);
+    assert!(
+        cloned.status.success(),
+        "{}",
+        String::from_utf8_lossy(&cloned.stderr)
+    );
+    let clone = holder.root().join("pc");
+    let git = |args: &[&str]| support::git_in(&clone, args);
+    git(&["config", "remote.origin.url", "ssh://example.invalid/x"]);
+    let marker = holder.root().join(".git").join("transport-ran");
+    let ssh = bait(&holder, "ssh.sh", &marker);
+    git(&["config", "core.sshCommand", &ssh]);
+    // The files nuc reads before the sensor, in the work tree that the clone left unchecked out.
+    std::fs::write(clone.join("nuc.toml"), CONFIG).expect("written");
+    std::fs::write(
+        clone.join("README.md"),
+        "# Fixture\n\n- **Template release:** v0.12.0\n",
+    )
+    .expect("written");
+    let repo = clone.to_str().expect("UTF-8");
+    let output = holder.nuc(&["sense", "backlog", "--repo", repo]);
+    assert!(!marker.exists(), "nuc sense backlog started a transport");
+    assert_eq!(code(&output), Some(0), "{}", stderr(&output));
+}

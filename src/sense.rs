@@ -3,6 +3,7 @@
 //! of the tree's release writes on the standard output, or a refusal. A sensor reads no file and
 //! runs no process; the shell reads, prints, and exits (API-command-line-with-sense).
 
+pub mod action_refs;
 pub mod backlog;
 pub mod change;
 pub mod plan_frontier;
@@ -29,6 +30,7 @@ pub struct Sensor {
 /// Every sensor `nuc sense` knows. The template's sensors that need a process other than git, or
 /// the network, are none of them (API-git-only-sensors-under-sense).
 pub const ALL: &[Sensor] = &[
+    action_refs::SENSOR,
     backlog::SENSOR,
     plan_frontier::SENSOR,
     revision_due::SENSOR,
@@ -109,6 +111,10 @@ mod tests {
             release(sensor, Some(Carried::Release(Version(0, 6, 1)))),
             Ok(Version(0, 6, 1))
         );
+        // The backlog comes at v0.8.0: a tree of v0.7.0 has none to report as.
+        let refusal =
+            release(&backlog::SENSOR, Some(Carried::Release(Version(0, 7, 0)))).unwrap_err();
+        assert!(refusal.to_string().ends_with("[sense/backlog:release]"));
     }
 
     #[test]

@@ -39,7 +39,7 @@ const RUN_DOCS: u8 = 4;
 const USAGE: &str = "usage: nuc check [--repo <path>] [--format text|json|sarif] | nuc hook <name> | nuc \
                      measure [--harness claude-code] [--transcripts <dir>] [--branch <name>]... \
                      [--since <time>] [--until <time>] [--breakdown] [--finding] | nuc sense <name> [--repo \
-                     <path>] | nuc explain <rule ID> | nuc --version";
+                     <path>] [<argument>...] | nuc explain <rule ID> | nuc --version";
 
 /// The entry point of the binary: runs the command named on the command line and returns the exit
 /// code the process ends with. A panic is an internal error: it names its cause and where it arose,

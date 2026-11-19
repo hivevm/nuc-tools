@@ -9,10 +9,12 @@ use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
 use crate::config;
-use crate::sense::{self, Refusal, backlog, change, plan_frontier, revision_due, tests_kept};
+use crate::sense::{
+    self, Refusal, action_refs, backlog, change, plan_frontier, revision_due, tests_kept,
+};
 
 use super::tree::Tree;
-use super::{PASSED, git};
+use super::{FOUND, PASSED, git};
 
 /// `nuc sense <name> [--repo <path>] [<argument>...]`: the report of the sensor on the repository
 /// that contains `path`, or the directory `nuc` runs in, given the arguments the bash sensor takes.
@@ -23,8 +25,14 @@ pub(super) fn run(name: &str, options: &[&str]) -> Result<u8, String> {
         ["--repo", path, rest @ ..] => (Some(PathBuf::from(path)), rest),
         rest => (None, rest),
     };
-    // `--repo` names the repository, as for every command; the bash's `--root` is refused.
-    if args.iter().any(|arg| *arg == "--root" || *arg == "--repo") {
+    // `--repo` names the repository, as for every command; the bash's `--root` is refused, and so
+    // is every other argument that reads as an option but `action-refs`' `--require`, as the bash
+    // of v0.10.0 on refuses them.
+    let flag = |(at, arg): (usize, &&str)| {
+        arg.starts_with('-')
+            && !(name == action_refs::SENSOR.name && at == 0 && *arg == "--require")
+    };
+    if args.iter().enumerate().any(flag) {
         return Err(super::usage());
     }
     let start = match repo {
@@ -53,19 +61,94 @@ pub(super) fn run(name: &str, options: &[&str]) -> Result<u8, String> {
     };
     let carried = super::template_release(&tree.root)?;
     let release = sense::release(sensor, carried).map_err(|refusal| refusal.to_string())?;
+    if sensor.name == action_refs::SENSOR.name {
+        let require = match args {
+            [] => None,
+            ["--require", value] => Some(action_refs::Form::parse(value).ok_or_else(|| {
+                Refusal {
+                    sensor: sensor.name,
+                    reason: "require",
+                    message: format!("'--require' takes 'major-tag' or 'sha', not '{value}'"),
+                }
+                .to_string()
+            })?),
+            _ => return Err(super::usage()),
+        };
+        let outcome = action_refs(&tree, require).map_err(|refusal| refusal.to_string())?;
+        write_report(&outcome.report)?;
+        return Ok(match outcome.failed {
+            Some(failed) => {
+                // The references outside the decided form stand on the standard error, where the
+                // bash writes them, and the run exits 1, as a check with findings does.
+                let _ = io::stderr().write_all(&failed);
+                FOUND
+            }
+            None => PASSED,
+        });
+    }
     let report = match (sensor.name, args) {
         ("backlog", []) => backlog(&tree),
         ("plan-frontier", []) => plan_frontier(&tree),
         ("revision-due", []) => revision_due(&tree, release),
-        ("tests-kept", [] | [_] | [_, _]) => tests_kept(&tree, release, args.first(), args.get(1)),
+        ("tests-kept", [] | [_] | [_, _]) => {
+            tests_kept(&tree, release, args.first().copied(), args.get(1).copied())
+        }
         _ => return Err(super::usage()),
     }
     .map_err(|refusal| refusal.to_string())?;
-    io::stdout()
-        .write_all(&report)
-        .and_then(|()| io::stdout().flush())
-        .map_err(|e| format!("the report could not be written: {e}"))?;
+    write_report(&report)?;
     Ok(PASSED)
+}
+
+/// The report written on the standard output.
+fn write_report(report: &[u8]) -> Result<(), String> {
+    io::stdout()
+        .write_all(report)
+        .and_then(|()| io::stdout().flush())
+        .map_err(|e| format!("the report could not be written: {e}"))
+}
+
+/// What `action-refs` needs: the workflows as the bash's globs list them, `*.yml` and then
+/// `*.yaml`, each in the order of its bytes, with their texts; and `.github/dependabot.yml` where
+/// it is a file. An entry the glob lists that is no file, such as a directory, has no line to read.
+fn action_refs(
+    tree: &Tree,
+    require: Option<action_refs::Form>,
+) -> Result<action_refs::Outcome, Refusal> {
+    let sensor = action_refs::SENSOR.name;
+    let refuse = |message: String| Refusal {
+        sensor,
+        reason: "file",
+        message: unwrapped(message),
+    };
+    let dir = tree.root.join(action_refs::WORKFLOWS);
+    let names = tree.list(&dir).map_err(refuse)?;
+    let mut workflows = Vec::new();
+    for suffix in [".yml", ".yaml"] {
+        for name in &names {
+            if !name.starts_with('.') && name.ends_with(suffix) {
+                workflows.push(name.clone());
+            }
+        }
+    }
+    if workflows.is_empty() {
+        return Ok(action_refs::Outcome {
+            report: action_refs::no_workflow(),
+            failed: None,
+        });
+    }
+    // The bytes as grep reads them; a file with a NUL byte, which grep reads as binary, is not
+    // decided.
+    let read = |relative: &str| tree.read_file(relative).map_err(refuse);
+    let mut count = action_refs::Count::default();
+    for name in &workflows {
+        let relative = format!("{}/{name}", action_refs::WORKFLOWS);
+        if let Some(text) = read(&relative)? {
+            action_refs::read(&mut count, &relative, &text, require);
+        }
+    }
+    let keeps = action_refs::keeps_actions(read(action_refs::DEPENDABOT)?.as_deref());
+    Ok(action_refs::outcome(count, require, keeps))
 }
 
 /// What `revision-due` needs: the overview where it is a file, the commit that set the date, the
@@ -221,19 +304,13 @@ fn git_refusal(sensor: &'static str) -> impl Fn(String) -> Refusal + Copy {
 fn tests_kept(
     tree: &Tree,
     release: config::Version,
-    base: Option<&&str>,
-    head: Option<&&str>,
+    base: Option<&str>,
+    head: Option<&str>,
 ) -> Result<Vec<u8>, Refusal> {
     let root = &tree.root;
     let sensor = tests_kept::SENSOR.name;
     let undecided = git_refusal(sensor);
-    let (base, head) = match resolve_change(
-        root,
-        sensor,
-        tests_kept::LABEL,
-        base.copied(),
-        head.copied(),
-    )? {
+    let (base, head) = match resolve_change(root, sensor, tests_kept::LABEL, base, head)? {
         Ok(change) => change,
         Err(report) => return Ok(report),
     };
@@ -310,18 +387,7 @@ fn lines_of(
 fn backlog(tree: &Tree) -> Result<Vec<u8>, Refusal> {
     let root = &tree.root;
     let undecided = git_refusal(backlog::SENSOR.name);
-    let mut main = None;
-    for candidate in backlog::MAINS {
-        let commit = format!("{candidate}^{{commit}}");
-        if git::probe(root, &["rev-parse", "-q", "--verify", &commit])
-            .map_err(undecided)?
-            .is_some()
-        {
-            main = Some(candidate);
-            break;
-        }
-    }
-    let Some(main) = main else {
+    let Some(main) = first_commit(root, &backlog::MAINS).map_err(undecided)? else {
         return Ok(backlog::no_commit());
     };
     let dir = format!("{}/", backlog::DIR);
@@ -329,7 +395,7 @@ fn backlog(tree: &Tree) -> Result<Vec<u8>, Refusal> {
         let mut object = reference.to_vec();
         object.push(b':');
         object.extend_from_slice(path);
-        let object = String::from_utf8_lossy(&object).into_owned();
+        let object = spelled(&object)?;
         let (code, out) = git::status_and_output(root, &["show", &object]).map_err(undecided)?;
         Ok((code == 0).then_some(out))
     };
@@ -360,19 +426,10 @@ fn backlog(tree: &Tree) -> Result<Vec<u8>, Refusal> {
         if branch == b"main" {
             continue;
         }
-        let name = String::from_utf8_lossy(&branch).into_owned();
-        let (merged, _) =
-            git::status_and_output(root, &["merge-base", "--is-ancestor", &name, main])
-                .map_err(undecided)?;
-        if merged == 0 {
+        let name = spelled(&branch)?;
+        let Some(base) = unmerged_base(root, &name, main).map_err(undecided)? else {
             continue;
-        }
-        let (code, base) =
-            git::status_and_output(root, &["merge-base", main, &name]).map_err(undecided)?;
-        if code != 0 {
-            continue;
-        }
-        let base = String::from_utf8_lossy(&base).trim_end().to_owned();
+        };
         let added = lines_of(
             root,
             &[
@@ -401,6 +458,41 @@ fn backlog(tree: &Tree) -> Result<Vec<u8>, Refusal> {
         }
     }
     Ok(backlog::report(main, &entries))
+}
+
+/// The first of the candidates that names a commit, as the bash tries them.
+fn first_commit(root: &Path, candidates: &[&'static str]) -> Result<Option<&'static str>, String> {
+    for candidate in candidates {
+        let commit = format!("{candidate}^{{commit}}");
+        if git::probe(root, &["rev-parse", "-q", "--verify", &commit])?.is_some() {
+            return Ok(Some(candidate));
+        }
+    }
+    Ok(None)
+}
+
+/// The merge base of the branch with main, where main does not hold the branch and git finds one.
+fn unmerged_base(root: &Path, branch: &str, main: &str) -> Result<Option<String>, String> {
+    let (merged, _) = git::status_and_output(root, &["merge-base", "--is-ancestor", branch, main])?;
+    if merged == 0 {
+        return Ok(None);
+    }
+    let (code, base) = git::status_and_output(root, &["merge-base", main, branch])?;
+    Ok((code == 0).then(|| String::from_utf8_lossy(&base).trim_end().to_owned()))
+}
+
+/// The bytes as text, where they are UTF-8: a branch or a path git names that is none is not
+/// decided, since nuc hands git its arguments as text, and a name it would spell otherwise names
+/// another object.
+fn spelled(bytes: &[u8]) -> Result<String, Refusal> {
+    String::from_utf8(bytes.to_vec()).map_err(|_| Refusal {
+        sensor: backlog::SENSOR.name,
+        reason: "name",
+        message: format!(
+            "'{}': a name git gives that is no UTF-8, which nuc cannot hand back to git",
+            String::from_utf8_lossy(bytes)
+        ),
+    })
 }
 
 /// What `plan-frontier` needs: the tickets as `find` lists them, with their texts; the ticket

@@ -20,18 +20,23 @@ const SET: &[(&str, &str)] = &[
 ];
 
 /// The configuration keys that would make a git command `nuc` runs start another command, set on
-/// every call. The hooks path is the null device, which can hold no hook.
+/// every call. The hooks path is the null device, which can hold no hook. No transport is allowed,
+/// so that a partial clone's lazy fetch of a missing object, which `show`, `diff`, and `cat-file`
+/// would start, runs no command the repository's configuration names, such as `core.sshCommand`
+/// (Q-7, Q-11).
 #[cfg(not(windows))]
 pub const NEUTRALIZED: &[&str] = &[
     "core.fsmonitor=false",
     "core.hooksPath=/dev/null",
     "log.showSignature=false",
+    "protocol.allow=never",
 ];
 #[cfg(windows)]
 pub const NEUTRALIZED: &[&str] = &[
     "core.fsmonitor=false",
     "core.hooksPath=NUL",
     "log.showSignature=false",
+    "protocol.allow=never",
 ];
 
 /// The git command for `args` on the repository at `repo`, ready to spawn.

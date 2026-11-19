@@ -32,3 +32,16 @@ plan-frontier	plan_none	-
 plan-frontier	plan_tickets	-
 plan-frontier	plan_odd	-
 plan-frontier	plan_no_mode	-
+action-refs	tree	-
+action-refs	tree	--require sha
+action-refs	refs_none	-
+action-refs	refs_none	--require major-tag
+action-refs	refs_mixed	-
+action-refs	refs_mixed	--require sha
+action-refs	refs_mixed	--require major-tag
+action-refs	refs_major	-
+action-refs	refs_major	--require major-tag
+action-refs	refs_major	--require sha
+action-refs	refs_sha	--require major-tag
+action-refs	refs_sha	--require sha
+action-refs	refs_sha	--require tag

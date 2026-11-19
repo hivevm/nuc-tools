@@ -11,8 +11,9 @@
 # bash ignores.
 #
 # Both sides run with the environment cleared to PATH, HOME, and LC_ALL=C: the tree's bash sensor,
-# given the fixture as its root as the release reads it, '--root <dir>' from scripts/lib/root.sh
-# on and the first argument before; and 'nuc sense <name> --repo <dir>'. Compared: the standard
+# given the fixture as its root as the release reads it, '--root <dir>' before the arguments where
+# the sensor calls enter_root, and the last argument after them before; and
+# 'nuc sense <name> --repo <dir>' with the same arguments. Compared: the standard
 # output, byte for byte, and the exit status. An exit that differs is a difference unless a row of
 # tests/parity/sensor-exits.tsv lists it, by the sensor, the releases it holds on, the two exits,
 # and the cause. The standard error is not compared: its wording is each side's own.
@@ -96,23 +97,21 @@ sensor_compare() {
   fi
 }
 
-# sensor_root_args <script> <dir> — the arguments that make the bash sensor read the dir: --root
-# from the release whose sensors read it through scripts/lib/root.sh, the first argument before.
-sensor_root_args() {
-  if grep -q 'enter_root' "$1"; then
-    printf '%s\n' --root "$2"
-  else
-    printf '%s\n' "$2"
-  fi
-}
+# sensor_takes_root <script> — whether the bash sensor reads its root from '--root <dir>' before
+# its arguments, as enter_root does; else it reads it from its last argument.
+sensor_takes_root() { grep -q 'enter_root' "$1"; }
 
 # sensor_pair <nuc> <label> <script> <sensor> <args> <release> <dir> <out prefix> — run both sides
 # on the dir and compare them.
 sensor_pair() {
   local nuc="$1" label="$2" script="$3" sensor="$4" args=() root_args=() brc nrc
   [[ "$5" == - ]] || read -r -a args <<< "$5"
-  mapfile -t root_args < <(sensor_root_args "$script" "$7")
-  env -i PATH="$PATH" HOME="$HOME" LC_ALL=C bash "$script" "${root_args[@]}" "${args[@]}" \
+  if sensor_takes_root "$script"; then
+    root_args=(--root "$7" "${args[@]}")
+  else
+    root_args=("${args[@]}" "$7")
+  fi
+  env -i PATH="$PATH" HOME="$HOME" LC_ALL=C bash "$script" "${root_args[@]}" \
     > "$8.sb" 2> /dev/null < /dev/null
   brc=$?
   env -i PATH="$PATH" HOME="$HOME" LC_ALL=C "$nuc" sense "$sensor" --repo "$7" "${args[@]}" \

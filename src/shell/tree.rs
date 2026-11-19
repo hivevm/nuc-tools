@@ -627,7 +627,7 @@ impl Tree {
     /// The names of the entries of a directory of the repository, sorted by their bytes as a glob
     /// in the C locale sorts them; empty when it is no directory. A directory that resolves
     /// outside the repository is not listed, and a name that is no UTF-8 is not decided.
-    fn list(&self, dir: &Path) -> Result<Vec<String>, String> {
+    pub(super) fn list(&self, dir: &Path) -> Result<Vec<String>, String> {
         let real = match self.resolve(dir, || outside(dir))? {
             Ok(real) => real,
             Err(e) if e.kind() == ErrorKind::NotFound => return Ok(Vec::new()),

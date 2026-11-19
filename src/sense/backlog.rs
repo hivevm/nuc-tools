@@ -12,7 +12,7 @@ pub const SENSOR: Sensor = Sensor {
     name: "backlog",
     since: Version(0, 8, 0),
     changes: &[],
-    reasons: &["git", super::RELEASE],
+    reasons: &["git", "name", super::RELEASE],
 };
 
 /// The directory of the backlog.

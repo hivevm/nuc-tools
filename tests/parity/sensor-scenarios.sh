@@ -210,3 +210,28 @@ plan_no_mode() {
   mkdir -p "$1/docs/plan/s"
   printf '## Blocked by\n\nNone\n' > "$1/docs/plan/s/01-a.md"
 }
+
+# workflow <dir> <name> <text> — a workflow file, not committed.
+workflow() {
+  mkdir -p "$1/.github/workflows"
+  printf '%s\n' "$3" > "$1/.github/workflows/$2"
+}
+
+refs_none() { change "$1" README.md start; }
+
+# Every form and every finding, in a .yml and a .yaml, a hidden workflow and a directory the glob
+# lists, a comment, quotes, a carriage return, and a byte that is no UTF-8.
+refs_mixed() {
+  workflow "$1" b.yml $'jobs:\n  x:\n    steps:\n      - uses: actions/checkout@v4\n      - uses: "a/b@1.2.3"  # pinned\n      - uses: c/d@0123456789abcdef0123456789abcdef01234567\n      - uses: e/f@main\n      - uses: ./local\n      - uses: docker://alpine\n      - uses: docker://host:5000/img:1\n      - uses: g/h\n      # - uses: i/j@main\n      - uses: \'k/l@v2\'\r\n        run: |\n          uses: m/n@\xff\n'
+  workflow "$1" a.yaml $'steps:\n  - uses: o/p@v1#x'
+  workflow "$1" .hidden.yml $'- uses: q/r@main'
+  mkdir -p "$1/.github/workflows/dir.yml"
+}
+
+# One form alone, a major tag, with a Dependabot entry for the actions.
+refs_major() {
+  workflow "$1" ci.yml $'- uses: a/b@v4\n- uses: c/d@3'
+  printf 'version: 2\nupdates:\n  - package-ecosystem: "github-actions"\n' > "$1/.github/dependabot.yml"
+}
+
+refs_sha() { workflow "$1" ci.yml $'- uses: a/b@0123456789abcdef0123456789abcdef01234567'; }
