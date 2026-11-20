@@ -1,6 +1,6 @@
 # SEC-repository-commands-neutralized-or-refused: nuc neutralizes the commands a repository's configuration names for git, and where that changes its answer, takes the side that never passes or is not decided
 
-- **Status:** 🟡 proposed
+- **Status:** 🟢 accepted
 - **Date:** 2026-11-20
 - **Deciders:** Markus Brigl
 - **Applies to:** every git call of `src/shell/` that reads the working tree, a diff, or a submodule, or hashes a file, the drivers and flags it neutralizes, the refusals `:filter` and `:submodule`, the reading of the caller's environment for git configuration, and `nuc hook pre-push`'s test of a clean tree
