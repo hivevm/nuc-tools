@@ -16,7 +16,7 @@ use crate::config::Version;
 pub const SENSOR: Sensor = Sensor {
     name: "tests-kept",
     since: Version(0, 1, 0),
-    changes: &[BY_EXTENSION],
+    changes: &[BY_EXTENSION, ARGUMENTS],
     reasons: &["ref", "git", super::RELEASE],
 };
 
@@ -27,6 +27,10 @@ pub const LABEL: &str = "Tests kept sensor";
 /// diff names its paths unquoted, `core.quotePath=false`; and a tab git ends a path with is no part
 /// of it.
 pub const BY_EXTENSION: Version = Version(0, 6, 2);
+
+/// The release from which an argument past the base and the head is refused, where the releases
+/// before ignore it.
+pub const ARGUMENTS: Version = Version(0, 10, 0);
 
 /// The paths the diff of the markers leaves out: the sensor, its self-test, and the catalogue entry
 /// whose table names the markers, which carry them as data.

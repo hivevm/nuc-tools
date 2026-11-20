@@ -13,12 +13,11 @@ use crate::adr;
 use crate::bash::{awk_lines, contains, find, is_space};
 use crate::config::Version;
 
-/// The sensor, which reports from v0.8.0, the release that brings it. v0.10.0 changes only how the
-/// script takes its root and refuses an argument, which leaves the report as it was.
+/// The sensor, which reports from v0.8.0, the release that brings it.
 pub const SENSOR: Sensor = Sensor {
     name: "plain-rules",
     since: Version(0, 8, 0),
-    changes: &[HELD, REQUIRE, KEYED, TOKENS],
+    changes: &[HELD, REQUIRE, KEYED, ARGUMENTS, TOKENS],
     reasons: &["file", "filter", "git", "name", "ref", super::RELEASE],
 };
 
@@ -39,6 +38,10 @@ pub const REQUIRE: Version = Version(0, 9, 0);
 /// The release from which each finding ends in its key, and a token without a letter or a digit
 /// ends a sentence wherever it holds a stop.
 pub const KEYED: Version = Version(0, 9, 1);
+
+/// The release from which an argument past the base and the head is refused, where the releases
+/// before ignore it.
+pub const ARGUMENTS: Version = Version(0, 10, 0);
 
 /// The release from which an ADR identifier of a category the index defines reads as one token.
 pub const TOKENS: Version = Version(0, 11, 1);

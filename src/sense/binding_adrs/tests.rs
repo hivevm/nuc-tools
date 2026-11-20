@@ -61,13 +61,21 @@ fn the_arguments_read_as_the_bash_of_each_release_reads_them() {
     .unwrap();
     assert_eq!(named.named, ["src/x.rs", "--x"]);
     assert!(named.sections);
-    // Beside `--path`, a base is ignored before v0.10.0 and refused from it.
-    assert!(parse(&["--path", "a", "HEAD", "-x"], Version(0, 9, 1)).is_some());
+    // Beside `--path`, a base is ignored before v0.10.0 and refused from it; a third positional
+    // argument likewise.
+    let v0_9_1 = Version(0, 9, 1);
+    let named = parse(&["--path", "a", "HEAD"], v0_9_1).unwrap();
+    assert_eq!((named.named, named.base), (vec!["a"], None));
     assert_eq!(parse(&["--path", "a", "HEAD"], RULE_KEYS), None);
     assert_eq!(parse(&["a", "b", "c"], RULE_KEYS), None);
-    assert!(parse(&["a", "b", "c"], Version(0, 9, 1)).is_some());
-    // An argument that reads as an option, and `--root` anywhere, are refused.
-    assert_eq!(parse(&["-x"], V0_8), None);
+    assert!(parse(&["a", "b", "c"], v0_9_1).is_some());
+    // An argument that reads as an option is refused on every release, wherever it stands, and
+    // so is `--root`.
+    for release in [V0_8, v0_9_1, RULE_KEYS] {
+        assert_eq!(parse(&["-x"], release), None);
+        assert_eq!(parse(&["a", "b", "--x"], release), None);
+        assert_eq!(parse(&["--path", "a", "HEAD", "-x"], release), None);
+    }
     assert_eq!(parse(&["--path", "a", "--root", "b"], V0_8), None);
     // `--root` as the value of `--path` names no path.
     for release in [OPTIONS, NEWEST] {

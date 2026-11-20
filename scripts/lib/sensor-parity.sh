@@ -12,11 +12,11 @@
 # git; it runs on each template tree of the corpus whose scripts/ holds the sensor, the fixture's
 # README carrying the tree's release line, which the bash ignores.
 #
-# Both sides run with the environment cleared to PATH, HOME, and LC_ALL=C: the tree's bash sensor,
-# given the fixture as its root as the release reads it, '--root <dir>' before the arguments where
-# the sensor calls enter_root, and the last argument after them before; and
-# 'nuc sense <name> --repo <dir>' with the same arguments. Compared: the standard
-# output, byte for byte, and the exit status. An exit that differs is a difference unless a row of
+# Both sides run in the fixture or tree, with the environment cleared to PATH, HOME, and LC_ALL=C:
+# the tree's bash sensor, given the fixture as its root as the release reads it, '--root <dir>'
+# before the arguments where the sensor calls enter_root, and the last argument after them before;
+# and 'nuc sense <name> --repo <dir>' with the same arguments. Compared: the standard output, byte
+# for byte, and the exit status. An exit that differs is a difference unless a row of
 # tests/parity/sensor-exits.tsv lists it, by the sensor, the releases it holds on, the two exits,
 # and the cause. The standard error is not compared: its wording is each side's own.
 #
@@ -107,18 +107,23 @@ sensor_takes_root() { grep -q 'enter_root' "$1"; }
 # sensor_pair <nuc> <label> <script> <sensor> <args> <release> <dir> <out prefix> — run both sides
 # on the dir and compare them.
 sensor_pair() {
-  local nuc="$1" label="$2" script="$3" sensor="$4" args=() root_args=() brc nrc
+  local nuc="$1" label="$2" script="$3" sensor="$4" dir args=() root_args=() brc nrc
   [[ "$5" == - ]] || read -r -a args <<< "$5"
+  # Both sides run in the dir, so that a path an argument names from where the sensor runs, as
+  # --hand-off's, names the same file.
+  dir="$(cd "$7" && pwd)" || return 1
+  [[ "$nuc" == */* && "$nuc" != /* ]] && nuc="$PWD/$nuc"
+  [[ "$script" == /* ]] || script="$PWD/$script"
   if sensor_takes_root "$script"; then
-    root_args=(--root "$7" "${args[@]}")
+    root_args=(--root "$dir" "${args[@]}")
   else
-    root_args=("${args[@]}" "$7")
+    root_args=("${args[@]}" "$dir")
   fi
-  env -i PATH="$PATH" HOME="$HOME" LC_ALL=C bash "$script" "${root_args[@]}" \
+  (cd "$dir" && exec env -i PATH="$PATH" HOME="$HOME" LC_ALL=C bash "$script" "${root_args[@]}") \
     > "$8.sb" 2> /dev/null < /dev/null
   brc=$?
-  env -i PATH="$PATH" HOME="$HOME" LC_ALL=C "$nuc" sense "$sensor" --repo "$7" "${args[@]}" \
-    > "$8.sn" 2> "$8.sn.err" < /dev/null
+  (cd "$dir" && exec env -i PATH="$PATH" HOME="$HOME" LC_ALL=C "$nuc" sense "$sensor" --repo "$dir" \
+    "${args[@]}") > "$8.sn" 2> "$8.sn.err" < /dev/null
   nrc=$?
   sensor_compare "$label" "$sensor" "${6:--}" "$8.sb" "$brc" "$8.sn" "$nrc"
 }

@@ -18,6 +18,7 @@ revision-due	revision_unreadable	-
 tests-kept	tree	-
 tests-kept	tests_kept_branch	-
 tests-kept	tests_kept_named	base HEAD
+tests-kept	tests_kept_named	base HEAD extra
 tests-kept	tests_kept_named	0000000000000000000000000000000000000000 feature
 tests-kept	tests_kept_same	-
 tests-kept	tests_kept_no_main	-
@@ -51,6 +52,7 @@ plain-rules	tree	--require HEAD
 plain-rules	plain_branch	main
 plain-rules	plain_branch	--require main
 plain-rules	plain_branch	main work
+plain-rules	plain_branch	main work extra
 plain-rules	plain_branch	--require 0000000000000000000000000000000000000000 work
 plain-rules	plain_rename	main
 plain-rules	plain_rename	--require main
@@ -71,6 +73,8 @@ binding-adrs	tree	--sections HEAD
 binding-adrs	tree	--sections --path docs/ --path scripts/check-docs.sh --path src/x.rs
 binding-adrs	bind_branch	main
 binding-adrs	bind_branch	main work
+binding-adrs	bind_branch	main work extra
+binding-adrs	bind_branch	--path src/app.sh HEAD extra
 binding-adrs	bind_branch	--sections main
 binding-adrs	bind_branch	--sections main work
 binding-adrs	bind_branch	0000000000000000000000000000000000000000 work
@@ -92,3 +96,39 @@ binding-adrs	bind_filtered	main
 binding-adrs	bind_gitlink	-
 binding-adrs	bind_gitlink	--sections main
 binding-adrs	bind_gitlink_ignored	-
+review-binding	tree	-
+review-binding	tree	--hand-off README.md
+review-binding	tree	HEAD HEAD
+review-binding	tree	--hand-off README.md HEAD HEAD
+review-binding	rb_branch	-
+review-binding	rb_branch	--hand-off notes/at-head.md
+review-binding	rb_branch	--hand-off notes/earlier.md
+review-binding	rb_branch	--hand-off notes/upper.md
+review-binding	rb_branch	--hand-off notes/crlf.md
+review-binding	rb_branch	--hand-off notes/name.md
+review-binding	rb_branch	--hand-off notes/base.md
+review-binding	rb_branch	--hand-off notes/none.md
+review-binding	rb_branch	--hand-off notes/bogus.md
+review-binding	rb_branch	--hand-off notes/first.md
+review-binding	rb_branch	--hand-off notes/ref.md
+review-binding	rb_branch	--hand-off notes/at-head.md main work
+review-binding	rb_branch	main work extra
+review-binding	rb_branch	--hand-off notes/earlier.md base HEAD extra
+review-binding	rb_branch	0000000000000000000000000000000000000000 work
+review-binding	rb_branch	no-such-ref
+review-binding	rb_branch	--hand-off notes/missing.md
+review-binding	rb_branch	--hand-off notes
+review-binding	rb_branch	--hand-off
+review-binding	rb_branch	main --hand-off notes/at-head.md
+review-binding	rb_merges	-
+review-binding	rb_merges	--hand-off notes/at-head.md
+review-binding	rb_merges	--hand-off notes/earlier.md
+review-binding	rb_merges	--hand-off notes/none.md
+review-binding	rb_merges	base work
+review-binding	rb_orphan	main orphan
+review-binding	rb_orphan	--hand-off notes/root.md main orphan
+review-binding	rb_none	-
+review-binding	rb_none	--hand-off notes/h.md
+review-binding	rb_no_main	-
+review-binding	rb_no_main	--hand-off notes/h.md
+review-binding	rb_no_main	--hand-off notes/missing.md

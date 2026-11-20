@@ -553,3 +553,133 @@ bind_gitlink_staged() {
 # the repository's setting has git read it.
 bind_gitlink() { bind_gitlink_staged "$1"; }
 bind_gitlink_ignored() { bind_gitlink_staged "$1" all; }
+
+# rb_note <dir> <name> <text> — a hand-off under notes/, which no commit carries, its text as
+# printf's %b reads it.
+rb_note() {
+  mkdir -p "$1/notes"
+  printf '%b\n' "$3" > "$1/notes/$2"
+}
+
+# rb_adr <dir> <name> <status> <date> <body> — an ADR with a header and a body of one paragraph.
+rb_adr() {
+  mkdir -p "$1/docs/adr"
+  printf '# %s: Fixture\n\n- **Status:** %s\n- **Date:** %s\n- **Deciders:** t\n\n%s\n' \
+    "${2%.md}" "$3" "$4" "$5" > "$1/docs/adr/$2"
+}
+
+# rb_commit <dir> <message> — commit everything the working tree changed.
+rb_commit() {
+  sp_git "$1" add -A
+  sp_git "$1" commit -q -m "$2"
+}
+
+# rb_main <dir> — main with an ADR of each record, numbered and named by category, and the index,
+# tagged base; then the branch work, notes/ left untracked.
+rb_main() {
+  printf 'notes/\n' >> "$1/.git/info/exclude"
+  rb_adr "$1" 0001-rule.md "🟡 proposed" 2026-01-01 "We will do it."
+  rb_adr "$1" FIX-rule.md "🟡 proposed" 2026-01-01 "We will do it."
+  printf '# ADRs\n\n| ADR | Title |\n|---|---|\n' > "$1/docs/adr/README.md"
+  rb_commit "$1" base
+  sp_git "$1" tag base
+  sp_git "$1" switch -q -c work
+}
+
+# rb_branch <dir> — on the branch, linearly: the text of both ADRs with five other paths; their
+# Status and Date lines with code; the index with code; ADRs whose names git quotes or awk splits,
+# with paths git quotes; an ADR's text alone; and a fix. The hand-offs name the head in the ways a
+# line may, an earlier commit with a comma after it, and what binds nothing, a tag at the head named
+# like a hash, which git prefers to the object, among it.
+rb_branch() {
+  local d="$1" i head
+  rb_main "$d"
+  rb_adr "$d" 0001-rule.md "🟡 proposed" 2026-01-01 "We will do it, narrowed."
+  rb_adr "$d" FIX-rule.md "🟡 proposed" 2026-01-01 "We will do it, narrowed."
+  mkdir -p "$d/src"
+  for i in a b c d e; do printf '%s\n' "$i" > "$d/src/$i.py"; done
+  rb_commit "$d" "narrow and implement"
+  rb_adr "$d" 0001-rule.md "🟢 accepted" 2026-02-01 "We will do it, narrowed."
+  rb_adr "$d" FIX-rule.md "🟢 accepted" 2026-02-01 "We will do it, narrowed."
+  printf 'more\n' >> "$d/src/a.py"
+  rb_commit "$d" "accept"
+  printf '| [0001](0001-rule.md) | Rule |\n' >> "$d/docs/adr/README.md"
+  printf 'more\n' >> "$d/src/b.py"
+  rb_commit "$d" "index"
+  rb_adr "$d" "0002-a b.md" "🟡 proposed" 2026-01-01 "Spaced."
+  rb_adr "$d" "FIX-a b.md" "🟡 proposed" 2026-01-01 "Spaced."
+  rb_adr "$d" "0003-ü.md" "🟡 proposed" 2026-01-01 "Umlaut."
+  rb_adr "$d" "FIX-ü.md" "🟡 proposed" 2026-01-01 "Umlaut."
+  printf 'x\n' > "$d/src/ü.py"
+  printf 'x\n' > "$d/src/tab	name.py"
+  rb_commit "$d" "names — über"
+  rb_adr "$d" FIX-rule.md "🟢 accepted" 2026-02-01 "We will do it, reworded."
+  rb_commit "$d" "reword"
+  printf 'fix\n' >> "$d/src/c.py"
+  rb_commit "$d" "fix after review"
+  head="$(sp_git "$d" rev-parse --short HEAD)"
+  rb_note "$d" at-head.md "## Review\n\n- Reviewed at: \`$head\` (the head)"
+  rb_note "$d" earlier.md "* Reviewed at: $(sp_git "$d" rev-parse HEAD~2), before the fixes"
+  rb_note "$d" upper.md "Reviewed at: $(sp_git "$d" rev-parse HEAD | cut -c1-12 | tr a-f A-F)"
+  rb_note "$d" crlf.md "Summary.\r\n\r\nReviewed at:\t$head\r"
+  rb_note "$d" name.md "Reviewed at: work"
+  rb_note "$d" base.md "Reviewed at: $(sp_git "$d" rev-parse --short base)"
+  rb_note "$d" none.md "No review line.\nReviewed at:\nReviewed at: \`\`"
+  rb_note "$d" bogus.md "Reviewed at: 0123456789abc"
+  rb_note "$d" first.md "- Reviewed at: HEAD\n- Reviewed at: $head"
+  sp_git "$d" tag abcdef0
+  rb_note "$d" ref.md "Reviewed at: abcdef0"
+}
+
+# rb_merges <dir> — on the branch: a topic merged with a review at its tip, one reviewed before its
+# last commit, which mixes ADR text with code, one without a line, a commit outside a merge, and
+# main, which gained a commit, taken up by a merge.
+rb_merges() {
+  local d="$1"
+  rb_main "$d"
+  sp_git "$d" switch -q -c topic1
+  change "$d" src/one.py one
+  change "$d" src/one.py two
+  sp_git "$d" switch -q work
+  sp_git "$d" merge -q --no-ff -m "Merge topic1" \
+    -m "## Review" -m "- Reviewed at: \`$(sp_git "$d" rev-parse --short topic1)\`" topic1
+  sp_git "$d" switch -q -c topic2
+  change "$d" src/two.py three
+  rb_adr "$d" FIX-rule.md "🟡 proposed" 2026-01-01 "We will do it, mixed."
+  printf 'four\n' >> "$d/src/two.py"
+  rb_commit "$d" "mixed on the topic"
+  sp_git "$d" switch -q work
+  sp_git "$d" merge -q --no-ff -m "Merge topic2" \
+    -m "Reviewed at: $(sp_git "$d" rev-parse --short topic2~1)" topic2
+  sp_git "$d" switch -q -c topic3
+  change "$d" src/three.py five
+  sp_git "$d" switch -q work
+  sp_git "$d" merge -q --no-ff -m "Merge topic3" topic3
+  change "$d" src/direct.py six
+  sp_git "$d" switch -q main
+  change "$d" main.txt seven
+  sp_git "$d" switch -q work
+  sp_git "$d" merge -q --no-ff -m "Merge branch 'main' into work" main
+  rb_note "$d" at-head.md "Reviewed at: $(sp_git "$d" rev-parse --short HEAD)"
+  rb_note "$d" earlier.md "Reviewed at: $(sp_git "$d" rev-parse --short HEAD~2)"
+  rb_note "$d" none.md "No review line."
+}
+
+# A history apart from main, its root commit the text of an ADR with code and the README, whose
+# release line nuc reads: --root lists it.
+rb_orphan() {
+  rb_main "$1"
+  sp_git "$1" switch -q --orphan orphan
+  sp_git "$1" checkout main -- README.md
+  rb_adr "$1" FIX-other.md "🟡 proposed" 2026-01-01 "Apart."
+  printf 'x\n' > "$1/apart.py"
+  rb_commit "$1" "apart"
+  change "$1" apart.py more
+  rb_note "$1" root.md "Reviewed at: $(sp_git "$1" rev-parse --short HEAD~1)"
+}
+
+# The branch at main, with a hand-off.
+rb_none() { rb_main "$1"; rb_note "$1" h.md "Reviewed at: work"; }
+
+# A history without a main: nothing to compare.
+rb_no_main() { rb_none "$1"; sp_git "$1" branch -q -m main trunk; }

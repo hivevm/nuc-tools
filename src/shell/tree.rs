@@ -58,6 +58,16 @@ impl Tree {
         }
     }
 
+    /// Whether the path is a file, as the bash's `-f` finds it, a symbolic link followed; a path
+    /// that resolves outside the repository is not decided before any file there is tested or
+    /// read.
+    pub(super) fn is_file_inside(&self, path: &Path) -> Result<bool, String> {
+        match self.resolve(path, || outside(path))? {
+            Ok(real) => Ok(real.is_file()),
+            Err(_) => Ok(false),
+        }
+    }
+
     /// The text of a file `nuc` itself reads, which must be UTF-8.
     pub(super) fn read(&self, path: &Path) -> Result<Option<String>, String> {
         self.read_bytes(path)?

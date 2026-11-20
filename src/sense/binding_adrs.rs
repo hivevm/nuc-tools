@@ -78,12 +78,12 @@ pub struct Args<'a> {
     pub head: Option<&'a str>,
 }
 
-/// The arguments as the bash of the release reads them, or `None` where it exits 2 on them: an
-/// argument that reads as an option it does not read, `--path` without a path, and, from
-/// `RULE_KEYS`, a base or head beside `--path` or a third positional argument. Before `OPTIONS`
-/// the bash reads `--sections` and `--path` as a base, which names no commit. An argument that
-/// reads as an option is refused on every release, as for the other sensors, but where the bash
-/// before `RULE_KEYS` ignores it beside `--path`; `--root` is refused wherever it stands.
+/// The arguments as the bash of the release reads them, or `None` where `nuc sense` refuses them:
+/// `--root` wherever it stands, `--path` without a path, and what [`super::positional`] refuses,
+/// one rule for every sensor that takes a base and a head. Beside `--path` the sensor reads no
+/// base or head: from `RULE_KEYS` one is refused, before it is ignored. Before `OPTIONS` the bash
+/// reads `--sections` and `--path` as a base, which names no commit, and `nuc` refuses them as
+/// arguments that read as an option.
 pub fn parse<'a>(args: &[&'a str], release: Version) -> Option<Args<'a>> {
     let mut parsed = Args {
         sections: false,
@@ -113,19 +113,8 @@ pub fn parse<'a>(args: &[&'a str], release: Version) -> Option<Args<'a>> {
             }
         }
     }
-    let named = !parsed.named.is_empty();
-    if named && release < RULE_KEYS {
-        return Some(parsed);
-    }
-    let most = if named { 0 } else { 2 };
-    let positional = if release >= RULE_KEYS {
-        rest
-    } else {
-        &rest[..rest.len().min(2)]
-    };
-    if positional.len() > most || positional.iter().any(|arg| arg.starts_with('-')) {
-        return None;
-    }
+    let most = if parsed.named.is_empty() { 2 } else { 0 };
+    let positional = super::positional(rest, most, release >= RULE_KEYS)?;
     parsed.base = positional.first().copied();
     parsed.head = positional.get(1).copied();
     Some(parsed)

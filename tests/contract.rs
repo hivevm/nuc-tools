@@ -689,6 +689,49 @@ fn a_sensor_argument_that_reads_as_an_option_is_refused() {
     }
 }
 
+/// The four sensors that take a base and a head read their positional arguments by one rule: an
+/// argument past the base and the head is ignored before v0.10.0, as the bash ignores it, and
+/// refused from v0.10.0, as the bash refuses it; an argument that reads as an option is refused
+/// on every release, wherever it stands.
+#[test]
+fn a_sensor_reads_its_positional_arguments_by_one_rule() {
+    let sensors = [
+        "tests-kept",
+        "plain-rules",
+        "binding-adrs",
+        "review-binding",
+    ];
+    for (release, extra) in [("v0.9.1", Some(0)), ("v0.12.0", None)] {
+        let readme = format!("# Fixture\n\n- **Template release:** {release}\n");
+        let fixture = Fixture::project(&format!("sense-positional-{release}"), CONFIG, &readme);
+        fixture
+            .write("docs/GLOSSARY.md", "# Glossary\n")
+            .commit("A glossary");
+        for sensor in sensors {
+            let output = fixture.nuc(&["sense", sensor, "HEAD", "HEAD", "extra"]);
+            match extra {
+                Some(exit) => {
+                    assert_eq!(code(&output), Some(exit), "{sensor} {release}");
+                    let without = fixture.nuc(&["sense", sensor, "HEAD", "HEAD"]);
+                    assert_eq!(stdout(&output), stdout(&without), "{sensor} {release}");
+                }
+                None => {
+                    assert_eq!(code(&output), Some(2), "{sensor} {release}");
+                    assert!(stderr(&output).contains("usage:"), "{sensor} {release}");
+                }
+            }
+            for args in [["HEAD", "HEAD", "--x"], ["HEAD", "-x", "HEAD"]] {
+                let output = fixture.nuc(&[&["sense", sensor][..], &args].concat());
+                assert_eq!(code(&output), Some(2), "{sensor} {release} {args:?}");
+                assert!(
+                    stderr(&output).contains("usage:"),
+                    "{sensor} {release} {args:?}"
+                );
+            }
+        }
+    }
+}
+
 /// A script that writes the marker where it runs, for the drivers and commands a repository's
 /// configuration names.
 #[cfg(unix)]
@@ -1543,5 +1586,290 @@ fn binding_adrs_refuses_a_path_it_cannot_hand_to_git() {
             .ends_with("[sense/binding-adrs:name]"),
         "{}",
         stderr(&output)
+    );
+}
+
+/// The eight sensors API-git-only-sensors-under-sense ports are known to `nuc sense`: none is
+/// refused as unknown, and the four it leaves to the bash are refused as unknown by
+/// `the_sensors_left_to_the_bash_and_an_unknown_name_exit_two_with_their_key`.
+#[test]
+fn every_sensor_the_adr_ports_is_known() {
+    let ported = [
+        "action-refs",
+        "backlog",
+        "binding-adrs",
+        "plain-rules",
+        "plan-frontier",
+        "review-binding",
+        "revision-due",
+        "tests-kept",
+    ];
+    let known: Vec<&str> = nuc::sense::ALL.iter().map(|sensor| sensor.name).collect();
+    assert_eq!(known, ported);
+    let fixture = project(
+        "sense-known",
+        "# Fixture\n\n- **Template release:** v0.12.0\n",
+        LINE,
+    );
+    for name in ported {
+        let output = fixture.nuc(&["sense", name]);
+        assert!(
+            !stderr(&output).contains("[sense/unknown:name]"),
+            "{name}: {}",
+            stderr(&output)
+        );
+        assert_ne!(stdout(&output), "", "{name}: {}", stderr(&output));
+    }
+}
+
+/// A branch off main for `review-binding`: an ADR's text with code, then more code, and the
+/// hand-off `h.md`, which no commit carries, reviewed at the first of them. Returns the head.
+fn review_branch(fixture: &Fixture) -> String {
+    fixture.git(&["switch", "-q", "-c", "feature"]);
+    fixture.write("docs/adr/FIX-a-rule.md", "# FIX-a-rule: X\n\nText.\n");
+    fixture.write("src/a.py", "a\n");
+    fixture.commit("narrow and implement");
+    let reviewed = support::stdout(&fixture.git(&["rev-parse", "--short", "HEAD"]));
+    fixture.write("src/a.py", "a\nb\n");
+    fixture.commit("fix");
+    fixture.write("h.md", &format!("## Review\n\n- Reviewed at: {reviewed}"));
+    support::stdout(&fixture.git(&["rev-parse", "HEAD"]))
+        .trim_end()
+        .to_owned()
+}
+
+/// The diffstat, the patches of the record, and the logs of `review-binding` run no textconv
+/// driver, no diff command, no external diff, and no pager the repository names, and start no
+/// diff in a submodule (Q-7). A canary: git 2.56 runs none of them for `diff --stat`, the plumbing
+/// `diff-tree`, or `log --format` into a pipe whatever the configuration, so the test fails on no
+/// flag of nuc's taken away; it fails where a git or a change of nuc's calls would start one.
+#[cfg(unix)]
+#[test]
+fn review_binding_runs_no_driver_of_the_repository() {
+    let readme = "# Fixture\n\n- **Template release:** v0.12.0\n";
+    let fixture = Fixture::project("sense-review-bait", CONFIG, readme);
+    fixture.write(".gitattributes", "*.md diff=bait\n*.py diff=bait\n");
+    fixture.commit("attributes");
+    review_branch(&fixture);
+    let marker = fixture.root().join(".git").join("driver-ran");
+    let command = bait(&fixture, "command.sh", &marker);
+    for key in [
+        "diff.bait.textconv",
+        "diff.bait.command",
+        "diff.external",
+        "core.pager",
+        "pager.log",
+        "pager.diff",
+    ] {
+        fixture.git(&["config", key, &command]);
+    }
+    let output = fixture.nuc(&["sense", "review-binding", "--hand-off", "h.md"]);
+    assert_eq!(code(&output), Some(0), "{}", stderr(&output));
+    let text = stdout(&output);
+    assert!(text.contains("1 commit after the review at"), "{text}");
+    assert!(text.contains(" src/a.py | 1 +\n"), "{text}");
+    assert!(
+        text.contains(": changes the text of docs/adr/FIX-a-rule.md together with src/a.py\n"),
+        "{text}"
+    );
+    assert!(!marker.exists(), "nuc sense review-binding ran a driver");
+
+    // The diffstat over a move of a submodule starts no diff in the submodule.
+    let (main, marker) = moved_submodule("sense-review-bait", "`sm`");
+    let reviewed = support::stdout(&main.git(&["rev-parse", "--short", "main"]));
+    main.write("h.md", &format!("Reviewed at: {reviewed}"));
+    let output = main.nuc(&[
+        "sense",
+        "review-binding",
+        "--hand-off",
+        "h.md",
+        "main~1",
+        "feature",
+    ]);
+    assert_eq!(code(&output), Some(0), "{}", stderr(&output));
+    assert!(
+        stdout(&output).contains(" sm | 2 +-\n"),
+        "{}",
+        stdout(&output)
+    );
+    assert!(
+        !marker.exists(),
+        "a diff in the submodule ran its external diff"
+    );
+}
+
+/// The hand-off is a path from where `nuc` runs, a file as the bash's `-f` finds it, judged before
+/// the change; one that is no file exits 2, as the bash does, with nothing on the standard output.
+/// It is read only where the bash reads it, its NUL bytes dropped as bash drops them and every
+/// other byte read as itself, as grep reads it in the C locale.
+#[test]
+fn review_binding_reads_the_hand_off_as_the_bash_does() {
+    let readme = "# Fixture\n\n- **Template release:** v0.12.0\n";
+    let fixture = Fixture::project("sense-review-hand-off", CONFIG, readme);
+    let refused = |fixture: &Fixture, args: &[&str], key: &str| {
+        let output = fixture.nuc(args);
+        assert_eq!(code(&output), Some(2), "{args:?}: {}", stdout(&output));
+        assert_eq!(stdout(&output), "", "{args:?}");
+        assert!(
+            stderr(&output).trim_end().ends_with(key),
+            "{args:?}: {}",
+            stderr(&output)
+        );
+    };
+    let file = "[sense/review-binding:file]";
+    std::fs::create_dir_all(fixture.root().join("docs")).expect("a directory");
+    for args in [
+        &["sense", "review-binding", "--hand-off"][..],
+        &["sense", "review-binding", "--hand-off", ""],
+        &["sense", "review-binding", "--hand-off", "missing.md"],
+        &["sense", "review-binding", "--hand-off", "docs"],
+    ] {
+        refused(&fixture, args, file);
+    }
+    // Judged before the change: no main to compare with is reported only for a hand-off that is a
+    // file.
+    fixture.git(&["branch", "-q", "-m", "main", "trunk"]);
+    refused(
+        &fixture,
+        &["sense", "review-binding", "--hand-off", "missing.md"],
+        file,
+    );
+    fixture.git(&["branch", "-q", "-m", "trunk", "main"]);
+    for args in [
+        &["sense", "review-binding", "--root", "."][..],
+        &["sense", "review-binding", "main", "--hand-off", "README.md"],
+    ] {
+        let output = fixture.nuc(args);
+        assert_eq!(code(&output), Some(2), "{args:?}");
+        assert!(stderr(&output).contains("usage:"), "{args:?}");
+    }
+
+    let head = review_branch(&fixture);
+    // A path from where nuc runs, as the bash reads one from where it runs.
+    let output = fixture.nuc_in(
+        "docs",
+        &["sense", "review-binding", "--hand-off", "../h.md"],
+    );
+    assert_eq!(code(&output), Some(0), "{}", stderr(&output));
+    assert!(
+        stdout(&output).contains("bound only by the hand-off; 2 findings below.\n"),
+        "{}",
+        stdout(&output)
+    );
+    // A NUL byte is dropped, as bash drops it from `$(cat …)`.
+    let mut text = format!("Reviewed at: {}", &head[..4]).into_bytes();
+    text.push(0);
+    text.extend_from_slice(&head.as_bytes()[4..10]);
+    std::fs::write(fixture.root().join("nul.md"), text).expect("written");
+    let output = fixture.nuc(&["sense", "review-binding", "--hand-off", "nul.md"]);
+    assert_eq!(code(&output), Some(0), "{}", stderr(&output));
+    assert!(
+        stdout(&output).contains("the hand-off was reviewed at the head"),
+        "{}",
+        stdout(&output)
+    );
+    // A byte of no UTF-8, on another line and on the line itself, is read as itself.
+    let mut text = b"Caf\xe9 notes.\nReviewed at: ".to_vec();
+    text.extend_from_slice(&head.as_bytes()[..10]);
+    text.extend_from_slice(b" \xff\n");
+    std::fs::write(fixture.root().join("odd.md"), text).expect("written");
+    let output = fixture.nuc(&["sense", "review-binding", "--hand-off", "odd.md"]);
+    assert_eq!(code(&output), Some(0), "{}", stderr(&output));
+    assert!(
+        stdout(&output).contains("the hand-off was reviewed at the head"),
+        "{}",
+        stdout(&output)
+    );
+    // Not read where the bash does not read it: on a branch without commits.
+    let output = fixture.nuc(&[
+        "sense",
+        "review-binding",
+        "--hand-off",
+        "nul.md",
+        "HEAD",
+        "HEAD",
+    ]);
+    assert_eq!(code(&output), Some(0), "{}", stderr(&output));
+    assert!(
+        stdout(&output).ends_with("— nothing to read.\n"),
+        "{}",
+        stdout(&output)
+    );
+}
+
+/// A hand-off that resolves outside the repository is not decided, before anything there is
+/// tested and whether the bash would read it or not: nuc reads no file outside the repository
+/// (API-measure-reads-harness-transcripts), where the bash takes any path
+/// (API-git-only-sensors-under-sense), a conflict left to the maintainer.
+#[cfg(unix)]
+#[test]
+fn review_binding_refuses_a_hand_off_outside_the_repository() {
+    let readme = "# Fixture\n\n- **Template release:** v0.12.0\n";
+    let fixture = Fixture::project("sense-review-outside", CONFIG, readme);
+    let outside = Fixture::new("sense-review-outside-file");
+    outside.write("h.md", "Reviewed at: HEAD\n");
+    review_branch(&fixture);
+    std::os::unix::fs::symlink(outside.root().join("h.md"), fixture.root().join("link.md"))
+        .expect("a link");
+    let absolute = outside.root().join("h.md");
+    for (path, range) in [
+        ("link.md", &[][..]),
+        (absolute.to_str().expect("UTF-8"), &[]),
+        ("link.md", &["HEAD", "HEAD"]),
+    ] {
+        let mut args = vec!["sense", "review-binding", "--hand-off", path];
+        args.extend(range);
+        let output = fixture.nuc(&args);
+        assert_eq!(code(&output), Some(2), "{path}: {}", stdout(&output));
+        assert_eq!(stdout(&output), "", "{path}");
+        assert!(
+            stderr(&output).trim_end().ends_with(
+                "resolves outside the repository — not decided [sense/review-binding:file]"
+            ),
+            "{path}: {}",
+            stderr(&output)
+        );
+    }
+}
+
+/// Up to v0.11.0 the message of each merge is read for its `Reviewed at:` line, each byte as
+/// itself, as grep reads it in the C locale: here git writes it in Latin-1, where its ü is no
+/// UTF-8.
+#[test]
+fn review_binding_reads_a_merge_message_as_bytes() {
+    let readme = "# Fixture\n\n- **Template release:** v0.10.0\n";
+    let fixture = Fixture::project("sense-review-message", CONFIG, readme);
+    fixture.git(&["switch", "-q", "-c", "feature"]);
+    fixture.git(&["switch", "-q", "-c", "topic"]);
+    fixture.write("a.txt", "a\n");
+    fixture.commit("a");
+    let tip = support::stdout(&fixture.git(&["rev-parse", "--short", "HEAD"]));
+    fixture.git(&["switch", "-q", "feature"]);
+    let message = format!("Reviewed at: {} über", tip.trim_end());
+    let output = fixture.git(&[
+        "merge",
+        "-q",
+        "--no-ff",
+        "-m",
+        "Merge topic: über",
+        "-m",
+        &message,
+        "topic",
+    ]);
+    assert!(output.status.success(), "{}", stderr(&output));
+    fixture.git(&["config", "i18n.logOutputEncoding", "ISO-8859-1"]);
+    let output = fixture.nuc(&["sense", "review-binding"]);
+    assert_eq!(code(&output), Some(0), "{}", stderr(&output));
+    assert!(
+        output
+            .stdout
+            .starts_with(b"Review binding sensor: 1 merge since "),
+        "{}",
+        stdout(&output)
+    );
+    assert!(
+        String::from_utf8_lossy(&output.stdout).contains(", 1 reviewed at the tip of its branch."),
+        "{}",
+        stdout(&output)
     );
 }

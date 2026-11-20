@@ -9,6 +9,7 @@ pub mod binding_adrs;
 pub mod change;
 pub mod plain_rules;
 pub mod plan_frontier;
+pub mod review_binding;
 pub mod revision_due;
 pub mod tests_kept;
 
@@ -37,6 +38,7 @@ pub const ALL: &[Sensor] = &[
     binding_adrs::SENSOR,
     plain_rules::SENSOR,
     plan_frontier::SENSOR,
+    review_binding::SENSOR,
     revision_due::SENSOR,
     tests_kept::SENSOR,
 ];
@@ -92,6 +94,25 @@ pub fn release(sensor: &Sensor, carried: Option<Carried>) -> Result<Version, Ref
     Ok(release)
 }
 
+/// The positional arguments a sensor reads, at most `most` of those left once it read its own
+/// options, or none where `nuc sense` refuses them. One rule holds for every sensor that takes a
+/// base and a head:
+/// - an argument that reads as an option is refused on every release, wherever it stands, as the
+///   bash of v0.10.0 on refuses it, where an earlier bash takes it as a base or a head, which names
+///   no commit, or ignores it past them;
+/// - an argument past `most` is refused where `refuses_extra`, from the release whose bash refuses
+///   it, and ignored before, as the bash before ignores it (API-git-only-sensors-under-sense).
+pub fn positional<'a, 'b>(
+    rest: &'b [&'a str],
+    most: usize,
+    refuses_extra: bool,
+) -> Option<&'b [&'a str]> {
+    if rest.iter().any(|arg| arg.starts_with('-')) || (refuses_extra && rest.len() > most) {
+        return None;
+    }
+    Some(&rest[..rest.len().min(most)])
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -129,6 +150,22 @@ mod tests {
             for reason in sensor.reasons {
                 assert!(reason.bytes().all(|b| b.is_ascii_lowercase()), "{reason}");
             }
+        }
+    }
+
+    #[test]
+    fn an_option_is_refused_and_an_extra_argument_by_the_release() {
+        assert_eq!(positional(&["a", "b"], 2, true), Some(&["a", "b"][..]));
+        assert_eq!(
+            positional(&["a", "b", "c"], 2, false),
+            Some(&["a", "b"][..])
+        );
+        assert_eq!(positional(&["a", "b", "c"], 2, true), None);
+        assert_eq!(positional(&["a"], 0, false), Some(&[][..]));
+        assert_eq!(positional(&["a"], 0, true), None);
+        for refuses_extra in [false, true] {
+            assert_eq!(positional(&["a", "b", "--x"], 2, refuses_extra), None);
+            assert_eq!(positional(&["-x"], 2, refuses_extra), None);
         }
     }
 }

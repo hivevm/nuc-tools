@@ -142,10 +142,13 @@ golden path and the test pattern an agent copies from are named here.
   filter and a rename a filter could pair otherwise, binding-adrs a path under a filter whose raw
   bytes differ from the index and any submodule checked out. A file whose index holds bytes its
   filter would clean otherwise is not refused, and can read otherwise than the bash.
-  `shell::sense` reads `nuc.toml` as `nuc check` does, the README's release line, the files of the
-  tree, and git as the bash asks it, and writes the report. A tree whose release has no such
-  sensor is not decided. The template's sensors that need a process other than git or the network
-  are none of them
+  review-binding asks git what each answer leads it to, as its bash does, so its core asks through
+  the trait `review_binding::Repo`, which `shell::sense` answers with git; its diffs compare
+  commits and read no working tree, and its hand-off is a file named from where `nuc` runs that
+  must resolve inside the repository. `shell::sense` reads `nuc.toml` as `nuc check` does, the
+  README's release line, the files of the tree, and git as the bash asks it, and writes the
+  report. A tree whose release has no such sensor is not decided. The template's sensors that
+  need a process other than git or the network are none of them
   ([API-git-only-sensors-under-sense](adr/API-git-only-sensors-under-sense.md)).
 - **Binary** — `src/main.rs` calls the shell and nothing else.
 - **Parity harness** — `scripts/check-parity.sh` runs the bash checks of each repository of the
@@ -167,9 +170,9 @@ golden path and the test pattern an agent copies from are named here.
   `scripts/lib/sensor-parity.sh` runs each sensor of `tests/parity/sensors.tsv` with the bash and
   with `nuc sense` on each tree and variant whose release has it, one whose README names no
   release with the bash sensor of the newest template tree, and on the git states of
-  `tests/parity/sensor-scenarios.sh` built for each of the template's trees, and compares the
-  standard output byte for byte and the exit status; an exit that differs stands in
-  `tests/parity/sensor-exits.tsv` with its cause
+  `tests/parity/sensor-scenarios.sh` built for each of the template's trees, both sides run in
+  the tree or the fixture, and compares the standard output byte for byte and the exit status; an
+  exit that differs stands in `tests/parity/sensor-exits.tsv` with its cause
   ([API-git-only-sensors-under-sense](adr/API-git-only-sensors-under-sense.md)). A
   tree whose blob list `.githooks/nuc.blobs` pins a hook, as the template's trees do from v0.12.0
   on, carries nuc's own shims and no bash hook. The scenarios and their coverage leave it out,

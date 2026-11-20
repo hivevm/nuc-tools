@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 use crate::config;
 use crate::sense::{
     self, Refusal, action_refs, backlog, binding_adrs, change, plain_rules, plan_frontier,
-    revision_due, tests_kept,
+    review_binding, revision_due, tests_kept,
 };
 
 use super::tree::Tree;
@@ -28,13 +28,15 @@ pub(super) fn run(name: &str, options: &[&str]) -> Result<u8, String> {
     };
     // `--repo` names the repository, as for every command; the bash's `--root` is refused, and so
     // is every other argument that reads as an option but the `--require` of `action-refs` and
-    // `plain-rules`, as the bash of v0.10.0 on refuses them. `binding-adrs` reads its options by
-    // the release, as its bash does.
+    // `plain-rules`, as the bash of v0.10.0 on refuses them. `binding-adrs` and `review-binding`
+    // read their own options first, and refuse the rest by `sense::positional`, as the dispatch
+    // below does for `tests-kept` and `plain-rules`.
     let takes_require = [action_refs::SENSOR.name, plain_rules::SENSOR.name].contains(&name);
     let flag = |(at, arg): (usize, &&str)| {
         arg.starts_with('-') && !(takes_require && at == 0 && *arg == "--require")
     };
-    if name != binding_adrs::SENSOR.name && args.iter().enumerate().any(flag) {
+    let own_options = [binding_adrs::SENSOR.name, review_binding::SENSOR.name].contains(&name);
+    if !own_options && args.iter().enumerate().any(flag) {
         return Err(super::usage());
     }
     let start = match repo {
@@ -95,12 +97,19 @@ pub(super) fn run(name: &str, options: &[&str]) -> Result<u8, String> {
         write_report(&report)?;
         return Ok(PASSED);
     }
+    if sensor.name == review_binding::SENSOR.name {
+        let parsed = review_binding::parse(args, release).ok_or_else(super::usage)?;
+        let report =
+            review_binding(&tree, release, &parsed).map_err(|refusal| refusal.to_string())?;
+        write_report(&report)?;
+        return Ok(PASSED);
+    }
     if sensor.name == plain_rules::SENSOR.name {
-        let positional = args.strip_prefix(&["--require"]).unwrap_or(args);
-        if positional.len() > 2 {
-            return Err(super::usage());
-        }
-        let outcome = plain_rules(&tree, release, args).map_err(|refusal| refusal.to_string())?;
+        let (flag, rest) = args.split_at(usize::from(args.first() == Some(&"--require")));
+        let positional = sense::positional(rest, 2, release >= plain_rules::ARGUMENTS)
+            .ok_or_else(super::usage)?;
+        let args = [flag, positional].concat();
+        let outcome = plain_rules(&tree, release, &args).map_err(|refusal| refusal.to_string())?;
         write_report(&outcome.report)?;
         // A failed `--require` writes its report on the standard output, as the bash does, and
         // exits 1.
@@ -110,8 +119,10 @@ pub(super) fn run(name: &str, options: &[&str]) -> Result<u8, String> {
         ("backlog", []) => backlog(&tree),
         ("plan-frontier", []) => plan_frontier(&tree),
         ("revision-due", []) => revision_due(&tree, release),
-        ("tests-kept", [] | [_] | [_, _]) => {
-            tests_kept(&tree, release, args.first().copied(), args.get(1).copied())
+        ("tests-kept", _) => {
+            let change = sense::positional(args, 2, release >= tests_kept::ARGUMENTS)
+                .ok_or_else(super::usage)?;
+            tests_kept(&tree, release, change)
         }
         _ => return Err(super::usage()),
     }
@@ -330,15 +341,12 @@ fn git_refusal(sensor: &'static str) -> impl Fn(String) -> Refusal + Copy {
     }
 }
 
-/// What `tests-kept` needs: the change, its deletions and renames, and its diff without the paths
-/// that carry the markers as data; git asked as the bash of the release asks it, and never through
-/// a textconv driver or an external diff of the repository (Q-7).
-fn tests_kept(
-    tree: &Tree,
-    release: config::Version,
-    base: Option<&str>,
-    head: Option<&str>,
-) -> Result<Vec<u8>, Refusal> {
+/// What `tests-kept` needs, given the base and the head it reads: the change, its deletions and
+/// renames, and its diff without the paths that carry the markers as data; git asked as the bash
+/// of the release asks it, and never through a textconv driver or an external diff of the
+/// repository (Q-7).
+fn tests_kept(tree: &Tree, release: config::Version, change: &[&str]) -> Result<Vec<u8>, Refusal> {
+    let (base, head) = (change.first().copied(), change.get(1).copied());
     let root = &tree.root;
     let sensor = tests_kept::SENSOR.name;
     let undecided = git_refusal(sensor);
@@ -1040,6 +1048,214 @@ fn lines_of(
         .collect())
 }
 
+/// What `review-binding` needs: the hand-off, a file named from where `nuc` runs, as the bash names
+/// it from where it runs, refused before the change is resolved where it is no file; and git asked
+/// as the bash of the release asks it, in its order, through [`ReviewRepo`].
+fn review_binding(
+    tree: &Tree,
+    release: config::Version,
+    args: &review_binding::Args,
+) -> Result<Vec<u8>, Refusal> {
+    let sensor = review_binding::SENSOR.name;
+    let hand_off = match args.hand_off {
+        None => None,
+        Some(path) => {
+            let named = if path.is_empty() {
+                None
+            } else {
+                let caller = env::current_dir().map_err(|e| {
+                    hand_off_refusal(format!("the current directory is unreadable: {e}"))
+                })?;
+                Some(caller.join(path))
+            };
+            // A file as `-f` finds it, a symbolic link followed; one that resolves outside the
+            // repository is refused before any file there is tested or read.
+            let file = match &named {
+                Some(named) => tree.is_file_inside(named).map_err(hand_off_refusal)?,
+                None => false,
+            };
+            match named {
+                Some(named) if file => Some(named),
+                _ => return Err(hand_off_refusal(format!("hand-off '{path}' is no file"))),
+            }
+        }
+    };
+    let root = &tree.root;
+    let change = match resolve_change(root, sensor, review_binding::LABEL, args.base, args.head)? {
+        Ok(change) => change,
+        Err(report) => return Ok(report),
+    };
+    let given = hand_off.is_some();
+    let mut repo = ReviewRepo { tree, hand_off };
+    review_binding::report(&mut repo, &change.base, &change.head, given, release)
+}
+
+/// A refusal of `review-binding` keyed `file`, for the hand-off.
+fn hand_off_refusal(message: String) -> Refusal {
+    Refusal {
+        sensor: review_binding::SENSOR.name,
+        reason: "file",
+        message: unwrapped(message),
+    }
+}
+
+/// The repository as `review-binding` asks it: git as the bash asks it, but never through a
+/// textconv driver or an external diff of the repository (Q-7). Its diffs compare commits and read
+/// no working tree, so no filter runs. The diffstat keeps the colour the repository's
+/// configuration gives it, since the report shows it as the bash's git writes it.
+struct ReviewRepo<'a> {
+    tree: &'a Tree,
+    hand_off: Option<PathBuf>,
+}
+
+impl ReviewRepo<'_> {
+    fn git(&self, args: &[&str]) -> Result<Vec<u8>, Refusal> {
+        git::run_bytes(&self.tree.root, args).map_err(git_refusal(review_binding::SENSOR.name))
+    }
+
+    fn lines(&self, args: &[&str]) -> Result<Vec<Vec<u8>>, Refusal> {
+        lines_of(
+            &self.tree.root,
+            args,
+            git_refusal(review_binding::SENSOR.name),
+        )
+    }
+
+    /// The first line of git's output as text, as a command substitution gives it.
+    fn text(&self, args: &[&str]) -> Result<String, Refusal> {
+        let out = self.git(args)?;
+        String::from_utf8(crate::bash::substituted(&out).to_vec()).map_err(|_| {
+            git_refusal(review_binding::SENSOR.name)(format!(
+                "git {} wrote no UTF-8",
+                args.join(" ")
+            ))
+        })
+    }
+
+    /// The exit code of git, for a call the bash tests by its status alone.
+    fn status(&self, args: &[&str]) -> Result<(i32, Vec<u8>), Refusal> {
+        git::status_and_output(&self.tree.root, args)
+            .map_err(git_refusal(review_binding::SENSOR.name))
+    }
+}
+
+/// A message the sensor reads a `Reviewed at:` line from, as `$(…)` gives it to grep: its NUL
+/// bytes dropped, as bash drops them, and every other byte read as itself, as grep reads it in the
+/// C locale.
+fn reviewable(bytes: Vec<u8>) -> Vec<u8> {
+    bytes.into_iter().filter(|&b| b != 0).collect()
+}
+
+impl review_binding::Repo for ReviewRepo<'_> {
+    fn commit(&mut self, rev: &str) -> Result<Option<String>, Refusal> {
+        let named = format!("{rev}^{{commit}}");
+        let (code, out) = self.status(&["rev-parse", "--verify", "-q", &named])?;
+        Ok((code == 0)
+            .then(|| String::from_utf8_lossy(crate::bash::substituted(&out)).into_owned()))
+    }
+
+    fn full(&mut self, rev: &str) -> Result<String, Refusal> {
+        self.text(&["rev-parse", rev])
+    }
+
+    fn short(&mut self, rev: &str) -> Result<String, Refusal> {
+        self.text(&["rev-parse", "--short", rev])
+    }
+
+    fn is_ancestor(&mut self, ancestor: &str, rev: &str) -> Result<bool, Refusal> {
+        let (code, _) = self.status(&["merge-base", "--is-ancestor", ancestor, rev])?;
+        Ok(code == 0)
+    }
+
+    fn rev_list(&mut self, options: &[&str], range: &str) -> Result<Vec<Vec<u8>>, Refusal> {
+        let mut args = vec!["rev-list"];
+        args.extend(options);
+        args.push(range);
+        self.lines(&args)
+    }
+
+    fn count(&mut self, options: &[&str], range: &str) -> Result<u64, Refusal> {
+        let mut args = vec!["rev-list", "--count"];
+        args.extend(options);
+        args.push(range);
+        let count = self.text(&args)?;
+        count.parse().map_err(|_| {
+            git_refusal(review_binding::SENSOR.name)(format!(
+                "git rev-list --count wrote '{count}'"
+            ))
+        })
+    }
+
+    fn subjects(&mut self, range: &str) -> Result<Vec<Vec<u8>>, Refusal> {
+        self.lines(&["log", "--format=%h %s", range])
+    }
+
+    fn subject(&mut self, commit: &str) -> Result<Vec<u8>, Refusal> {
+        let out = self.git(&["log", "-1", "--format=%h %s", commit])?;
+        Ok(crate::bash::substituted(&out).to_vec())
+    }
+
+    fn message(&mut self, commit: &str) -> Result<Vec<u8>, Refusal> {
+        Ok(reviewable(self.git(&[
+            "log",
+            "-1",
+            "--format=%B",
+            commit,
+        ])?))
+    }
+
+    fn stat(&mut self, from: &str, to: &str) -> Result<Vec<Vec<u8>>, Refusal> {
+        self.lines(&["diff", "--no-ext-diff", "--no-textconv", "--stat", from, to])
+    }
+
+    fn patch(&mut self, commit: &str, pathspecs: &[&str]) -> Result<Vec<u8>, Refusal> {
+        let mut args = vec![
+            "diff-tree",
+            "--no-ext-diff",
+            "--no-textconv",
+            "-r",
+            "--root",
+            "--no-commit-id",
+            "-p",
+            "-U0",
+            "--no-color",
+            commit,
+            "--",
+        ];
+        args.extend(pathspecs);
+        self.git(&args)
+    }
+
+    fn outside_record(&mut self, commit: &str) -> Result<Vec<Vec<u8>>, Refusal> {
+        let mut args = vec![
+            "diff-tree",
+            "--no-ext-diff",
+            "--no-textconv",
+            "-r",
+            "--root",
+            "--no-commit-id",
+            "--name-only",
+            commit,
+            "--",
+        ];
+        args.extend(review_binding::OUTSIDE_RECORD);
+        self.lines(&args)
+    }
+
+    fn hand_off(&mut self) -> Result<Vec<u8>, Refusal> {
+        let path = self
+            .hand_off
+            .as_ref()
+            .expect("read only where one is given");
+        let bytes = self
+            .tree
+            .read_bytes(path)
+            .map_err(hand_off_refusal)?
+            .ok_or_else(|| hand_off_refusal(format!("{}: no longer a file", path.display())))?;
+        Ok(reviewable(bytes))
+    }
+}
+
 /// What `backlog` needs: main, the first of the candidates that names a commit; the entries of
 /// main's tree; and those each local branch that main does not hold adds after its merge base,
 /// each with the text git shows of it.
@@ -1091,6 +1307,7 @@ fn backlog(tree: &Tree) -> Result<Vec<u8>, Refusal> {
             &[
                 "diff",
                 "--no-ext-diff",
+                "--no-textconv",
                 "--no-renames",
                 "--name-only",
                 "--diff-filter=A",
