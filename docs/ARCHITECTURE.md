@@ -145,10 +145,13 @@ golden path and the test pattern an agent copies from are named here.
   were given, and `resolve_change` in `shell::sense` asks git for the commits; a change without a
   head ends in the working tree, its untracked files included. Their diffs against the working tree
   run with every filter driver of the repository neutralized and look into no submodule's working
-  tree (Q-7). Where that could change what they report, they refuse: plain-rules a file of rules
-  under a filter and a rename a filter could pair otherwise, binding-adrs a path under a filter
-  whose raw bytes differ from the index and any submodule checked out. A file whose index holds
-  bytes its filter would clean otherwise is not refused, and can read otherwise than the bash.
+  tree (Q-7,
+  [SEC-repository-commands-neutralized-or-refused](adr/SEC-repository-commands-neutralized-or-refused.md)).
+  Where that could change what they report, they refuse: plain-rules a file of rules under a filter
+  and a rename a filter could pair otherwise, binding-adrs a path under a filter whose raw bytes
+  differ from the index and any submodule checked out. A file whose index holds bytes its filter
+  would clean otherwise is not refused yet, and can read otherwise than the bash; ticket 12 of
+  `docs/plan/revision-2026-11-20/` refuses it.
   review-binding asks git what each answer leads it to, as its bash does, so its core asks through
   the trait `review_binding::Repo`, which `shell::sense` answers with git; its diffs compare commits
   and read no working tree, and its hand-off is a file named from where `nuc` runs that must resolve
