@@ -1,6 +1,7 @@
 //! git, spawned with a cleared environment into which an allowlist is passed, the repository
 //! named by `-C`, and the keys that would run a command neutralized by `-c`
-//! (SEC-git-cleared-without-lazy-fetch).
+//! (SEC-git-cleared-without-lazy-fetch); every diff through [`diff`], with the flags that keep the
+//! repository's diff drivers from running (SEC-repository-commands-neutralized-or-refused).
 
 use std::env;
 use std::path::{Path, PathBuf};
@@ -170,6 +171,44 @@ pub fn run_bytes(repo: &Path, args: &[&str]) -> Result<Vec<u8>, String> {
         return Err(failure(args, &output.stderr));
     }
     Ok(output.stdout)
+}
+
+/// The git commands that show a diff, which the repository's own commands could otherwise produce
+/// (SEC-repository-commands-neutralized-or-refused).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Diff {
+    /// `git diff`.
+    Diff,
+    /// `git diff-tree`.
+    DiffTree,
+    /// `git log`, run with `-p` or `-G`.
+    Log,
+}
+
+/// The flags every diff of nuc carries: without them, git would run the external diff and the
+/// textconv drivers the repository's configuration names (Q-7).
+const DIFF_GUARDS: &[&str] = &["--no-ext-diff", "--no-textconv"];
+
+/// The arguments of a diff call: `-c` and each key of `config` before the command, so that one
+/// that would run a filter driver is neutralized, the command, the guards, then `args`.
+fn diff_args<'a>(config: &[&'a str], command: Diff, args: &[&'a str]) -> Vec<&'a str> {
+    let mut all: Vec<&str> = config.iter().flat_map(|key| ["-c", key]).collect();
+    all.push(match command {
+        Diff::Diff => "diff",
+        Diff::DiffTree => "diff-tree",
+        Diff::Log => "log",
+    });
+    all.extend(DIFF_GUARDS);
+    all.extend(args);
+    all
+}
+
+/// The standard output of the diff `command` with `args` on `repo` as bytes, under the
+/// configuration keys of `config`, or why it could not be had. Every diff, `diff-tree`, `log -p`,
+/// and `log -G` of nuc starts here, so that each carries the guards
+/// (SEC-repository-commands-neutralized-or-refused).
+pub fn diff(repo: &Path, config: &[&str], command: Diff, args: &[&str]) -> Result<Vec<u8>, String> {
+    run_bytes(repo, &diff_args(config, command, args))
 }
 
 /// The standard output of git for `args` on `repo` as bytes, the input written to its standard

@@ -214,11 +214,11 @@ fn revision_due(tree: &Tree, release: config::Version) -> Result<Vec<u8>, Refusa
             // No textconv driver of the repository runs on the diffs `-G` reads (Q-7): the bash's
             // git would run one, so on a repository that sets one for the overview the two may
             // find another commit.
-            let log = git::run(
+            let log = git::diff(
                 root,
+                &[],
+                git::Diff::Log,
                 &[
-                    "log",
-                    "--no-textconv",
                     "--reverse",
                     "--format=%H",
                     &format!("-G{pattern}"),
@@ -228,7 +228,9 @@ fn revision_due(tree: &Tree, release: config::Version) -> Result<Vec<u8>, Refusa
                 ],
             )
             .map_err(undecided)?;
-            log.lines()
+            String::from_utf8(log)
+                .map_err(|_| undecided("git log wrote no UTF-8".to_owned()))?
+                .lines()
                 .next()
                 .filter(|anchor| !anchor.is_empty())
                 .map(|anchor| format!("{anchor}..HEAD"))
@@ -368,37 +370,21 @@ fn tests_kept(tree: &Tree, release: config::Version, change: &[&str]) -> Result<
     if commit(&base, false)? == commit(&head, false)? {
         return Ok(tests_kept::same_commit());
     }
-    let name_status = git::run_bytes(
+    let name_status = git::diff(
         root,
-        &[
-            "diff",
-            "--no-ext-diff",
-            "--no-textconv",
-            "--name-status",
-            "-M",
-            "--diff-filter=DR",
-            &base,
-            &head,
-        ],
+        &[],
+        git::Diff::Diff,
+        &["--name-status", "-M", "--diff-filter=DR", &base, &head],
     )
     .map_err(undecided)?;
-    let mut args: Vec<&str> = Vec::new();
-    if release >= tests_kept::BY_EXTENSION {
-        args.extend(["-c", "core.quotePath=false"]);
-    }
-    args.extend([
-        "diff",
-        "--no-ext-diff",
-        "--no-textconv",
-        "-U0",
-        "--no-color",
-        &base,
-        &head,
-        "--",
-        ".",
-    ]);
+    let config: &[&str] = if release >= tests_kept::BY_EXTENSION {
+        &["core.quotePath=false"]
+    } else {
+        &[]
+    };
+    let mut args = vec!["-U0", "--no-color", &base, &head, "--", "."];
     args.extend(tests_kept::LEFT_OUT);
-    let diff = git::run_bytes(root, &args).map_err(undecided)?;
+    let diff = git::diff(root, config, git::Diff::Diff, &args).map_err(undecided)?;
     let mut findings = tests_kept::removals(&name_status);
     findings.extend(tests_kept::markers(&diff, release));
     Ok(tests_kept::report(
@@ -665,29 +651,27 @@ fn rule_files(
     } else {
         ("--name-only", "--no-renames")
     };
-    let mut guards = vec!["--no-ext-diff", "--no-textconv"];
+    let mut submodules = Vec::new();
     let filters = if change.worktree {
-        guards.push("--ignore-submodules=all");
+        submodules.push("--ignore-submodules=all");
         let filters = neutralized_filters(root, sensor)?;
         refuse_filtered_rule_files(&filters, release)?;
         Some(filters)
     } else {
         None
     };
-    // `-c <key>` before the command, for each diff that may read the working tree.
+    // The keys that neutralize the filters, for each diff that may read the working tree.
     let unfiltered: Vec<&str> = filters
         .iter()
         .flat_map(|filters| &filters.keys)
-        .flat_map(|key| ["-c", key.as_str()])
+        .map(String::as_str)
         .collect();
-    let quoted = ["-c", "core.quotePath=false"];
-    let mut args = quoted.to_vec();
-    args.extend(&unfiltered);
-    args.push("diff");
-    args.extend(&guards);
+    let mut config = vec!["core.quotePath=false"];
+    config.extend(&unfiltered);
+    let mut args = submodules.clone();
     args.extend([listing, renames]);
     args.extend(&refs);
-    let diff = git::run_bytes(root, &args).map_err(undecided)?;
+    let diff = git::diff(root, &config, git::Diff::Diff, &args).map_err(undecided)?;
     if let Some(filters) = &filters {
         refuse_filtered_renames(&diff, filters, release)?;
     }
@@ -717,9 +701,7 @@ fn rule_files(
                 .0
                 == 0;
         let (added, text) = if tracked {
-            let mut args = unfiltered.clone();
-            args.push("diff");
-            args.extend(&guards);
+            let mut args = submodules.clone();
             args.extend(["--no-color", "-U0", renames]);
             args.extend(&refs);
             args.push("--");
@@ -727,7 +709,8 @@ fn rule_files(
                 args.push(&from);
             }
             args.push(&path);
-            let added = plain_rules::added_lines(&git::run_bytes(root, &args).map_err(undecided)?);
+            let diff = git::diff(root, &unfiltered, git::Diff::Diff, &args).map_err(undecided)?;
+            let added = plain_rules::added_lines(&diff);
             if added.is_empty() {
                 continue;
             }
@@ -826,14 +809,13 @@ fn binding_adrs(
     let mut diffed = |path: &[u8]| -> Result<binding_adrs::Diffed, Refusal> {
         let path = spelled_for(sensor, path)?;
         let file = shown(tree, &change, &path)?;
-        let mut args: Vec<&str> = unfiltered.iter().flat_map(|key| ["-c", key]).collect();
-        args.extend(["diff", "--no-ext-diff", "--no-textconv", "--no-color"]);
-        args.extend(["-U0", "--no-renames", &change.base]);
+        let config: Vec<&str> = unfiltered.iter().map(String::as_str).collect();
+        let mut args = vec!["--no-color", "-U0", "--no-renames", &change.base];
         if !change.worktree {
             args.push(&change.head);
         }
         args.extend(["--", &path]);
-        let diff = git::run_bytes(root, &args).map_err(undecided)?;
+        let diff = git::diff(root, &config, git::Diff::Diff, &args).map_err(undecided)?;
         Ok(binding_adrs::Diffed { file, diff })
     };
     binding_adrs::report(release, args.sections, &listing, &record, &mut diffed)
@@ -851,20 +833,13 @@ fn changed_paths(root: &Path, change: &Change) -> Result<(Vec<Vec<u8>>, Vec<Stri
         keys.clone_from(&filters.keys);
         refuse_filtered_dirty(root, &filters, &keys)?;
     }
-    let mut args = vec!["-c", "core.quotePath=false"];
-    args.extend(keys.iter().flat_map(|key| ["-c", key.as_str()]));
-    args.extend([
-        "diff",
-        "--no-ext-diff",
-        "--no-textconv",
-        "--name-only",
-        "--no-renames",
-        &change.base,
-    ]);
+    let mut config = vec!["core.quotePath=false"];
+    config.extend(keys.iter().map(String::as_str));
+    let mut args = vec!["--name-only", "--no-renames", &change.base];
     if !change.worktree {
         args.push(&change.head);
     }
-    let mut out = git::run_bytes(root, &args).map_err(git_refusal(sensor))?;
+    let mut out = git::diff(root, &config, git::Diff::Diff, &args).map_err(git_refusal(sensor))?;
     if change.worktree {
         out.extend(untracked(root, change, sensor)?);
     }
@@ -888,17 +863,11 @@ fn refuse_filtered_dirty(root: &Path, filters: &Filters, keys: &[String]) -> Res
     if filters.paths.is_empty() {
         return Ok(());
     }
-    let mut args: Vec<&str> = keys.iter().flat_map(|key| ["-c", key.as_str()]).collect();
+    let config: Vec<&str> = keys.iter().map(String::as_str).collect();
     // The porcelain diff of the index and the working tree hashes a path whose stat changed, raw
     // under the neutralized filters; `diff-files` would name it for its stat alone.
-    args.extend([
-        "diff",
-        "--no-ext-diff",
-        "--no-textconv",
-        "-z",
-        "--name-only",
-    ]);
-    let dirty = git::run_bytes(root, &args).map_err(git_refusal(sensor))?;
+    let dirty = git::diff(root, &config, git::Diff::Diff, &["-z", "--name-only"])
+        .map_err(git_refusal(sensor))?;
     let dirty: std::collections::BTreeSet<&[u8]> = dirty.split(|&b| b == 0).collect();
     match filters
         .paths
@@ -1042,10 +1011,15 @@ fn lines_of(
     undecided: impl Fn(String) -> Refusal,
 ) -> Result<Vec<Vec<u8>>, Refusal> {
     let out = git::run_bytes(root, args).map_err(undecided)?;
-    Ok(crate::bash::read_lines(&out)
+    Ok(output_lines(&out))
+}
+
+/// The lines of git's output, as `read` gives them.
+fn output_lines(out: &[u8]) -> Vec<Vec<u8>> {
+    crate::bash::read_lines(out)
         .into_iter()
         .map(<[u8]>::to_vec)
-        .collect())
+        .collect()
 }
 
 /// What `review-binding` needs: the hand-off, a file named from where `nuc` runs, as the bash names
@@ -1132,6 +1106,12 @@ impl ReviewRepo<'_> {
         })
     }
 
+    /// The standard output of the diff `command` with `args`, with every guard.
+    fn diff(&self, command: git::Diff, args: &[&str]) -> Result<Vec<u8>, Refusal> {
+        git::diff(&self.tree.root, &[], command, args)
+            .map_err(git_refusal(review_binding::SENSOR.name))
+    }
+
     /// The exit code of git, for a call the bash tests by its status alone.
     fn status(&self, args: &[&str]) -> Result<(i32, Vec<u8>), Refusal> {
         git::status_and_output(&self.tree.root, args)
@@ -1205,14 +1185,12 @@ impl review_binding::Repo for ReviewRepo<'_> {
     }
 
     fn stat(&mut self, from: &str, to: &str) -> Result<Vec<Vec<u8>>, Refusal> {
-        self.lines(&["diff", "--no-ext-diff", "--no-textconv", "--stat", from, to])
+        self.diff(git::Diff::Diff, &["--stat", from, to])
+            .map(|out| output_lines(&out))
     }
 
     fn patch(&mut self, commit: &str, pathspecs: &[&str]) -> Result<Vec<u8>, Refusal> {
         let mut args = vec![
-            "diff-tree",
-            "--no-ext-diff",
-            "--no-textconv",
             "-r",
             "--root",
             "--no-commit-id",
@@ -1223,14 +1201,11 @@ impl review_binding::Repo for ReviewRepo<'_> {
             "--",
         ];
         args.extend(pathspecs);
-        self.git(&args)
+        self.diff(git::Diff::DiffTree, &args)
     }
 
     fn outside_record(&mut self, commit: &str) -> Result<Vec<Vec<u8>>, Refusal> {
         let mut args = vec![
-            "diff-tree",
-            "--no-ext-diff",
-            "--no-textconv",
             "-r",
             "--root",
             "--no-commit-id",
@@ -1239,7 +1214,8 @@ impl review_binding::Repo for ReviewRepo<'_> {
             "--",
         ];
         args.extend(review_binding::OUTSIDE_RECORD);
-        self.lines(&args)
+        self.diff(git::Diff::DiffTree, &args)
+            .map(|out| output_lines(&out))
     }
 
     fn hand_off(&mut self) -> Result<Vec<u8>, Refusal> {
@@ -1302,12 +1278,11 @@ fn backlog(tree: &Tree) -> Result<Vec<u8>, Refusal> {
         let Some(base) = unmerged_base(root, &name, main).map_err(undecided)? else {
             continue;
         };
-        let added = lines_of(
+        let added = git::diff(
             root,
+            &[],
+            git::Diff::Diff,
             &[
-                "diff",
-                "--no-ext-diff",
-                "--no-textconv",
                 "--no-renames",
                 "--name-only",
                 "--diff-filter=A",
@@ -1316,8 +1291,9 @@ fn backlog(tree: &Tree) -> Result<Vec<u8>, Refusal> {
                 "--",
                 &dir,
             ],
-            undecided,
-        )?;
+        )
+        .map_err(undecided)?;
+        let added = output_lines(&added);
         for path in added {
             if !backlog::is_entry(&path) || on_main.contains(&path) {
                 continue;

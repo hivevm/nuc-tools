@@ -114,15 +114,18 @@ golden path and the test pattern an agent copies from are named here.
   2.45.0 on, and an older git runs only on a repository that names no promisor remote;
   `git::blob_at` reads a blob at a revision, telling a path the commit lacks from an object a
   partial clone lacks, which is not decided
-  ([SEC-git-cleared-without-lazy-fetch](adr/SEC-git-cleared-without-lazy-fetch.md)). Its `Tree`, in
-  `shell::tree`, reads every file and lists every directory the rules need, each resolved through
-  one function that refuses a path outside the repository, and refuses as well, as not decided, one
-  the bash would read differently from its bytes alone. `shell::hook` reads `nuc.toml` and the
-  README through the `Tree` as well; the two files of the green-tree record and the sides of a
-  merge, at the paths git gives, it reads in the two functions `tests/functional_core.guarded` names
-  for them. It writes, renames, creates, and removes only in the functions
-  `tests/functional_core.writers` names, each inside the repository or its git directory (Q-8); `git
-  merge-file` writes ours for the merge driver.
+  ([SEC-git-cleared-without-lazy-fetch](adr/SEC-git-cleared-without-lazy-fetch.md)); and
+  `git::diff` starts every diff, `diff-tree`, and `log -G` with `--no-ext-diff` and
+  `--no-textconv`
+  ([SEC-repository-commands-neutralized-or-refused](adr/SEC-repository-commands-neutralized-or-refused.md)).
+  Its `Tree`, in `shell::tree`, reads every file and lists every directory the rules need, each
+  resolved through one function that refuses a path outside the repository, and refuses as well, as
+  not decided, one the bash would read differently from its bytes alone. `shell::hook` reads
+  `nuc.toml` and the README through the `Tree` as well; the two files of the green-tree record and
+  the sides of a merge, at the paths git gives, it reads in the two functions
+  `tests/functional_core.guarded` names for them. It writes, renames, creates, and removes only in
+  the functions `tests/functional_core.writers` names, each inside the repository or its git
+  directory (Q-8); `git merge-file` writes ours for the merge driver.
 - **Measure** — `src/measure.rs` counts the tokens of `nuc measure` from the requests an adapter
   per harness reads out of its transcripts, `src/measure/claude_code.rs` the one for Claude Code,
   each request once at the largest usage its lines report, selected by branch and time, and
