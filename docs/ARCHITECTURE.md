@@ -136,10 +136,16 @@ golden path and the test pattern an agent copies from are named here.
   shell gathered to the report the bash sensor of the tree's release writes on the standard output,
   byte for byte, or a refusal keyed `sense/<name>:<reason>`. The sensors that read a change share
   `src/sense/change.rs`, as the bash's share `resolve_change`; a change without a head ends in the
-  working tree, its untracked files included. `shell::sense` reads `nuc.toml` as
-  `nuc check` does, the README's release line, the files of the tree, and git as the bash asks
-  it, and writes the report. A tree whose release has no such sensor is not decided. The
-  template's sensors that need a process other than git or the network are none of them
+  working tree, its untracked files included. Their diffs against the working tree run with every
+  filter driver of the repository neutralized and look into no submodule's working tree (Q-7).
+  Where that could change what they report, they refuse: plain-rules a file of rules under a
+  filter and a rename a filter could pair otherwise, binding-adrs a path under a filter whose raw
+  bytes differ from the index and any submodule checked out. A file whose index holds bytes its
+  filter would clean otherwise is not refused, and can read otherwise than the bash.
+  `shell::sense` reads `nuc.toml` as `nuc check` does, the README's release line, the files of the
+  tree, and git as the bash asks it, and writes the report. A tree whose release has no such
+  sensor is not decided. The template's sensors that need a process other than git or the network
+  are none of them
   ([API-git-only-sensors-under-sense](adr/API-git-only-sensors-under-sense.md)).
 - **Binary** — `src/main.rs` calls the shell and nothing else.
 - **Parity harness** — `scripts/check-parity.sh` runs the bash checks of each repository of the

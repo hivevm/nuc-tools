@@ -4,5 +4,6 @@
 # macOS, where the test runs.
 core.fsmonitor=false
 core.hooksPath=/dev/null
+diff.submodule=short
 log.showSignature=false
 protocol.allow=never

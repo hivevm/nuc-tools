@@ -733,6 +733,15 @@ fn tests_kept_runs_no_driver_of_the_repository() {
         stdout(&output)
     );
     assert!(!marker.exists(), "nuc sense tests-kept ran a driver");
+
+    // The diff of a change that moves a submodule starts no diff in the submodule.
+    let (main, marker) = moved_submodule("sense-tests-kept-bait", "`sm`");
+    let output = main.nuc(&["sense", "tests-kept", "main", "feature"]);
+    assert_eq!(code(&output), Some(0), "{}", stderr(&output));
+    assert!(
+        !marker.exists(),
+        "a diff in the submodule ran its external diff"
+    );
 }
 
 /// The file's modification time a minute ahead, its content as it was: git must read it again to
@@ -1262,6 +1271,276 @@ fn the_readme_at_the_base_that_a_partial_clone_lacks_is_not_decided() {
     assert_eq!(code(&output), Some(2), "{}", stderr(&output));
     assert!(
         stderr(&output).contains("as in a partial clone"),
+        "{}",
+        stderr(&output)
+    );
+}
+
+/// An ADR of `binding-adrs` that names the rule of a check of `c.sh`, and `c.sh` with two checks.
+#[cfg(unix)]
+fn binding_checks(fixture: &Fixture, b: &str) {
+    for (name, key) in [("FIX-a-rule", "t/a"), ("FIX-b-rule", "t/b")] {
+        fixture.write(
+            &format!("docs/adr/{name}.md"),
+            &format!(
+                "# {name}: X\n\n- **Status:** 🟢 accepted\n- **Applies to:** the rule `{key}` of \
+                 `c.sh`\n"
+            ),
+        );
+    }
+    fixture.write(
+        "c.sh",
+        &format!("set -u\ncheck_a() {{  # t/a\n  :\n}}\n\ncheck_b() {{  # t/b\n  {b}\n}}\n"),
+    );
+}
+
+/// The diff `binding-adrs` reads the hunks of a file named with checks from runs no textconv
+/// driver, no external diff, and no colour the repository names (Q-7): each would hide the hunks,
+/// and the change inside one check would bind the ADR of the other.
+#[cfg(unix)]
+#[test]
+fn binding_adrs_runs_no_driver_of_the_repository() {
+    let readme = "# Fixture\n\n- **Template release:** v0.12.0\n";
+    let fixture = Fixture::project("sense-binding-bait", CONFIG, readme);
+    fixture.write(".gitattributes", "*.sh diff=bait\n");
+    binding_checks(&fixture, ":");
+    fixture.commit("checks");
+    fixture.git(&["switch", "-q", "-c", "feature"]);
+    binding_checks(&fixture, "true");
+    fixture.commit("inside b");
+    let marker = fixture.root().join(".git").join("driver-ran");
+    let textconv = bait(&fixture, "textconv.sh", &marker);
+    let command = bait(&fixture, "command.sh", &marker);
+    fixture.git(&["config", "diff.bait.textconv", &textconv]);
+    fixture.git(&["config", "diff.bait.command", &command]);
+    fixture.git(&["config", "diff.external", &command]);
+    fixture.git(&["config", "color.diff", "always"]);
+    let output = fixture.nuc(&["sense", "binding-adrs", "main", "feature"]);
+    assert_eq!(code(&output), Some(0), "{}", stderr(&output));
+    assert!(
+        stdout(&output).ends_with(
+            "1 path(s) changed; 1 ADR(s) in force name one of them. Read these, and the index for \
+             the ADRs whose Applies to is prose:\n  - FIX-b-rule (docs/adr/FIX-b-rule.md) — c.sh\n"
+        ),
+        "{}",
+        stdout(&output)
+    );
+    assert!(!marker.exists(), "nuc sense binding-adrs ran a driver");
+
+    // A submodule named with checks of its own, whose commit the change moves.
+    let (main, marker) = moved_submodule("sense-binding-bait", "the rule `t/a` of `sm`");
+    let output = main.nuc(&["sense", "binding-adrs", "main", "feature"]);
+    assert_eq!(code(&output), Some(0), "{}", stderr(&output));
+    assert!(
+        stdout(&output).ends_with("  - FIX-s-rule (docs/adr/FIX-s-rule.md) — sm\n"),
+        "{}",
+        stdout(&output)
+    );
+    assert!(
+        !marker.exists(),
+        "a diff in the submodule ran its external diff"
+    );
+}
+
+/// A repository whose branch `feature` moves the commit of the submodule `sm`, an ADR naming what
+/// the *Applies to* says, `diff.submodule=diff` set, and an external diff in the submodule's
+/// configuration that touches the marker returned: git would start a diff in the submodule that
+/// reads none of nuc's flags and runs it, but where `diff.submodule=short` is neutralized.
+#[cfg(unix)]
+fn moved_submodule(name: &str, applies: &str) -> (Fixture, std::path::PathBuf) {
+    let readme = "# Fixture\n\n- **Template release:** v0.12.0\n";
+    let sub = Fixture::project(&format!("{name}-sub"), CONFIG, readme);
+    let main = Fixture::project(&format!("{name}-super"), CONFIG, readme);
+    let url = sub.root().to_str().expect("UTF-8");
+    main.git(&[
+        "-c",
+        "protocol.file.allow=always",
+        "submodule",
+        "-q",
+        "add",
+        url,
+        "sm",
+    ]);
+    main.write(
+        "docs/adr/FIX-s-rule.md",
+        &format!("# FIX-s-rule: X\n\n- **Status:** 🟢 accepted\n- **Applies to:** {applies}\n"),
+    );
+    main.commit("submodule");
+    main.git(&["switch", "-q", "-c", "feature"]);
+    let sm = main.root().join("sm");
+    std::fs::write(sm.join("more.txt"), "more\n").expect("written");
+    support::git_in(&sm, &["add", "-A"]);
+    support::git_in(&sm, &["commit", "-q", "-m", "more"]);
+    main.commit("move the submodule");
+    let marker = main.root().join(".git").join("submodule-diff-ran");
+    let command = bait(&main, "command.sh", &marker);
+    main.git(&["config", "diff.submodule", "diff"]);
+    support::git_in(&sm, &["config", "diff.external", &command]);
+    (main, marker)
+}
+
+/// A change that ends in the working tree runs no filter the repository names (Q-7). A path under
+/// a filter whose stat changed while its bytes did not reads alike to the bash, which runs the
+/// filter, and to nuc, which runs none; one whose bytes changed is not decided, since the bash's
+/// git tells it through the filter. A submodule checked out is not decided either, whatever its
+/// `ignore` setting, since the bash's git may ask its own status, which runs its filters.
+#[cfg(unix)]
+#[test]
+fn binding_adrs_in_the_working_tree_runs_no_filter() {
+    let readme = "# Fixture\n\n- **Template release:** v0.12.0\n";
+    let fixture = Fixture::project("sense-binding-filter", CONFIG, readme);
+    fixture.write(".gitattributes", "*.png filter=bait\n");
+    fixture.write("a.png", "image\n");
+    binding_checks(&fixture, ":");
+    fixture.commit("image");
+    let marker = fixture.root().join(".git").join("filter-ran");
+    let clean = bait(&fixture, "clean.sh", &marker);
+    fixture.git(&["config", "filter.bait.clean", &clean]);
+    fixture.git(&["config", "filter.bait.process", &clean]);
+    fixture.git(&["config", "filter.bait.required", "true"]);
+    stat_changed(&fixture.root().join("a.png"));
+    binding_checks(&fixture, "true");
+    let output = fixture.nuc(&["sense", "binding-adrs", "HEAD"]);
+    assert_eq!(code(&output), Some(0), "{}", stderr(&output));
+    assert!(
+        stdout(&output).ends_with("  - FIX-b-rule (docs/adr/FIX-b-rule.md) — c.sh\n"),
+        "{}",
+        stdout(&output)
+    );
+    assert!(
+        !marker.exists(),
+        "nuc sense binding-adrs ran the filter of a.png"
+    );
+    fixture.write("a.png", "another image\n");
+    let output = fixture.nuc(&["sense", "binding-adrs", "HEAD"]);
+    assert_eq!(code(&output), Some(2), "{}", stdout(&output));
+    assert_eq!(stdout(&output), "");
+    assert!(
+        stderr(&output)
+            .trim_end()
+            .ends_with("[sense/binding-adrs:filter]"),
+        "{}",
+        stderr(&output)
+    );
+    assert!(
+        !marker.exists(),
+        "nuc sense binding-adrs ran the filter of a.png"
+    );
+
+    // A submodule whose own configuration names a filter for a file whose stat changed.
+    let sub = Fixture::project("sense-binding-sub", CONFIG, readme);
+    sub.write(".gitattributes", "*.txt filter=bait\n");
+    sub.write("f.txt", "a\n");
+    sub.commit("sub");
+    let main = Fixture::project("sense-binding-super", CONFIG, readme);
+    let url = sub.root().to_str().expect("UTF-8");
+    let added = main.git(&[
+        "-c",
+        "protocol.file.allow=always",
+        "submodule",
+        "-q",
+        "add",
+        url,
+        "sm",
+    ]);
+    assert!(added.status.success(), "{}", stderr(&added));
+    main.commit("submodule");
+    let marker = main.root().join(".git").join("sub-filter-ran");
+    let clean = bait(&main, "clean.sh", &marker);
+    support::git_in(
+        &main.root().join("sm"),
+        &["config", "filter.bait.clean", &clean],
+    );
+    stat_changed(&main.root().join("sm/f.txt"));
+    main.write("README.md", &format!("{readme}\nMore.\n"));
+    let output = main.nuc(&["sense", "binding-adrs", "HEAD"]);
+    assert!(
+        !marker.exists(),
+        "nuc sense binding-adrs ran a submodule's filter"
+    );
+    assert_eq!(code(&output), Some(2), "{}", stdout(&output));
+    assert!(
+        stderr(&output)
+            .trim_end()
+            .ends_with("[sense/binding-adrs:submodule]"),
+        "{}",
+        stderr(&output)
+    );
+    // Under the repository's `ignore = all` the bash's git never looks into the submodule, but nuc
+    // refuses a submodule checked out alike, so that no flag of its own overrides that setting.
+    main.git(&["config", "-f", ".gitmodules", "submodule.sm.ignore", "all"]);
+    let output = main.nuc(&["sense", "binding-adrs", "HEAD"]);
+    assert!(
+        !marker.exists(),
+        "nuc sense binding-adrs ran a submodule's filter"
+    );
+    assert_eq!(code(&output), Some(2), "{}", stdout(&output));
+    assert!(
+        stderr(&output).contains("a submodule checked out, whose state the bash's git may read"),
+        "{}",
+        stderr(&output)
+    );
+}
+
+/// `binding-adrs` refuses what its bash reads otherwise or not at all (Q-1): `--path` without a
+/// path and `--root`, as the value of `--path` too, exit 2 as a usage error, an ADR with a NUL
+/// byte, which the bash's command substitution drops, is not decided, and so is a path that is no
+/// UTF-8 where the sensor has to hand it to git.
+#[test]
+fn binding_adrs_refuses_what_it_cannot_read_as_the_bash_does() {
+    let readme = "# Fixture\n\n- **Template release:** v0.12.0\n";
+    let fixture = Fixture::project("sense-binding-refusals", CONFIG, readme);
+    for args in [
+        &["sense", "binding-adrs", "--path"][..],
+        &["sense", "binding-adrs", "--sections", "--path", ""],
+        &["sense", "binding-adrs", "--root", "."],
+        &["sense", "binding-adrs", "--path", "--root"],
+        &["sense", "binding-adrs", "--path", "x", "HEAD"],
+    ] {
+        let output = fixture.nuc(args);
+        assert_eq!(code(&output), Some(2), "{args:?}: {}", stdout(&output));
+        assert_eq!(stdout(&output), "", "{args:?}");
+    }
+    fixture.write(
+        "docs/adr/FIX-a-rule.md",
+        "# FIX-a-rule: X\n\n- **Status:** 🟢 accepted\n- **Applies to:** `README.md`\n\0\n",
+    );
+    let output = fixture.nuc(&["sense", "binding-adrs", "--path", "README.md"]);
+    assert_eq!(code(&output), Some(2), "{}", stdout(&output));
+    assert!(
+        stderr(&output)
+            .trim_end()
+            .ends_with("[sense/binding-adrs:file]"),
+        "{}",
+        stderr(&output)
+    );
+}
+
+/// A changed path that is no UTF-8 and named with checks of its own is not decided: nuc would have
+/// to hand it to git for its hunks.
+#[cfg(unix)]
+#[test]
+fn binding_adrs_refuses_a_path_it_cannot_hand_to_git() {
+    use std::os::unix::ffi::OsStrExt;
+    let readme = "# Fixture\n\n- **Template release:** v0.12.0\n";
+    let fixture = Fixture::project("sense-binding-name", CONFIG, readme);
+    let mut adr = b"# FIX-a-rule: X\n\n- **Status:** \xf0\x9f\x9f\xa2 accepted\n- **Applies to:** \
+                    the rule `t/a` of `\xff.sh`\n"
+        .to_vec();
+    adr.push(b'\n');
+    std::fs::create_dir_all(fixture.root().join("docs/adr")).expect("a directory");
+    std::fs::write(fixture.root().join("docs/adr/FIX-a-rule.md"), adr).expect("written");
+    let odd = fixture.root().join(std::ffi::OsStr::from_bytes(b"\xff.sh"));
+    // A file system that holds only UTF-8 names, as APFS on macOS, cannot have the path at all.
+    if std::fs::write(&odd, "check_a() {  # t/a\n  :\n}\n").is_err() {
+        return;
+    }
+    let output = fixture.nuc(&["sense", "binding-adrs", "HEAD"]);
+    assert_eq!(code(&output), Some(2), "{}", stdout(&output));
+    assert!(
+        stderr(&output)
+            .trim_end()
+            .ends_with("[sense/binding-adrs:name]"),
         "{}",
         stderr(&output)
     );

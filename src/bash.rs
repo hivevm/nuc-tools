@@ -128,6 +128,36 @@ pub fn read_tab_fields(line: &[u8]) -> (Vec<u8>, Vec<u8>, Vec<u8>) {
     (a, b, rest[start..end].to_vec())
 }
 
+/// The fields `IFS=$'\t' read -r a rest` splits a line into: the first run of bytes between tabs,
+/// and what follows it without the tabs that lead or end it, as [`read_tab_fields`] reads them.
+pub fn read_tab_pair(line: &[u8]) -> (Vec<u8>, Vec<u8>) {
+    let line: Vec<u8> = line.iter().copied().filter(|&b| b != 0).collect();
+    let tab = |b: &u8| *b == b'\t';
+    let start = line.iter().position(|b| !tab(b)).unwrap_or(line.len());
+    let end = line[start..]
+        .iter()
+        .position(tab)
+        .map_or(line.len(), |i| start + i);
+    let rest = &line[end..];
+    let from = rest.iter().position(|b| !tab(b)).unwrap_or(rest.len());
+    let to = rest.iter().rposition(|b| !tab(b)).map_or(from, |i| i + 1);
+    (line[start..end].to_vec(), rest[from..to].to_vec())
+}
+
+/// The fields awk splits a line into with its default field separator: the runs of bytes between
+/// blanks, spaces and tabs, those that lead or end the line left out.
+pub fn awk_fields(line: &[u8]) -> Vec<&[u8]> {
+    line.split(|&b| b == b' ' || b == b'\t' || b == b'\n')
+        .filter(|field| !field.is_empty())
+        .collect()
+}
+
+/// The bytes as a command substitution `$(...)` gives them: every newline that ends them dropped.
+pub fn substituted(text: &[u8]) -> &[u8] {
+    let end = text.iter().rposition(|&b| b != b'\n').map_or(0, |i| i + 1);
+    &text[..end]
+}
+
 /// The position of the first occurrence of the needle in the bytes; an empty needle is at 0.
 pub fn find(haystack: &[u8], needle: &[u8]) -> Option<usize> {
     if needle.is_empty() {
@@ -223,5 +253,22 @@ mod tests {
         assert_eq!(trim(b"\x0B a \r"), b"a");
         assert_eq!(b"\x0B a".trim_ascii(), b"\x0B a");
         assert_eq!(trim("\u{a0}a".as_bytes()), "\u{a0}a".as_bytes());
+    }
+
+    #[test]
+    fn a_tab_pair_keeps_the_spaces_and_trims_the_tabs_of_the_rest() {
+        assert_eq!(
+            read_tab_pair(b"a b\t\tc d\t"),
+            (b"a b".to_vec(), b"c d".to_vec())
+        );
+        assert_eq!(read_tab_pair(b"\tk"), (b"k".to_vec(), Vec::new()));
+        assert_eq!(read_tab_pair(b"x\ty\tz"), (b"x".to_vec(), b"y\tz".to_vec()));
+    }
+
+    #[test]
+    fn awk_fields_split_at_blanks_and_a_substitution_drops_the_newlines_that_end() {
+        assert_eq!(awk_fields(b" a\t b "), [&b"a"[..], b"b"]);
+        assert_eq!(substituted(b"a\n\nb\n\n"), b"a\n\nb");
+        assert_eq!(substituted(b"\n"), b"");
     }
 }

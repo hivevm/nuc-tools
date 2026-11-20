@@ -24,11 +24,14 @@ const SET: &[(&str, &str)] = &[
 /// every call. The hooks path is the null device, which can hold no hook. No transport is allowed,
 /// so that a partial clone's lazy fetch of a missing object, which `show`, `diff`, and `cat-file`
 /// would start, runs no command the repository's configuration names, such as `core.sshCommand`
-/// (Q-7, Q-11).
+/// (Q-7, Q-11). A diff shows a submodule's change as one line, git's default: `diff.submodule=diff`
+/// or `log` would have it start a git in the submodule, which reads no flag of nuc's diff and
+/// runs the external diff and the textconv drivers the configuration names.
 #[cfg(not(windows))]
 pub const NEUTRALIZED: &[&str] = &[
     "core.fsmonitor=false",
     "core.hooksPath=/dev/null",
+    "diff.submodule=short",
     "log.showSignature=false",
     "protocol.allow=never",
 ];
@@ -36,6 +39,7 @@ pub const NEUTRALIZED: &[&str] = &[
 pub const NEUTRALIZED: &[&str] = &[
     "core.fsmonitor=false",
     "core.hooksPath=NUL",
+    "diff.submodule=short",
     "log.showSignature=false",
     "protocol.allow=never",
 ];

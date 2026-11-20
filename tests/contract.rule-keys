@@ -156,6 +156,13 @@ sense/action-refs:require
 sense/backlog:git
 sense/backlog:name
 sense/backlog:release
+sense/binding-adrs:file
+sense/binding-adrs:filter
+sense/binding-adrs:git
+sense/binding-adrs:name
+sense/binding-adrs:ref
+sense/binding-adrs:release
+sense/binding-adrs:submodule
 sense/plain-rules:file
 sense/plain-rules:filter
 sense/plain-rules:git

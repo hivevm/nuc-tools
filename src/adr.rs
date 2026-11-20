@@ -746,6 +746,20 @@ pub fn clauses_out(line: &[u8], categories: &[String]) -> Vec<u8> {
 /// then " of ", as `grep -oE` takes them leftmost; a path with a space is left out, and a trailing
 /// `/` is cut.
 pub fn rule_paths(applies: &[u8]) -> Vec<(String, Vec<String>)> {
+    rule_path_bytes(applies)
+        .into_iter()
+        .map(|(path, rules)| {
+            let rules = rules
+                .iter()
+                .map(|rule| String::from_utf8_lossy(rule).into_owned())
+                .collect();
+            (String::from_utf8_lossy(&path).into_owned(), rules)
+        })
+        .collect()
+}
+
+/// The paths and rule keys of [`rule_paths`], as the bytes the *Applies to* writes them in.
+pub fn rule_path_bytes(applies: &[u8]) -> Vec<(Vec<u8>, Vec<Vec<u8>>)> {
     static TOKEN: std::sync::OnceLock<regex::bytes::Regex> = std::sync::OnceLock::new();
     static KEY: std::sync::OnceLock<regex::bytes::Regex> = std::sync::OnceLock::new();
     let token = TOKEN.get_or_init(|| {
@@ -765,14 +779,14 @@ pub fn rule_paths(applies: &[u8]) -> Vec<(String, Vec<String>)> {
         let rules = if text.starts_with(b"the rule") {
             let of = text.len() - path.len() - 2 - b" of ".len();
             key.captures_iter(&text[..of])
-                .map(|c| String::from_utf8_lossy(&c[1]).into_owned())
+                .map(|c| c[1].to_vec())
                 .collect()
         } else {
             Vec::new()
         };
         if !path.is_empty() && !path.iter().any(|&b| is_space(b)) {
             let path = path.strip_suffix(b"/").unwrap_or(path);
-            found.push((String::from_utf8_lossy(path).into_owned(), rules));
+            found.push((path.to_vec(), rules));
         }
     }
     found

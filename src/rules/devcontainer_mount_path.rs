@@ -57,9 +57,9 @@ fn check(inputs: &Inputs) -> Outcome {
     }
     let cited = devcontainer::cite(inputs, 5);
     let mut findings = Vec::new();
-    let folder =
-        devcontainer::substituted(devcontainer::top_level_value(config, b"workspaceFolder"));
-    if !folder.is_empty() && !crate::bash::contains(&folder, format!("\"{OWN}\"").as_bytes()) {
+    let value = devcontainer::top_level_value(config, b"workspaceFolder");
+    let folder = crate::bash::substituted(&value);
+    if !folder.is_empty() && !crate::bash::contains(folder, format!("\"{OWN}\"").as_bytes()) {
         findings.push(finding(
             "folder",
             format!(

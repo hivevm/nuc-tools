@@ -10,8 +10,8 @@ use std::path::{Path, PathBuf};
 
 use crate::config;
 use crate::sense::{
-    self, Refusal, action_refs, backlog, change, plain_rules, plan_frontier, revision_due,
-    tests_kept,
+    self, Refusal, action_refs, backlog, binding_adrs, change, plain_rules, plan_frontier,
+    revision_due, tests_kept,
 };
 
 use super::tree::Tree;
@@ -28,12 +28,13 @@ pub(super) fn run(name: &str, options: &[&str]) -> Result<u8, String> {
     };
     // `--repo` names the repository, as for every command; the bash's `--root` is refused, and so
     // is every other argument that reads as an option but the `--require` of `action-refs` and
-    // `plain-rules`, as the bash of v0.10.0 on refuses them.
+    // `plain-rules`, as the bash of v0.10.0 on refuses them. `binding-adrs` reads its options by
+    // the release, as its bash does.
     let takes_require = [action_refs::SENSOR.name, plain_rules::SENSOR.name].contains(&name);
     let flag = |(at, arg): (usize, &&str)| {
         arg.starts_with('-') && !(takes_require && at == 0 && *arg == "--require")
     };
-    if args.iter().enumerate().any(flag) {
+    if name != binding_adrs::SENSOR.name && args.iter().enumerate().any(flag) {
         return Err(super::usage());
     }
     let start = match repo {
@@ -86,6 +87,13 @@ pub(super) fn run(name: &str, options: &[&str]) -> Result<u8, String> {
             }
             None => PASSED,
         });
+    }
+    if sensor.name == binding_adrs::SENSOR.name {
+        let parsed = binding_adrs::parse(args, release).ok_or_else(super::usage)?;
+        let report =
+            binding_adrs(&tree, release, &parsed).map_err(|refusal| refusal.to_string())?;
+        write_report(&report)?;
+        return Ok(PASSED);
     }
     if sensor.name == plain_rules::SENSOR.name {
         let positional = args.strip_prefix(&["--require"]).unwrap_or(args);
@@ -483,21 +491,17 @@ struct Filters {
 }
 
 /// The keys that keep a diff against the working tree from running a filter, and the tracked paths
-/// under an active one. git runs a filter only for a driver that any entry of the configuration
-/// gives a `clean` or `process` command, not empty, and the attribute's value names the driver. It
-/// runs the filter of a stat-dirty file anywhere in the tree, whatever the pathspec, so every
-/// active driver gets an empty `process` command, which keeps git from running both it and
-/// the `clean` command, and `required` off, so that the diff does not fail for want of either
-/// (Q-7). A driver no entry makes active runs no command and is left as the bash's git reads it. An
-/// active driver whose name holds a `=`, which `-c` would split there and so neutralize another
-/// key, or is no UTF-8, is not decided.
-///
-/// A file of rules under an active driver is not decided: the bash's git reads it through the
-/// filter, nuc's would read it raw, and the two can tell another change. `check-attr` prints `set`
-/// both for a bare `filter`, which names no driver, and for a driver named `set`, so such a file is
-/// refused only where a driver of that name is active, the side that never passes.
-fn neutralized_filters(root: &Path, release: config::Version) -> Result<Filters, Refusal> {
-    let sensor = plain_rules::SENSOR.name;
+/// under an active one, for the sensor. git runs a filter only for a driver that any entry of the
+/// configuration gives a `clean` or `process` command, not empty, and the attribute's value names
+/// the driver. It runs the filter of a stat-dirty file anywhere in the tree, whatever the
+/// pathspec, so every active driver gets an empty `process` command, which keeps git from running
+/// both it and the `clean` command, and `required` off, so that the diff does not fail for want of
+/// either (Q-7). A driver no entry makes active runs no command and is left as the bash's git reads
+/// it. An active driver whose name holds a `=`, which `-c` would split there and so neutralize
+/// another key, or is no UTF-8, is not decided. `check-attr` prints `set` both for a bare `filter`,
+/// which names no driver, and for a driver named `set`, so such a path counts as under a filter
+/// only where a driver of that name is active, the side that never passes.
+fn neutralized_filters(root: &Path, sensor: &'static str) -> Result<Filters, Refusal> {
     let undecided = git_refusal(sensor);
     let refuse = |message: String| Refusal {
         sensor,
@@ -546,22 +550,35 @@ fn neutralized_filters(root: &Path, release: config::Version) -> Result<Filters,
         let [path, _, value] = entry else {
             continue;
         };
-        if !active.contains(*value) {
-            continue;
+        if active.contains(*value) {
+            filters.paths.insert(path.to_vec());
         }
-        if plain_rules::is_rule_file(path, release) {
-            return Err(refuse(format!(
-                "{}: its attributes name a filter, through which the bash's git reads it",
-                String::from_utf8_lossy(path)
-            )));
-        }
-        filters.paths.insert(path.to_vec());
     }
     Ok(filters)
 }
 
+/// A file of rules under an active driver is not decided: the bash's git reads it through the
+/// filter, nuc's would read it raw, and the two can tell another change.
+fn refuse_filtered_rule_files(filters: &Filters, release: config::Version) -> Result<(), Refusal> {
+    match filters
+        .paths
+        .iter()
+        .find(|path| plain_rules::is_rule_file(path, release))
+    {
+        Some(path) => Err(Refusal {
+            sensor: plain_rules::SENSOR.name,
+            reason: "filter",
+            message: format!(
+                "{}: its attributes name a filter, through which the bash's git reads it",
+                String::from_utf8_lossy(path)
+            ),
+        }),
+        None => Ok(()),
+    }
+}
+
 /// The untracked files `ls-files` names, unquoted, where the change ends in the working tree.
-fn untracked(root: &Path, change: &Change) -> Result<Vec<u8>, Refusal> {
+fn untracked(root: &Path, change: &Change, sensor: &'static str) -> Result<Vec<u8>, Refusal> {
     if !change.worktree {
         return Ok(Vec::new());
     }
@@ -572,7 +589,7 @@ fn untracked(root: &Path, change: &Change) -> Result<Vec<u8>, Refusal> {
         "--others",
         "--exclude-standard",
     ];
-    git::run_bytes(root, &args).map_err(git_refusal(plain_rules::SENSOR.name))
+    git::run_bytes(root, &args).map_err(git_refusal(sensor))
 }
 
 /// Refused where rename detection could pair a file of rules otherwise than the bash's git does.
@@ -643,7 +660,9 @@ fn rule_files(
     let mut guards = vec!["--no-ext-diff", "--no-textconv"];
     let filters = if change.worktree {
         guards.push("--ignore-submodules=all");
-        Some(neutralized_filters(root, release)?)
+        let filters = neutralized_filters(root, sensor)?;
+        refuse_filtered_rule_files(&filters, release)?;
+        Some(filters)
     } else {
         None
     };
@@ -664,7 +683,7 @@ fn rule_files(
     if let Some(filters) = &filters {
         refuse_filtered_renames(&diff, filters, release)?;
     }
-    let untracked = untracked(root, change)?;
+    let untracked = untracked(root, change, sensor)?;
     let mut files = Vec::new();
     for (path, from) in plain_rules::listed(&diff, &untracked, release) {
         if !plain_rules::is_rule_file(&path, release) {
@@ -727,6 +746,285 @@ fn rule_files(
         }
     }
     Ok(files)
+}
+
+/// What `binding-adrs` needs: the paths named, or the change and the paths it touches; the ADRs
+/// and the index as the change has them, where the report reads them; and, for a file named with
+/// checks of its own, the file and its diff. git is asked as the bash of the release asks it, but
+/// never through a textconv driver, an external diff, or a filter of the repository or of a
+/// submodule (Q-7). Where the change ends in the working tree, a submodule checked out is not
+/// decided, since the bash's git may ask its own status; the diffs neutralize every filter driver,
+/// and a path under a filter whose raw bytes differ from the index is not decided, since the bash's
+/// git tells it through the filter. A submodule not checked out is read under the repository's own
+/// `ignore` settings, as the bash's git reads it.
+fn binding_adrs(
+    tree: &Tree,
+    release: config::Version,
+    args: &binding_adrs::Args,
+) -> Result<Vec<u8>, Refusal> {
+    let root = &tree.root;
+    let sensor = binding_adrs::SENSOR.name;
+    let undecided = git_refusal(sensor);
+    let mut unfiltered: Vec<String> = Vec::new();
+    let (listing, change) = if args.named.is_empty() {
+        let given = change::given(args.base, args.head);
+        match resolve_change(root, sensor, binding_adrs::LABEL, args.base, args.head)? {
+            Err(_) => (
+                binding_adrs::Listing::Nothing,
+                Change {
+                    base: String::new(),
+                    head: given.head.to_owned(),
+                    worktree: given.worktree,
+                },
+            ),
+            Ok(change) => {
+                let (paths, keys) = changed_paths(root, &change)?;
+                unfiltered = keys;
+                let short = |reference: &str| {
+                    git::run(root, &["rev-parse", "--short", reference])
+                        .map(|out| out.trim_end().to_owned())
+                        .map_err(undecided)
+                };
+                let range = if change.worktree {
+                    format!("{}..working tree", short(&change.base)?)
+                } else {
+                    format!("{}..{}", short(&change.base)?, short(&change.head)?)
+                };
+                (binding_adrs::Listing::Changed { range, paths }, change)
+            }
+        }
+    } else {
+        let named = args.named.iter().map(|path| path.as_bytes().to_vec());
+        (
+            binding_adrs::Listing::Named(named.collect()),
+            Change {
+                base: String::new(),
+                head: "HEAD".to_owned(),
+                worktree: true,
+            },
+        )
+    };
+    let adrs = if binding_adrs::reads_adrs(&listing, args.sections, release) {
+        adrs_of(tree, &change, release)?
+    } else {
+        Vec::new()
+    };
+    let index = if binding_adrs::reads_index(args.sections, release) {
+        shown(tree, &change, binding_adrs::INDEX)?
+    } else {
+        Vec::new()
+    };
+    let record = binding_adrs::Record { adrs, index };
+    let mut diffed = |path: &[u8]| -> Result<binding_adrs::Diffed, Refusal> {
+        let path = spelled_for(sensor, path)?;
+        let file = shown(tree, &change, &path)?;
+        let mut args: Vec<&str> = unfiltered.iter().flat_map(|key| ["-c", key]).collect();
+        args.extend(["diff", "--no-ext-diff", "--no-textconv", "--no-color"]);
+        args.extend(["-U0", "--no-renames", &change.base]);
+        if !change.worktree {
+            args.push(&change.head);
+        }
+        args.extend(["--", &path]);
+        let diff = git::run_bytes(root, &args).map_err(undecided)?;
+        Ok(binding_adrs::Diffed { file, diff })
+    };
+    binding_adrs::report(release, args.sections, &listing, &record, &mut diffed)
+}
+
+/// The paths a change touches, as `git diff --name-only --no-renames` names them unquoted under
+/// `core.quotePath=false`, with the untracked files where it ends in the working tree, sorted and
+/// unique; and the keys that keep a diff against the working tree from running a filter.
+fn changed_paths(root: &Path, change: &Change) -> Result<(Vec<Vec<u8>>, Vec<String>), Refusal> {
+    let sensor = binding_adrs::SENSOR.name;
+    let mut keys: Vec<String> = Vec::new();
+    if change.worktree {
+        refuse_checked_out_submodule(root)?;
+        let filters = neutralized_filters(root, sensor)?;
+        keys.clone_from(&filters.keys);
+        refuse_filtered_dirty(root, &filters, &keys)?;
+    }
+    let mut args = vec!["-c", "core.quotePath=false"];
+    args.extend(keys.iter().flat_map(|key| ["-c", key.as_str()]));
+    args.extend([
+        "diff",
+        "--no-ext-diff",
+        "--no-textconv",
+        "--name-only",
+        "--no-renames",
+        &change.base,
+    ]);
+    if !change.worktree {
+        args.push(&change.head);
+    }
+    let mut out = git::run_bytes(root, &args).map_err(git_refusal(sensor))?;
+    if change.worktree {
+        out.extend(untracked(root, change, sensor)?);
+    }
+    let mut paths: Vec<Vec<u8>> = crate::bash::read_lines(&out)
+        .into_iter()
+        .filter(|path| !path.is_empty())
+        .map(<[u8]>::to_vec)
+        .collect();
+    paths.sort();
+    paths.dedup();
+    Ok((paths, keys))
+}
+
+/// Refused where a tracked path under an active filter differs from the index by its raw bytes:
+/// its stat changed, so the bash's git hashes it through the filter, and nuc's, which runs none,
+/// can tell another change of it. A path whose stat is unchanged is read from the index by both,
+/// and one whose raw bytes are the index's is unchanged to both, but where the index holds bytes
+/// the filter would clean otherwise, as a file committed before its filter was set.
+fn refuse_filtered_dirty(root: &Path, filters: &Filters, keys: &[String]) -> Result<(), Refusal> {
+    let sensor = binding_adrs::SENSOR.name;
+    if filters.paths.is_empty() {
+        return Ok(());
+    }
+    let mut args: Vec<&str> = keys.iter().flat_map(|key| ["-c", key.as_str()]).collect();
+    // The porcelain diff of the index and the working tree hashes a path whose stat changed, raw
+    // under the neutralized filters; `diff-files` would name it for its stat alone.
+    args.extend([
+        "diff",
+        "--no-ext-diff",
+        "--no-textconv",
+        "-z",
+        "--name-only",
+    ]);
+    let dirty = git::run_bytes(root, &args).map_err(git_refusal(sensor))?;
+    let dirty: std::collections::BTreeSet<&[u8]> = dirty.split(|&b| b == 0).collect();
+    match filters
+        .paths
+        .iter()
+        .find(|path| dirty.contains(path.as_slice()))
+    {
+        Some(path) => Err(Refusal {
+            sensor,
+            reason: "filter",
+            message: format!(
+                "{}: changed in the working tree under a filter, through which the bash's git \
+                 reads it",
+                String::from_utf8_lossy(path)
+            ),
+        }),
+        None => Ok(()),
+    }
+}
+
+/// Refused where the index records a submodule that is checked out, its directory holding a
+/// `.git`: whether the bash's git lists it can depend on the submodule's own working tree, which
+/// git reads by running the submodule's status, and so its filters (Q-7). A submodule that is not
+/// checked out is read from the index alone, under the repository's own `ignore` settings, as the
+/// bash's git reads it.
+fn refuse_checked_out_submodule(root: &Path) -> Result<(), Refusal> {
+    let sensor = binding_adrs::SENSOR.name;
+    let staged =
+        git::run_bytes(root, &["ls-files", "-z", "--stage"]).map_err(git_refusal(sensor))?;
+    // '<mode> <object> <stage>\t<path>\0' for each entry.
+    for entry in staged.split(|&b| b == 0) {
+        let Some(tab) = entry.iter().position(|&b| b == b'\t') else {
+            continue;
+        };
+        if !entry.starts_with(b"160000 ") {
+            continue;
+        }
+        let path = &entry[tab + 1..];
+        let mut dot_git = path.to_vec();
+        dot_git.extend(b"/.git");
+        if exists(root, &dot_git) {
+            return Err(Refusal {
+                sensor,
+                reason: "submodule",
+                message: format!(
+                    "{}: a submodule checked out, whose state the bash's git may read through its \
+                     own status, which runs its filters",
+                    String::from_utf8_lossy(path)
+                ),
+            });
+        }
+    }
+    Ok(())
+}
+
+/// The ADR files as the change has them, as `adr_list` lists them, with their bytes: in the
+/// working tree each regular file directly in `docs/adr/` whose name the release's glob matches
+/// and holds no newline, as `find -type f` lists them, in byte order; else each the head lists
+/// there, as `ADR_FILE_RE` matches the lines of `git ls-tree`. A file that is no blob at the head
+/// reads as empty.
+fn adrs_of(
+    tree: &Tree,
+    change: &Change,
+    release: config::Version,
+) -> Result<Vec<binding_adrs::Adr>, Refusal> {
+    let sensor = binding_adrs::SENSOR.name;
+    let paths: Vec<String> = if change.worktree {
+        let dir = tree.root.join(binding_adrs::DIR);
+        let names = tree
+            .regular_files(&dir, &|name| binding_adrs::is_adr_name(name, release))
+            .map_err(|message| Refusal {
+                sensor,
+                reason: "file",
+                message: unwrapped(message),
+            })?;
+        // `find | while read` splits a name at its newline into paths that name no ADR.
+        names
+            .into_iter()
+            .filter(|name| !name.contains('\n'))
+            .map(|name| format!("{}/{name}", binding_adrs::DIR))
+            .collect()
+    } else {
+        let ls_tree = git::run_bytes(
+            &tree.root,
+            &[
+                "ls-tree",
+                "-r",
+                "--name-only",
+                &change.head,
+                "--",
+                "docs/adr/",
+            ],
+        )
+        .map_err(git_refusal(sensor))?;
+        binding_adrs::listed_adrs(&ls_tree, release)
+            .iter()
+            .map(|path| spelled_for(sensor, path))
+            .collect::<Result<_, _>>()?
+    };
+    paths
+        .into_iter()
+        .map(|path: String| {
+            let text = shown(tree, change, &path)?;
+            Ok(binding_adrs::Adr {
+                path: path.into_bytes(),
+                text,
+            })
+        })
+        .collect()
+}
+
+/// A file as `binding-adrs` shows it, as `change_file` gives it: in the working tree as `cat`
+/// reads it where it is a file, else at the head as `git show` shows a blob; empty where neither
+/// has one. A NUL byte is not decided (Q-1).
+fn shown(tree: &Tree, change: &Change, path: &str) -> Result<Vec<u8>, Refusal> {
+    let sensor = binding_adrs::SENSOR.name;
+    let bytes = if change.worktree {
+        let at = tree.root.join(path);
+        if at.is_file() {
+            tree.read_bytes(&at).map_err(|message| Refusal {
+                sensor,
+                reason: "file",
+                message: unwrapped(message),
+            })?
+        } else {
+            None
+        }
+    } else {
+        git::blob_at(&tree.root, &change.head, path).map_err(git_refusal(sensor))?
+    };
+    let bytes = bytes.unwrap_or_default();
+    if bytes.contains(&0) {
+        return Err(binding_adrs::with_nul(path));
+    }
+    Ok(bytes)
 }
 
 /// The lines of git's output as `while IFS= read -r` reads them.

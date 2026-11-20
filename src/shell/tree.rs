@@ -624,6 +624,47 @@ fn path_of(root: &Path, raw: &[u8]) -> Option<PathBuf> {
 }
 
 impl Tree {
+    /// The names of the regular files directly in the directory that `wanted` takes, as
+    /// `find <dir> -maxdepth 1 -type f` lists them, in byte order: a symbolic link is none, and a
+    /// directory that is itself a link lists nothing, since find does not follow it. A name that is
+    /// no UTF-8 is not decided where `wanted` takes it with each such byte replaced.
+    pub(super) fn regular_files(
+        &self,
+        dir: &Path,
+        wanted: &dyn Fn(&str) -> bool,
+    ) -> Result<Vec<String>, String> {
+        if !fs::symlink_metadata(dir).is_ok_and(|meta| meta.is_dir()) {
+            return Ok(Vec::new());
+        }
+        let real = match self.resolve(dir, || outside(dir))? {
+            Ok(real) => real,
+            Err(e) if e.kind() == ErrorKind::NotFound => return Ok(Vec::new()),
+            Err(e) => return Err(format!("{}: unreadable — {e}", dir.display())),
+        };
+        let entries =
+            fs::read_dir(&real).map_err(|e| format!("{}: unreadable — {e}", real.display()))?;
+        let mut names = Vec::new();
+        for entry in entries {
+            let entry = entry.map_err(|e| format!("{}: unreadable — {e}", real.display()))?;
+            if !entry.file_type().is_ok_and(|kind| kind.is_file()) {
+                continue;
+            }
+            let name = entry.file_name();
+            if !wanted(&name.to_string_lossy()) {
+                continue;
+            }
+            let Some(name) = name.to_str() else {
+                return Err(format!(
+                    "{}: a file name that is no UTF-8 — not decided",
+                    entry.path().display()
+                ));
+            };
+            names.push(name.to_owned());
+        }
+        names.sort();
+        Ok(names)
+    }
+
     /// The names of the entries of a directory of the repository, sorted by their bytes as a glob
     /// in the C locale sorts them; empty when it is no directory. A directory that resolves
     /// outside the repository is not listed, and a name that is no UTF-8 is not decided.

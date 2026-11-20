@@ -65,3 +65,30 @@ plain-rules	plain_branch	no-such-ref
 plain-rules	plain_filtered	-
 plain-rules	plain_filtered	--require
 plain-rules	plain_filtered_added	--require main
+binding-adrs	tree	-
+binding-adrs	tree	HEAD
+binding-adrs	tree	--sections HEAD
+binding-adrs	tree	--sections --path docs/ --path scripts/check-docs.sh --path src/x.rs
+binding-adrs	bind_branch	main
+binding-adrs	bind_branch	main work
+binding-adrs	bind_branch	--sections main
+binding-adrs	bind_branch	--sections main work
+binding-adrs	bind_branch	0000000000000000000000000000000000000000 work
+binding-adrs	bind_branch	--sections --path README.md --path ./src/x.rs --path docs/ --path tools
+binding-adrs	bind_branch	--path
+binding-adrs	bind_branch	--path src/app.sh HEAD
+binding-adrs	bind_branch	no-such-ref
+binding-adrs	bind_inside_key	main
+binding-adrs	bind_inside_number	--sections main
+binding-adrs	bind_tail	main
+binding-adrs	bind_same	-
+binding-adrs	bind_same	--sections
+binding-adrs	bind_no_main	-
+binding-adrs	bind_no_main	--sections
+binding-adrs	bind_record	main
+binding-adrs	bind_record	--sections main work
+binding-adrs	bind_filtered	HEAD
+binding-adrs	bind_filtered	main
+binding-adrs	bind_gitlink	-
+binding-adrs	bind_gitlink	--sections main
+binding-adrs	bind_gitlink_ignored	-

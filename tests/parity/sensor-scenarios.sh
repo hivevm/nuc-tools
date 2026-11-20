@@ -376,3 +376,180 @@ plain_filtered_added() {
   sp_git "$1" commit -q -m "adr and image"
   sp_git "$1" config filter.bait.clean cat
 }
+
+# The identifier of the fixture's base ADR, assembled so that no reader of references reads one.
+BIND_NUC="NUC""-base-rule"
+
+# bind_adr <dir> <name> <status> <applies to> [<body>] — an ADR with a header, and the body after
+# it, sections of one paragraph each by default.
+bind_adr() {
+  mkdir -p "$1/docs/adr"
+  printf '# %s: Fixture\n\n- **Status:** %s\n- **Date:** 2026-01-01\n- **Applies to:** %s\n\n%s\n' \
+    "${2%.md}" "$3" "$4" \
+    "${5:-$'## Context\n\nWhy it came up.\n\n## Decision\n\nWe will do it.\n\n## Alternatives considered\n\n- None.\n\n## Enforcement\n\nA sensor lists it.'}" \
+    > "$1/docs/adr/$2"
+}
+
+# bind_checks <dir> <a> <b> <one> <two> — a script with checks named by rule key and by number,
+# their bodies as given, and an item of the header that carries old keys.
+bind_checks() {
+  mkdir -p "$1/scripts"
+  printf '#!/usr/bin/env bash\n#\n#   t/a\n#   t/b (was: t/old, t/older)\nset -u\n\ncheck_a() {  # t/a\n  %s\n}\n\nhelper() {\n  :\n}\n\ncheck_b() {  # t/b\n  %s\n}\n\ncheck_one() {  # check 1\n  %s\n}\n\ncheck_two() {  # check 2\n  %s\n}\n' \
+    "$2" "$3" "$4" "$5" > "$1/scripts/c.sh"
+}
+
+# bind_main <dir> — main with the ADRs of both records, each kind a release reads: the numbered
+# ones and drafts, and those named by category; an index with a Binding table; and the files they
+# name. Then the branch work.
+# shellcheck disable=SC2016 # the backticks are Markdown, not a command substitution
+bind_main() {
+  local d="$1" kind
+  for kind in 0 FIX; do
+    n() { [[ "$kind" == 0 ]] && printf '%04d-%s.md' "$1" "$2" || printf 'FIX-%s-rule.md' "$2"; }
+    bind_adr "$d" "$(n 1 plan)" "🟢 accepted" 'the plan under `docs/plan/` and `README.md`'
+    bind_adr "$d" "$(n 2 gone)" "⚪ superseded" 'everything under `src/`'
+    bind_adr "$d" "$(n 3 code)" "🟡 proposed" 'the code under `src/`, and the `pull request` template'
+    bind_adr "$d" "$(n 4 graph)" "🟢 accepted" 'the graph of `crates/engine/src/graph.rs`, the root `crates/engine/src/lib.rs`, and `build.rs`'
+    bind_adr "$d" "$(n 5 numbers)" "🟢 accepted" 'checks 2 of `scripts/c.sh`'
+    bind_adr "$d" "$(n 6 keys)" "🟢 accepted" 'the rules `t/c`, `t/older`, and `t/x` of `scripts/c.sh`'
+    bind_adr "$d" "$(n 7 names)" "🟢 accepted" 'the `Makefile`, the hooks under `.githooks`, `docs/über.md`, `odd"name.txt`, and the `plan-feature` skill'
+    bind_adr "$d" "$(n 8 fenced)" "🟢 accepted" '`tools/`, `lib/x.sh`, and `Makefile`' \
+      $'## Decision\n\nWe will fence.\n\n```md\n## Notes\n\nInside the fence.\n```\n\nAfter the fence.\n\n## Enforcement\n\nIt holds.\n\n## Decision\n\nA second one.'
+    bind_adr "$d" "$(n 9 rejected)" "🔴 rejected" '`Makefile`'
+    bind_adr "$d" "$(n 10 first)" "🟢 accepted" 'checks 1 and 3 of `scripts/c.sh`'
+    bind_adr "$d" "$(n 11 akey)" "🟢 accepted" 'the rule `t/a` of `scripts/c.sh`'
+  done
+  bind_adr "$d" draft-new.md "🟡 proposed" 'the tools under `tools/` and the rule `t/b` of `scripts/c.sh`'
+  bind_adr "$d" "$BIND_NUC.md" "🟡 proposed" 'every ADR, `scripts/base.sh`'
+  printf '# ADRs\n\n## Mechanics\n\nHow the record is kept.\n\n### Binding\n\n| ADR | Title | Applies to |\n|---|---|---|\n| [0001](0001-plan.md) | Plan | the plan under `docs/plan/` and `README.md` |\n| [0003](0003-code.md) | Code |  the code under `src/`  |\n| [0008](0008-fenced.md) | Fenced | `tools/`, `lib/x.sh`, and `Makefile` |\n| [0099](0099-gone.md) | Gone | a row only |\n\n## Later\n\n| [0098](x.md) | After | after the table |\n' \
+    > "$d/docs/adr/README.md"
+  mkdir -p "$d/docs/plan" "$d/src" "$d/crates/engine/src/lib" "$d/build" "$d/.githooks" "$d/tools"
+  printf 'plan\n' > "$d/docs/plan/README.md"
+  printf 'code\n' > "$d/src/app.sh"
+  printf 'old\n' > "$d/src/old.sh"
+  printf 'x\n' > "$d/crates/engine/src/lib/part.rs"
+  printf 'x\n' > "$d/build/asset.txt"
+  printf 'all:\n' > "$d/Makefile"
+  printf 'x\n' > "$d/.githooks/pre-push"
+  printf 'ü\n' > "$d/docs/über.md"
+  bind_checks "$d" : : : :
+  sp_git "$d" add -A
+  sp_git "$d" commit -q -m base
+  sp_git "$d" switch -q -c work
+}
+
+# bind_changes <dir> — on the branch, committed: a path under a directory, a module of a Rust file,
+# files under the directories of a library root and a build script, a file that only begins like
+# one named, five files under one directory, paths git quotes, a deletion, and edits inside a check
+# of each kind.
+bind_changes() {
+  local d="$1" i
+  printf 'more\n' >> "$d/docs/plan/README.md"
+  mkdir -p "$d/crates/engine/src/graph"
+  printf 'mod\n' > "$d/crates/engine/src/graph/hit.rs"
+  printf 'more\n' >> "$d/crates/engine/src/lib/part.rs"
+  printf 'more\n' >> "$d/build/asset.txt"
+  printf 'x\n' > "$d/README.md.bak"
+  for i in 1 2 3 4 5; do printf '%s\n' "$i" > "$d/src/f$i.sh"; done
+  printf 'more\n' >> "$d/docs/über.md"
+  printf 'x\n' > "$d/odd\"name.txt"
+  printf 'x\n' > "$d/tab	name.txt"
+  sp_git "$d" rm -q src/old.sh
+  bind_checks "$d" : true : true
+  sp_git "$d" add -A
+  sp_git "$d" commit -q -m changes
+}
+
+# The committed change, and in the working tree an edit between two checks, an ADR flipped, and an
+# untracked file.
+# shellcheck disable=SC2016 # the backticks are Markdown, not a command substitution
+bind_branch() {
+  bind_main "$1"
+  bind_changes "$1"
+  printf 'more\n' >> "$1/Makefile"
+  printf 'new\n' > "$1/tools/new.sh"
+  bind_adr "$1" FIX-plan-rule.md "🔴 rejected" 'the plan under `docs/plan/` and `README.md`'
+  bind_adr "$1" 0001-plan.md "🔴 rejected" 'the plan under `docs/plan/` and `README.md`'
+}
+
+# An edit inside the check of the rule t/b alone, in the working tree: it binds the ADR that names
+# its old key, and from v0.10.0 no ADR that names only another rule; v0.9.x reads it outside every
+# numbered check.
+bind_inside_key() {
+  bind_main "$1"
+  bind_checks "$1" : true : :
+  printf 'more\n' >> "$1/.githooks/pre-push"
+}
+
+# An edit inside check 1 alone: in v0.9.x it binds the ADR that names checks 1 and 3, and not the
+# one that names check 2; from v0.10.0 it lies outside every check of a rule key.
+bind_inside_number() {
+  bind_main "$1"
+  bind_checks "$1" : : true :
+}
+
+# The last line deleted, its next line past the end of the file: every ADR that names it binds.
+bind_tail() {
+  bind_main "$1"
+  sed '$d' "$1/scripts/c.sh" > "$1/c.sh.tmp" && cat "$1/c.sh.tmp" > "$1/scripts/c.sh" && rm "$1/c.sh.tmp"
+}
+
+# On main, nothing changed.
+bind_same() { bind_main "$1"; sp_git "$1" switch -q main; }
+
+# A history without a main: nothing to compare.
+bind_no_main() { bind_main "$1"; sp_git "$1" branch -q -D main; }
+
+# This repository's record and checks on a branch off a main that has them, the branch editing
+# inside a rule's check, a source file, and the parity harness.
+bind_record() {
+  mkdir -p "$1/docs/adr" "$1/scripts" "$1/src/shell" "$1/tests/parity"
+  cp "$ROOT"/docs/adr/*.md "$1/docs/adr/"
+  cp "$ROOT/scripts/check-docs.sh" "$1/scripts/check-docs.sh"
+  printf 'x\n' > "$1/src/shell/git.rs"
+  printf 'x\n' > "$1/tests/parity/corpus.toml"
+  sp_git "$1" add -A
+  sp_git "$1" commit -q -m record
+  sp_git "$1" switch -q -c work
+  awk '/^check_relative_links\(\)/ { c = 1 } c && /^}/ { print "  : # edited"; c = 0 } { print }' \
+    "$1/scripts/check-docs.sh" > "$1/check-docs.new"
+  mv "$1/check-docs.new" "$1/scripts/check-docs.sh"
+  printf 'y\n' >> "$1/src/shell/git.rs"
+  printf 'y\n' >> "$1/tests/parity/corpus.toml"
+  sp_git "$1" commit -q -am edits
+}
+
+# A filter on a file outside the record, as Git LFS names one, the file's stat changed: the bash's
+# git runs its clean command, a harmless cat here, and nuc's runs none, with the same report.
+bind_filtered() {
+  bind_main "$1"
+  printf '*.png filter=bait\n' > "$1/.gitattributes"
+  printf 'image\n' > "$1/a.png"
+  sp_git "$1" add -A
+  sp_git "$1" commit -q -m image
+  sp_git "$1" config filter.bait.clean cat
+  touch -d '+1 min' "$1/a.png"
+  printf 'more\n' >> "$1/src/app.sh"
+}
+
+# bind_gitlink_staged <dir> [<ignore>] — on main, a submodule that is not checked out, an empty
+# directory as git leaves it, its .gitmodules entry ignoring as given; then another commit of it
+# staged, not committed.
+bind_gitlink_staged() {
+  local first
+  bind_main "$1"
+  sp_git "$1" switch -q main
+  first="$(sp_git "$1" rev-parse HEAD)"
+  mkdir -p "$1/tools/sub"
+  printf '[submodule "tools/sub"]\n\tpath = tools/sub\n\turl = ./sub.git\n' > "$1/.gitmodules"
+  [[ -z "${2:-}" ]] || printf '\tignore = %s\n' "$2" >> "$1/.gitmodules"
+  sp_git "$1" add .gitmodules
+  sp_git "$1" update-index --add --cacheinfo "160000,$first,tools/sub"
+  sp_git "$1" commit -q -m submodule
+  sp_git "$1" update-index --cacheinfo "160000,$(sp_git "$1" rev-parse HEAD),tools/sub"
+}
+
+# The staged commit of a submodule not checked out is a change; under ignore = all it is none, as
+# the repository's setting has git read it.
+bind_gitlink() { bind_gitlink_staged "$1"; }
+bind_gitlink_ignored() { bind_gitlink_staged "$1" all; }
