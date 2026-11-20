@@ -41,19 +41,46 @@ skimmed. The design revision drops what prevented nothing
   release line counts, and a missing README is the finding of another rule. How its unit tests
   copy the cases of the bash self-test is stated in `tests/bash_cases.rs`. Where the bash result
   depends on more than the input, as grep's on a file with a NUL byte, `nuc` refuses instead of
-  guessing. Each port, a hook's included, is tried on the bytes the bash reads otherwise than
-  Rust, in a file, in what git answers, and in what git hands a hook on its standard input and
-  arguments: a byte of no valid UTF-8, the byte 0x1F its awk passes split fields on, a last line
-  without a newline (`read` drops it, awk and `sed` keep it), numbers in bash arithmetic (octal
-  after a leading zero, 64-bit wrap), a path git lists that is no UTF-8, which the bash opens and
-  Rust's strings do not hold, and a ref name that is no UTF-8, which the bash reads as bytes. A
-  byte class `nuc` reads as the bash does is tried by a variant of the parity harness where a
-  variant can write it and the bash reports it without an error of its own, or for a hook by a
-  scenario of the hook harness, else by a fixture of `tests/check.rs`, for a hook of
-  `tests/hooks.rs`, or a unit test, as a digit bash's arithmetic lacks the base for; one it refuses
-  is pinned by a fixture of `tests/check.rs`, for a hook of `tests/hooks.rs`, that shows exit 2.
+  guessing. The author of a port, a hook's included, must try it on the bytes the bash reads
+  otherwise than Rust, in a file, in what git answers, and in what git hands a hook on its standard
+  input and arguments:
+  - a byte of no valid UTF-8;
+  - the byte 0x1F its awk passes split fields on;
+  - a last line without a newline, which `read` drops and awk and `sed` keep;
+  - numbers in bash arithmetic: octal after a leading zero, and 64-bit wrap;
+  - a path git lists that is no UTF-8, which the bash opens and Rust's strings do not hold;
+  - a path git writes in double quotes, as it writes one with a `"`, a `\`, or a control byte,
+    which `adr::awk_unescape` reads as awk does;
+  - a ref name or a message that is no UTF-8, which the bash reads as bytes.
+
+  The author of a port must make it read only the files and the answers of git its bash reads, so
+  that a file the bash never opens cannot refuse a run. The author must try each byte class that
+  `nuc` reads as the bash does in the first place that can hold it:
+  - a variant of the parity harness, where a variant can write it and the bash reports it without
+    an error of its own;
+  - for a hook, a scenario of the hook harness;
+  - for a sensor, a scenario of `tests/parity/sensor-scenarios.sh`;
+  - else a fixture of `tests/check.rs`, for a hook of `tests/hooks.rs`, for a sensor of
+    `tests/contract.rs`;
+  - else a unit test, as for a digit that bash's arithmetic lacks the base for.
+
+  The author must pin each byte class that `nuc` refuses by a fixture of `tests/check.rs`, for a
+  hook of `tests/hooks.rs`, for a sensor of `tests/contract.rs`, that shows exit 2.
   Which readings of the bash's tools a port takes from `src/bash.rs` is stated in
   `tests/functional_core.rs`.
+- **A git command a port adds is tried against the repository's own commands** — the author of a
+  port must test each git command the port adds against a repository whose configuration names a
+  command git could run, or that makes git look into a submodule:
+  - a clean filter and a process filter;
+  - a textconv driver;
+  - an external diff;
+  - `diff.submodule`;
+  - a checked-out submodule.
+
+  The test must run the command in every form the port calls it, a range of commits and the working
+  tree alike. The list of neutralized keys guards only a key whose name is fixed
+  (SEC-git-cleared-without-lazy-fetch). A driver's name changes from repository to repository, so
+  only such a test sees a command run under it (Q-7).
 - **A check's cases are a table** — a new or changed check writes its cases into a table under
   `scripts/fixtures/` before its code, and its self-test reads the table, so a port of the
   checks is held to the same cases. A case expects a key, a rule identifier and a reason word that

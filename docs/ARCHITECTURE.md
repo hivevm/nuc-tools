@@ -6,7 +6,7 @@
 > is updated in the same change as the structure it describes
 > ([NUC-documents-are-fixed](adr/NUC-documents-are-fixed.md)).
 >
-> **Last design revision:** 2026-11-18, due after 20 changes. The revision that took the count
+> **Last design revision:** 2026-11-20, due after 20 changes. The revision that took the count
 > moves the date; the number is this project's to set; a sensor counts the changes outside
 > `docs/` since the commit that set the date and says when the next is due
 > ([NUC-design-is-revised §4](adr/NUC-design-is-revised.md)).
@@ -52,7 +52,9 @@ golden path and the test pattern an agent copies from are named here.
   one reading of its links in `src/markdown.rs`, both outside `src/rules/`, the way the bash's
   `scripts/lib/adr.sh` and awk passes read them. The byte-level readings of the bash's tools, lines
   as awk, `read`, and `sed` split them, POSIX space and the bytes without it, and the first word
-  `read` splits off, are in `src/bash.rs` and nowhere else, which the structural test holds. The
+  `read` splits off, are in `src/bash.rs`, and the structural test holds that the names it lists
+  stand nowhere else; the sensors binding-adrs, plain-rules, and tests-kept read awk's numbers
+  and git's hunk headers in their own modules, which it does not list. The
   rules of the area `traceability` share one reading of the criteria of the specification and of the
   identifiers the `Verifies:` markers cite in `src/traceability.rs`, beside `src/adr.rs`, so that no
   rule module calls another. The shell matches path patterns as bash's pathname expansion does
@@ -132,23 +134,28 @@ golden path and the test pattern an agent copies from are named here.
   symbolic link
   ([API-measure-reads-harness-transcripts](adr/API-measure-reads-harness-transcripts.md)).
 - **Sensors** — `src/sense.rs` lists the sensors of the template `nuc sense` ports, `sense::ALL`,
-  each a module beside it, as `src/sense/revision_due.rs`: a pure function from the values the
-  shell gathered to the report the bash sensor of the tree's release writes on the standard output,
-  byte for byte, or a refusal keyed `sense/<name>:<reason>`. The sensors that read a change share
-  `src/sense/change.rs`, as the bash's share `resolve_change`; a change without a head ends in the
-  working tree, its untracked files included. Their diffs against the working tree run with every
-  filter driver of the repository neutralized and look into no submodule's working tree (Q-7).
-  Where that could change what they report, they refuse: plain-rules a file of rules under a
-  filter and a rename a filter could pair otherwise, binding-adrs a path under a filter whose raw
-  bytes differ from the index and any submodule checked out. A file whose index holds bytes its
-  filter would clean otherwise is not refused, and can read otherwise than the bash.
+  each a module beside it, as `src/sense/revision_due.rs`: a function to the report the bash sensor
+  of the tree's release writes on the standard output, byte for byte, or a refusal keyed
+  `sense/<name>:<reason>`. Six of them take only the values the shell gathered. binding-adrs asks
+  the shell for the file at a path and its diff through the callback `diffed`, only where its bash
+  reads them, and review-binding asks git through a trait, below; neither reads a file or runs a
+  process itself. Both go against the *Core* of API-git-only-sensors-under-sense, which ticket 01 of
+  `docs/plan/revision-2026-11-20/` decides. The sensors that read a change share one resolution of
+  it, as the bash's share `resolve_change`: `src/sense/change.rs` reads the base and the head they
+  were given, and `resolve_change` in `shell::sense` asks git for the commits; a change without a
+  head ends in the working tree, its untracked files included. Their diffs against the working tree
+  run with every filter driver of the repository neutralized and look into no submodule's working
+  tree (Q-7). Where that could change what they report, they refuse: plain-rules a file of rules
+  under a filter and a rename a filter could pair otherwise, binding-adrs a path under a filter
+  whose raw bytes differ from the index and any submodule checked out. A file whose index holds
+  bytes its filter would clean otherwise is not refused, and can read otherwise than the bash.
   review-binding asks git what each answer leads it to, as its bash does, so its core asks through
-  the trait `review_binding::Repo`, which `shell::sense` answers with git; its diffs compare
-  commits and read no working tree, and its hand-off is a file named from where `nuc` runs that
-  must resolve inside the repository. `shell::sense` reads `nuc.toml` as `nuc check` does, the
-  README's release line, the files of the tree, and git as the bash asks it, and writes the
-  report. A tree whose release has no such sensor is not decided. The template's sensors that
-  need a process other than git or the network are none of them
+  the trait `review_binding::Repo`, which `shell::sense` answers with git; its diffs compare commits
+  and read no working tree, and its hand-off is a file named from where `nuc` runs that must resolve
+  inside the repository. `shell::sense` reads `nuc.toml` as `nuc check` does, the README's release
+  line, the files of the tree, and git as the bash asks it, and writes the report. A tree whose
+  release has no such sensor is not decided. The template's sensors that need a process other than
+  git or the network are none of them
   ([API-git-only-sensors-under-sense](adr/API-git-only-sensors-under-sense.md)).
 - **Binary** — `src/main.rs` calls the shell and nothing else.
 - **Parity harness** — `scripts/check-parity.sh` runs the bash checks of each repository of the
