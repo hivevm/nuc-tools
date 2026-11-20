@@ -601,6 +601,7 @@ fn a_due_revision_names_the_entries_its_changes_touched() {
 /// The diffs `git log -G` reads to find the commit that set the date run no textconv driver the
 /// repository names (Q-7): the driver here would write a file. A shell script is the driver, so
 /// the test runs where one can run.
+/// Verifies: SEC-repository-commands-neutralized-or-refused
 #[cfg(unix)]
 #[test]
 fn the_anchor_runs_no_textconv_driver_of_the_repository() {
@@ -752,6 +753,7 @@ fn bait(fixture: &Fixture, name: &str, marker: &std::path::Path) -> String {
 
 /// The diffs of `tests-kept` run no textconv driver and no external diff the repository names
 /// (Q-7).
+/// Verifies: SEC-repository-commands-neutralized-or-refused
 #[cfg(unix)]
 #[test]
 fn tests_kept_runs_no_driver_of_the_repository() {
@@ -801,6 +803,7 @@ fn stat_changed(path: &std::path::Path) {
 
 /// The diffs of `plain-rules` run no textconv driver and no external diff the repository names
 /// (Q-7).
+/// Verifies: SEC-repository-commands-neutralized-or-refused
 #[cfg(unix)]
 #[test]
 fn plain_rules_runs_no_driver_of_the_repository() {
@@ -835,6 +838,7 @@ fn plain_rules_runs_no_driver_of_the_repository() {
 /// A change that ends in the working tree runs no filter the repository names (Q-7): a file of
 /// rules under a filter is not decided, since the bash's git reads it through the filter; and the
 /// diffs leave out a submodule, whose own filter git would run to tell whether it is dirty.
+/// Verifies: SEC-repository-commands-neutralized-or-refused
 #[cfg(unix)]
 #[test]
 fn plain_rules_in_the_working_tree_runs_no_filter() {
@@ -911,6 +915,7 @@ fn plain_rules_in_the_working_tree_runs_no_filter() {
 /// A filter on a file outside the rules, as Git LFS names one, whose file's stat changed, runs
 /// neither its clean nor its process command, even where it is required, and the sensor reports on
 /// the rules (Q-7). The parity scenario `plain_filtered` holds the report to the bash's.
+/// Verifies: SEC-repository-commands-neutralized-or-refused
 #[cfg(unix)]
 #[test]
 fn plain_rules_neutralizes_a_filter_outside_the_rules() {
@@ -949,6 +954,7 @@ fn plain_rules_neutralizes_a_filter_outside_the_rules() {
 /// The value of the filter attribute read as git reads it: a driver whose name holds `=`, which
 /// `-c` would split there and so neutralize another key, is not decided and does not run; a bare
 /// `filter` on a file of rules names no driver, and the sensor reads the file's bytes as git does.
+/// Verifies: SEC-repository-commands-neutralized-or-refused
 #[cfg(unix)]
 #[test]
 fn plain_rules_reads_the_filter_attribute_as_git_does() {
@@ -997,6 +1003,7 @@ fn plain_rules_reads_the_filter_attribute_as_git_does() {
 /// cleans, and pair the file of rules otherwise (Q-1, Q-7). Here the bash's git pairs the old ADR
 /// with `z.bin`, so the renamed ADR reads with every line added and `--require` fails on its
 /// "should"; read raw, the ADR pairs with its old self and the gate would pass.
+/// Verifies: SEC-repository-commands-neutralized-or-refused
 #[cfg(unix)]
 #[test]
 fn plain_rules_refuses_a_rename_a_filter_could_pair_otherwise() {
@@ -1048,6 +1055,7 @@ fn plain_rules_refuses_a_rename_a_filter_could_pair_otherwise() {
 /// Git LFS, is no refusal where nothing is deleted, so that no rename can pair otherwise: on a
 /// clean checkout, as CI runs the gate, with the driver configured and without one. The parity
 /// scenario `plain_filtered_added` holds the report to the bash's.
+/// Verifies: SEC-repository-commands-neutralized-or-refused
 #[cfg(unix)]
 #[test]
 fn plain_rules_runs_on_an_adr_added_beside_a_filtered_file() {
@@ -1087,6 +1095,7 @@ fn plain_rules_runs_on_an_adr_added_beside_a_filtered_file() {
 /// `check-attr` prints `set` for a bare `filter` and for a driver named `set` alike: where a driver
 /// of that name is configured, a file of rules under the value is not decided, and the driver does
 /// not run (Q-1, Q-7).
+/// Verifies: SEC-repository-commands-neutralized-or-refused
 #[cfg(unix)]
 #[test]
 fn plain_rules_refuses_a_rule_file_under_a_driver_named_set() {
@@ -1117,6 +1126,7 @@ fn plain_rules_refuses_a_rule_file_under_a_driver_named_set() {
 /// A driver that no entry gives a command runs nothing and is left as git reads it: one that is
 /// only `required`, on a file whose stat changed, makes nuc's git die as the bash's does, and the
 /// run is not decided, where the bash exits 2 as well.
+/// Verifies: SEC-repository-commands-neutralized-or-refused
 #[cfg(unix)]
 #[test]
 fn plain_rules_leaves_a_driver_without_a_command_to_git() {
@@ -1340,6 +1350,7 @@ fn binding_checks(fixture: &Fixture, b: &str) {
 /// The diff `binding-adrs` reads the hunks of a file named with checks from runs no textconv
 /// driver, no external diff, and no colour the repository names (Q-7): each would hide the hunks,
 /// and the change inside one check would bind the ADR of the other.
+/// Verifies: SEC-repository-commands-neutralized-or-refused
 #[cfg(unix)]
 #[test]
 fn binding_adrs_runs_no_driver_of_the_repository() {
@@ -1427,6 +1438,7 @@ fn moved_submodule(name: &str, applies: &str) -> (Fixture, std::path::PathBuf) {
 /// filter, and to nuc, which runs none; one whose bytes changed is not decided, since the bash's
 /// git tells it through the filter. A submodule checked out is not decided either, whatever its
 /// `ignore` setting, since the bash's git may ask its own status, which runs its filters.
+/// Verifies: SEC-repository-commands-neutralized-or-refused
 #[cfg(unix)]
 #[test]
 fn binding_adrs_in_the_working_tree_runs_no_filter() {
@@ -1643,6 +1655,7 @@ fn review_branch(fixture: &Fixture) -> String {
 /// diff in a submodule (Q-7). A canary: git 2.56 runs none of them for `diff --stat`, the plumbing
 /// `diff-tree`, or `log --format` into a pipe whatever the configuration, so the test fails on no
 /// flag of nuc's taken away; it fails where a git or a change of nuc's calls would start one.
+/// Verifies: SEC-repository-commands-neutralized-or-refused
 #[cfg(unix)]
 #[test]
 fn review_binding_runs_no_driver_of_the_repository() {

@@ -2081,7 +2081,7 @@ fn a_release_of_the_hooks_beyond_64_bits_is_not_decided() {
     );
 }
 
-/// Verifies: Q-7
+/// Verifies: Q-7, SEC-repository-commands-neutralized-or-refused
 #[test]
 fn a_hook_whose_attributes_name_a_filter_is_not_hashed_and_not_decided() {
     let fixture = pinned_hooks("hooks-filter", "0.2.2");
