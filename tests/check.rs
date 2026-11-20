@@ -194,7 +194,7 @@ fn without_git_on_the_path_it_refuses_and_names_how_to_install_it() {
 fn a_panic_is_an_internal_error_that_names_its_cause_and_never_passes() {
     let fixture = Fixture::project("panic", CONFIG, README);
     let output = fixture.nuc_with(&[("NUC_TEST_PANIC", "1")], &["check"]);
-    // API-command-line-with-measure: a panic exits 101, non-zero as the refusals are.
+    // API-command-line-with-sense: a panic exits 101, non-zero as the refusals are.
     assert_eq!(code(&output), Some(101), "{}", stderr(&output));
     assert_eq!(stdout(&output), "");
     let err = stderr(&output);
@@ -2081,7 +2081,7 @@ fn a_release_of_the_hooks_beyond_64_bits_is_not_decided() {
     );
 }
 
-/// Verifies: Q-7
+/// Verifies: Q-7, SEC-repository-commands-neutralized-or-refused
 #[test]
 fn a_hook_whose_attributes_name_a_filter_is_not_hashed_and_not_decided() {
     let fixture = pinned_hooks("hooks-filter", "0.2.2");

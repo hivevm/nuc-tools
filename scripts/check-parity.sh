@@ -68,6 +68,10 @@
 # release has at scripts/fixtures/, fetched from the corpus's template into the cache
 # (TEST-template-table-cases).
 #
+# Each comparison also runs the sensors nuc ports on the tree or variant, and the last shard runs
+# the sensor scenarios on the template's trees, through scripts/lib/sensor-parity.sh
+# (API-git-only-sensors-under-sense).
+#
 # Then the hook scenarios run on the template's trees of the corpus, through
 # scripts/lib/hook-parity.sh (TEST-hook-scenarios-on-bash-hooks): each scenario of
 # tests/parity/hook-scenarios.sh through git, with the tree's bash hook and with the reference shim
@@ -84,12 +88,15 @@
 #                             [--variants <file>] [--no-hooks] [--shard <k>/<n>]
 #     scripts/check-parity.sh [--root <dir>] [--nuc <binary>] --hooks <template tree>...
 #     scripts/check-parity.sh --compare <bash output> <bash exit> <nuc output> <nuc exit>
+#     scripts/check-parity.sh --sense-compare <sensor> <release> <bash output> <bash exit>
+#                             <nuc output> <nuc exit>
 # --root names the repository whose corpus, tables, and build it reads, this one by default; the
 # harness changes into it, so a relative path given to an option or in PARITY_TABLE or
 # PARITY_RELEASES is read from that root, not from the directory it was called in.
 # --nuc runs the given binary instead of building one; --no-hooks leaves the hook scenarios out;
 # --hooks runs them alone, on the trees given; --shard runs one of n shares of the comparisons;
-# --compare compares one pair of outputs, for scripts/test-check-parity.sh. PARITY_TABLE names
+# --compare compares one pair of outputs, and --sense-compare one pair of a sensor's, for
+# scripts/test-check-parity.sh. PARITY_TABLE names
 # another normalization table, PARITY_RELEASES another table of releases, PARITY_TABLE_BLOBS
 # another list of the blobs of the copied fixture tables, PARITY_JOBS the number of comparisons
 # that run at once, and PARITY_WHOLE_COST other seconds for the parts the last shard alone runs.
@@ -115,7 +122,7 @@ LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")/lib" && pwd)"
 # shellcheck source-path=SCRIPTDIR source=lib/root.sh
 source "$LIB/root.sh"
 # The usage is one line, as enter_root reads which options take a value from it.
-usage="scripts/check-parity.sh [--root <dir>] [--corpus <file>] [--cache <dir>] [--nuc <binary>] [--variants <file>] [--no-hooks] [--shard <k>/<n>] [--hooks <template tree>...] | --compare <bash output> <bash exit> <nuc output> <nuc exit>"
+usage="scripts/check-parity.sh [--root <dir>] [--corpus <file>] [--cache <dir>] [--nuc <binary>] [--variants <file>] [--no-hooks] [--shard <k>/<n>] [--hooks <template tree>...] | --compare <bash output> <bash exit> <nuc output> <nuc exit> | --sense-compare <sensor> <release> <bash output> <bash exit> <nuc output> <nuc exit>"
 enter_root "${BASH_SOURCE[0]}" "$usage" "$@"
 set -- "${ARGS[@]}"
 TABLE="${PARITY_TABLE:-$ROOT/tests/parity/normalize.tsv}"
@@ -128,6 +135,8 @@ source "$LIB/check.sh"
 source "$LIB/pin.sh"
 # shellcheck source-path=SCRIPTDIR source=lib/hook-parity.sh
 source "$LIB/hook-parity.sh"
+# shellcheck source-path=SCRIPTDIR source=lib/sensor-parity.sh
+source "$LIB/sensor-parity.sh"
 
 # Git hands a hook its repository through variables that would bind the cache's git commands to
 # this repository; they are not the harness's (scripts/lib/selftest.sh does the same).
@@ -210,7 +219,7 @@ compare() {
     fi
     if [[ -n "$rule" ]]; then
       n="" text="${line#"$file: $rule: "}"
-      # The line ends in its key, '[<rule>:<reason>]' (API-command-line-with-measure), which
+      # The line ends in its key, '[<rule>:<reason>]' (API-command-line-with-sense), which
       # is no part of the bash's wording before v0.9.1; a finding without it is a difference.
       reason=""
       if [[ "$text" =~ \ \["$rule":([a-z]+)\]$ ]]; then
@@ -313,6 +322,13 @@ compare() {
   echo "Parity check: $label — ${#bash_keys[@]} finding(s) of the ported rules, the same from bash and nuc."
 }
 
+if [[ "${1:-}" == "--sense-compare" ]]; then
+  (($# == 7)) || die "--sense-compare takes <sensor> <release> <bash output> <bash exit> <nuc output> <nuc exit>"
+  load_sensor_tables || exit 2
+  sensor_compare "pair" "$2" "$3" "$4" "$5" "$6" "$7"
+  exit
+fi
+
 if [[ "${1:-}" == "--compare" ]]; then
   (($# == 5)) || die "--compare takes <bash output> <bash exit> <nuc output> <nuc exit>"
   load_table
@@ -348,6 +364,7 @@ shard_k="${BASH_REMATCH[1]}" shard_n="${BASH_REMATCH[2]}"
 # Whether this run makes the parts that read all the template's trees at once: the last shard.
 whole=$((shard_k == shard_n))
 load_table
+load_sensor_tables || exit 2
 
 # The corpus, one 'name url commit' line per repository, and the cost of one comparison of each
 # tree, its key 'cost' or '-' where it has none.
@@ -570,6 +587,10 @@ run_pair() {
   env -i PATH="$PATH" HOME="$HOME" "${CI_ENV[@]}" "$nuc" check --repo "$dir" > "$out.nuc" 2> "$out.nuc.err"
   nuc_rc=$?
   compare "$label" "$out.bash" "$bash_rc" "$out.nuc" "$nuc_rc"
+  rc=$?
+  # The sensors on the same tree, each where its release has it.
+  sensor_tree "$nuc" "$label" "$dir" "$out" || rc=1
+  return "$rc"
 }
 
 # apply_variant <copy> <path> <sed|delete|write|chomp|chmod> <argument> — apply the edit to the
@@ -721,6 +742,12 @@ for entry in "${repositories[@]}"; do
 
   ready["$name"]=1
 done
+# The newest template tree, whose bash sensors a tree or variant that names no release is compared
+# with, as nuc sense reports there as the newest release it knows.
+if ((${#template_trees[@]})); then
+  SENSOR_NEWEST_TREE="$(printf '%s\n' "${template_trees[@]}" | sort -V -k1,1 | tail -n 1)"
+  SENSOR_NEWEST_TREE="${SENSOR_NEWEST_TREE#* }"
+fi
 
 # check_table_blobs — the pins of the copies of the template's fixture tables
 # (TEST-template-table-cases): each line '<release> <blob> <file>' of TABLE_BLOBS names the
@@ -919,10 +946,16 @@ if ((whole && ${#template_trees[@]} >= 2)); then
   done
 fi
 
+tree_dirs=()
+for tree in "${template_trees[@]}"; do tree_dirs+=("${tree#* }"); done
+
+# The sensor scenarios, on the template's trees of the corpus (API-git-only-sensors-under-sense).
+if ((whole)); then
+  sensor_scenarios "$nuc" "$work" "${tree_dirs[@]}" || failed=1
+fi
+
 # The hook scenarios, on the template's trees of the corpus (TEST-hook-scenarios-on-bash-hooks).
 if ((hooks && whole)); then
-  tree_dirs=()
-  for tree in "${template_trees[@]}"; do tree_dirs+=("${tree#* }"); done
   hook_parity "$nuc" "$work" "${tree_dirs[@]}"
   case $? in 0) ;; 2) exit 2 ;; *) failed=1 ;; esac
 fi

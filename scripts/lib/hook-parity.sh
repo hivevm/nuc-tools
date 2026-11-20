@@ -12,7 +12,7 @@
 # Compared per scenario and tree: the exit status of the git command; the hook's lines, those that
 # start with the hook's name and a colon, each mapped by tests/parity/hooks.tsv to a hook/ rule ID
 # and the ref it guards, or to a notice/ ID and the fields it carries, and the findings nuc writes
-# in the line form of API-command-line-with-measure, as sets; the lines of the stand-in checks,
+# in the line form of API-command-line-with-sense, as sets; the lines of the stand-in checks,
 # verbatim; and the record of green trees the run leaves in the git directory, as a set of its
 # lines; and the ADR index the run leaves, byte for byte, for the merge driver, which runs through
 # the configuration 'merge.adr-index.driver' rather than the hooks path. Git's own lines are not
@@ -117,7 +117,7 @@ hp_lines() {
     elif [[ "$line" =~ ^([^\ :]+):\ (hook/[a-z0-9-]+):\ (.*)$ ]]; then
       local location="${BASH_REMATCH[1]}" rule="${BASH_REMATCH[2]}" message="${BASH_REMATCH[3]}"
       # The key the line ends in, '[<rule>:<reason>]', is no part of the bash's wording; a
-      # finding without it is a difference (API-command-line-with-measure).
+      # finding without it is a difference (API-command-line-with-sense).
       if [[ "$message" =~ \ \["$rule":[a-z]+\]$ ]]; then
         message="${message% \["$rule":*\]}"
       else

@@ -87,6 +87,77 @@ pub fn read_fields(line: &[u8]) -> (Vec<u8>, Vec<u8>, Vec<u8>) {
     (a, b, rest[start..end].to_vec())
 }
 
+/// The fields `read -r a rest` splits a line into with the default IFS: the first word, and what
+/// follows it without the IFS whitespace that leads or ends it; an absent field is empty. `read`
+/// drops each NUL byte of the line.
+pub fn read_pair(line: &[u8]) -> (Vec<u8>, Vec<u8>) {
+    let ifs = |b: &u8| matches!(b, b' ' | b'\t' | b'\n');
+    let line: Vec<u8> = line.iter().copied().filter(|&b| b != 0).collect();
+    let start = line.iter().position(|b| !ifs(b)).unwrap_or(line.len());
+    let end = line[start..]
+        .iter()
+        .position(ifs)
+        .map_or(line.len(), |i| start + i);
+    let rest = &line[end..];
+    let from = rest.iter().position(|b| !ifs(b)).unwrap_or(rest.len());
+    let to = rest.iter().rposition(|b| !ifs(b)).map_or(from, |i| i + 1);
+    (line[start..end].to_vec(), rest[from..to].to_vec())
+}
+
+/// The fields `IFS=$'\t' read -r a b rest` splits a line into: the first two runs of bytes between
+/// tabs, and what follows them without the tabs that lead or end it; tabs at either end and runs of
+/// them count as one, since a tab is IFS whitespace. An absent field is empty. `read` drops each
+/// NUL byte of the line.
+pub fn read_tab_fields(line: &[u8]) -> (Vec<u8>, Vec<u8>, Vec<u8>) {
+    let line: Vec<u8> = line.iter().copied().filter(|&b| b != 0).collect();
+    let tab = |b: &u8| *b == b'\t';
+    let mut rest: &[u8] = &line;
+    let mut word = || {
+        let start = rest.iter().position(|b| !tab(b)).unwrap_or(rest.len());
+        let end = rest[start..]
+            .iter()
+            .position(tab)
+            .map_or(rest.len(), |i| start + i);
+        let word = rest[start..end].to_vec();
+        rest = &rest[end..];
+        word
+    };
+    let (a, b) = (word(), word());
+    let start = rest.iter().position(|b| !tab(b)).unwrap_or(rest.len());
+    let end = rest.iter().rposition(|b| !tab(b)).map_or(start, |i| i + 1);
+    (a, b, rest[start..end].to_vec())
+}
+
+/// The fields `IFS=$'\t' read -r a rest` splits a line into: the first run of bytes between tabs,
+/// and what follows it without the tabs that lead or end it, as [`read_tab_fields`] reads them.
+pub fn read_tab_pair(line: &[u8]) -> (Vec<u8>, Vec<u8>) {
+    let line: Vec<u8> = line.iter().copied().filter(|&b| b != 0).collect();
+    let tab = |b: &u8| *b == b'\t';
+    let start = line.iter().position(|b| !tab(b)).unwrap_or(line.len());
+    let end = line[start..]
+        .iter()
+        .position(tab)
+        .map_or(line.len(), |i| start + i);
+    let rest = &line[end..];
+    let from = rest.iter().position(|b| !tab(b)).unwrap_or(rest.len());
+    let to = rest.iter().rposition(|b| !tab(b)).map_or(from, |i| i + 1);
+    (line[start..end].to_vec(), rest[from..to].to_vec())
+}
+
+/// The fields awk splits a line into with its default field separator: the runs of bytes between
+/// blanks, spaces and tabs, those that lead or end the line left out.
+pub fn awk_fields(line: &[u8]) -> Vec<&[u8]> {
+    line.split(|&b| b == b' ' || b == b'\t' || b == b'\n')
+        .filter(|field| !field.is_empty())
+        .collect()
+}
+
+/// The bytes as a command substitution `$(...)` gives them: every newline that ends them dropped.
+pub fn substituted(text: &[u8]) -> &[u8] {
+    let end = text.iter().rposition(|&b| b != b'\n').map_or(0, |i| i + 1);
+    &text[..end]
+}
+
 /// The position of the first occurrence of the needle in the bytes; an empty needle is at 0.
 pub fn find(haystack: &[u8], needle: &[u8]) -> Option<usize> {
     if needle.is_empty() {
@@ -105,6 +176,16 @@ pub fn contains(haystack: &[u8], needle: &[u8]) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn read_pair_splits_off_the_first_word_and_trims_the_rest_by_ifs_alone() {
+        assert_eq!(
+            read_pair(b"      3 a b \t"),
+            (b"3".to_vec(), b"a b".to_vec())
+        );
+        assert_eq!(read_pair(b"1 x\r"), (b"1".to_vec(), b"x\r".to_vec()));
+        assert_eq!(read_pair(b"  "), (Vec::new(), Vec::new()));
+    }
 
     #[test]
     fn read_drops_an_unterminated_last_line_and_awk_keeps_it() {
@@ -172,5 +253,22 @@ mod tests {
         assert_eq!(trim(b"\x0B a \r"), b"a");
         assert_eq!(b"\x0B a".trim_ascii(), b"\x0B a");
         assert_eq!(trim("\u{a0}a".as_bytes()), "\u{a0}a".as_bytes());
+    }
+
+    #[test]
+    fn a_tab_pair_keeps_the_spaces_and_trims_the_tabs_of_the_rest() {
+        assert_eq!(
+            read_tab_pair(b"a b\t\tc d\t"),
+            (b"a b".to_vec(), b"c d".to_vec())
+        );
+        assert_eq!(read_tab_pair(b"\tk"), (b"k".to_vec(), Vec::new()));
+        assert_eq!(read_tab_pair(b"x\ty\tz"), (b"x".to_vec(), b"y\tz".to_vec()));
+    }
+
+    #[test]
+    fn awk_fields_split_at_blanks_and_a_substitution_drops_the_newlines_that_end() {
+        assert_eq!(awk_fields(b" a\t b "), [&b"a"[..], b"b"]);
+        assert_eq!(substituted(b"a\n\nb\n\n"), b"a\n\nb");
+        assert_eq!(substituted(b"\n"), b"");
     }
 }

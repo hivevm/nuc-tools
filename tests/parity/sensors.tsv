@@ -1,0 +1,134 @@
+# The sensors nuc ports and the runs that compare them with the bash
+# (API-git-only-sensors-under-sense), read by scripts/lib/sensor-parity.sh. One row per run, three
+# fields separated by tabs: the sensor, the name after 'sensor-' of its script; the state it runs
+# on, 'tree' for each tree and variant of the corpus, or a function of
+# tests/parity/sensor-scenarios.sh that builds a fixture repository on each template tree of the
+# corpus; and its arguments, separated by spaces, or '-' for none.
+
+revision-due	tree	-
+revision-due	revision_no_history	-
+revision-due	revision_not_due	-
+revision-due	revision_due	-
+revision-due	revision_due_ordinal	-
+revision-due	revision_none_yet	-
+revision-due	revision_uncommitted	-
+revision-due	revision_no_line	-
+revision-due	revision_no_overview	-
+revision-due	revision_unreadable	-
+tests-kept	tree	-
+tests-kept	tests_kept_branch	-
+tests-kept	tests_kept_named	base HEAD
+tests-kept	tests_kept_named	base HEAD extra
+tests-kept	tests_kept_named	0000000000000000000000000000000000000000 feature
+tests-kept	tests_kept_same	-
+tests-kept	tests_kept_no_main	-
+tests-kept	tests_kept_bad_ref	no-such-ref
+backlog	tree	-
+backlog	backlog_no_commit	-
+backlog	backlog_none	-
+backlog	backlog_branches	-
+backlog	backlog_origin	-
+plan-frontier	tree	-
+plan-frontier	plan_none	-
+plan-frontier	plan_tickets	-
+plan-frontier	plan_odd	-
+plan-frontier	plan_no_mode	-
+action-refs	tree	-
+action-refs	tree	--require sha
+action-refs	refs_none	-
+action-refs	refs_none	--require major-tag
+action-refs	refs_mixed	-
+action-refs	refs_mixed	--require sha
+action-refs	refs_mixed	--require major-tag
+action-refs	refs_major	-
+action-refs	refs_major	--require major-tag
+action-refs	refs_major	--require sha
+action-refs	refs_sha	--require major-tag
+action-refs	refs_sha	--require sha
+action-refs	refs_sha	--require tag
+plain-rules	tree	-
+plain-rules	tree	HEAD
+plain-rules	tree	--require HEAD
+plain-rules	plain_branch	main
+plain-rules	plain_branch	--require main
+plain-rules	plain_branch	main work
+plain-rules	plain_branch	main work extra
+plain-rules	plain_branch	--require 0000000000000000000000000000000000000000 work
+plain-rules	plain_rename	main
+plain-rules	plain_rename	--require main
+plain-rules	plain_worktree	-
+plain-rules	plain_worktree	--require
+plain-rules	plain_head	--require main work
+plain-rules	plain_record	-
+plain-rules	plain_record	--require main
+plain-rules	plain_outside	main
+plain-rules	plain_no_main	-
+plain-rules	plain_branch	no-such-ref
+plain-rules	plain_filtered	-
+plain-rules	plain_filtered	--require
+plain-rules	plain_filtered_added	--require main
+binding-adrs	tree	-
+binding-adrs	tree	HEAD
+binding-adrs	tree	--sections HEAD
+binding-adrs	tree	--sections --path docs/ --path scripts/check-docs.sh --path src/x.rs
+binding-adrs	bind_branch	main
+binding-adrs	bind_branch	main work
+binding-adrs	bind_branch	main work extra
+binding-adrs	bind_branch	--path src/app.sh HEAD extra
+binding-adrs	bind_branch	--sections main
+binding-adrs	bind_branch	--sections main work
+binding-adrs	bind_branch	0000000000000000000000000000000000000000 work
+binding-adrs	bind_branch	--sections --path README.md --path ./src/x.rs --path docs/ --path tools
+binding-adrs	bind_branch	--path
+binding-adrs	bind_branch	--path src/app.sh HEAD
+binding-adrs	bind_branch	no-such-ref
+binding-adrs	bind_inside_key	main
+binding-adrs	bind_inside_number	--sections main
+binding-adrs	bind_tail	main
+binding-adrs	bind_same	-
+binding-adrs	bind_same	--sections
+binding-adrs	bind_no_main	-
+binding-adrs	bind_no_main	--sections
+binding-adrs	bind_record	main
+binding-adrs	bind_record	--sections main work
+binding-adrs	bind_filtered	HEAD
+binding-adrs	bind_filtered	main
+binding-adrs	bind_gitlink	-
+binding-adrs	bind_gitlink	--sections main
+binding-adrs	bind_gitlink_ignored	-
+review-binding	tree	-
+review-binding	tree	--hand-off README.md
+review-binding	tree	HEAD HEAD
+review-binding	tree	--hand-off README.md HEAD HEAD
+review-binding	rb_branch	-
+review-binding	rb_branch	--hand-off notes/at-head.md
+review-binding	rb_branch	--hand-off notes/earlier.md
+review-binding	rb_branch	--hand-off notes/upper.md
+review-binding	rb_branch	--hand-off notes/crlf.md
+review-binding	rb_branch	--hand-off notes/name.md
+review-binding	rb_branch	--hand-off notes/base.md
+review-binding	rb_branch	--hand-off notes/none.md
+review-binding	rb_branch	--hand-off notes/bogus.md
+review-binding	rb_branch	--hand-off notes/first.md
+review-binding	rb_branch	--hand-off notes/ref.md
+review-binding	rb_branch	--hand-off notes/at-head.md main work
+review-binding	rb_branch	main work extra
+review-binding	rb_branch	--hand-off notes/earlier.md base HEAD extra
+review-binding	rb_branch	0000000000000000000000000000000000000000 work
+review-binding	rb_branch	no-such-ref
+review-binding	rb_branch	--hand-off notes/missing.md
+review-binding	rb_branch	--hand-off notes
+review-binding	rb_branch	--hand-off
+review-binding	rb_branch	main --hand-off notes/at-head.md
+review-binding	rb_merges	-
+review-binding	rb_merges	--hand-off notes/at-head.md
+review-binding	rb_merges	--hand-off notes/earlier.md
+review-binding	rb_merges	--hand-off notes/none.md
+review-binding	rb_merges	base work
+review-binding	rb_orphan	main orphan
+review-binding	rb_orphan	--hand-off notes/root.md main orphan
+review-binding	rb_none	-
+review-binding	rb_none	--hand-off notes/h.md
+review-binding	rb_no_main	-
+review-binding	rb_no_main	--hand-off notes/h.md
+review-binding	rb_no_main	--hand-off notes/missing.md

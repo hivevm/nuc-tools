@@ -1,0 +1,9 @@
+# The exits of the bash sensors that differ from nuc's by API-git-only-sensors-under-sense, read by
+# scripts/lib/sensor-parity.sh: a bash sensor that cannot read its input exits 1 where it measures
+# nothing, and nuc sense exits 2 for every cause that keeps it from deciding
+# (API-command-line-with-sense). One row per pair, five fields separated by tabs: the sensor; the
+# releases it holds on, separated by commas, or '-' for every release; the bash's exit; nuc's exit;
+# and the cause. A difference no row lists fails the harness.
+
+revision-due	-	1	2	docs/ARCHITECTURE.md is missing, or has no Last design revision line, or one it cannot read
+plan-frontier	-	1	2	a ticket the sensor cannot place: a name the claim refuses, no Blocked by or Mode section, or a blocker that is no path under docs/plan/

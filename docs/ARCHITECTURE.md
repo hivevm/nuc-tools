@@ -6,7 +6,7 @@
 > is updated in the same change as the structure it describes
 > ([NUC-documents-are-fixed](adr/NUC-documents-are-fixed.md)).
 >
-> **Last design revision:** 2026-11-18, due after 20 changes. The revision that took the count
+> **Last design revision:** 2026-11-20, due after 20 changes. The revision that took the count
 > moves the date; the number is this project's to set; a sensor counts the changes outside
 > `docs/` since the commit that set the date and says when the next is due
 > ([NUC-design-is-revised §4](adr/NUC-design-is-revised.md)).
@@ -52,7 +52,9 @@ golden path and the test pattern an agent copies from are named here.
   one reading of its links in `src/markdown.rs`, both outside `src/rules/`, the way the bash's
   `scripts/lib/adr.sh` and awk passes read them. The byte-level readings of the bash's tools, lines
   as awk, `read`, and `sed` split them, POSIX space and the bytes without it, and the first word
-  `read` splits off, are in `src/bash.rs` and nowhere else, which the structural test holds. The
+  `read` splits off, are in `src/bash.rs`, and the structural test holds that the names it lists
+  stand nowhere else; the sensors binding-adrs, plain-rules, and tests-kept read awk's numbers
+  and git's hunk headers in their own modules, which it does not list. The
   rules of the area `traceability` share one reading of the criteria of the specification and of the
   identifiers the `Verifies:` markers cite in `src/traceability.rs`, beside `src/adr.rs`, so that no
   rule module calls another. The shell matches path patterns as bash's pathname expansion does
@@ -90,7 +92,7 @@ golden path and the test pattern an agent copies from are named here.
   one answer to which IDs `nuc.toml` may name, those of `rules::ALL` and of `hook::ALL`, and the
   reason `nuc explain` gives for each, so `nuc check`, `nuc hook`, and `nuc explain` ask it alike.
 - **Formats** — `src/format.rs` turns what a run of `nuc check` decided into its standard output:
-  the lines of API-command-line-with-measure, one JSON document, or one SARIF 2.1.0 log, without
+  the lines of API-command-line-with-sense, one JSON document, or one SARIF 2.1.0 log, without
   a crate and byte for byte the same for the same findings
   ([API-output-formats-carry-reason](adr/API-output-formats-carry-reason.md)).
 - **Hooks** — `src/hook.rs` decides what each git hook of the template decides, from the git state
@@ -108,16 +110,19 @@ golden path and the test pattern an agent copies from are named here.
   in `benchmark.yml`, on a schedule, never as a gate.
 - **Shell** — `src/shell/` reads the command line and the repository, runs git under a cleared
   environment in `shell::git`, calls the rules, writes the findings in the format `src/format.rs`
-  builds, and sets the exit code
-  ([SEC-git-cleared-environment](adr/SEC-git-cleared-environment.md)). Its `Tree`, in `shell::tree`,
-  reads every file and lists every directory the rules need, each resolved through one function that
-  refuses a path outside the repository, and refuses as well, as not decided, one the bash would
-  read differently from its bytes alone. `shell::hook` reads `nuc.toml` and the README through the
-  `Tree` as well; the two files of the green-tree record and the sides of a merge, at the paths git
-  gives, it reads in the two functions `tests/functional_core.guarded` names for them. It writes,
-  renames, creates, and removes only in the functions `tests/functional_core.writers` names, each
-  inside the repository or its git directory (Q-8); `git merge-file` writes ours for the merge
-  driver.
+  builds, and sets the exit code. Every call opens with `--no-lazy-fetch` where git knows it, from
+  2.45.0 on, and an older git runs only on a repository that names no promisor remote;
+  `git::blob_at` reads a blob at a revision, telling a path the commit lacks from an object a
+  partial clone lacks, which is not decided
+  ([SEC-git-cleared-without-lazy-fetch](adr/SEC-git-cleared-without-lazy-fetch.md)). Its `Tree`, in
+  `shell::tree`, reads every file and lists every directory the rules need, each resolved through
+  one function that refuses a path outside the repository, and refuses as well, as not decided, one
+  the bash would read differently from its bytes alone. `shell::hook` reads `nuc.toml` and the
+  README through the `Tree` as well; the two files of the green-tree record and the sides of a
+  merge, at the paths git gives, it reads in the two functions `tests/functional_core.guarded` names
+  for them. It writes, renames, creates, and removes only in the functions
+  `tests/functional_core.writers` names, each inside the repository or its git directory (Q-8); `git
+  merge-file` writes ours for the merge driver.
 - **Measure** — `src/measure.rs` counts the tokens of `nuc measure` from the requests an adapter
   per harness reads out of its transcripts, `src/measure/claude_code.rs` the one for Claude Code,
   each request once at the largest usage its lines report, selected by branch and time, and
@@ -128,6 +133,33 @@ golden path and the test pattern an agent copies from are named here.
   `tests/functional_core.guarded` names for it, the one read outside the repository, following no
   symbolic link
   ([API-measure-reads-harness-transcripts](adr/API-measure-reads-harness-transcripts.md)).
+- **Sensors** — `src/sense.rs` lists the sensors of the template `nuc sense` ports, `sense::ALL`,
+  each a module beside it, as `src/sense/revision_due.rs`: a function to the report the bash sensor
+  of the tree's release writes on the standard output, byte for byte, or a refusal keyed
+  `sense/<name>:<reason>`. Six of them take only the values the shell gathered. binding-adrs asks
+  the shell for the file at a path and its diff through the callback `diffed`, only where its bash
+  reads them, and review-binding asks git through a trait, below; neither reads a file or runs a
+  process itself. Both go against the *Core* of API-git-only-sensors-under-sense, which ticket 01 of
+  `docs/plan/revision-2026-11-20/` decides. The sensors that read a change share one resolution of
+  it, as the bash's share `resolve_change`: `src/sense/change.rs` reads the base and the head they
+  were given, and `resolve_change` in `shell::sense` asks git for the commits; a change without a
+  head ends in the working tree, its untracked files included. Their diffs against the working tree
+  run with every filter driver of the repository neutralized and look into no submodule's working
+  tree (Q-7,
+  [SEC-repository-commands-neutralized-or-refused](adr/SEC-repository-commands-neutralized-or-refused.md)).
+  Where that could change what they report, they refuse: plain-rules a file of rules under a filter
+  and a rename a filter could pair otherwise, binding-adrs a path under a filter whose raw bytes
+  differ from the index and any submodule checked out. A file whose index holds bytes its filter
+  would clean otherwise is not refused yet, and can read otherwise than the bash; ticket 12 of
+  `docs/plan/revision-2026-11-20/` refuses it.
+  review-binding asks git what each answer leads it to, as its bash does, so its core asks through
+  the trait `review_binding::Repo`, which `shell::sense` answers with git; its diffs compare commits
+  and read no working tree, and its hand-off is a file named from where `nuc` runs that must resolve
+  inside the repository. `shell::sense` reads `nuc.toml` as `nuc check` does, the README's release
+  line, the files of the tree, and git as the bash asks it, and writes the report. A tree whose
+  release has no such sensor is not decided. The template's sensors that need a process other than
+  git or the network are none of them
+  ([API-git-only-sensors-under-sense](adr/API-git-only-sensors-under-sense.md)).
 - **Binary** — `src/main.rs` calls the shell and nothing else.
 - **Parity harness** — `scripts/check-parity.sh` runs the bash checks of each repository of the
   corpus, `check-docs.sh`, `check-traceability.sh`, and `check-devcontainer.sh`, from v0.10.0 on
@@ -138,13 +170,20 @@ golden path and the test pattern an agent copies from are named here.
   every rule the table maps to, and keeps the minimum and the `hook/` rules of the tree's own, which
   `check-hooks.sh` reads as well. A variant edits, deletes, or writes one path inside a copy of the
   tree, never under its `.git` ([TEST-parity-harness](adr/TEST-parity-harness.md)). Across the
-  template's trees of the corpus it compares each rule's bash function with
-  `tests/parity/releases.tsv`; a change to a helper the function calls shows in no row. Then
+  template's trees of the corpus it compares each rule's bash function, and each sensor's script,
+  with `tests/parity/releases.tsv`; a change to a helper the function calls shows in no row. Then
   `scripts/lib/hook-parity.sh` runs the scenarios of `tests/parity/hook-scenarios.sh` through git,
   with the bash hook of each of the template's trees and with the shim and `nuc`, maps the hooks'
   lines by `tests/parity/hooks.tsv`, and holds the template's hook self-test to the scenarios and
   `tests/parity/hook-cases.tsv`
-  ([TEST-hook-scenarios-on-bash-hooks](adr/TEST-hook-scenarios-on-bash-hooks.md)). A
+  ([TEST-hook-scenarios-on-bash-hooks](adr/TEST-hook-scenarios-on-bash-hooks.md)).
+  `scripts/lib/sensor-parity.sh` runs each sensor of `tests/parity/sensors.tsv` with the bash and
+  with `nuc sense` on each tree and variant whose release has it, one whose README names no
+  release with the bash sensor of the newest template tree, and on the git states of
+  `tests/parity/sensor-scenarios.sh` built for each of the template's trees, both sides run in
+  the tree or the fixture, and compares the standard output byte for byte and the exit status; an
+  exit that differs stands in `tests/parity/sensor-exits.tsv` with its cause
+  ([API-git-only-sensors-under-sense](adr/API-git-only-sensors-under-sense.md)). A
   tree whose blob list `.githooks/nuc.blobs` pins a hook, as the template's trees do from v0.12.0
   on, carries nuc's own shims and no bash hook. The scenarios and their coverage leave it out,
   whatever release it names, and its checks are compared as any tree's. They also leave out a tree
@@ -163,9 +202,10 @@ golden path and the test pattern an agent copies from are named here.
   processor.
 - **Table runner** — `tests/tables.rs` builds the tree of each case of the template's fixture
   tables, copied under `tests/tables/` from the newest release `nuc` ports and pinned by their
-  blobs in `tests/tables.blobs`, runs `nuc check` on it, and compares the exit and the keys and
-  subjects each case expects; a case that does not agree stands in `tests/tables.cases`, pending on
-  the ticket that ports it, not ported, or decided by an ADR in force
+  blobs in `tests/tables.blobs`, runs `nuc check` on it, or `nuc sense plain-rules` for the
+  sensor's table, and compares the exit and the keys and subjects each case expects; a case that
+  does not agree stands in `tests/tables.cases`, pending on the ticket that ports it, not ported,
+  or decided by an ADR in force
   ([TEST-template-table-cases](adr/TEST-template-table-cases.md)).
 - **Release tooling** — `release/` builds a binary per target, writes `SHA256SUMS`, checks the
   tag against the crate's version, writes the release commit, and moves the major tag;

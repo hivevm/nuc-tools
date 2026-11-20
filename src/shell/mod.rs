@@ -5,6 +5,7 @@
 pub mod git;
 mod hook;
 mod measure;
+mod sense;
 mod tree;
 
 use std::backtrace::{Backtrace, BacktraceStatus};
@@ -29,20 +30,20 @@ const FOUND: u8 = 1;
 /// Exit code of a run that could not decide, whatever the cause: it never passes (Q-1).
 const UNDECIDED: u8 = 2;
 /// Exit code of `nuc hook` alone: the hook passed so far, and its shim runs the check now
-/// (API-command-line-with-measure).
+/// (API-command-line-with-sense).
 const RUN_CHECK: u8 = 3;
 /// Exit code of `nuc hook pre-commit` alone: the hook passed so far, and its shim runs the
-/// documentation check now (API-command-line-with-measure).
+/// documentation check now (API-command-line-with-sense).
 const RUN_DOCS: u8 = 4;
 
 const USAGE: &str = "usage: nuc check [--repo <path>] [--format text|json|sarif] | nuc hook <name> | nuc \
                      measure [--harness claude-code] [--transcripts <dir>] [--branch <name>]... \
-                     [--since <time>] [--until <time>] [--breakdown] [--finding] | nuc explain <rule ID> | nuc \
-                     --version";
+                     [--since <time>] [--until <time>] [--breakdown] [--finding] | nuc sense <name> [--repo \
+                     <path>] [<argument>...] | nuc explain <rule ID> | nuc --version";
 
 /// The entry point of the binary: runs the command named on the command line and returns the exit
 /// code the process ends with. A panic is an internal error: it names its cause and where it arose,
-/// and ends the process with exit 101, never a pass (API-command-line-with-measure, Q-1).
+/// and ends the process with exit 101, never a pass (API-command-line-with-sense, Q-1).
 pub fn main() -> ExitCode {
     panic::set_hook(Box::new(|info| {
         let at = info
@@ -77,6 +78,7 @@ fn run() -> ExitCode {
         },
         ["hook", name, rest @ ..] => hook::run(name, rest),
         ["measure", options @ ..] => measure::run(options),
+        ["sense", name, options @ ..] => sense::run(name, options),
         ["explain", id] => explain(id),
         ["--version"] => {
             println!("nuc {}", env!("CARGO_PKG_VERSION"));
@@ -629,9 +631,8 @@ fn read_release_base(root: &Path) -> Result<Option<Vec<u8>>, String> {
             continue;
         }
         let base = String::from_utf8_lossy(&out).trim().to_owned();
-        let (code, blob) =
-            git::status_and_output(root, &["cat-file", "blob", &format!("{base}:README.md")])?;
-        return Ok(Some(if code == 0 { blob } else { Vec::new() }));
+        let blob = git::blob_at(root, &base, "README.md")?;
+        return Ok(Some(blob.unwrap_or_default()));
     }
     Ok(None)
 }
@@ -686,7 +687,7 @@ fn read_history(
     if git::probe(root, &["rev-parse", "-q", "--verify", "HEAD^{commit}"])?.is_none() {
         return Ok(History::default());
     }
-    let output = git::command(root, &LOG)
+    let output = git::command(root, &LOG)?
         .output()
         .map_err(|e| format!("git could not be run ({e}) — install git and put it on the PATH"))?;
     if output.status.success() {

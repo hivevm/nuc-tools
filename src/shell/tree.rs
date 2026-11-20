@@ -58,6 +58,16 @@ impl Tree {
         }
     }
 
+    /// Whether the path is a file, as the bash's `-f` finds it, a symbolic link followed; a path
+    /// that resolves outside the repository is not decided before any file there is tested or
+    /// read.
+    pub(super) fn is_file_inside(&self, path: &Path) -> Result<bool, String> {
+        match self.resolve(path, || outside(path))? {
+            Ok(real) => Ok(real.is_file()),
+            Err(_) => Ok(false),
+        }
+    }
+
     /// The text of a file `nuc` itself reads, which must be UTF-8.
     pub(super) fn read(&self, path: &Path) -> Result<Option<String>, String> {
         self.read_bytes(path)?
@@ -223,7 +233,7 @@ impl Tree {
     /// is hashed only where it resolves inside the repository, since git would read it (Q-12).
     /// git hashes each file as it would store it, its line endings converted, so it applies the
     /// filters `.gitattributes` names, as the bash does: a filter's clean command comes from the
-    /// user's configuration, which SEC-git-cleared-environment trusts, and no key of
+    /// user's configuration, which SEC-git-cleared-without-lazy-fetch trusts, and no key of
     /// `tests/git_cli.neutralized` can name every filter; `--no-filters` would hash other blobs
     /// than the bash where line endings are converted.
     pub(super) fn read_base(&self) -> Result<rules::docs_base_blobs::Base, String> {
@@ -265,7 +275,7 @@ impl Tree {
             .collect();
         let mut args = vec!["hash-object", "--"];
         args.extend(paths.iter().map(String::as_str));
-        let output = git::command(&self.root, &args).output().map_err(|e| {
+        let output = git::command(&self.root, &args)?.output().map_err(|e| {
             format!("git could not be run ({e}) — install git and put it on the PATH")
         })?;
         let blobs = if output.status.success() {
@@ -624,10 +634,51 @@ fn path_of(root: &Path, raw: &[u8]) -> Option<PathBuf> {
 }
 
 impl Tree {
+    /// The names of the regular files directly in the directory that `wanted` takes, as
+    /// `find <dir> -maxdepth 1 -type f` lists them, in byte order: a symbolic link is none, and a
+    /// directory that is itself a link lists nothing, since find does not follow it. A name that is
+    /// no UTF-8 is not decided where `wanted` takes it with each such byte replaced.
+    pub(super) fn regular_files(
+        &self,
+        dir: &Path,
+        wanted: &dyn Fn(&str) -> bool,
+    ) -> Result<Vec<String>, String> {
+        if !fs::symlink_metadata(dir).is_ok_and(|meta| meta.is_dir()) {
+            return Ok(Vec::new());
+        }
+        let real = match self.resolve(dir, || outside(dir))? {
+            Ok(real) => real,
+            Err(e) if e.kind() == ErrorKind::NotFound => return Ok(Vec::new()),
+            Err(e) => return Err(format!("{}: unreadable — {e}", dir.display())),
+        };
+        let entries =
+            fs::read_dir(&real).map_err(|e| format!("{}: unreadable — {e}", real.display()))?;
+        let mut names = Vec::new();
+        for entry in entries {
+            let entry = entry.map_err(|e| format!("{}: unreadable — {e}", real.display()))?;
+            if !entry.file_type().is_ok_and(|kind| kind.is_file()) {
+                continue;
+            }
+            let name = entry.file_name();
+            if !wanted(&name.to_string_lossy()) {
+                continue;
+            }
+            let Some(name) = name.to_str() else {
+                return Err(format!(
+                    "{}: a file name that is no UTF-8 — not decided",
+                    entry.path().display()
+                ));
+            };
+            names.push(name.to_owned());
+        }
+        names.sort();
+        Ok(names)
+    }
+
     /// The names of the entries of a directory of the repository, sorted by their bytes as a glob
     /// in the C locale sorts them; empty when it is no directory. A directory that resolves
     /// outside the repository is not listed, and a name that is no UTF-8 is not decided.
-    fn list(&self, dir: &Path) -> Result<Vec<String>, String> {
+    pub(super) fn list(&self, dir: &Path) -> Result<Vec<String>, String> {
         let real = match self.resolve(dir, || outside(dir))? {
             Ok(real) => real,
             Err(e) if e.kind() == ErrorKind::NotFound => return Ok(Vec::new()),
@@ -653,6 +704,38 @@ impl Tree {
         }
         names.sort();
         Ok(names)
+    }
+
+    /// The tickets of the plan as `find docs/plan -mindepth 2 -maxdepth 2 -type f -name
+    /// '[0-9][0-9]-*.md' | LC_ALL=C sort` lists them, each with its text: a regular file in a
+    /// directory of the plan, neither a symbolic link, and none where the plan itself is one, since
+    /// `find` follows none. A ticket with a NUL byte, which awk and grep do not read as the other
+    /// bytes, is not decided.
+    pub(super) fn read_tickets(&self) -> Result<Vec<(String, Vec<u8>)>, String> {
+        use crate::sense::plan_frontier::{PLAN, is_ticket_name};
+        let plan = self.root.join(PLAN);
+        if !fs::symlink_metadata(&plan).is_ok_and(|m| m.is_dir()) {
+            return Ok(Vec::new());
+        }
+        let mut tickets = Vec::new();
+        for spec in self.list(&plan)? {
+            let dir = plan.join(&spec);
+            if !fs::symlink_metadata(&dir).is_ok_and(|m| m.is_dir()) {
+                continue;
+            }
+            for name in self.list(&dir)? {
+                let file = dir.join(&name);
+                if !is_ticket_name(name.as_bytes())
+                    || !fs::symlink_metadata(&file).is_ok_and(|m| m.is_file())
+                {
+                    continue;
+                }
+                let text = self.read_record_file(&file)?.unwrap_or_default();
+                tickets.push((format!("{PLAN}/{spec}/{name}"), text));
+            }
+        }
+        tickets.sort();
+        Ok(tickets)
     }
 
     /// The files of check 9: `checks.yml`, `check-all.sh`, the workflows as the bash's globs

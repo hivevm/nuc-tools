@@ -2,6 +2,7 @@
 #
 # Self-test of scripts/check-parity.sh.
 # Verifies: TEST-parity-harness TEST-hook-scenarios-on-bash-hooks Q-1 Q-2
+# Verifies: API-git-only-sensors-under-sense
 #
 # The comparison cases feed the harness pairs of outputs through '--compare': pairs that differ in
 # one finding, in one exit status, by one bash message the table does not know, or by a line nuc
@@ -9,38 +10,40 @@
 #
 # The run cases build a corpus from fixture repositories, fetched through file://, whose
 # check-docs.sh is a stub that reports the missing release line as check 14 does, beside a
-# check-traceability.sh that passes, and run the harness with a stand-in for nuc. Agreeing trees
-# and variants pass and leave the cache as pinned; differing ones, a cache that cannot be filled,
-# and a malformed corpus fail, and so do a tree whose check-traceability.sh fails without a
-# finding while its check-docs.sh passes and a tree without check-traceability.sh. A comparison
-# case reads the outputs of both scripts as one. The floor cases
-# refuse a tree whose release line names a release before v0.5.0, a pre-release, 'unreleased',
-# or none, read as check 14 reads it, and compare a later one. The variant cases fail a variant
-# that does not apply to one tree, one that does not make its rule fire beyond the tree's own
-# findings, a ported rule without one, a path outside the tree, a sed expression that runs a
-# command or writes a file, a name used twice, and a malformed or unmapped row; a 'chomp' applies
-# and is compared, does not apply to a file without a last newline, and takes '-' alone; a 'chmod'
-# applies and is compared, does not apply to a mode left as it was or to a file git does not track,
-# and takes +x or -x alone. The shell cases compare the lines of check-shell.sh keyed shell/ alone,
-# map a rule nuc leaves to the bash to none, and run no check-shell.sh without the key of
-# shell/mode. The hooks cases read the '  - ' lines of check-hooks.sh as findings, fail one that
-# fails without a finding, and hand it the harness's nuc.toml with the tree's minimum and hook/
-# rules. The Dev Container cases read the '  - ' lines of check-devcontainer.sh as findings, fail
-# one that fails without a finding, and compare its wording. The pin
-# cases pass a pin of a copied fixture table that the tag of a template tree bears out, and fail
-# one the tag does not, one whose tag cannot be read, and one without a template tree, and exit 2
-# on a malformed or missing list of pins. The shard cases cut the comparisons, tree by tree in the
-# order of the corpus, into contiguous slices of about equal cost by the costs of the corpus, a
-# tree without one taking the largest, the last slice ending with the cost of the whole-corpus
-# parts; they report in the shards together each comparison and each finding of a tree as pinned
-# once, as one run does, measure a variant against its tree as pinned in a shard that does not
-# report that tree, fail a shard on its own comparisons alone, keep a tree that cannot be fetched
-# in the deal, report an unfit variant in its own shard alone, read a decimal cost, fail a variant
-# whose tree as pinned gave no whole bash output, run the pins, the releases, and the hook
-# scenarios in the last shard alone, and exit 2 on a shard that is not <k>/<n> with 1 <= k <= n,
-# on a cost that is no number of seconds above 0, on two costs in one entry, on a cost of the
-# whole-corpus parts that is none, and on a deal that does not come out whole. No network and no
-# build.
+# check-traceability.sh that passes, and run the harness with a stand-in for nuc. Agreeing trees and
+# variants pass and leave the cache as pinned; differing ones, a cache that cannot be filled, and a
+# malformed corpus fail, and so do a tree whose check-traceability.sh fails without a finding while
+# its check-docs.sh passes and a tree without check-traceability.sh. A comparison case reads the
+# outputs of both scripts as one. The floor cases refuse a tree whose release line names a release
+# before v0.5.0, a pre-release, 'unreleased', or none, read as check 14 reads it, and compare a
+# later one. The variant cases fail a variant that does not apply to one tree, one that does not
+# make its rule fire beyond the tree's own findings, a ported rule without one, a path outside the
+# tree, a sed expression that runs a command or writes a file, a name used twice, and a malformed or
+# unmapped row; a 'chomp' applies and is compared, does not apply to a file without a last newline,
+# and takes '-' alone; a 'chmod' applies and is compared, does not apply to a mode left as it was or
+# to a file git does not track, and takes +x or -x alone. The shell cases compare the lines of
+# check-shell.sh keyed shell/ alone, map a rule nuc leaves to the bash to none, and run no
+# check-shell.sh without the key of shell/mode. The hooks cases read the '  - ' lines of
+# check-hooks.sh as findings, fail one that fails without a finding, and hand it the harness's
+# nuc.toml with the tree's minimum and hook/ rules. The Dev Container cases read the '  - ' lines of
+# check-devcontainer.sh as findings, fail one that fails without a finding, and compare its wording.
+# The sensor cases compare a sensor's report byte for byte, fail an exit that differs where
+# tests/parity/sensor-exits.tsv lists no row for the sensor, and pass one it lists; a tree that
+# names no release has its tree rows compared with the sensor of the newest template tree, one that
+# names its release with its own, and both sides run in the tree. The pin cases pass a pin of a
+# copied fixture table that the tag of a template tree bears out, and fail one the tag does not, one
+# whose tag cannot be read, and one without a template tree, and exit 2 on a malformed or missing
+# list of pins. The shard cases cut the comparisons, tree by tree in the order of the corpus, into
+# contiguous slices of about equal cost by the costs of the corpus, a tree without one taking the
+# largest, the last slice ending with the cost of the whole-corpus parts; they report in the shards
+# together each comparison and each finding of a tree as pinned once, as one run does, measure a
+# variant against its tree as pinned in a shard that does not report that tree, fail a shard on its
+# own comparisons alone, keep a tree that cannot be fetched in the deal, report an unfit variant in
+# its own shard alone, read a decimal cost, fail a variant whose tree as pinned gave no whole bash
+# output, run the pins, the releases, and the hook scenarios in the last shard alone, and exit 2 on
+# a shard that is not <k>/<n> with 1 <= k <= n, on a cost that is no number of seconds above 0, on
+# two costs in one entry, on a cost of the whole-corpus parts that is none, and on a deal that does
+# not come out whole. No network and no build.
 #
 # The hook cases run the scenarios alone, through '--hooks', on a tree of the template whose bash
 # pre-commit refuses a commit on main, with the reference shim and a stand-in nuc: an agreeing nuc
@@ -84,7 +87,7 @@ bash_out() {
 }
 
 # keyed — each finding line of the standard input ending in a key of its rule, as nuc writes it
-# (API-command-line-with-measure), unless it ends in one already; the rule is the first
+# (API-command-line-with-sense), unless it ends in one already; the rule is the first
 # '<area>/<name>' between ': ' and ': '.
 keyed() {
   awk '!/ \[[a-z]+\/[a-z0-9-]+:[a-z]+\]$/ && match($0, /: [a-z]+\/[a-z0-9-]+: /) {
@@ -246,6 +249,85 @@ expect pass "a bash message without a key among keyed ones compares no reason" "
 expect fail "a reason of nuc other than the bash's is a difference" "nuc gives the reason 'line' where bash gives 'version'" \
   compare "$(bash_out keyed-other "$MALFORMED [docs/template-release:version]")" 1 \
   "$(nuc_out keyed-other "README.md:5: docs/template-release: $MALFORMED_TEXT [docs/template-release:line]")" 1
+
+# The sensors (API-git-only-sensors-under-sense): the standard output byte for byte, and an exit
+# that differs only where tests/parity/sensor-exits.tsv lists it.
+# shellcheck disable=SC2317,SC2329 # run through expect
+sense() { bash "$HARNESS" --sense-compare "$@"; }
+printf 'Design revision sensor: 1 of 2 changes outside docs/ since the first commit — not yet due.\n' > "$work/sense.a"
+cp "$work/sense.a" "$work/sense.same"
+sed 's/1 of 2/1 of 3/' "$work/sense.a" > "$work/sense.byte"
+: > "$work/sense.empty"
+expect pass "a sensor's report the same from both, exits alike, passes" "" \
+  sense revision-due v0.12.0 "$work/sense.a" 0 "$work/sense.same" 0
+expect fail "a sensor's report that differs in one byte is a difference" "the standard output differs" \
+  sense revision-due v0.12.0 "$work/sense.a" 0 "$work/sense.byte" 0
+expect fail "a sensor's exit that differs where no row lists it is a difference" "which no row of" \
+  sense revision-due v0.12.0 "$work/sense.a" 0 "$work/sense.same" 2
+expect pass "a sensor's exit that differs where a row lists it passes" "" \
+  sense revision-due v0.12.0 "$work/sense.empty" 1 "$work/sense.empty" 2
+expect fail "a listed exit of one sensor does not hold for another" "which no row of" \
+  sense backlog v0.12.0 "$work/sense.empty" 1 "$work/sense.empty" 2
+
+# The tree rows of a sensor: a tree whose README names no release is compared with the bash sensor
+# of the newest template tree, SENSOR_NEWEST_TREE, as nuc sense reports there as the newest
+# release it knows, also where the tree itself has no such sensor; a tree that names its release
+# with its own.
+# sensor_stub <dir> <report> — a tree whose sensor x writes the report.
+sensor_stub() {
+  mkdir -p "$1/scripts"
+  printf '#!/usr/bin/env bash\necho %s\n' "$2" > "$1/scripts/sensor-x.sh"
+}
+sensor_stub "$work/st-old" old
+sensor_stub "$work/st-newest" new
+mkdir -p "$work/st-none"
+printf '# T\n\n- **Template release:** v0.6.2\n' > "$work/st-old/README.md"
+printf '# T\n\n- **Template release:** v0.12.0\n' > "$work/st-newest/README.md"
+printf '# T\n' > "$work/st-none/README.md"
+cp -R "$work/st-old" "$work/st-unnamed" && printf '# T\n' > "$work/st-unnamed/README.md"
+printf '#!/usr/bin/env bash\necho new\n' > "$work/st-nuc" && chmod +x "$work/st-nuc"
+printf 'x\ttree\t-\n' > "$work/st-table.tsv"
+: > "$work/st-scenarios.sh"
+# shellcheck disable=SC2317,SC2329 # run through expect
+tree_rows() {
+  (
+    eval "$(sed -n '/^release_of() {/,/^}/p' "$HARNESS")"
+    export PARITY_SENSOR_TABLE="$work/st-table.tsv" PARITY_SENSOR_SCENARIOS="$work/st-scenarios.sh"
+    # shellcheck source=/dev/null # the library, read as the harness reads it
+    source "$ROOT/scripts/lib/sensor-parity.sh"
+    load_sensor_tables || exit 2
+    # shellcheck disable=SC2034 # read by sensor_tree of the library
+    SENSOR_NEWEST_TREE="$1"
+    out="$work/st-out-${2##*/}"
+    sensor_tree "${3:-$work/st-nuc}" "${2##*/}" "$2" "$out" || exit 1
+    [[ -f "$out.sensor-0.sb" ]] || { echo "no sensor ran"; exit 1; }
+  )
+}
+expect pass "a tree that names no release is compared with the newest tree's sensor" "" \
+  tree_rows "$work/st-newest" "$work/st-unnamed"
+expect fail "without the newest tree, the tree's own sensor differs" "the standard output differs" \
+  tree_rows "" "$work/st-unnamed"
+expect pass "a tree that names no release and lacks the sensor still compares it" "" \
+  tree_rows "$work/st-newest" "$work/st-none"
+expect fail "a tree that names its release is compared with its own sensor" "the standard output differs" \
+  tree_rows "$work/st-newest" "$work/st-old"
+
+# Both sides run in the tree, so that a path an argument names from where the sensor runs, as
+# --hand-off's, names the same file there: each side prints where it runs, the other where it must.
+mkdir -p "$work/st-cwd-bash/scripts" "$work/st-cwd-nuc/scripts"
+for side in bash nuc; do
+  printf '# T\n\n- **Template release:** v0.12.0\n' > "$work/st-cwd-$side/README.md"
+done
+printf '#!/usr/bin/env bash\npwd\n' > "$work/st-cwd-bash/scripts/sensor-x.sh"
+printf '#!/usr/bin/env bash\necho %q\n' "$(cd "$work/st-cwd-bash" && pwd)" > "$work/st-nuc-cwd-bash"
+printf '#!/usr/bin/env bash\necho %q\n' "$(cd "$work/st-cwd-nuc" && pwd)" \
+  > "$work/st-cwd-nuc/scripts/sensor-x.sh"
+printf '#!/usr/bin/env bash\npwd\n' > "$work/st-nuc-cwd-nuc"
+chmod +x "$work/st-nuc-cwd-bash" "$work/st-nuc-cwd-nuc"
+expect pass "the bash sensor runs in the tree" "" \
+  tree_rows "" "$work/st-cwd-bash" "$work/st-nuc-cwd-bash"
+expect pass "nuc sense runs in the tree" "" \
+  tree_rows "" "$work/st-cwd-nuc" "$work/st-nuc-cwd-nuc"
 
 # A record named by category: the ADR's file is its identifier.
 NAMED="$(printf '%s-%s' SEC a-b)"

@@ -241,14 +241,6 @@ pub fn top_level_value(text: &[u8], want: &[u8]) -> Vec<u8> {
     out
 }
 
-/// The text as `$(…)` keeps it: without its trailing newlines.
-pub fn substituted(mut text: Vec<u8>) -> Vec<u8> {
-    while text.last() == Some(&b'\n') {
-        text.pop();
-    }
-    text
-}
-
 /// The bytes as a message names them, each that is no UTF-8 as U+FFFD.
 pub fn spelled(bytes: &[u8]) -> String {
     String::from_utf8_lossy(bytes).into_owned()

@@ -1,6 +1,6 @@
 # SEC-git-cleared-environment: The shell spawns the git CLI with a cleared environment, an allowlist passed through, the repository named by `-C`, and command-running configuration neutralized
 
-- **Status:** 🟢 accepted
+- **Status:** ⚪ superseded by SEC-git-cleared-without-lazy-fetch
 - **Date:** 2026-10-31
 - **Deciders:** Markus Brigl
 - **Applies to:** every spawn of git in `src/shell/`, the environment and arguments it passes, and the list of neutralized configuration keys kept beside its test

@@ -13,6 +13,7 @@ pub mod markdown;
 pub mod measure;
 pub mod pin;
 pub mod rules;
+pub mod sense;
 pub mod shell;
 #[cfg(test)]
 mod testing;

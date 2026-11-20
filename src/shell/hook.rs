@@ -101,7 +101,7 @@ fn is_on<'a>(on: &'a [&HookRule]) -> impl Fn(&HookRule) -> bool + 'a {
 
 /// The exit code of an answer, its finding printed on the standard output; not decided where the
 /// finding's reason is not one its rule declares, whose key no list holds
-/// (API-command-line-with-measure, Q-1).
+/// (API-command-line-with-sense, Q-1).
 fn carry_out(answer: Answer) -> Result<u8, String> {
     match answer {
         Answer::Pass => Ok(PASSED),
@@ -382,9 +382,9 @@ fn remove(path: &Path) -> Result<(), String> {
 
 /// Not decided where git hands the hook a git directory, as `git --git-dir` and a linked worktree
 /// do, other than the one `nuc` finds from the directory it runs in: `nuc` takes the repository
-/// never from the environment (SEC-git-cleared-environment), so it would decide on another one, and
-/// a hook that cannot tell never passes (Q-1). The handed directory is only named to git, to be
-/// spelled as git spells the one it finds.
+/// never from the environment (SEC-git-cleared-without-lazy-fetch), so it would decide on another
+/// one, and a hook that cannot tell never passes (Q-1). The handed directory is only named to git,
+/// to be spelled as git spells the one it finds.
 fn same_git_dir(dir: &Path) -> Result<(), String> {
     let Some(handed) = env::var_os("GIT_DIR") else {
         return Ok(());

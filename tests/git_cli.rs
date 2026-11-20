@@ -1,4 +1,5 @@
-//! git under a cleared environment. Verifies: SEC-git-cleared-environment Q-9
+//! git under a cleared environment. Q-9
+//! Verifies: SEC-git-cleared-without-lazy-fetch
 //!
 //! `nuc hook` decides on the repository it runs in as well, and does not decide where git hands it
 //! another git directory.
@@ -147,12 +148,13 @@ mod stand_in {
     /// The separator the stand-in writes after each call, a line no environment or argument has.
     const END: &str = "--- end of call ---";
 
-    /// A `git` in `dir` that appends its environment and arguments beside itself, each call ended
-    /// by [`END`], and answers `rev-parse --show-toplevel` with `root`.
+    /// A `git` in `dir` that answers `--version` as git 2.45.0 does, appends the environment and
+    /// arguments of every other call beside itself, each call ended by [`END`], and answers
+    /// `rev-parse --show-toplevel` with `root`.
     fn stand_in(dir: &Path, root: &Path) {
         let d = dir.display();
         let script = format!(
-            "#!/bin/sh\n{{ /usr/bin/env; printf '%s\\n' '{END}'; }} >> '{d}/env'\n{{ for arg in \"$@\"; do printf '%s\\n' \"$arg\"; done; printf '%s\\n' '{END}'; }} >> '{d}/args'\nprintf '%s\\n' '{}'\n",
+            "#!/bin/sh\n[ \"$1\" = --version ] && {{ echo 'git version 2.45.0'; exit 0; }}\n{{ /usr/bin/env; printf '%s\\n' '{END}'; }} >> '{d}/env'\n{{ for arg in \"$@\"; do printf '%s\\n' \"$arg\"; done; printf '%s\\n' '{END}'; }} >> '{d}/args'\nprintf '%s\\n' '{}'\n",
             root.display()
         );
         let git = dir.join("git");
@@ -224,9 +226,9 @@ mod stand_in {
                 );
             }
             assert_eq!(
-                args.first().map(String::as_str),
-                Some("-C"),
-                "no -C: {args:?}"
+                args.get(..2).map(|first| first.join(" ")).as_deref(),
+                Some("--no-lazy-fetch -C"),
+                "the call does not open with --no-lazy-fetch and -C: {args:?}"
             );
             for key in &keys {
                 assert!(
@@ -235,6 +237,61 @@ mod stand_in {
                     "the call lacks -c {key}: {args:?}"
                 );
             }
+        }
+    }
+
+    /// A git before 2.45.0, which refuses `--no-lazy-fetch` as an unknown option, gets no such
+    /// option: it runs on a repository that names no promisor remote, and on one that does, the
+    /// run is not decided and names the version `nuc` needs for it.
+    /// Verifies: SEC-git-cleared-without-lazy-fetch
+    #[test]
+    fn a_git_without_no_lazy_fetch_runs_only_where_no_object_is_fetched_lazily() {
+        let fixture = Fixture::project("old-git", CONFIG, README);
+        let bin = Fixture::new("old-git-bin");
+        let real = String::from_utf8(
+            Command::new("sh")
+                .args(["-c", "command -v git"])
+                .output()
+                .expect("sh runs")
+                .stdout,
+        )
+        .expect("UTF-8");
+        let git = bin.root().join("git");
+        fs::write(
+            &git,
+            format!(
+                "#!/bin/sh\n[ \"$1\" = --version ] && {{ echo 'git version 2.43.0'; exit 0; }}\nfor arg in \"$@\"; do [ \"$arg\" = --no-lazy-fetch ] && {{ echo 'unknown option: --no-lazy-fetch' >&2; exit 129; }}; done\nexec '{}' \"$@\"\n",
+                real.trim()
+            ),
+        )
+        .expect("the stand-in is written");
+        fs::set_permissions(&git, fs::Permissions::from_mode(0o755)).expect("it is executable");
+        let path = format!(
+            "{}:{}",
+            bin.root().display(),
+            std::env::var("PATH").unwrap_or_default()
+        );
+        let run = |args: &[&str]| {
+            Command::new(NUC)
+                .current_dir(fixture.root())
+                .args(args)
+                .env("HOME", super::support::home())
+                .env("PATH", &path)
+                .output()
+                .expect("nuc runs")
+        };
+        let output = run(&["check"]);
+        assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+        fixture.git(&["config", "remote.origin.promisor", "true"]);
+        for args in [&["check"][..], &["sense", "revision-due"]] {
+            let output = run(args);
+            assert_eq!(output.status.code(), Some(2), "{args:?}");
+            assert!(
+                stderr(&output).contains("a partial clone")
+                    && stderr(&output).contains("nuc needs git 2.45.0 or later"),
+                "{args:?}: {}",
+                stderr(&output)
+            );
         }
     }
 }

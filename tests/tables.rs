@@ -1,13 +1,14 @@
-//! The rules held to the cases of the template's fixture tables.
+//! The rules and the plain-rules sensor held to the cases of the template's fixture tables.
 //! Verifies: TEST-template-table-cases
 //!
-//! `tests/tables/` holds the tables of the template's checks `nuc` ports, copied byte for byte
-//! from the newest release it ports, and `tests/tables.blobs` the blob of each at that release's
-//! tag. For each case, this test builds the tree its table's header and its steps describe through
-//! the real git CLI, as the template's self-test of the check builds it, runs `nuc check`, and
-//! compares the exit and the expected key and subjects as the header reads them. Every case that
-//! does not agree stands in `tests/tables.cases`, pending on the ticket that ports it or not
-//! ported (ARCH-rules-need-only-git).
+//! `tests/tables/` holds the tables of the template's checks `nuc` ports, and the table of its
+//! sensor `plain-rules`, copied byte for byte from the newest release it ports, and
+//! `tests/tables.blobs` the blob of each at that release's tag. For each case, this test builds
+//! the tree its table's header and its steps describe through the real git CLI, as the template's
+//! self-test of the check builds it, runs `nuc check`, or `nuc sense plain-rules` for the table of
+//! that sensor, and compares the exit and the expected key and subjects as the header reads them.
+//! Every case that does not agree stands in `tests/tables.cases`, pending on the ticket that ports
+//! it or not ported (ARCH-rules-need-only-git).
 //!
 //! Beside what the tables describe, a case's tree gets what `nuc` needs and the bash does not: a
 //! `nuc.toml`, which `.git/info/exclude` keeps from git's list of files as the parity harness does,
@@ -25,7 +26,10 @@
 //! rule of the area it ports. The tree of `check-devcontainer.txt` is written as its header
 //! describes it and staged nowhere, since the bash's tree is not under git; a case that passes
 //! expects the key of the bash's line of a passing check, which `nuc` does not print, and stands
-//! in the list as decided, where it must still exit 0 without a finding of its area. Every tree
+//! in the list as decided, where it must still exit 0 without a finding of its area.
+//! The tree of `plain-rules.txt` gets a `nuc.toml` that turns on no rule and no README, so that the
+//! sensor reports as the newest release `nuc` knows; its step `takeup` copies the `NUC-` ADRs and
+//! `AGENTS.md` of this repository, as the template's self-test copies its own. Every tree
 //! starts on the branch `main`, which the bash of the traceability, the shell, and the Dev
 //! Container tables leaves to git's default and no case reads. The trees hold
 //! symbolic links, so the cases run on Unix; the pins and the list are held on every platform.
@@ -44,7 +48,7 @@ use std::process::Output;
 use support::{Fixture, stderr, stdout};
 
 /// The copies, by file name under `tests/tables/`.
-const TABLES: [(&str, &str); 4] = [
+const TABLES: [(&str, &str); 5] = [
     (
         "check-docs-record.txt",
         include_str!("tables/check-docs-record.txt"),
@@ -58,6 +62,7 @@ const TABLES: [(&str, &str); 4] = [
         "check-devcontainer.txt",
         include_str!("tables/check-devcontainer.txt"),
     ),
+    ("plain-rules.txt", include_str!("tables/plain-rules.txt")),
 ];
 const BLOBS: &str = include_str!("tables.blobs");
 const CASES: &str = include_str!("tables.cases");
@@ -168,7 +173,12 @@ fn cases(table: &'static str, text: &str) -> Vec<Case> {
         if !starts {
             continue;
         }
-        let line = hyphens(line);
+        // The plain-rules sensor's self-test reads every `NUC:` as `NUC-`, inside a word too.
+        let line = if table == "plain-rules.txt" {
+            line.replace("NUC:", "NUC-")
+        } else {
+            hyphens(line)
+        };
         let mut fields = line.split(" | ");
         let rule = record.then(|| fields.next().expect("a rule").to_owned());
         let want = fields.next().expect("pass or fail");
@@ -920,6 +930,161 @@ fn devcontainer_case(fixture: &Fixture, steps: &[String]) {
     }
 }
 
+/// The text of each line `= <name> | <line>` of the plain-rules table, by the name, as the
+/// self-test's awk prints the second field.
+fn plain_glossary(name: &str) -> String {
+    let table = TABLES
+        .iter()
+        .find(|(file, _)| *file == "plain-rules.txt")
+        .map(|(_, text)| *text)
+        .expect("the plain-rules table");
+    let lines: Vec<&str> = table
+        .lines()
+        .filter_map(|line| {
+            let mut fields = line.split(" | ");
+            (fields.next() == Some(&format!("= {name}"))).then(|| fields.next().unwrap_or(""))
+        })
+        .collect();
+    lines.join("\n")
+}
+
+/// One step of the plain-rules table, as the self-test's `step` applies it.
+fn plain_rules_step(fixture: &Fixture, step: &str) {
+    let (verb, rest) = step.split_once(' ').unwrap_or((step, ""));
+    match verb {
+        "add" => {
+            let (file, rest) = rest.split_once(' ').expect("a file");
+            let (section, text) = rest.split_once(' ').expect("a section and a text");
+            let section = if section == "Rules" {
+                "1. Rules"
+            } else {
+                section
+            };
+            let heading = format!("## {section}");
+            let text = text.replace("\\n", "\n");
+            rewrite(fixture, file, |line| {
+                if line == heading {
+                    vec![line.to_owned(), String::new(), text.clone()]
+                } else {
+                    vec![line.to_owned()]
+                }
+            });
+            git(fixture, &["commit", "-q", "-am", "change"]);
+        }
+        "glossary" => {
+            fixture.write(
+                "docs/GLOSSARY.md",
+                &format!(
+                    "# Glossary\n\nOne term per concept; list under _Avoid:_ the synonyms it displaces.\n\n{}\n",
+                    plain_glossary(rest)
+                ),
+            );
+            git(fixture, &["add", "docs/GLOSSARY.md"]);
+            git(fixture, &["commit", "-q", "-m", "glossary"]);
+        }
+        "base" => {
+            git(fixture, &["branch", "-f", "main", "HEAD"]);
+        }
+        "category" => {
+            fixture.write(
+                "docs/adr/README.md",
+                &format!("# ADRs\n\n## Categories\n\n- **{rest}** — K.\n"),
+            );
+            git(fixture, &["add", "docs/adr/README.md"]);
+            git(fixture, &["commit", "-q", "-m", "category"]);
+        }
+        "rename" => {
+            let (from, to) = rest.split_once(' ').expect("two names");
+            let (old, new) = (format!("docs/adr/{from}.md"), format!("docs/adr/{to}.md"));
+            git(fixture, &["mv", &old, &new]);
+            let mut first = true;
+            rewrite(fixture, &new, |line| {
+                let renamed = match line.strip_prefix(&format!("# {from}:")) {
+                    Some(rest) if first => format!("# {to}:{rest}"),
+                    _ => line.to_owned(),
+                };
+                first = false;
+                vec![renamed]
+            });
+            git(fixture, &["commit", "-q", "-am", "rename"]);
+        }
+        "takeup" => {
+            // The NUC- files and AGENTS.md of this repository's working tree, as the template's
+            // self-test copies its own over the fixture's; not the template's of the copy's
+            // release. The one case that takes them passes whatever they hold, since a finding in
+            // a NUC- ADR or in AGENTS.md never fails, so it decides little.
+            let root = support::sources::root();
+            let adrs = fixture.root().join("docs/adr");
+            for entry in fs::read_dir(&adrs).expect("docs/adr/") {
+                let path = entry.expect("an entry").path();
+                if path
+                    .file_name()
+                    .is_some_and(|n| n.to_string_lossy().starts_with("NUC-"))
+                {
+                    fs::remove_file(path).expect("removed");
+                }
+            }
+            for entry in fs::read_dir(root.join("docs/adr")).expect("docs/adr/") {
+                let path = entry.expect("an entry").path();
+                let name = path.file_name().expect("a name").to_owned();
+                if name.to_string_lossy().starts_with("NUC-") {
+                    fs::copy(&path, adrs.join(name)).expect("copied");
+                }
+            }
+            fs::copy(root.join("AGENTS.md"), fixture.root().join("AGENTS.md")).expect("copied");
+            git(fixture, &["add", "-A"]);
+            git(fixture, &["commit", "-q", "-m", "takeup"]);
+        }
+        other => panic!("plain-rules table: no step '{other}'"),
+    }
+}
+
+/// The case of the plain-rules sensor's table: the self-test's repository, main with AGENTS.md and
+/// the two ADRs, the branch `work` off it checked out, the steps applied, and the sensor run
+/// against main, with `--require` unless a step says `noflag`.
+fn plain_rules_case(fixture: &Fixture, case: &Case) -> Run {
+    let short = "The human decides.";
+    fixture.write(
+        "AGENTS.md",
+        &format!("# Agent Guide\n\n## 1. Rules\n\n- {short}\n- Old line that says should.\n"),
+    );
+    let adr = |title: &str| {
+        format!(
+            "# {title}\n\n- **Status:** 🟢 accepted\n\n## Context\n\n{short}\n\n## Decision\n\n{short}\n\n## Enforcement\n\n{short}\n"
+        )
+    };
+    fixture.write("docs/adr/FIX-rule-x.md", &adr("FIX-rule-x: X"));
+    let nuc_y = format!("{}-rule-y", "NUC");
+    fixture.write(
+        &format!("docs/adr/{nuc_y}.md"),
+        &adr(&format!("{nuc_y}: Y")),
+    );
+    git(fixture, &["add", "-A"]);
+    git(fixture, &["commit", "-q", "-m", "start"]);
+    git(fixture, &["switch", "-q", "-c", "work"]);
+    let mut require = true;
+    for step in &case.steps {
+        if step == "noflag" {
+            require = false;
+        } else {
+            plain_rules_step(fixture, step);
+        }
+    }
+    fixture.write("nuc.toml", "minimum = \"0.0.0\"\nrules = []\n");
+    let exclude = fixture.root().join(".git/info/exclude");
+    let kept = fs::read_to_string(&exclude).unwrap_or_default();
+    fs::write(&exclude, format!("{kept}/nuc.toml\n")).expect("the exclude is written");
+    let mut args = vec!["sense", "plain-rules"];
+    if require {
+        args.push("--require");
+    }
+    args.push("main");
+    let output = fixture.nuc(&args);
+    let want = if case.pass { 0 } else { 1 };
+    let agrees = output.status.code() == Some(want) && holds(&stdout(&output), &case.field);
+    Run { output, agrees }
+}
+
 /// The rules a case turns on.
 fn rules_of(case: &Case) -> Vec<String> {
     let area = match case.table {
@@ -952,9 +1117,13 @@ const STAND_IN_HEADER: &str = "#!/usr/bin/env bash\n\
 #   docs/skill-pointers\n#   docs/base-blobs\n#   docs/template-identity\n\
 #   docs/opens-no-issue\n#   docs/template-release\n#   docs/prose-width\nset -uo pipefail\n";
 
-/// Build the case's tree, run `nuc check` on it, and decide whether it agrees.
+/// Build the case's tree, run `nuc check` on it, and decide whether it agrees; for the plain-rules
+/// sensor's table, `nuc sense plain-rules`.
 fn run(case: &Case, n: usize) -> Run {
     let fixture = Fixture::new(&format!("table-{n}"));
+    if case.table == "plain-rules.txt" {
+        return plain_rules_case(&fixture, case);
+    }
     let mut deleted = String::new();
     match case.table {
         "check-docs-record.txt" => {
@@ -1010,7 +1179,9 @@ fn listed_rule(case: &Case) -> String {
         let key = case.field.trim_start_matches('!');
         key.split(':').next().filter(|_| key != "-").map_or_else(
             || {
-                if case.table == "check-shell.txt" {
+                if case.table == "plain-rules.txt" {
+                    "rules".to_owned()
+                } else if case.table == "check-shell.txt" {
                     "shell".to_owned()
                 } else {
                     "traceability".to_owned()
