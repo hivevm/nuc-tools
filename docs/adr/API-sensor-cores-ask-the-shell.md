@@ -38,19 +38,21 @@ and the shell, and leaves the module layout inside the core beyond them open. `n
 prior art of a command whose core returns neither an outcome nor an answer: `src/measure.rs`
 counts in the core, and the shell reads and prints.
 
-The ports showed two sensors whose bash reads an input only by an earlier answer.
-`sensor-review-binding.sh` reads the message of a merge only where the range it found holds one,
-and the hand-off only where it names a commit. `sensor-binding-adrs.sh` diffs a path only where an
-ADR binds it by its checks. Their cores in `src/sense/review_binding.rs` and
-`src/sense/binding_adrs.rs` ask the shell for those inputs: review-binding through the trait
-`review_binding::Repo`, thirteen questions that `shell::sense::ReviewRepo` answers each with one git
-call or the hand-off, and binding-adrs through the callback `diffed`, which runs one git diff a
-call. Each core reads no file and runs no process, which `tests/functional_core.rs` holds. Each
-breaks "takes the values the shell gathered" of the superseded ADR, since the core picks the next
-git call. The hand-off of ticket 07 of `sensors-under-nuc-sense` and both its reviews left the
-shape open. The first review found no simpler shape that reads only where the bash reads. The unit
-tests of `src/sense/review_binding/tests.rs` record the questions the core asks a fake `Repo` and
-decide their order.
+The ports showed two sensors whose bash reads an input on some answers and not on others.
+`sensor-review-binding.sh` asks git about the commit a hand-off's `Reviewed at:` line names only
+where the line names one that the range holds: whether it is an ancestor, how many commits follow
+it, and their diffstat. Before v0.11.0 it reads the message of each merge on the first-parent line.
+`sensor-binding-adrs.sh` diffs a path only where an ADR binds it by its checks. Their cores in
+`src/sense/review_binding.rs` and `src/sense/binding_adrs.rs` ask the shell for those inputs:
+review-binding through the trait `review_binding::Repo`, thirteen questions that
+`shell::sense::ReviewRepo` answers each with one git call or the hand-off, and binding-adrs through
+the callback `diffed`, which runs one git diff a call. Each core reads no file and runs no process,
+which `tests/functional_core.rs` holds. Each breaks "takes the values the shell gathered" of the
+superseded ADR, since the core picks the next git call. The hand-off of ticket 07 of
+`sensors-under-nuc-sense` and both its reviews left the shape open. The first review found no
+simpler shape that reads only where the bash reads. The unit tests of
+`src/sense/review_binding/tests.rs` record the questions the core asks a fake `Repo` and decide
+their order.
 
 [ARCH-rules-need-only-git](ARCH-rules-need-only-git.md) keeps every rule that needs a process
 other than git in the bash, for Q-4 and Q-7. The constraints make git the only runtime dependency,
@@ -79,12 +81,18 @@ for an input the bash reads by an earlier answer.
 - **Core:** each sensor must be a function of the library outside `src/shell/`. It takes the
   values the shell gathered and returns its report or a refusal. The shell prints the report or
   the refusal and exits. A sensor reads no file and runs no process, as a rule does.
-  - **Asking the shell:** the core may ask the shell for an input instead of taking it as a value.
-    It may do so only where the bash sensor reads that input by an earlier answer. It asks through
-    a trait or a callback that the core declares and only the shell implements, outside the tests.
-  - The shell must answer each question as it gathers a value: through `shell::git` or the `Tree`
-    of `shell::tree`, under the same guards.
-  - A sensor whose bash reads its inputs whatever the answers takes them as values.
+  - **Asking the shell:** a sensor's core may ask the shell for its inputs instead of taking them as
+    values. It may do so only where its bash reads an input on some answers and not on others.
+    Gathering such an input up front would make a git call the bash does not make, or refuse where
+    the bash reads nothing.
+  - Such a core must ask through a trait or a callback that it declares and only the shell
+    implements. The core implements none outside its tests. The same trait may carry the sensor's
+    questions that the bash asks on every run, so that one seam answers them all.
+  - The shell must answer each question through `shell::git` or the `Tree` of `shell::tree`, under
+    the guards of [SEC-git-cleared-without-lazy-fetch](SEC-git-cleared-without-lazy-fetch.md),
+    [SEC-repository-commands-neutralized-or-refused](SEC-repository-commands-neutralized-or-refused.md),
+    and `Tree::resolve`, as it gathers a value.
+  - A sensor whose bash reads every input whatever the answers must take its inputs as values.
   - review-binding asks through the trait `review_binding::Repo`, and binding-adrs through the
     callback `diffed` of `binding_adrs::report`.
 - **Release:** `nuc sense` must report as the sensor of the release the tree carries, as the rules
@@ -148,13 +156,13 @@ None.
   next, the sensor's own, moves into the shell, and the unit tests of the order of the questions
   are lost. Only the parity harness would still hold it.
 - **Gather every input the bash may read, up front** — the cores stay functions of values without
-  logic in the shell. But `nuc` reads more than the bash. It makes more git calls (Q-5), reads
-  objects the bash never touches (Q-7), and refuses where the bash reads nothing, as for a blob a
-  partial clone lacks (Q-1, Q-2).
+  logic in the shell. But `nuc` reads more than the bash. It makes git calls the bash does not
+  make, and refuses where the bash reads nothing, as for a blob a partial clone lacks or a path
+  under a diff driver (Q-1, Q-2, G-9).
 - **Let every sensor ask the shell** — one rule for all, but the form of values becomes the
   exception, and a review can no longer tell whether a trait was needed.
-- **Review alone, no test** — no test to keep, but nothing would stop a core from implementing its
-  own trait, and so answering its questions without the shell's guards.
+- **Review alone, no test** — no test to keep, but a reviewer would have to search the core for
+  every sensor that asks, where the test names each by its implementation in `src/shell/`.
 - **The bash sensor's report on a tree of a release without it** — the newest sensor would report
   on an old tree, which no bash of that release does, and parity has nothing to compare.
 - **Parity of the counts only, not the wording** — looser to keep, but `check-all.sh` shows the
@@ -187,8 +195,8 @@ None.
 - Positive: a project runs eight sensors without bash (Q-4), and the two sensors that act as
   checks can move to `nuc` with the rest of the gates. Parity is decided byte for byte, so the
   report a session reads does not drift (Q-2). A sensor that asks reads only what its bash reads,
-  so it makes no git call the bash does not make (Q-5, Q-7). It refuses no input the bash leaves
-  unread (Q-1, Q-2). Its decisions keep unit tests of the order of its questions.
+  so it makes no git call the bash does not make and refuses no input the bash leaves unread
+  (Q-1, Q-2, G-9). Its decisions keep unit tests of the order of its questions.
 - Negative / trade-offs: `nuc` copies the bash's prose, and every change of a sensor's wording in
   a template release is a change of `nuc`. The parity harness needs scenarios with arguments and
   git state, since most sensors read a range of commits, and a pinned tree alone has none. The
@@ -196,9 +204,12 @@ None.
   is no function of values, so its unit tests need a fake of the trait or the callback. That fake
   answers as the test says, not as git does, and only the parity harness compares the answers
   with git's.
-- Follow-ups: the specification's criterion for the sensors, proposed beside this ADR; the
-  scenarios of the sensors in the parity harness; the port of each sensor; a later decision on
-  the sensors that call `gh`, should the constraint on runtime dependencies move.
+- Follow-ups: in the change that accepts this ADR, the `Verifies:` markers that cite the
+  superseded one move to it, in `tests/contract.rs`, `tests/releases.rs`,
+  `tests/functional_core.rs`, and `scripts/test-check-parity.sh`, with the citations in comments;
+  the structural test of the traits; the Sensors of `docs/ARCHITECTURE.md` and the header of
+  `src/sense.rs`, which call the cores pure functions; a later decision on the sensors that call
+  `gh`, should the constraint on runtime dependencies move.
 
 ## Enforcement
 
@@ -215,12 +226,16 @@ check the following:
 
 `tests/releases.rs` must cite it the same way and hold each row `sense/<name>` to the template's
 trees, as it holds the rows of the rules. `tests/functional_core.rs` must cite it and hold the
-sensors' modules to no effect outside the shell. It must also check that each trait a module of
-`src/sense/` declares is implemented only in `src/shell/` or in a test module.
+sensors' modules to no effect outside the shell. It must also check that each trait declared in
+`src/sense.rs` or under `src/sense/` is implemented only in `src/shell/` or in a `tests.rs` of the
+core. A reviewer then finds every core that asks by its implementation in `src/shell/`.
 
-**Not mechanically decidable:** whether the bash reads an input only by an earlier answer, the
-condition under which a core may ask. A review decides it against the bash sensor. So it does for
-the callback, which, unlike a trait, has no `impl` a test can find.
+**Not mechanically decidable:** three parts. Whether a sensor's bash reads an input on some
+answers and not on others, the condition under which its core may ask. Whether the shell's
+answers keep the guards. Whether a sensor that does not ask takes all its inputs as values. The
+reviewer of the change decides each against the bash sensor, and the maintainer who merges it
+confirms. A callback, unlike a trait, has no `impl` a test can find, so the review finds it as
+well.
 
 The self-test of the parity harness, `scripts/test-check-parity.sh`, must cite it the same way. It
 must check that each of the following fails:
