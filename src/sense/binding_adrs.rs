@@ -35,6 +35,7 @@ pub const SENSOR: Sensor = Sensor {
         "submodule",
         super::DRIVER,
         super::ENVIRONMENT,
+        super::HUNK,
         super::RELEASE,
     ],
 };
@@ -257,7 +258,7 @@ pub fn report(
         finish(&mut out, release, sections, record, &[]);
         return Ok(out);
     }
-    let (found, files) = bind(&record.adrs, paths, named, release, diffs);
+    let (found, files) = bind(&record.adrs, paths, named, release, diffs)?;
     let (hint, hint_list) = if sections {
         (
             "The ADRs whose Applies to is prose follow below.",
@@ -305,7 +306,7 @@ fn bind<'r>(
     named: bool,
     release: Version,
     diffs: &Diffs,
-) -> (Vec<Vec<u8>>, Vec<&'r Adr>) {
+) -> Result<(Vec<Vec<u8>>, Vec<&'r Adr>), Refusal> {
     let mut touched: BTreeMap<Vec<u8>, Vec<u8>> = BTreeMap::new();
     let mut found = Vec::new();
     let mut files = Vec::new();
@@ -333,7 +334,7 @@ fn bind<'r>(
                     let got = diffs
                         .get(changed)
                         .expect("the shell read every path checked_paths names");
-                    touched.insert(changed.clone(), held_in_hunks(got, release));
+                    touched.insert(changed.clone(), held_in_hunks(got, release)?);
                 }
                 if in_checks(&touched[changed], checks) {
                     hits.push(changed);
@@ -355,7 +356,7 @@ fn bind<'r>(
         found.push(line);
         files.push(adr);
     }
-    (found, files)
+    Ok((found, files))
 }
 
 /// What `finish` prints for `--sections`: the prose of the ADRs in force not listed, and of each
@@ -789,21 +790,18 @@ fn module_dir(path: &[u8]) -> Vec<u8> {
 /// What `checked` reads of a file the change touches: the string its awk prints of the checks
 /// that hold the lines of each hunk and the lines on either side, ` <held> <held> … `, where a line
 /// outside every check is `all`; ` ` where the diff has no hunk.
-fn held_in_hunks(diffed: &Diffed, release: Version) -> Vec<u8> {
+fn held_in_hunks(diffed: &Diffed, release: Version) -> Result<Vec<u8>, Refusal> {
     let held = held(&diffed.file, release);
-    let hunk = regex!(r"(?-u)^@@ [^+]*\+([0-9,]+) ");
+    let overflow = super::hunk_refusal(SENSOR.name);
     let mut touched: BTreeSet<&[u8]> = BTreeSet::new();
     for line in bash::sed_lines(&diffed.diff) {
-        let Some(captures) = hunk.captures(line) else {
+        let Some((start, count)) = bash::hunk_new_side(line).map_err(&overflow)? else {
             continue;
         };
-        let range = &captures[1];
-        let mut parts = range.split(|&b| b == b',');
-        let start = awk_number(parts.next().unwrap_or_default());
-        let count = parts
-            .next()
-            .filter(|count| !count.is_empty())
-            .map_or(1, awk_number);
+        // A bound one past the largest number awk computes of the two, `start - 1 + count + 1`:
+        // kept within what awk holds exactly, one value early at worst.
+        bash::awk_sum(&[start, count, 1]).map_err(&overflow)?;
+        let (start, count) = (start as i64, count as i64);
         let first = start - i64::from(count > 0);
         let last = first + count + 1;
         // Each line of the range; one outside the file holds no check.
@@ -824,17 +822,7 @@ fn held_in_hunks(diffed: &Diffed, release: Version) -> Vec<u8> {
         out.extend(key);
         out.push(b' ');
     }
-    out
-}
-
-/// The number awk reads at the start of the field: its leading digits, 0 for none.
-fn awk_number(field: &[u8]) -> i64 {
-    field
-        .iter()
-        .take_while(|b| b.is_ascii_digit())
-        .fold(0i64, |n, &b| {
-            n.saturating_mul(10).saturating_add(i64::from(b - b'0'))
-        })
+    Ok(out)
 }
 
 /// Whether awk reads the line `held` printed as true: a line of digits as its number, any other

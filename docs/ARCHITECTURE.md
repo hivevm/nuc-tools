@@ -51,10 +51,9 @@ golden path and the test pattern an agent copies from are named here.
   rules of the decision record share one reading of it in `src/adr.rs`, and the rules of Markdown
   one reading of its links in `src/markdown.rs`, both outside `src/rules/`, the way the bash's
   `scripts/lib/adr.sh` and awk passes read them. The byte-level readings of the bash's tools, lines
-  as awk, `read`, and `sed` split them, POSIX space and the bytes without it, and the first word
-  `read` splits off, are in `src/bash.rs`, and the structural test holds that the names it lists
-  stand nowhere else; the sensors binding-adrs, plain-rules, and tests-kept read awk's numbers
-  and git's hunk headers in their own modules, which it does not list. The
+  as awk, `read`, and `sed` split them, POSIX space and the bytes without it, the first word
+  `read` splits off, awk's numbers, exact up to 2^53, and the new side of git's hunk headers, are
+  in `src/bash.rs`, and the structural test holds that the names it lists stand nowhere else. The
   rules of the area `traceability` share one reading of the criteria of the specification and of the
   identifiers the `Verifies:` markers cite in `src/traceability.rs`, beside `src/adr.rs`, so that no
   rule module calls another. The shell matches path patterns as bash's pathname expansion does

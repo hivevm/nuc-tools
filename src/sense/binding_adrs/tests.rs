@@ -205,6 +205,28 @@ fn held_names_each_line_by_the_check_whose_function_holds_it() {
 }
 
 #[test]
+fn a_hunk_head_awk_reads_inexactly_is_not_decided() {
+    let diffed = Diffed {
+        file: b"check_a() {  # t/a\n  :\n}\n".to_vec(),
+        diff: b"@@ -1 +99999999999999999999 @@\n".to_vec(),
+    };
+    let refusal = held_in_hunks(&diffed, RULE_KEYS).unwrap_err();
+    assert!(
+        refusal.to_string().ends_with("[sense/binding-adrs:hunk]"),
+        "{refusal}"
+    );
+    // Where awk's `start + count + 1` runs past what it holds exactly as well.
+    let with = |diff: &[u8]| Diffed {
+        file: diffed.file.clone(),
+        diff: diff.to_vec(),
+    };
+    assert!(held_in_hunks(&with(b"@@ -1 +9007199254740993 @@\n"), RULE_KEYS).is_err());
+    assert!(held_in_hunks(&with(b"@@ -1 +9007199254740991,1 @@\n"), RULE_KEYS).is_err());
+    let held = held_in_hunks(&with(b"@@ -1 +9007199254740990,1 @@\n"), RULE_KEYS).unwrap();
+    assert_eq!(held, b" all ");
+}
+
+#[test]
 fn a_hunk_binds_the_checks_of_its_lines_and_the_lines_on_either_side() {
     let file = b"check_a() {  # t/a\n  :\n}\n\ncheck_b() {  # t/b\n  :\n}\n".to_vec();
     let touched = |diff: &str| {
@@ -212,7 +234,7 @@ fn a_hunk_binds_the_checks_of_its_lines_and_the_lines_on_either_side() {
             file: file.clone(),
             diff: diff.as_bytes().to_vec(),
         };
-        String::from_utf8(held_in_hunks(&diffed, RULE_KEYS)).unwrap()
+        String::from_utf8(held_in_hunks(&diffed, RULE_KEYS).unwrap()).unwrap()
     };
     // Line 6 changed: lines 5 to 7, all in check b.
     assert_eq!(touched("@@ -6 +6 @@\n-  :\n+  x\n"), " t/b ");

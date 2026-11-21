@@ -1803,6 +1803,68 @@ fn an_external_diff_is_not_decided_where_hunks_decide() {
     assert!(!marker.exists(), "nuc sense ran the external diff");
 }
 
+/// A hunk head whose new side runs past 2^53, which the bash's awk reads inexactly, has
+/// `tests-kept`, `plain-rules`, and `binding-adrs` not decide, each with the key `hunk`. A git
+/// stand-in, first on the `PATH`, writes that head into each diff of hunks the real git prints.
+/// Verifies: G-9
+#[cfg(unix)]
+#[test]
+fn a_hunk_head_awk_reads_inexactly_is_not_decided() {
+    use std::os::unix::fs::PermissionsExt;
+    let readme = "# Fixture\n\n- **Template release:** v0.12.0\n";
+    let fixture = Fixture::project("sense-hunk-past-awk", CONFIG, readme);
+    binding_checks(&fixture, ":");
+    fixture.write("tests/a_test.rs", "fn a() {}\n");
+    fixture.write("AGENTS.md", "# Agent Guide\n\n- The human decides.\n");
+    fixture.commit("start");
+    fixture.git(&["switch", "-q", "-c", "feature"]);
+    binding_checks(&fixture, "true");
+    fixture.write("tests/a_test.rs", "#[ignore]\nfn a() {}\n");
+    fixture.write(
+        "AGENTS.md",
+        "# Agent Guide\n\n- The human decides.\n- The session should read it.\n",
+    );
+    fixture.commit("change");
+    let real = std::process::Command::new("sh")
+        .args(["-c", "command -v git"])
+        .output()
+        .expect("sh runs");
+    let real = String::from_utf8(real.stdout).expect("UTF-8");
+    let bin = Fixture::new("sense-hunk-past-awk-bin");
+    let git = bin.root().join("git");
+    std::fs::write(
+        &git,
+        format!(
+            "#!/bin/sh\nfor arg in \"$@\"; do\n  [ \"$arg\" = -U0 ] || continue\n  \
+             '{0}' \"$@\" | sed 's/^@@ -\\([^ ]*\\) +[0-9]*/@@ -\\1 +9007199254740993/'\n  \
+             exit 0\ndone\nexec '{0}' \"$@\"\n",
+            real.trim()
+        ),
+    )
+    .expect("the stand-in is written");
+    std::fs::set_permissions(&git, std::fs::Permissions::from_mode(0o755)).expect("mode");
+    let path = format!(
+        "{}:{}",
+        bin.root().display(),
+        std::env::var("PATH").unwrap_or_default()
+    );
+    for sensor in ["tests-kept", "plain-rules", "binding-adrs"] {
+        let output = fixture.nuc_with(
+            &[("PATH", path.as_str())],
+            &["sense", sensor, "main", "feature"],
+        );
+        assert_eq!(code(&output), Some(2), "{sensor}: {}", stdout(&output));
+        assert_eq!(stdout(&output), "", "{sensor}");
+        assert!(
+            stderr(&output)
+                .trim_end()
+                .ends_with(&format!("[sense/{sensor}:hunk]")),
+            "{sensor}: {}",
+            stderr(&output)
+        );
+    }
+}
+
 /// A textconv driver on a project ADR has the bash's git read the ADR's hunks through what the
 /// driver prints: a line the change inserts above an old "should" can turn that line into an added
 /// one, which `--require` fails where `nuc`, reading the raw bytes, would pass. The ADR is not

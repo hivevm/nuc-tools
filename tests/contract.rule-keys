@@ -163,6 +163,7 @@ sense/binding-adrs:environment
 sense/binding-adrs:file
 sense/binding-adrs:filter
 sense/binding-adrs:git
+sense/binding-adrs:hunk
 sense/binding-adrs:name
 sense/binding-adrs:ref
 sense/binding-adrs:release
@@ -172,6 +173,7 @@ sense/plain-rules:environment
 sense/plain-rules:file
 sense/plain-rules:filter
 sense/plain-rules:git
+sense/plain-rules:hunk
 sense/plain-rules:name
 sense/plain-rules:ref
 sense/plain-rules:release
@@ -197,6 +199,7 @@ sense/revision-due:unreadable
 sense/tests-kept:driver
 sense/tests-kept:environment
 sense/tests-kept:git
+sense/tests-kept:hunk
 sense/tests-kept:ref
 sense/tests-kept:release
 sense/unknown:name

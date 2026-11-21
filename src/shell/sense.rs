@@ -409,7 +409,7 @@ fn tests_kept(tree: &Tree, release: config::Version, change: &[&str]) -> Result<
     let diff = git::diff(root, config, git::Diff::Diff, &args).map_err(undecided)?;
     refuse_driven_markers(root, &base, &head, &diff)?;
     let mut findings = tests_kept::removals(&name_status);
-    findings.extend(tests_kept::markers(&diff, release));
+    findings.extend(tests_kept::markers(&diff, release)?);
     Ok(tests_kept::report(
         &commit(&base, true)?,
         &commit(&head, true)?,
@@ -871,7 +871,7 @@ fn rule_file_added(
     args.push(path);
     let diff =
         git::diff(root, hunks.config, git::Diff::Diff, &args).map_err(git_refusal(sensor))?;
-    Ok(plain_rules::added_lines(&diff))
+    plain_rules::added_lines(&diff)
 }
 
 /// What `binding-adrs` needs: the paths named, or the change and the paths it touches; the ADRs

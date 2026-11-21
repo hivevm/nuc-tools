@@ -6,7 +6,7 @@
 
 use regex::bytes::{Regex, RegexBuilder};
 
-use super::Sensor;
+use super::{Refusal, Sensor};
 use crate::bash;
 use crate::config::Version;
 
@@ -22,6 +22,7 @@ pub const SENSOR: Sensor = Sensor {
         "git",
         super::DRIVER,
         super::ENVIRONMENT,
+        super::HUNK,
         super::RELEASE,
     ],
 };
@@ -109,7 +110,7 @@ pub fn removals(name_status: &[u8]) -> Vec<Vec<u8>> {
 
 /// The findings of `git diff -U0`: each added line that carries a marker of the toolchain of its
 /// file, as `file:line: text`, read as the bash's awk reads the diff.
-pub fn markers(diff: &[u8], release: Version) -> Vec<Vec<u8>> {
+pub fn markers(diff: &[u8], release: Version) -> Result<Vec<Vec<u8>>, Refusal> {
     let by_extension = release >= BY_EXTENSION;
     let all = expression(ALL_MARKERS);
     let table: Vec<(Vec<&str>, Regex)> = MARKERS
@@ -147,40 +148,26 @@ pub fn markers(diff: &[u8], release: Version) -> Vec<Vec<u8>> {
             continue;
         }
         if text.starts_with(b"@@") {
-            line = hunk_start(text);
+            line = bash::hunk_first_added(text).map_err(super::hunk_refusal(SENSOR.name))?;
             continue;
         }
         if text.starts_with(b"+") {
             if marker.is_some_and(|regex| regex.is_match(text)) {
                 let mut finding = b"skip or focus marker added: ".to_vec();
                 finding.extend_from_slice(&file);
+                // A line past what awk counts exactly is not decided.
+                if line > bash::AWK_EXACT {
+                    return Err(super::hunk_refusal(SENSOR.name)(bash::Overflow));
+                }
                 finding.extend_from_slice(format!(":{line}: ").as_bytes());
                 finding.extend_from_slice(&text[1..]);
                 findings.push(finding);
             }
+            // Within u64: the head reads at most AWK_EXACT, and the diff holds fewer lines.
             line += 1;
         }
     }
-    findings
-}
-
-/// The first `+<digits>` of a hunk's head, as awk's match and `+ 0` read it; 0 where there is none.
-fn hunk_start(text: &[u8]) -> u64 {
-    (0..text.len())
-        .filter(|&at| text[at] == b'+')
-        .find_map(|at| {
-            let digits = text[at + 1..]
-                .iter()
-                .take_while(|b| b.is_ascii_digit())
-                .count();
-            (digits > 0).then(|| {
-                std::str::from_utf8(&text[at + 1..at + 1 + digits])
-                    .ok()
-                    .and_then(|n| n.parse().ok())
-                    .unwrap_or(0)
-            })
-        })
-        .unwrap_or(0)
+    Ok(findings)
 }
 
 /// The report where base and head are the same commit.
@@ -211,6 +198,26 @@ mod tests {
     use super::*;
 
     const NEWEST: Version = Version(0, 12, 0);
+
+    #[test]
+    fn a_hunk_head_awk_reads_inexactly_is_not_decided() {
+        for diff in [
+            &b"+++ b/a.rs\n@@ -1 +99999999999999999999 @@\n+#[ignore]\n"[..],
+            b"+++ b/a.rs\n@@ -1 +9007199254740992,2 @@\n+a\n+#[ignore]\n",
+            b"+++ b/a.rs\n@@ -1 +9007199254740993 @@\n+a\n",
+        ] {
+            let refusal = markers(diff, NEWEST).unwrap_err();
+            assert!(
+                refusal.to_string().ends_with("[sense/tests-kept:hunk]"),
+                "{refusal}"
+            );
+        }
+        let diff = b"+++ b/a.rs\n@@ -1 +9007199254740991,2 @@\n+a\n+#[ignore]\n";
+        assert_eq!(
+            texts(markers(diff, NEWEST).unwrap()),
+            ["skip or focus marker added: a.rs:9007199254740992: #[ignore]"]
+        );
+    }
 
     fn texts(findings: Vec<Vec<u8>>) -> Vec<String> {
         findings
@@ -244,24 +251,24 @@ mod tests {
     fn a_marker_counts_only_in_the_files_of_its_toolchain_from_its_release() {
         let diff = b"diff --git a/a.rs b/a.rs\n--- a/a.rs\n+++ b/a.rs\n@@ -0,0 +3,2 @@\n+fn x() {}\n+#[ignore]\n+++ b/b.js\n@@ -1 +7 @@\n+  it.only(\"x\")\n+++ b/c.rs\n@@ -0,0 +1 @@\n+fit(\n";
         assert_eq!(
-            texts(markers(diff, NEWEST)),
+            texts(markers(diff, NEWEST).unwrap()),
             [
                 "skip or focus marker added: a.rs:4: #[ignore]",
                 "skip or focus marker added: b.js:7:   it.only(\"x\")"
             ]
         );
-        assert_eq!(texts(markers(diff, Version(0, 6, 1))).len(), 3);
+        assert_eq!(texts(markers(diff, Version(0, 6, 1)).unwrap()).len(), 3);
     }
 
     #[test]
     fn a_path_with_a_space_loses_its_tab_from_its_release_on() {
         let diff = b"+++ b/a b.py\t\n@@ -0,0 +1 @@\n+@pytest.mark.skip\n";
         assert_eq!(
-            texts(markers(diff, NEWEST)),
+            texts(markers(diff, NEWEST).unwrap()),
             ["skip or focus marker added: a b.py:1: @pytest.mark.skip"]
         );
         assert_eq!(
-            texts(markers(diff, Version(0, 6, 1))),
+            texts(markers(diff, Version(0, 6, 1)).unwrap()),
             ["skip or focus marker added: a b.py\t:1: @pytest.mark.skip"]
         );
     }

@@ -120,6 +120,22 @@ pub fn positional<'a, 'b>(
 /// (SEC-repository-commands-neutralized-or-refused).
 pub const ENVIRONMENT: &str = "environment";
 
+/// The reason of a sensor that meets a hunk's head whose number, or awk's sum of its numbers, runs
+/// past 2^53, which awk's double does not hold exactly: git writes none, and nuc does not decide
+/// one.
+pub const HUNK: &str = "hunk";
+
+/// The refusal of the sensor for a hunk's head whose number awk reads inexactly.
+pub fn hunk_refusal(sensor: &'static str) -> impl Fn(crate::bash::Overflow) -> Refusal {
+    move |_| Refusal {
+        sensor,
+        reason: HUNK,
+        message: "a hunk's head whose number, or a sum of its numbers, runs past 2^53, which awk \
+                  reads inexactly"
+            .to_owned(),
+    }
+}
+
 /// The reason of a sensor that refuses a path whose diff the bash's git reads through a driver of
 /// the repository (SEC-repository-commands-neutralized-or-refused).
 pub const DRIVER: &str = "driver";
