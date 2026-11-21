@@ -9,7 +9,8 @@
 # reason word, and holds each subject, in that order and with no ASCII letter, digit, hyphen,
 # or underscore beside it; the rest of its wording is free.
 #
-# A line that starts with '#' is a comment, not a case. The subjects are looked for in the part of
+# A blank line, or one that starts with '#' after any blanks, is a comment; any other line that
+# is no case stops the self-test and names the line. The subjects are looked for in the part of
 # the line before its key, so that none holds by the key alone. A field may start with '!': it then
 # holds where no line that ends in '[<key>]' holds the subjects in their order, so a field
 # '!<key> @ <a> @ <b>' is not broken by a line that names <b> before <a>.

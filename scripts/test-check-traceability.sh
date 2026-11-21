@@ -202,7 +202,7 @@ checks_adr="$(sed -n 's/^CHECKS_ADR="\(.*\)"$/\1/p' "$CHECK")"
 check "the check names the ADR on the checks by a file of this tree" test -f "$ROOT/docs/adr/$checks_adr.md"
 n=0
 while IFS= read -r line; do
-  [[ "$line" =~ ^(pass|fail) ]] || continue
+  table_row "$line" "^(pass|fail) \\| " || continue
   n=$((n + 1))
   line="$(table_hyphens "${line//NUC:checks-are-bash/$checks_adr}")"
   IFS=$'\x1f' read -r want needle name tree <<< "${line// | /$'\x1f'}"

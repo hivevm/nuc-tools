@@ -376,7 +376,7 @@ step() {
 
 cases=0
 while IFS= read -r line; do
-  [[ "$line" =~ ^(pass|fail)\ \|\  ]] || continue
+  table_row "$line" "^(pass|fail) \\| " "^= [a-z]+ \\| " || continue
   line="${line//NUC:/NUC-}"
   IFS='|' read -r want text name tree <<< "${line// | /|}"
   cases=$((cases + 1))

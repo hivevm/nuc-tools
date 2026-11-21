@@ -112,7 +112,7 @@ table_cases() {
   local n=0 line want needle name tree s op arg d feature path text pad='<pad ([0-9]+)>'
   local -a extras ids
   while IFS= read -r line; do
-    [[ "$line" =~ ^(pass|fail) ]] || continue
+    table_row "$line" "^(pass|fail) \\| " || continue
     n=$((n + 1))
     IFS=$'\x1f' read -r want needle name tree <<< "${line// | /$'\x1f'}"
     d="$(repo "$1-$n")"
@@ -196,6 +196,27 @@ check "a wording after a key is refused" refused "area/rule-x:why @ does not pin
 check "a rule without a reason word is refused" refused "area/rule-x"
 (table_case "no key" fail - 1 "") 2>/dev/null
 check "a failing case that names no key is refused" test "$?" -eq 2
+
+# row and skipped <line>, and stops <line> — what the reader of a table does with a line: run it,
+# skip it, or stop the self-test with exit 2.
+# shellcheck disable=SC2317,SC2329 # run by check
+row() { (table_row "$1" "^(pass|fail) \\| " "^= [a-z]+ \\| ") 2>/dev/null; }
+# shellcheck disable=SC2317,SC2329 # run by check
+skipped() { row "$1"; (($? == 1)); }
+# shellcheck disable=SC2317,SC2329 # run by check
+stops() { row "$1"; (($? == 2)); }
+check "a row is run" row "pass | - | a case | rm .vscode"
+check "a blank line is skipped" skipped ""
+check "a comment is skipped" skipped "  # a note"
+check "a line of the other pattern is skipped" skipped "= term | text"
+check "a row of an older first field stops the self-test" stops "1 | pass | - | a case | rm .vscode"
+check "a stray line stops the self-test" stops "passes | a case"
+# A project's own row in the format of an older release stops the reader of this table, instead
+# of being skipped without a word.
+printf 'pass | - | a case | -\n3 | pass | - | an old row | -\n' > "$work/stale.txt"
+out="$(TABLE="$work/stale.txt" table_cases stale 2>&1)"
+check "the table's reader stops on a row of an older format and names it" \
+  test "$?" -eq 2 -a -n "$(grep -F '3 | pass | - | an old row' <<< "$out")"
 
 # --- summary -------------------------------------------------------------------------------
 

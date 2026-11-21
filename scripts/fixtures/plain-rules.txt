@@ -10,10 +10,12 @@
 # beside it; the rest of its wording is free. With '!', no such line stands. Where a case is about
 # the place of a finding, its subject '<file>:<line>' decides that place.
 #
-# A line that starts with '#' is a comment, not a case. The subjects are looked for in the part of
-# the line before its key, so that none holds by the key alone. A field may start with '!': it then
-# holds where no line that ends in '[<key>]' holds the subjects in their order, so a field
-# '!<key> @ <a> @ <b>' is not broken by a line that names <b> before <a>.
+# A blank line, or one that starts with '#' after any blanks, is a comment; any other line that
+# is neither a case nor a glossary line '= <name> | <line>' stops the self-test and names the line.
+# The subjects are looked for in the part of the line before its key, so that none holds by the
+# key alone. A field may start with '!': it then holds where no line that ends in '[<key>]' holds
+# the subjects in their order, so a field '!<key> @ <a> @ <b>' is not broken by a line that names
+# <b> before <a>.
 #
 # The tree is a list of steps separated by '; ', applied in order to a git repository with the
 # branch main of one commit and the branch 'work' off it, checked out. The commit holds:

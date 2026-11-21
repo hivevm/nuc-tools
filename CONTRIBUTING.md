@@ -232,7 +232,8 @@ the line's `tokens <n>`. A ticket worked in a worktree of its own is measured th
 hand-off, since each worktree's sessions have a directory of their own. A `feat/` branch's line
 adds up the lines of the tickets it gathered, as
 [API-measure-reads-harness-transcripts](docs/adr/API-measure-reads-harness-transcripts.md)
-says.
+says. The steps that write a hand-off name it: `work-tickets` for a ticket and for a `feat/`
+branch, and `review` for the rounds of a review.
 
 ## Git hooks
 
@@ -366,7 +367,9 @@ Doubts, in the field "A derived project acts on".
    description. `--since <tag>` names another tag.
 3. Write the notes from what changed and from that list. Where the release merges, splits, or
    removes a `NUC-` ADR, the notes carry the map from each old identifier and clause to its new
-   home ([NUC-releases-are-semver-tags §7](docs/adr/NUC-releases-are-semver-tags.md)).
+   home ([NUC-releases-are-semver-tags §7](docs/adr/NUC-releases-are-semver-tags.md)). Where the
+   release changes the form of a row of a table under [`scripts/fixtures/`](scripts/fixtures/),
+   the notes give the new form: a project's own rows in the old form stop the table's self-test.
 4. Tag the merge commit of the pull request of step 1 with those notes as its annotation:
    `git tag -a vX.Y.Z -F .scratch/<notes>.md <merge>`, then `git push origin vX.Y.Z`.
 5. Build the GitHub release from that tag, with the same notes.

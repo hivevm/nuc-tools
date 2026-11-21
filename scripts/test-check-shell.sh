@@ -317,7 +317,7 @@ kind() {
 
 n=0
 while IFS= read -r line; do
-  [[ "$line" =~ ^(pass|fail) ]] || continue
+  table_row "$line" "^(pass|fail) \\| " || continue
   n=$((n + 1))
   IFS=$'\x1f' read -r want needle name tree <<< "${line// | /$'\x1f'}"
   d="$(repo "table-$n")"

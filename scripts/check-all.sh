@@ -38,6 +38,9 @@
 #     scripts/check-all.sh [--changed] [--verbose]   (or: bash scripts/check-all.sh …)
 # CHECK_ALL_JOBS=<n> runs at most n checks at once, 1 one after another; the default is the
 # number of processors.
+# One run holds a lock while it runs, and another waits for it; CHECK_ALL_LOCK=<dir> names the
+# lock, by default /tmp/check-all-<uid>.lock: one path for every session of the user, whatever
+# its environment.
 # Exit code 0 when every check passes, 1 when any of them fails, 2 on an unknown argument or a
 # CHECK_ALL_JOBS that is no number from 1 up.
 
@@ -118,6 +121,7 @@ if [[ ! "$max_jobs" =~ ^[1-9][0-9]*$ ]]; then
 fi
 out="$(mktemp -d)"
 labels=() kinds=() running=0
+lock_held=0
 # stop — on every exit, a signal's included: stop every job the runner still has, the one started
 # an instant before included, wait for them, and remove their files.
 # shellcheck disable=SC2317 # run by the trap
@@ -128,8 +132,36 @@ stop() {
   [[ -n "$running_jobs" ]] && kill $running_jobs 2>/dev/null
   wait
   rm -rf "$out"
+  if ((lock_held)); then rm -rf "$lock"; fi
 }
 trap stop EXIT
+
+# One run at a time per user and machine: a second run, such as a reviewer's beside an
+# implementer's in another worktree, waits for the lock and says so, since two at once overload the
+# machine until timed tests fail. The lock is a directory, which mkdir creates or refuses at once,
+# on macOS too; it holds the process id of its run. A lock whose run has ended, killed before it
+# removed it, is taken over. A run started beneath the run that holds it, such as a copy a
+# self-test starts, inherits CHECK_ALL_LOCK_HOLDER and takes no lock.
+lock="${CHECK_ALL_LOCK:-/tmp/check-all-$(id -u).lock}"
+lock_said=0
+if [[ -z "${CHECK_ALL_LOCK_HOLDER:-}" ]]; then
+  until mkdir "$lock" 2>/dev/null; do
+    holder="$(cat "$lock/pid" 2>/dev/null)"
+    if [[ "$holder" =~ ^[0-9]+$ ]] && ! kill -0 "$holder" 2>/dev/null; then
+      echo "check-all: takes over the lock $lock of run $holder, which has ended" >&2
+      rm -rf "$lock"
+      continue
+    fi
+    if ((!lock_said)); then
+      echo "check-all: waits for run ${holder:-?} to end, which holds the lock $lock" >&2
+      lock_said=1
+    fi
+    sleep 1
+  done
+  lock_held=1
+  echo "$$" > "$lock/pid"
+  export CHECK_ALL_LOCK_HOLDER="$$"
+fi
 
 # run <label> <script> [args...] — start one check, its output and exit code kept under $out. The
 # subshell passes a TERM on to the check and waits for it, so stop() returns once each has ended;
