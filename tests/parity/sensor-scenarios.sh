@@ -519,16 +519,18 @@ bind_record() {
   sp_git "$1" commit -q -am edits
 }
 
-# A filter on a file outside the record, as Git LFS names one, the file's stat changed: the bash's
-# git runs its clean command, a harmless cat here, and nuc's runs none, with the same report.
+# A filter on a file outside the record, as Git LFS names one, the file older than the index by
+# whole seconds and its stat unchanged: neither stat-dirty nor racily clean, so the bash's git runs
+# no clean command for it, and nuc refuses nothing, with the same report. nuc refuses a stat-dirty
+# or racily clean one, which tests/contract.rs holds.
 bind_filtered() {
   bind_main "$1"
   printf '*.png filter=bait\n' > "$1/.gitattributes"
   printf 'image\n' > "$1/a.png"
+  touch -d '-1 min' "$1/a.png"
   sp_git "$1" add -A
   sp_git "$1" commit -q -m image
   sp_git "$1" config filter.bait.clean cat
-  touch -d '+1 min' "$1/a.png"
   printf 'more\n' >> "$1/src/app.sh"
 }
 

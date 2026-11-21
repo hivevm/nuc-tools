@@ -137,6 +137,33 @@ fn refusal_of(finding: &crate::finding::Finding) -> Option<String> {
 const PENDING: &str = "checks-pending-tree";
 const RECORD: &str = "checks-green-trees";
 
+/// Whether the working tree at `root` is clean, so that its green record can hold, told without
+/// running a command of the repository (Q-7, SEC-repository-commands-neutralized-or-refused).
+/// It is not where the caller's environment names a command git would run that nuc's does not
+/// see; where a submodule is checked out, asked before any git looks into it, whose status would
+/// run its filters; where an active filter's driver cannot be neutralized; or where a tracked path
+/// under an active filter is stat-dirty or racily clean, which git would hash through the filter.
+/// Otherwise git's status decides, every active filter neutralized and no submodule left out, so
+/// that a staged change of a gitlink shows as the bash's git shows it.
+fn clean(root: &Path) -> Result<bool, String> {
+    if git::environment_driver(root)?.is_some() || git::checked_out_submodule(root)?.is_some() {
+        return Ok(false);
+    }
+    let Ok(filters) = git::filters(root)? else {
+        return Ok(false);
+    };
+    if git::dirty_filtered(root, &filters)?.is_some() {
+        return Ok(false);
+    }
+    let mut args: Vec<&str> = filters
+        .keys
+        .iter()
+        .flat_map(|key| ["-c", key.as_str()])
+        .collect();
+    args.extend(["status", "--porcelain"]);
+    Ok(git::run(root, &args)?.is_empty())
+}
+
 /// `nuc hook pre-push [<remote> [<url>]]`, with git's refs on the standard input, or
 /// `nuc hook pre-push --record` after the checks passed.
 fn pre_push(args: &[&str]) -> Result<u8, String> {
@@ -173,7 +200,7 @@ fn pre_push(args: &[&str]) -> Result<u8, String> {
         refs.push((pushed.remote_ref.clone(), drafts));
     }
     let tree = match &root {
-        Some(_) if git::run(&dir, &["status", "--porcelain"])?.is_empty() => {
+        Some(root) if clean(root)? => {
             git::probe(&dir, &["rev-parse", "-q", "--verify", "HEAD^{tree}"])?
                 .map(|tree| line(&tree).to_owned())
         }

@@ -65,6 +65,7 @@ pub(super) fn run(name: &str, options: &[&str]) -> Result<u8, String> {
     };
     let carried = super::template_release(&tree.root)?;
     let release = sense::release(sensor, carried).map_err(|refusal| refusal.to_string())?;
+    refuse_environment(sensor.name, &tree.root)?;
     if sensor.name == action_refs::SENSOR.name {
         let require = match args {
             [] => None,
@@ -129,6 +130,23 @@ pub(super) fn run(name: &str, options: &[&str]) -> Result<u8, String> {
     .map_err(|refusal| refusal.to_string())?;
     write_report(&report)?;
     Ok(PASSED)
+}
+
+/// Not decided, `:environment`, where the caller's environment names a command git would run that
+/// nuc's git does not see (SEC-repository-commands-neutralized-or-refused).
+fn refuse_environment(sensor: &'static str, root: &Path) -> Result<(), String> {
+    let refuse = |message: String| {
+        Refusal {
+            sensor,
+            reason: sense::ENVIRONMENT,
+            message: unwrapped(message),
+        }
+        .to_string()
+    };
+    match git::environment_driver(root).map_err(refuse)? {
+        Some(why) => Err(refuse(why)),
+        None => Ok(()),
+    }
 }
 
 /// The report written on the standard output.
@@ -211,14 +229,18 @@ fn revision_due(tree: &Tree, release: config::Version) -> Result<Vec<u8>, Refusa
         (Some(_), Some(date)) => {
             let pattern = revision_due::anchor_pattern(date, release);
             let pattern = String::from_utf8(pattern).expect("the date is ASCII");
+            // A textconv driver on the overview has the bash's `-G` search what it prints.
+            let drivers = diff_drivers(root, revision_due::SENSOR.name)?;
+            let overview = [revision_due::OVERVIEW.as_bytes()];
+            refuse_driven(root, revision_due::SENSOR.name, &drivers, &overview, true)?;
             // No textconv driver of the repository runs on the diffs `-G` reads (Q-7): the bash's
             // git would run one, so on a repository that sets one for the overview the two may
             // find another commit.
-            let log = git::run(
+            let log = git::diff(
                 root,
+                &[],
+                git::Diff::Log,
                 &[
-                    "log",
-                    "--no-textconv",
                     "--reverse",
                     "--format=%H",
                     &format!("-G{pattern}"),
@@ -228,7 +250,9 @@ fn revision_due(tree: &Tree, release: config::Version) -> Result<Vec<u8>, Refusa
                 ],
             )
             .map_err(undecided)?;
-            log.lines()
+            String::from_utf8(log)
+                .map_err(|_| undecided("git log wrote no UTF-8".to_owned()))?
+                .lines()
                 .next()
                 .filter(|anchor| !anchor.is_empty())
                 .map(|anchor| format!("{anchor}..HEAD"))
@@ -368,37 +392,22 @@ fn tests_kept(tree: &Tree, release: config::Version, change: &[&str]) -> Result<
     if commit(&base, false)? == commit(&head, false)? {
         return Ok(tests_kept::same_commit());
     }
-    let name_status = git::run_bytes(
+    let name_status = git::diff(
         root,
-        &[
-            "diff",
-            "--no-ext-diff",
-            "--no-textconv",
-            "--name-status",
-            "-M",
-            "--diff-filter=DR",
-            &base,
-            &head,
-        ],
+        &[],
+        git::Diff::Diff,
+        &["--name-status", "-M", "--diff-filter=DR", &base, &head],
     )
     .map_err(undecided)?;
-    let mut args: Vec<&str> = Vec::new();
-    if release >= tests_kept::BY_EXTENSION {
-        args.extend(["-c", "core.quotePath=false"]);
-    }
-    args.extend([
-        "diff",
-        "--no-ext-diff",
-        "--no-textconv",
-        "-U0",
-        "--no-color",
-        &base,
-        &head,
-        "--",
-        ".",
-    ]);
+    let config: &[&str] = if release >= tests_kept::BY_EXTENSION {
+        &["core.quotePath=false"]
+    } else {
+        &[]
+    };
+    let mut args = vec!["-U0", "--no-color", &base, &head, "--", "."];
     args.extend(tests_kept::LEFT_OUT);
-    let diff = git::run_bytes(root, &args).map_err(undecided)?;
+    let diff = git::diff(root, config, git::Diff::Diff, &args).map_err(undecided)?;
+    refuse_driven_markers(root, &base, &head, &diff)?;
     let mut findings = tests_kept::removals(&name_status);
     findings.extend(tests_kept::markers(&diff, release));
     Ok(tests_kept::report(
@@ -406,6 +415,27 @@ fn tests_kept(tree: &Tree, release: config::Version, change: &[&str]) -> Result<
         &commit(&head, true)?,
         &findings,
     ))
+}
+
+/// Refused where the bash's git reads the hunks of a path of the change through a driver of the
+/// repository, or prints the hunks of a submodule the change moves. Every path's hunks decide: the
+/// bash's awk takes any line that starts with `+++ ` for the head of a file, and an added line
+/// that starts with `++ ` reads so, whatever the extension of the path it is added to.
+fn refuse_driven_markers(root: &Path, base: &str, head: &str, diff: &[u8]) -> Result<(), Refusal> {
+    let sensor = tests_kept::SENSOR.name;
+    let drivers = diff_drivers(root, sensor)?;
+    refuse_moved_submodule(sensor, &drivers, diff)?;
+    if !drivers.any() {
+        return Ok(());
+    }
+    let mut args = vec!["-z", "--name-only", "--no-renames", base, head, "--", "."];
+    args.extend(tests_kept::LEFT_OUT);
+    let changed = git::diff(root, &[], git::Diff::Diff, &args).map_err(git_refusal(sensor))?;
+    let paths: Vec<&[u8]> = changed
+        .split(|&b| b == 0)
+        .filter(|path| !path.is_empty())
+        .collect();
+    refuse_driven(root, sensor, &drivers, &paths, false)
 }
 
 /// What `plain-rules` needs: the change; the files of rules it touches, each with its text and the
@@ -491,83 +521,141 @@ fn without_nul(path: &str, bytes: Vec<u8>) -> Result<Vec<u8>, Refusal> {
     Ok(bytes)
 }
 
-/// The filters of a change that ends in the working tree: the keys that keep its diffs from
-/// running one, and the tracked paths under one that git would run.
-struct Filters {
-    keys: Vec<String>,
-    paths: std::collections::BTreeSet<Vec<u8>>,
+/// The active filters for the sensor, as [`git::filters`] reads them: an active driver whose name
+/// `-c` cannot carry is not decided, `:filter`.
+fn neutralized_filters(root: &Path, sensor: &'static str) -> Result<git::Filters, Refusal> {
+    git::filters(root)
+        .map_err(git_refusal(sensor))?
+        .map_err(|message| Refusal {
+            sensor,
+            reason: "filter",
+            message,
+        })
 }
 
-/// The keys that keep a diff against the working tree from running a filter, and the tracked paths
-/// under an active one, for the sensor. git runs a filter only for a driver that any entry of the
-/// configuration gives a `clean` or `process` command, not empty, and the attribute's value names
-/// the driver. It runs the filter of a stat-dirty file anywhere in the tree, whatever the
-/// pathspec, so every active driver gets an empty `process` command, which keeps git from running
-/// both it and the `clean` command, and `required` off, so that the diff does not fail for want of
-/// either (Q-7). A driver no entry makes active runs no command and is left as the bash's git reads
-/// it. An active driver whose name holds a `=`, which `-c` would split there and so neutralize
-/// another key, or is no UTF-8, is not decided. `check-attr` prints `set` both for a bare `filter`,
-/// which names no driver, and for a driver named `set`, so such a path counts as under a filter
-/// only where a driver of that name is active, the side that never passes.
-fn neutralized_filters(root: &Path, sensor: &'static str) -> Result<Filters, Refusal> {
+/// The diff drivers of the repository's configuration, read once a run for the sensor
+/// (SEC-repository-commands-neutralized-or-refused).
+fn diff_drivers(root: &Path, sensor: &'static str) -> Result<sense::DiffDrivers, Refusal> {
     let undecided = git_refusal(sensor);
-    let refuse = |message: String| Refusal {
-        sensor,
-        reason: "filter",
-        message,
-    };
-    let mut filters = Filters {
-        keys: Vec::new(),
-        paths: std::collections::BTreeSet::new(),
-    };
-    // `<key> LF <value> NUL` for each key; none, and exit 1, where the configuration has none.
+    // `<key> LF <value> NUL` an entry; none, and exit 1, where the configuration has none.
     let (code, config) =
-        git::status_and_output(root, &["config", "-z", "--get-regexp", r"^filter\."])
+        git::status_and_output(root, &["config", "-z", "--get-regexp", r"^diff\."])
             .map_err(undecided)?;
     if code > 1 {
         return Err(undecided("git config --get-regexp failed".to_owned()));
     }
-    let active = plain_rules::filter_drivers(&config);
-    for name in &active {
-        let name = String::from_utf8(name.clone())
-            .ok()
-            .filter(|name| !name.contains('='))
-            .ok_or_else(|| {
-                refuse(format!(
-                    "'{}': a filter driver whose name nuc cannot neutralize",
-                    String::from_utf8_lossy(name)
-                ))
-            })?;
-        for key in ["process=", "required=false"] {
-            filters.keys.push(format!("filter.{name}.{key}"));
+    Ok(sense::diff_drivers(&config))
+}
+
+/// The diff drivers, read on the first call of a run and kept in `cache`.
+fn cached<'c>(
+    cache: &'c mut Option<sense::DiffDrivers>,
+    root: &Path,
+    sensor: &'static str,
+) -> Result<&'c sense::DiffDrivers, Refusal> {
+    match cache {
+        Some(drivers) => Ok(drivers),
+        None => Ok(cache.insert(diff_drivers(root, sensor)?)),
+    }
+}
+
+/// Refused where the bash's git reads one of the paths, each one whose hunks decide the report,
+/// through a driver of the repository: where `diff.external` is set, or where its `diff`
+/// attribute names a driver with a textconv or a diff command. Where `log` says the paths are read
+/// by `git log -G`, only a textconv driver counts: it runs neither an external diff nor a diff
+/// command. `check-attr` prints
+/// `set` both for a bare `diff` and for a driver named `set`, so such a path counts as under a
+/// driver where one of that name is active, the side that never passes.
+fn refuse_driven(
+    root: &Path,
+    sensor: &'static str,
+    drivers: &sense::DiffDrivers,
+    paths: &[&[u8]],
+    log: bool,
+) -> Result<(), Refusal> {
+    let refuse = |path: &[u8], through: String| Refusal {
+        sensor,
+        reason: sense::DRIVER,
+        message: format!(
+            "{}: its diff decides the report, and the bash's git reads it through {through}",
+            String::from_utf8_lossy(path)
+        ),
+    };
+    if drivers.external
+        && !log
+        && let Some(path) = paths.first()
+    {
+        return Err(refuse(path, "diff.external".to_owned()));
+    }
+    let active: std::collections::BTreeSet<&[u8]> = if log {
+        drivers.textconv.iter().map(Vec::as_slice).collect()
+    } else {
+        drivers
+            .textconv
+            .iter()
+            .chain(&drivers.command)
+            .map(Vec::as_slice)
+            .collect()
+    };
+    if active.is_empty() || paths.is_empty() {
+        return Ok(());
+    }
+    let mut input = Vec::new();
+    for path in paths {
+        input.extend_from_slice(path);
+        input.push(0);
+    }
+    let attrs = git::run_bytes_with_input(root, &["check-attr", "-z", "--stdin", "diff"], &input)
+        .map_err(git_refusal(sensor))?;
+    // The attributes the caller's environment has git read as well, for a path the index lacks.
+    let theirs = git::attributes_under_caller(root, &["diff"], &input)
+        .map_err(git_refusal(sensor))?
+        .unwrap_or_default();
+    // `<path> NUL diff NUL <value> NUL` for each path.
+    for attrs in [&attrs, &theirs] {
+        let fields: Vec<&[u8]> = attrs.split(|&b| b == 0).collect();
+        for entry in fields.chunks(3) {
+            let [path, _, value] = entry else {
+                continue;
+            };
+            if active.contains(value) {
+                return Err(refuse(
+                    path,
+                    format!("the diff driver '{}'", String::from_utf8_lossy(value)),
+                ));
+            }
         }
     }
-    if active.is_empty() {
-        return Ok(filters);
+    Ok(())
+}
+
+/// Refused where the patch moves a submodule and the configuration's `diff.submodule` has the
+/// bash's git print the submodule's own hunks, which `nuc`'s `short` leaves out.
+fn refuse_moved_submodule(
+    sensor: &'static str,
+    drivers: &sense::DiffDrivers,
+    diff: &[u8],
+) -> Result<(), Refusal> {
+    match sense::moved_submodule(diff).filter(|_| drivers.submodule) {
+        Some(path) => Err(Refusal {
+            sensor,
+            reason: sense::DRIVER,
+            message: format!(
+                "{}: a submodule the change moves, whose own hunks the bash's git prints under \
+                 the configuration's diff.submodule",
+                String::from_utf8_lossy(&path)
+            ),
+        }),
+        None => Ok(()),
     }
-    let tracked = git::run_bytes(root, &["ls-files", "-z"]).map_err(undecided)?;
-    if tracked.is_empty() {
-        return Ok(filters);
-    }
-    let attrs =
-        git::run_bytes_with_input(root, &["check-attr", "-z", "--stdin", "filter"], &tracked)
-            .map_err(undecided)?;
-    // `<path> NUL filter NUL <value> NUL` for each path.
-    let fields: Vec<&[u8]> = attrs.split(|&b| b == 0).collect();
-    for entry in fields.chunks(3) {
-        let [path, _, value] = entry else {
-            continue;
-        };
-        if active.contains(*value) {
-            filters.paths.insert(path.to_vec());
-        }
-    }
-    Ok(filters)
 }
 
 /// A file of rules under an active driver is not decided: the bash's git reads it through the
 /// filter, nuc's would read it raw, and the two can tell another change.
-fn refuse_filtered_rule_files(filters: &Filters, release: config::Version) -> Result<(), Refusal> {
+fn refuse_filtered_rule_files(
+    filters: &git::Filters,
+    release: config::Version,
+) -> Result<(), Refusal> {
     match filters
         .paths
         .iter()
@@ -612,7 +700,7 @@ fn untracked(root: &Path, change: &Change, sensor: &'static str) -> Result<Vec<u
 /// renames, nothing is paired.
 fn refuse_filtered_renames(
     diff: &[u8],
-    filters: &Filters,
+    filters: &git::Filters,
     release: config::Version,
 ) -> Result<(), Refusal> {
     if release < plain_rules::REQUIRE {
@@ -665,33 +753,35 @@ fn rule_files(
     } else {
         ("--name-only", "--no-renames")
     };
-    let mut guards = vec!["--no-ext-diff", "--no-textconv"];
+    let mut submodules = Vec::new();
     let filters = if change.worktree {
-        guards.push("--ignore-submodules=all");
+        submodules.push("--ignore-submodules=all");
         let filters = neutralized_filters(root, sensor)?;
         refuse_filtered_rule_files(&filters, release)?;
         Some(filters)
     } else {
         None
     };
-    // `-c <key>` before the command, for each diff that may read the working tree.
+    // The keys that neutralize the filters, for each diff that may read the working tree.
     let unfiltered: Vec<&str> = filters
         .iter()
         .flat_map(|filters| &filters.keys)
-        .flat_map(|key| ["-c", key.as_str()])
+        .map(String::as_str)
         .collect();
-    let quoted = ["-c", "core.quotePath=false"];
-    let mut args = quoted.to_vec();
-    args.extend(&unfiltered);
-    args.push("diff");
-    args.extend(&guards);
+    let mut config = vec!["core.quotePath=false"];
+    config.extend(&unfiltered);
+    let mut args = submodules.clone();
     args.extend([listing, renames]);
     args.extend(&refs);
-    let diff = git::run_bytes(root, &args).map_err(undecided)?;
+    let diff = git::diff(root, &config, git::Diff::Diff, &args).map_err(undecided)?;
     if let Some(filters) = &filters {
         refuse_filtered_renames(&diff, filters, release)?;
     }
     let untracked = untracked(root, change, sensor)?;
+    let mut options = submodules.clone();
+    options.extend(["--no-color", "-U0", renames]);
+    options.extend(&refs);
+    let mut drivers = None;
     let mut files = Vec::new();
     for (path, from) in plain_rules::listed(&diff, &untracked, release) {
         if !plain_rules::is_rule_file(&path, release) {
@@ -717,17 +807,13 @@ fn rule_files(
                 .0
                 == 0;
         let (added, text) = if tracked {
-            let mut args = unfiltered.clone();
-            args.push("diff");
-            args.extend(&guards);
-            args.extend(["--no-color", "-U0", renames]);
-            args.extend(&refs);
-            args.push("--");
-            if !from.is_empty() {
-                args.push(&from);
-            }
-            args.push(&path);
-            let added = plain_rules::added_lines(&git::run_bytes(root, &args).map_err(undecided)?);
+            let drivers = cached(&mut drivers, root, sensor)?;
+            let hunks = Hunks {
+                config: &unfiltered,
+                options: &options,
+                drivers,
+            };
+            let added = rule_file_added(root, &hunks, &from, &path)?;
             if added.is_empty() {
                 continue;
             }
@@ -756,14 +842,46 @@ fn rule_files(
     Ok(files)
 }
 
+/// How `plain-rules` diffs a tracked file of rules: the configuration keys, the options before the
+/// paths, and the diff drivers of the repository.
+struct Hunks<'a> {
+    config: &'a [&'a str],
+    options: &'a [&'a str],
+    drivers: &'a sense::DiffDrivers,
+}
+
+/// The lines the change adds to a tracked file of rules, by the hunks of its diff, renamed from
+/// `from` where that is not empty. The hunks of both paths decide which lines the report reads, so
+/// where the bash's git reads them through a driver, the file is not decided.
+fn rule_file_added(
+    root: &Path,
+    hunks: &Hunks,
+    from: &str,
+    path: &str,
+) -> Result<std::collections::BTreeSet<usize>, Refusal> {
+    let sensor = plain_rules::SENSOR.name;
+    let decisive = [path.as_bytes(), from.as_bytes()];
+    let decisive = &decisive[..if from.is_empty() { 1 } else { 2 }];
+    refuse_driven(root, sensor, hunks.drivers, decisive, false)?;
+    let mut args = hunks.options.to_vec();
+    args.push("--");
+    if !from.is_empty() {
+        args.push(from);
+    }
+    args.push(path);
+    let diff =
+        git::diff(root, hunks.config, git::Diff::Diff, &args).map_err(git_refusal(sensor))?;
+    Ok(plain_rules::added_lines(&diff))
+}
+
 /// What `binding-adrs` needs: the paths named, or the change and the paths it touches; the ADRs
 /// and the index as the change has them, where the report reads them; and, for a file named with
 /// checks of its own, the file and its diff. git is asked as the bash of the release asks it, but
 /// never through a textconv driver, an external diff, or a filter of the repository or of a
 /// submodule (Q-7). Where the change ends in the working tree, a submodule checked out is not
 /// decided, since the bash's git may ask its own status; the diffs neutralize every filter driver,
-/// and a path under a filter whose raw bytes differ from the index is not decided, since the bash's
-/// git tells it through the filter. A submodule not checked out is read under the repository's own
+/// and a path under a filter that is stat-dirty or racily clean is not decided, since the bash's
+/// git hashes it through the filter. A submodule not checked out is read under the repository's own
 /// `ignore` settings, as the bash's git reads it.
 fn binding_adrs(
     tree: &Tree,
@@ -823,17 +941,21 @@ fn binding_adrs(
         Vec::new()
     };
     let record = binding_adrs::Record { adrs, index };
+    let mut drivers = None;
     let mut diffed = |path: &[u8]| -> Result<binding_adrs::Diffed, Refusal> {
+        // The hunks of a file named with checks decide whether it binds.
+        let drivers = cached(&mut drivers, root, sensor)?;
+        refuse_driven(root, sensor, drivers, &[path], false)?;
         let path = spelled_for(sensor, path)?;
         let file = shown(tree, &change, &path)?;
-        let mut args: Vec<&str> = unfiltered.iter().flat_map(|key| ["-c", key]).collect();
-        args.extend(["diff", "--no-ext-diff", "--no-textconv", "--no-color"]);
-        args.extend(["-U0", "--no-renames", &change.base]);
+        let config: Vec<&str> = unfiltered.iter().map(String::as_str).collect();
+        let mut args = vec!["--no-color", "-U0", "--no-renames", &change.base];
         if !change.worktree {
             args.push(&change.head);
         }
         args.extend(["--", &path]);
-        let diff = git::run_bytes(root, &args).map_err(undecided)?;
+        let diff = git::diff(root, &config, git::Diff::Diff, &args).map_err(undecided)?;
+        refuse_moved_submodule(sensor, drivers, &diff)?;
         Ok(binding_adrs::Diffed { file, diff })
     };
     binding_adrs::report(release, args.sections, &listing, &record, &mut diffed)
@@ -849,22 +971,15 @@ fn changed_paths(root: &Path, change: &Change) -> Result<(Vec<Vec<u8>>, Vec<Stri
         refuse_checked_out_submodule(root)?;
         let filters = neutralized_filters(root, sensor)?;
         keys.clone_from(&filters.keys);
-        refuse_filtered_dirty(root, &filters, &keys)?;
+        refuse_filtered_dirty(root, &filters)?;
     }
-    let mut args = vec!["-c", "core.quotePath=false"];
-    args.extend(keys.iter().flat_map(|key| ["-c", key.as_str()]));
-    args.extend([
-        "diff",
-        "--no-ext-diff",
-        "--no-textconv",
-        "--name-only",
-        "--no-renames",
-        &change.base,
-    ]);
+    let mut config = vec!["core.quotePath=false"];
+    config.extend(keys.iter().map(String::as_str));
+    let mut args = vec!["--name-only", "--no-renames", &change.base];
     if !change.worktree {
         args.push(&change.head);
     }
-    let mut out = git::run_bytes(root, &args).map_err(git_refusal(sensor))?;
+    let mut out = git::diff(root, &config, git::Diff::Diff, &args).map_err(git_refusal(sensor))?;
     if change.worktree {
         out.extend(untracked(root, change, sensor)?);
     }
@@ -878,79 +993,49 @@ fn changed_paths(root: &Path, change: &Change) -> Result<(Vec<Vec<u8>>, Vec<Stri
     Ok((paths, keys))
 }
 
-/// Refused where a tracked path under an active filter differs from the index by its raw bytes:
-/// its stat changed, so the bash's git hashes it through the filter, and nuc's, which runs none,
-/// can tell another change of it. A path whose stat is unchanged is read from the index by both,
-/// and one whose raw bytes are the index's is unchanged to both, but where the index holds bytes
-/// the filter would clean otherwise, as a file committed before its filter was set.
-fn refuse_filtered_dirty(root: &Path, filters: &Filters, keys: &[String]) -> Result<(), Refusal> {
+/// Refused where a tracked path under an active filter may differ from the index to the bash's git,
+/// which hashes it through the filter where nuc's runs none: one stat-dirty or racily clean, as
+/// [`git::dirty_filtered`] finds it (SEC-repository-commands-neutralized-or-refused).
+fn refuse_filtered_dirty(root: &Path, filters: &git::Filters) -> Result<(), Refusal> {
     let sensor = binding_adrs::SENSOR.name;
-    if filters.paths.is_empty() {
-        return Ok(());
-    }
-    let mut args: Vec<&str> = keys.iter().flat_map(|key| ["-c", key.as_str()]).collect();
-    // The porcelain diff of the index and the working tree hashes a path whose stat changed, raw
-    // under the neutralized filters; `diff-files` would name it for its stat alone.
-    args.extend([
-        "diff",
-        "--no-ext-diff",
-        "--no-textconv",
-        "-z",
-        "--name-only",
-    ]);
-    let dirty = git::run_bytes(root, &args).map_err(git_refusal(sensor))?;
-    let dirty: std::collections::BTreeSet<&[u8]> = dirty.split(|&b| b == 0).collect();
-    match filters
-        .paths
-        .iter()
-        .find(|path| dirty.contains(path.as_slice()))
-    {
+    let why = match git::dirty_filtered(root, filters).map_err(git_refusal(sensor))? {
+        None => return Ok(()),
+        Some((path, git::Dirty::Changed)) => (path, "changed in the working tree under a filter"),
+        Some((path, git::Dirty::Racy)) => (
+            path,
+            "racily clean under a filter, its modification time no older than the index's",
+        ),
+    };
+    Err(Refusal {
+        sensor,
+        reason: "filter",
+        message: format!(
+            "{}: {}, so the bash's git reads it through its filter",
+            String::from_utf8_lossy(&why.0),
+            why.1
+        ),
+    })
+}
+
+/// Refused where the index records a submodule that is checked out, as
+/// [`git::checked_out_submodule`] finds it: whether the bash's git lists it can depend on the
+/// submodule's own working tree, which git reads by running the submodule's status, and so its
+/// filters (Q-7). A submodule that is not checked out is read from the index alone, under the
+/// repository's own `ignore` settings, as the bash's git reads it.
+fn refuse_checked_out_submodule(root: &Path) -> Result<(), Refusal> {
+    let sensor = binding_adrs::SENSOR.name;
+    match git::checked_out_submodule(root).map_err(git_refusal(sensor))? {
         Some(path) => Err(Refusal {
             sensor,
-            reason: "filter",
+            reason: "submodule",
             message: format!(
-                "{}: changed in the working tree under a filter, through which the bash's git \
-                 reads it",
-                String::from_utf8_lossy(path)
+                "{}: a submodule checked out, whose state the bash's git may read through its own \
+                 status, which runs its filters",
+                String::from_utf8_lossy(&path)
             ),
         }),
         None => Ok(()),
     }
-}
-
-/// Refused where the index records a submodule that is checked out, its directory holding a
-/// `.git`: whether the bash's git lists it can depend on the submodule's own working tree, which
-/// git reads by running the submodule's status, and so its filters (Q-7). A submodule that is not
-/// checked out is read from the index alone, under the repository's own `ignore` settings, as the
-/// bash's git reads it.
-fn refuse_checked_out_submodule(root: &Path) -> Result<(), Refusal> {
-    let sensor = binding_adrs::SENSOR.name;
-    let staged =
-        git::run_bytes(root, &["ls-files", "-z", "--stage"]).map_err(git_refusal(sensor))?;
-    // '<mode> <object> <stage>\t<path>\0' for each entry.
-    for entry in staged.split(|&b| b == 0) {
-        let Some(tab) = entry.iter().position(|&b| b == b'\t') else {
-            continue;
-        };
-        if !entry.starts_with(b"160000 ") {
-            continue;
-        }
-        let path = &entry[tab + 1..];
-        let mut dot_git = path.to_vec();
-        dot_git.extend(b"/.git");
-        if exists(root, &dot_git) {
-            return Err(Refusal {
-                sensor,
-                reason: "submodule",
-                message: format!(
-                    "{}: a submodule checked out, whose state the bash's git may read through its \
-                     own status, which runs its filters",
-                    String::from_utf8_lossy(path)
-                ),
-            });
-        }
-    }
-    Ok(())
 }
 
 /// The ADR files as the change has them, as `adr_list` lists them, with their bytes: in the
@@ -1042,10 +1127,15 @@ fn lines_of(
     undecided: impl Fn(String) -> Refusal,
 ) -> Result<Vec<Vec<u8>>, Refusal> {
     let out = git::run_bytes(root, args).map_err(undecided)?;
-    Ok(crate::bash::read_lines(&out)
+    Ok(output_lines(&out))
+}
+
+/// The lines of git's output, as `read` gives them.
+fn output_lines(out: &[u8]) -> Vec<Vec<u8>> {
+    crate::bash::read_lines(out)
         .into_iter()
         .map(<[u8]>::to_vec)
-        .collect())
+        .collect()
 }
 
 /// What `review-binding` needs: the hand-off, a file named from where `nuc` runs, as the bash names
@@ -1132,6 +1222,12 @@ impl ReviewRepo<'_> {
         })
     }
 
+    /// The standard output of the diff `command` with `args`, with every guard.
+    fn diff(&self, command: git::Diff, args: &[&str]) -> Result<Vec<u8>, Refusal> {
+        git::diff(&self.tree.root, &[], command, args)
+            .map_err(git_refusal(review_binding::SENSOR.name))
+    }
+
     /// The exit code of git, for a call the bash tests by its status alone.
     fn status(&self, args: &[&str]) -> Result<(i32, Vec<u8>), Refusal> {
         git::status_and_output(&self.tree.root, args)
@@ -1205,14 +1301,12 @@ impl review_binding::Repo for ReviewRepo<'_> {
     }
 
     fn stat(&mut self, from: &str, to: &str) -> Result<Vec<Vec<u8>>, Refusal> {
-        self.lines(&["diff", "--no-ext-diff", "--no-textconv", "--stat", from, to])
+        self.diff(git::Diff::Diff, &["--stat", from, to])
+            .map(|out| output_lines(&out))
     }
 
     fn patch(&mut self, commit: &str, pathspecs: &[&str]) -> Result<Vec<u8>, Refusal> {
         let mut args = vec![
-            "diff-tree",
-            "--no-ext-diff",
-            "--no-textconv",
             "-r",
             "--root",
             "--no-commit-id",
@@ -1223,14 +1317,11 @@ impl review_binding::Repo for ReviewRepo<'_> {
             "--",
         ];
         args.extend(pathspecs);
-        self.git(&args)
+        self.diff(git::Diff::DiffTree, &args)
     }
 
     fn outside_record(&mut self, commit: &str) -> Result<Vec<Vec<u8>>, Refusal> {
         let mut args = vec![
-            "diff-tree",
-            "--no-ext-diff",
-            "--no-textconv",
             "-r",
             "--root",
             "--no-commit-id",
@@ -1239,7 +1330,8 @@ impl review_binding::Repo for ReviewRepo<'_> {
             "--",
         ];
         args.extend(review_binding::OUTSIDE_RECORD);
-        self.lines(&args)
+        self.diff(git::Diff::DiffTree, &args)
+            .map(|out| output_lines(&out))
     }
 
     fn hand_off(&mut self) -> Result<Vec<u8>, Refusal> {
@@ -1302,12 +1394,11 @@ fn backlog(tree: &Tree) -> Result<Vec<u8>, Refusal> {
         let Some(base) = unmerged_base(root, &name, main).map_err(undecided)? else {
             continue;
         };
-        let added = lines_of(
+        let added = git::diff(
             root,
+            &[],
+            git::Diff::Diff,
             &[
-                "diff",
-                "--no-ext-diff",
-                "--no-textconv",
                 "--no-renames",
                 "--name-only",
                 "--diff-filter=A",
@@ -1316,8 +1407,9 @@ fn backlog(tree: &Tree) -> Result<Vec<u8>, Refusal> {
                 "--",
                 &dir,
             ],
-            undecided,
-        )?;
+        )
+        .map_err(undecided)?;
+        let added = output_lines(&added);
         for path in added {
             if !backlog::is_entry(&path) || on_main.contains(&path) {
                 continue;

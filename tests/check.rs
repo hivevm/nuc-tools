@@ -23,6 +23,173 @@ fn a_project_that_keeps_its_rules_passes() {
     assert!(stderr(&output).contains("nuc check passed (1 rules)"));
 }
 
+/// `nuc check` is not decided where the caller's environment names a command git would run that
+/// `nuc`'s git does not see, and decides as without it where the environment names only other keys.
+/// Verifies: SEC-repository-commands-neutralized-or-refused
+#[test]
+fn a_driver_of_the_caller_s_environment_is_not_decided() {
+    let fixture = Fixture::project("check-environment", CONFIG, README);
+    for (key, value) in [
+        ("GIT_EXTERNAL_DIFF", "cat"),
+        ("GIT_CONFIG_PARAMETERS", "'filter.lfs.clean'='cat'"),
+    ] {
+        let output = fixture.nuc_with(&[(key, value)], &["check"]);
+        assert_eq!(code(&output), Some(2), "{key}: {}", stdout(&output));
+        assert!(
+            stderr(&output).contains("not decided"),
+            "{key}: {}",
+            stderr(&output)
+        );
+    }
+    let output = fixture.nuc_with(&[("GIT_CONFIG_PARAMETERS", "'user.name'='x'")], &["check"]);
+    assert_eq!(code(&output), Some(0), "{}", stderr(&output));
+}
+
+/// `docs/base-blobs` hashes no file under an active filter, whose driver git would run: a `NUC-`
+/// file of the record under one, tracked or not, makes the run not decided, and names it. A filter
+/// attribute whose driver no entry makes active runs nothing, and the rule decides as without it.
+/// Verifies: SEC-repository-commands-neutralized-or-refused
+#[cfg(unix)]
+#[test]
+fn base_blobs_hashes_no_file_under_a_filter() {
+    use std::os::unix::fs::PermissionsExt;
+    let config = "minimum = \"0.0.0\"\nrules = [\"docs/base-blobs\"]\n";
+    let readme = "# Fixture\n\n- **Template release:** v0.12.0\n";
+    let fixture = Fixture::project("check-base-filter", config, readme);
+    fixture.write(".gitattributes", "docs/adr/NUC-*.md filter=bait\n");
+    fixture.write("docs/adr/NUC-a.md", "# NUC-a: a\n");
+    let blob = stdout(&fixture.git(&["hash-object", "--", "docs/adr/NUC-a.md"]));
+    fixture.write("docs/adr/NUC.blobs", &format!("{} NUC-a.md\n", blob.trim()));
+    fixture.commit("the record");
+    // No entry makes the driver active, while another is: the rule decides as without the
+    // attribute.
+    fixture.git(&["config", "filter.other.clean", "cat"]);
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(
+        code(&output),
+        Some(0),
+        "{}{}",
+        stdout(&output),
+        stderr(&output)
+    );
+    let canary = fixture.root().join(".git").join("canary");
+    let script = fixture.root().join(".git").join("clean.sh");
+    std::fs::write(
+        &script,
+        format!("#!/bin/sh\ntouch '{}'\ncat\n", canary.display()),
+    )
+    .expect("written");
+    std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).expect("mode");
+    fixture.git(&[
+        "config",
+        "filter.bait.clean",
+        script.to_str().expect("UTF-8"),
+    ]);
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(2), "{}", stdout(&output));
+    assert!(
+        stderr(&output).contains("docs/adr/NUC-a.md: its attributes name a filter"),
+        "{}",
+        stderr(&output)
+    );
+    assert!(!canary.exists(), "nuc check ran the filter's driver");
+    // An untracked one as well. The test's own `git rm --cached` hashes it through the filter.
+    fixture.git(&["rm", "-q", "--cached", "docs/adr/NUC-a.md"]);
+    let _ = std::fs::remove_file(&canary);
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(2), "{}", stdout(&output));
+    assert!(
+        stderr(&output).contains("docs/adr/NUC-a.md: its attributes name a filter"),
+        "{}",
+        stderr(&output)
+    );
+    assert!(!canary.exists(), "nuc check ran the filter's driver");
+}
+
+/// The files `docs/base-blobs` hashes, which the index may lack, are held to the caller's
+/// environment too: an attribute it gives an untracked `NUC-` file, for a filter of the
+/// repository, has the bash's git hash it otherwise, so `nuc check` is not decided. So is an
+/// environment that takes away a filter `nuc`'s git sees, under which the bash's git hashes raw.
+/// Verifies: SEC-repository-commands-neutralized-or-refused
+#[test]
+fn a_hashed_file_the_caller_s_environment_reads_otherwise_is_not_decided() {
+    let config = "minimum = \"0.0.0\"\nrules = [\"docs/base-blobs\"]\n";
+    let readme = "# Fixture\n\n- **Template release:** v0.12.0\n";
+    let fixture = Fixture::project("check-environment-hashed", config, readme);
+    fixture.git(&["config", "filter.up.clean", "tr a-z A-Z"]);
+    fixture.write("docs/adr/NUC-a.md", "# NUC-a: a\n");
+    let blob = stdout(&fixture.git(&["hash-object", "--", "docs/adr/NUC-a.md"]));
+    fixture.write("docs/adr/NUC.blobs", &format!("{} NUC-a.md\n", blob.trim()));
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(
+        code(&output),
+        Some(0),
+        "{}{}",
+        stdout(&output),
+        stderr(&output)
+    );
+    let outside = Fixture::new("check-environment-hashed-files");
+    let attributes = outside.root().join("attributes");
+    std::fs::write(&attributes, "docs/adr/NUC-*.md filter=up\n").expect("written");
+    let parameters = format!(
+        "'core.attributesfile'='{}'",
+        attributes.to_str().expect("UTF-8").replace('\\', "/")
+    );
+    let output = fixture.nuc_with(&[("GIT_CONFIG_PARAMETERS", &parameters)], &["check"]);
+    assert_eq!(code(&output), Some(2), "{}", stdout(&output));
+    assert!(
+        stderr(&output).contains("docs/adr/NUC-a.md: ") && stderr(&output).contains("not decided"),
+        "{}",
+        stderr(&output)
+    );
+    // An attribute of the home's attributes file that a moved `XDG_CONFIG_HOME` takes away, under
+    // which the bash's git hashes raw where nuc's would filter: nuc hashes no file under a filter,
+    // so the refusal of a filtered hash decides it first.
+    let home = Fixture::new("check-environment-attributes-home");
+    let git_config = home.root().join(".config").join("git");
+    std::fs::create_dir_all(&git_config).expect("directories");
+    std::fs::write(
+        git_config.join("attributes"),
+        "docs/adr/NUC-*.md filter=up\n",
+    )
+    .expect("written");
+    let elsewhere = Fixture::new("check-environment-elsewhere");
+    let output = fixture.nuc_with(
+        &[
+            ("HOME", home.root().to_str().expect("UTF-8")),
+            ("XDG_CONFIG_HOME", elsewhere.root().to_str().expect("UTF-8")),
+        ],
+        &["check"],
+    );
+    assert_eq!(code(&output), Some(2), "{}", stdout(&output));
+    assert!(
+        stderr(&output).contains("docs/adr/NUC-a.md: its attributes name a filter"),
+        "{}",
+        stderr(&output)
+    );
+    // A filter of the home's configuration that the environment takes away.
+    let home = Fixture::new("check-environment-home");
+    std::fs::write(
+        home.root().join(".gitconfig"),
+        "[filter \"lfs\"]\n\tclean = cat\n",
+    )
+    .expect("written");
+    let home_dir = home.root().to_str().expect("UTF-8");
+    let output = fixture.nuc_with(
+        &[
+            ("HOME", home_dir),
+            ("GIT_CONFIG_GLOBAL", support::NULL_DEVICE),
+        ],
+        &["check"],
+    );
+    assert_eq!(code(&output), Some(2), "{}", stdout(&output));
+    assert!(
+        stderr(&output).contains("filter.lfs.clean: taken away"),
+        "{}",
+        stderr(&output)
+    );
+}
+
 #[test]
 fn a_finding_names_its_file_line_and_rule_and_fails() {
     let fixture = Fixture::project(
@@ -2103,6 +2270,39 @@ fn a_hook_whose_attributes_name_a_filter_is_not_hashed_and_not_decided() {
         stderr(&output)
     );
     assert!(!canary.exists(), "nuc check ran the filter's driver");
+}
+
+/// A hook the index lacks is held to the attributes the caller's environment has git read: one
+/// that puts it under a filter of the repository has the bash's git hash it otherwise.
+/// Verifies: SEC-repository-commands-neutralized-or-refused
+#[test]
+fn an_untracked_hook_the_caller_s_environment_filters_is_not_decided() {
+    let fixture = pinned_hooks("hooks-environment", "0.2.2");
+    fixture.git(&["rm", "-q", "--cached", ".githooks/pre-push"]);
+    fixture.git(&["commit", "-q", "-m", "untrack a hook"]);
+    fixture.git(&["config", "filter.bait.clean", "cat"]);
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(
+        code(&output),
+        Some(0),
+        "{}{}",
+        stdout(&output),
+        stderr(&output)
+    );
+    let outside = Fixture::new("hooks-environment-files");
+    let attributes = outside.root().join("attributes");
+    std::fs::write(&attributes, ".githooks/pre-push filter=bait\n").expect("written");
+    let parameters = format!(
+        "'core.attributesfile'='{}'",
+        attributes.to_str().expect("UTF-8").replace('\\', "/")
+    );
+    let output = fixture.nuc_with(&[("GIT_CONFIG_PARAMETERS", &parameters)], &["check"]);
+    assert_eq!(code(&output), Some(2), "{}", stdout(&output));
+    assert!(
+        stderr(&output).contains(".githooks/pre-push: the caller's environment"),
+        "{}",
+        stderr(&output)
+    );
 }
 
 /// Verifies: Q-12

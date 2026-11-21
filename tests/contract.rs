@@ -599,14 +599,17 @@ fn a_due_revision_names_the_entries_its_changes_touched() {
 }
 
 /// The diffs `git log -G` reads to find the commit that set the date run no textconv driver the
-/// repository names (Q-7): the driver here would write a file. A shell script is the driver, so
-/// the test runs where one can run.
+/// repository names (Q-7). A canary: the driver sits on a path the `log -G` of the overview does
+/// not read, so the test fails on no flag of nuc's taken away, which the stand-in test of
+/// `tests/git_cli.rs` checks; it fails where a change of nuc's calls would read the path through
+/// it. A shell script is the driver, so the test runs where one can run.
 /// Verifies: SEC-repository-commands-neutralized-or-refused
 #[cfg(unix)]
 #[test]
 fn the_anchor_runs_no_textconv_driver_of_the_repository() {
     let fixture = Fixture::project("sense-textconv", CONFIG, README);
-    fixture.write(".gitattributes", "*.md diff=conv\n");
+    fixture.write(".gitattributes", "*.txt diff=conv\n");
+    fixture.write("notes.txt", "n\n");
     let marker = fixture.root().join(".git").join("textconv-ran");
     let script = fixture.root().join(".git").join("conv.sh");
     std::fs::write(
@@ -629,6 +632,45 @@ fn the_anchor_runs_no_textconv_driver_of_the_repository() {
     let output = fixture.nuc(&["sense", "revision-due"]);
     assert_eq!(code(&output), Some(0), "{}", stderr(&output));
     assert!(!marker.exists(), "nuc sense ran the textconv driver");
+}
+
+/// A textconv driver on the overview has the bash's `git log -G` search what the driver prints, so
+/// the commit that set the date is not decided; a diff command and an external diff, which `log -G`
+/// never runs, leave the report as it is without them.
+/// Verifies: SEC-repository-commands-neutralized-or-refused
+#[cfg(unix)]
+#[test]
+fn the_anchor_under_a_textconv_driver_is_not_decided() {
+    let fixture = Fixture::project("sense-textconv-overview", CONFIG, README);
+    fixture.write(".gitattributes", "docs/ARCHITECTURE.md diff=bait\n");
+    fixture.write(
+        "docs/ARCHITECTURE.md",
+        "# A\n\n**Last design revision:** 2026-01-01, due after 9 changes.\n",
+    );
+    fixture.commit("start");
+    let without = fixture.nuc(&["sense", "revision-due"]);
+    assert_eq!(code(&without), Some(0), "{}", stderr(&without));
+    let marker = fixture.root().join(".git").join("driver-ran");
+    let script = bait(&fixture, "bait.sh", &marker);
+    fixture.git(&["config", "diff.bait.textconv", &script]);
+    let output = fixture.nuc(&["sense", "revision-due"]);
+    assert_eq!(code(&output), Some(2), "{}", stdout(&output));
+    assert_eq!(stdout(&output), "");
+    assert!(
+        stderr(&output).contains("docs/ARCHITECTURE.md: ")
+            && stderr(&output)
+                .trim_end()
+                .ends_with("[sense/revision-due:driver]"),
+        "{}",
+        stderr(&output)
+    );
+    fixture.git(&["config", "--unset", "diff.bait.textconv"]);
+    fixture.git(&["config", "diff.bait.command", &script]);
+    fixture.git(&["config", "diff.external", &script]);
+    let output = fixture.nuc(&["sense", "revision-due"]);
+    assert_eq!(code(&output), Some(0), "{}", stderr(&output));
+    assert_eq!(stdout(&output), stdout(&without));
+    assert!(!marker.exists(), "nuc sense revision-due ran a driver");
 }
 
 /// A `--require` that fails exits 1, its references on the standard error where the bash writes
@@ -751,25 +793,33 @@ fn bait(fixture: &Fixture, name: &str, marker: &std::path::Path) -> String {
     script.to_str().expect("UTF-8").to_owned()
 }
 
-/// The diffs of `tests-kept` run no textconv driver and no external diff the repository names
-/// (Q-7).
+/// The diffs of `tests-kept` run no textconv driver and no diff command the repository names on a
+/// path the change leaves out (Q-7). The hunks of every other path decide, since the bash's awk
+/// takes an added line that starts with `++ ` for the head of a file, so one under a driver is not
+/// decided, on every release. A submodule the change moves under `diff.submodule=diff`, whose own
+/// hunks the bash's git prints, is not decided; under git's default it is read as it is.
 /// Verifies: SEC-repository-commands-neutralized-or-refused
 #[cfg(unix)]
 #[test]
 fn tests_kept_runs_no_driver_of_the_repository() {
-    let fixture = Fixture::project("sense-tests-kept-bait", CONFIG, README);
-    fixture.write(".gitattributes", "*.rs diff=bait\n");
+    let readme = "# Fixture\n\n- **Template release:** v0.12.0\n";
+    let fixture = Fixture::project("sense-tests-kept-bait", CONFIG, readme);
+    fixture.write(
+        ".gitattributes",
+        "scripts/sensor-tests-kept.sh diff=bait\n*.txt diff=bait\n",
+    );
     fixture.write("tests/a_test.rs", "fn a() {}\n");
+    fixture.write("scripts/sensor-tests-kept.sh", "a\n");
     fixture.commit("tests");
     fixture.git(&["switch", "-q", "-c", "feature"]);
     fixture.write("tests/a_test.rs", "#[ignore]\nfn a() {}\n");
+    fixture.write("scripts/sensor-tests-kept.sh", "a\nb\n");
     fixture.commit("ignore");
     let marker = fixture.root().join(".git").join("driver-ran");
     let textconv = bait(&fixture, "textconv.sh", &marker);
     let command = bait(&fixture, "command.sh", &marker);
     fixture.git(&["config", "diff.bait.textconv", &textconv]);
     fixture.git(&["config", "diff.bait.command", &command]);
-    fixture.git(&["config", "diff.external", &command]);
     let output = fixture.nuc(&["sense", "tests-kept"]);
     assert_eq!(code(&output), Some(0), "{}", stderr(&output));
     assert!(
@@ -778,9 +828,37 @@ fn tests_kept_runs_no_driver_of_the_repository() {
         stdout(&output)
     );
     assert!(!marker.exists(), "nuc sense tests-kept ran a driver");
+    // A path without markers of its own, under a driver, is not decided either.
+    fixture.write("tests/notes.txt", "n\n");
+    fixture.commit("notes");
+    for readme in [readme, README] {
+        fixture.write("README.md", readme);
+        let output = fixture.nuc(&["sense", "tests-kept", "main", "feature"]);
+        assert_eq!(code(&output), Some(2), "{readme}: {}", stdout(&output));
+        assert!(
+            stderr(&output).contains("tests/notes.txt: ")
+                && stderr(&output)
+                    .trim_end()
+                    .ends_with("[sense/tests-kept:driver]"),
+            "{readme}: {}",
+            stderr(&output)
+        );
+    }
+    assert!(!marker.exists(), "nuc sense tests-kept ran a driver");
 
     // The diff of a change that moves a submodule starts no diff in the submodule.
     let (main, marker) = moved_submodule("sense-tests-kept-bait", "`sm`");
+    let output = main.nuc(&["sense", "tests-kept", "main", "feature"]);
+    assert_eq!(code(&output), Some(2), "{}", stdout(&output));
+    assert!(
+        stderr(&output).contains("sm: ")
+            && stderr(&output)
+                .trim_end()
+                .ends_with("[sense/tests-kept:driver]"),
+        "{}",
+        stderr(&output)
+    );
+    main.git(&["config", "--unset", "diff.submodule"]);
     let output = main.nuc(&["sense", "tests-kept", "main", "feature"]);
     assert_eq!(code(&output), Some(0), "{}", stderr(&output));
     assert!(
@@ -789,41 +867,50 @@ fn tests_kept_runs_no_driver_of_the_repository() {
     );
 }
 
+/// The file's modification time set to `at`.
+#[cfg(unix)]
+fn set_mtime(path: &std::path::Path, at: std::time::SystemTime) {
+    std::fs::File::options()
+        .write(true)
+        .open(path)
+        .and_then(|f| f.set_modified(at))
+        .expect("the mtime is set");
+}
+
 /// The file's modification time a minute ahead, its content as it was: git must read it again to
 /// tell whether it changed, as it does for a file the working tree touched.
 #[cfg(unix)]
 fn stat_changed(path: &std::path::Path) {
-    let later = std::time::SystemTime::now() + std::time::Duration::from_secs(60);
-    std::fs::File::options()
-        .write(true)
-        .open(path)
-        .and_then(|f| f.set_modified(later))
-        .expect("the mtime is set");
+    set_mtime(
+        path,
+        std::time::SystemTime::now() + std::time::Duration::from_secs(60),
+    );
 }
 
-/// The diffs of `plain-rules` run no textconv driver and no external diff the repository names
-/// (Q-7).
+/// The diffs of `plain-rules` run no textconv driver and no diff command the repository names on a
+/// path whose hunks decide nothing (Q-7).
 /// Verifies: SEC-repository-commands-neutralized-or-refused
 #[cfg(unix)]
 #[test]
 fn plain_rules_runs_no_driver_of_the_repository() {
     let readme = "# Fixture\n\n- **Template release:** v0.12.0\n";
     let fixture = Fixture::project("sense-plain-rules-bait", CONFIG, readme);
-    fixture.write(".gitattributes", "*.md diff=bait\n");
+    fixture.write(".gitattributes", "*.txt diff=bait\n");
     fixture.write("AGENTS.md", "# Agent Guide\n\n- The human decides.\n");
+    fixture.write("notes.txt", "n\n");
     fixture.commit("rules");
     fixture.git(&["switch", "-q", "-c", "feature"]);
     fixture.write(
         "AGENTS.md",
         "# Agent Guide\n\n- The human decides.\n- The session should read it.\n",
     );
+    fixture.write("notes.txt", "n\nm\n");
     fixture.commit("modal");
     let marker = fixture.root().join(".git").join("driver-ran");
     let textconv = bait(&fixture, "textconv.sh", &marker);
     let command = bait(&fixture, "command.sh", &marker);
     fixture.git(&["config", "diff.bait.textconv", &textconv]);
     fixture.git(&["config", "diff.bait.command", &command]);
-    fixture.git(&["config", "diff.external", &command]);
     let output = fixture.nuc(&["sense", "plain-rules", "main", "feature"]);
     assert_eq!(code(&output), Some(0), "{}", stderr(&output));
     assert!(
@@ -1347,33 +1434,36 @@ fn binding_checks(fixture: &Fixture, b: &str) {
     );
 }
 
-/// The diff `binding-adrs` reads the hunks of a file named with checks from runs no textconv
-/// driver, no external diff, and no colour the repository names (Q-7): each would hide the hunks,
-/// and the change inside one check would bind the ADR of the other.
+/// The diff `binding-adrs` reads the hunks of a file named with checks from runs no colour the
+/// repository names (Q-7), which would hide the hunks, so that the change inside one check would
+/// bind the ADR of the other; and no textconv driver or diff command, which sit on a path whose
+/// hunks decide nothing. A submodule named with checks that the change moves under
+/// `diff.submodule=diff`, whose own hunks the bash's git prints, is not decided.
 /// Verifies: SEC-repository-commands-neutralized-or-refused
 #[cfg(unix)]
 #[test]
 fn binding_adrs_runs_no_driver_of_the_repository() {
     let readme = "# Fixture\n\n- **Template release:** v0.12.0\n";
     let fixture = Fixture::project("sense-binding-bait", CONFIG, readme);
-    fixture.write(".gitattributes", "*.sh diff=bait\n");
+    fixture.write(".gitattributes", "*.txt diff=bait\n");
     binding_checks(&fixture, ":");
+    fixture.write("notes.txt", "n\n");
     fixture.commit("checks");
     fixture.git(&["switch", "-q", "-c", "feature"]);
     binding_checks(&fixture, "true");
+    fixture.write("notes.txt", "n\nm\n");
     fixture.commit("inside b");
     let marker = fixture.root().join(".git").join("driver-ran");
     let textconv = bait(&fixture, "textconv.sh", &marker);
     let command = bait(&fixture, "command.sh", &marker);
     fixture.git(&["config", "diff.bait.textconv", &textconv]);
     fixture.git(&["config", "diff.bait.command", &command]);
-    fixture.git(&["config", "diff.external", &command]);
     fixture.git(&["config", "color.diff", "always"]);
     let output = fixture.nuc(&["sense", "binding-adrs", "main", "feature"]);
     assert_eq!(code(&output), Some(0), "{}", stderr(&output));
     assert!(
         stdout(&output).ends_with(
-            "1 path(s) changed; 1 ADR(s) in force name one of them. Read these, and the index for \
+            "2 path(s) changed; 1 ADR(s) in force name one of them. Read these, and the index for \
              the ADRs whose Applies to is prose:\n  - FIX-b-rule (docs/adr/FIX-b-rule.md) — c.sh\n"
         ),
         "{}",
@@ -1384,15 +1474,404 @@ fn binding_adrs_runs_no_driver_of_the_repository() {
     // A submodule named with checks of its own, whose commit the change moves.
     let (main, marker) = moved_submodule("sense-binding-bait", "the rule `t/a` of `sm`");
     let output = main.nuc(&["sense", "binding-adrs", "main", "feature"]);
-    assert_eq!(code(&output), Some(0), "{}", stderr(&output));
+    assert_eq!(code(&output), Some(2), "{}", stdout(&output));
     assert!(
-        stdout(&output).ends_with("  - FIX-s-rule (docs/adr/FIX-s-rule.md) — sm\n"),
+        stderr(&output).contains("sm: ")
+            && stderr(&output)
+                .trim_end()
+                .ends_with("[sense/binding-adrs:driver]"),
         "{}",
-        stdout(&output)
+        stderr(&output)
     );
     assert!(
         !marker.exists(),
         "a diff in the submodule ran its external diff"
+    );
+}
+
+/// A path under a filter whose stat matches the index but is no older than it, a racily clean
+/// entry, is not decided, since git then compares its content through the filter: nuc compares the
+/// times in whole seconds, so one in the index's second counts, below it by a fraction as well,
+/// where a git that compares finer would read the entry as clean. Where the times are equal to the
+/// nanosecond, git hashes the entry, and runs no filter where nuc neutralized it.
+/// Verifies: SEC-repository-commands-neutralized-or-refused
+#[cfg(unix)]
+#[test]
+fn binding_adrs_counts_a_racily_clean_path_under_a_filter() {
+    let readme = "# Fixture\n\n- **Template release:** v0.12.0\n";
+    let fixture = Fixture::project("sense-binding-racy", CONFIG, readme);
+    fixture.write(".gitattributes", "*.png filter=bait\n");
+    fixture.write("a.png", "image\n");
+    binding_checks(&fixture, ":");
+    // A whole second, two hours back, and a tenth of a second into it.
+    let second = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("after the epoch")
+        .as_secs()
+        - 7200;
+    let file = std::time::UNIX_EPOCH + std::time::Duration::from_millis(second * 1000 + 100);
+    set_mtime(&fixture.root().join("a.png"), file);
+    fixture.commit("image");
+    let marker = fixture.root().join(".git").join("filter-ran");
+    let clean = bait(&fixture, "clean.sh", &marker);
+    fixture.git(&["config", "filter.bait.clean", &clean]);
+    fixture.git(&["config", "filter.bait.process", &clean]);
+    fixture.git(&["config", "filter.bait.required", "true"]);
+    binding_checks(&fixture, "true");
+    let index = fixture.root().join(".git").join("index");
+    for at in [file + std::time::Duration::from_millis(500), file] {
+        set_mtime(&index, at);
+        let output = fixture.nuc(&["sense", "binding-adrs", "HEAD"]);
+        assert_eq!(code(&output), Some(2), "{}", stdout(&output));
+        assert!(
+            stderr(&output).contains("a.png: racily clean")
+                && stderr(&output)
+                    .trim_end()
+                    .ends_with("[sense/binding-adrs:filter]"),
+            "{}",
+            stderr(&output)
+        );
+        assert!(
+            !marker.exists(),
+            "nuc sense binding-adrs ran the filter of a.png"
+        );
+    }
+    // A second later, the entry is clean to git and to nuc.
+    set_mtime(&index, file + std::time::Duration::from_secs(1));
+    let output = fixture.nuc(&["sense", "binding-adrs", "HEAD"]);
+    assert_eq!(code(&output), Some(0), "{}", stderr(&output));
+    assert!(
+        !marker.exists(),
+        "nuc sense binding-adrs ran the filter of a.png"
+    );
+}
+
+/// A repository on `main` with drivers of its own, a filter `bait` with a clean command, which
+/// `data.bin` is under, a filter `proc` with a process command, a diff driver `conv` with a
+/// textconv, and a macro `bm` that names `bait`; its working tree adds a soft modal verb to a file
+/// of rules. For the tests of a driver the caller's environment configures.
+fn environment_fixture(name: &str) -> Fixture {
+    let readme = "# Fixture\n\n- **Template release:** v0.12.0\n";
+    let fixture = Fixture::project(name, CONFIG, readme);
+    fixture.write(
+        ".gitattributes",
+        "[attr]bm filter=bait\ndata.bin filter=bait\n",
+    );
+    fixture.write("AGENTS.md", "# Agent Guide\n\n- The human decides.\n");
+    fixture.write("data.bin", "data\n");
+    fixture.write("notes.txt", "notes\n");
+    fixture.commit("rules");
+    fixture.git(&["config", "filter.bait.clean", "cat"]);
+    fixture.git(&["config", "filter.proc.process", "cat"]);
+    fixture.git(&["config", "diff.conv.textconv", "cat"]);
+    fixture.write(
+        "AGENTS.md",
+        "# Agent Guide\n\n- The human decides.\n- The session should read it.\n",
+    );
+    fixture
+}
+
+/// The run is not decided, `:environment`, nothing on the standard output, and names what
+/// configures the driver.
+fn refused_by_environment(output: &std::process::Output, sensor: &str, names: &str) {
+    assert_eq!(
+        code(output),
+        Some(2),
+        "{sensor} {names}: {}",
+        stdout(output)
+    );
+    assert_eq!(stdout(output), "", "{sensor} {names}");
+    assert!(
+        stderr(output).contains(names)
+            && stderr(output)
+                .trim_end()
+                .ends_with(&format!("[sense/{sensor}:environment]")),
+        "{sensor} {names}: {}",
+        stderr(output)
+    );
+}
+
+/// A command the caller's environment configures, which the bash's git runs and `nuc`'s, under
+/// the cleared environment, does not see, has every sensor not decide, `:environment`, and names
+/// what configures it: a key of `GIT_CONFIG_PARAMETERS` or of `GIT_CONFIG_COUNT`, and
+/// `GIT_EXTERNAL_DIFF`. A value git cannot read counts as well.
+/// Verifies: SEC-repository-commands-neutralized-or-refused
+#[test]
+fn a_driver_of_the_caller_s_environment_is_not_decided() {
+    let fixture = environment_fixture("sense-environment");
+    let plain = |vars: &[(&str, &str)]| fixture.nuc_with(vars, &["sense", "plain-rules", "HEAD"]);
+    let output = plain(&[("GIT_CONFIG_PARAMETERS", "'filter.lfs.clean'='cat'")]);
+    refused_by_environment(&output, "plain-rules", "filter.lfs.clean");
+    refused_by_environment(
+        &plain(&[("GIT_CONFIG_PARAMETERS", "'unclosed")]),
+        "plain-rules",
+        "cannot read",
+    );
+    for key in ["diff.conv.textconv", "diff.conv.command", "diff.submodule"] {
+        let output = plain(&[("GIT_CONFIG_PARAMETERS", &format!("'{key}'='cat'"))]);
+        refused_by_environment(&output, "plain-rules", key);
+    }
+    // Every sensor, for an external diff by `GIT_CONFIG_COUNT` and by `GIT_EXTERNAL_DIFF`.
+    let count = [
+        ("GIT_CONFIG_COUNT", "1"),
+        ("GIT_CONFIG_KEY_0", "diff.external"),
+        ("GIT_CONFIG_VALUE_0", "cat"),
+    ];
+    for sensor in [
+        "action-refs",
+        "backlog",
+        "binding-adrs",
+        "plain-rules",
+        "plan-frontier",
+        "review-binding",
+        "revision-due",
+        "tests-kept",
+    ] {
+        let output = fixture.nuc_with(&count, &["sense", sensor]);
+        refused_by_environment(&output, sensor, "diff.external");
+        let output = fixture.nuc_with(&[("GIT_EXTERNAL_DIFF", "cat")], &["sense", sensor]);
+        refused_by_environment(&output, sensor, "GIT_EXTERNAL_DIFF");
+    }
+}
+
+/// A file outside the repository the caller's environment has git read names a driver too: an
+/// attributes file `GIT_CONFIG_PARAMETERS` or `XDG_CONFIG_HOME` names, whose attribute names a
+/// driver with a command, itself or through a macro of the repository; a global configuration that
+/// `XDG_CONFIG_HOME` or `GIT_CONFIG_GLOBAL` moves, itself or through an include; and the tree
+/// `GIT_ATTR_SOURCE` names.
+/// Verifies: SEC-repository-commands-neutralized-or-refused
+#[test]
+fn a_file_the_caller_s_environment_has_git_read_is_not_decided() {
+    let fixture = environment_fixture("sense-environment-file");
+    let plain = |vars: &[(&str, &str)]| fixture.nuc_with(vars, &["sense", "plain-rules", "HEAD"]);
+    let outside = Fixture::new("sense-environment-files");
+    let file = |name: &str, text: &str| {
+        let path = outside.root().join(name);
+        std::fs::create_dir_all(path.parent().expect("a parent")).expect("directories");
+        std::fs::write(&path, text).expect("written");
+        // A path git reads in a configuration file, as on Windows too.
+        path.to_str().expect("UTF-8").replace('\\', "/")
+    };
+    for (name, line) in [
+        ("attributes", "AGENTS.md filter=bait\n"),
+        ("macro", "AGENTS.md bm\n"),
+        ("process", "AGENTS.md filter=proc\n"),
+        ("diff", "AGENTS.md diff=conv\n"),
+    ] {
+        let attributes = file(name, line);
+        let parameters = format!("'core.attributesfile'='{attributes}'");
+        let output = plain(&[("GIT_CONFIG_PARAMETERS", &parameters)]);
+        refused_by_environment(&output, "plain-rules", "AGENTS.md: ");
+    }
+    let driver = "[filter \"lfs\"]\n\tclean = cat\n";
+    file("xdg/git/config", driver);
+    let xdg = outside.root().join("xdg");
+    let output = plain(&[("XDG_CONFIG_HOME", xdg.to_str().expect("UTF-8"))]);
+    refused_by_environment(&output, "plain-rules", "filter.lfs.clean");
+    file("xdg-attributes/git/attributes", "*.md filter=bait\n");
+    let xdg = outside.root().join("xdg-attributes");
+    let output = plain(&[("XDG_CONFIG_HOME", xdg.to_str().expect("UTF-8"))]);
+    refused_by_environment(&output, "plain-rules", "AGENTS.md: ");
+    let global = file("global", driver);
+    let output = plain(&[("GIT_CONFIG_GLOBAL", &global)]);
+    refused_by_environment(&output, "plain-rules", "filter.lfs.clean");
+    let included = file("included", driver);
+    let including = file("including", &format!("[include]\n\tpath = {included}\n"));
+    let output = plain(&[("GIT_CONFIG_GLOBAL", &including)]);
+    refused_by_environment(&output, "plain-rules", "filter.lfs.clean");
+    let output = plain(&[("GIT_ATTR_SOURCE", "HEAD")]);
+    refused_by_environment(&output, "plain-rules", "GIT_ATTR_SOURCE");
+
+    // A path a range of commits reads that the index lacks, under a driver of the repository by an
+    // attribute of the environment: the diff that reads it refuses.
+    fixture.git(&["stash", "-q"]);
+    fixture.git(&["switch", "-q", "-c", "feature"]);
+    fixture.write(
+        "docs/adr/FIX-rule-x.md",
+        "# FIX-rule-x: X\n\nIt must run.\n",
+    );
+    fixture.commit("an ADR");
+    fixture.git(&["switch", "-q", "main"]);
+    let attributes = file("range", "docs/adr/*.md diff=conv\n");
+    let parameters = format!("'core.attributesfile'='{attributes}'");
+    let output = fixture.nuc_with(
+        &[("GIT_CONFIG_PARAMETERS", &parameters)],
+        &["sense", "plain-rules", "main", "feature"],
+    );
+    assert_eq!(code(&output), Some(2), "{}", stdout(&output));
+    assert!(
+        stderr(&output).contains("docs/adr/FIX-rule-x.md: ")
+            && stderr(&output)
+                .trim_end()
+                .ends_with("[sense/plain-rules:driver]"),
+        "{}",
+        stderr(&output)
+    );
+}
+
+/// The variables of the caller's git configuration naming only other keys, an attribute that names
+/// no driver with a command, an empty `XDG_CONFIG_HOME`, or the files `nuc`'s git reads anyway,
+/// leave the report as without them.
+/// Verifies: SEC-repository-commands-neutralized-or-refused
+#[test]
+fn an_environment_naming_no_driver_leaves_the_report_alone() {
+    let fixture = environment_fixture("sense-environment-none");
+    let plain = |vars: &[(&str, &str)]| fixture.nuc_with(vars, &["sense", "plain-rules", "HEAD"]);
+    let without = plain(&[]);
+    assert_eq!(code(&without), Some(0), "{}", stderr(&without));
+    let home_config = support::home().join(".config");
+    for vars in [
+        &[("GIT_CONFIG_PARAMETERS", "'user.name'='x'")][..],
+        &[
+            ("GIT_CONFIG_COUNT", "1"),
+            ("GIT_CONFIG_KEY_0", "user.name"),
+            ("GIT_CONFIG_VALUE_0", "x"),
+        ],
+        &[("XDG_CONFIG_HOME", home_config.to_str().expect("UTF-8"))],
+        &[("XDG_CONFIG_HOME", "")],
+    ] {
+        let output = plain(vars);
+        assert_eq!(code(&output), Some(0), "{vars:?}: {}", stderr(&output));
+        assert_eq!(stdout(&output), stdout(&without), "{vars:?}");
+    }
+    // A home whose configuration names a driver and an attribute for it, which `nuc`'s git reads
+    // through `HOME` as the bash's does through `XDG_CONFIG_HOME`; and an attribute that names no
+    // driver with a command.
+    let home = Fixture::new("sense-environment-home");
+    let config = home.root().join(".config").join("git");
+    std::fs::create_dir_all(&config).expect("directories");
+    std::fs::write(config.join("config"), "[filter \"lfs\"]\n\tclean = cat\n").expect("written");
+    std::fs::write(config.join("attributes"), "*.txt filter=lfs\n").expect("written");
+    let home_dir = home.root().to_str().expect("UTF-8");
+    let xdg = home.root().join(".config");
+    let binary = home.root().join("binary");
+    std::fs::write(&binary, "*.md binary\n").expect("written");
+    let parameters = format!(
+        "'core.attributesfile'='{}'",
+        binary.to_str().expect("UTF-8").replace('\\', "/")
+    );
+    for vars in [
+        &[
+            ("HOME", home_dir),
+            ("XDG_CONFIG_HOME", xdg.to_str().expect("UTF-8")),
+        ][..],
+        &[("GIT_CONFIG_PARAMETERS", &parameters)],
+    ] {
+        let output = plain(vars);
+        assert_eq!(code(&output), Some(0), "{vars:?}: {}", stderr(&output));
+        assert_eq!(stdout(&output), stdout(&without), "{vars:?}");
+    }
+}
+
+/// An external diff in the repository's configuration has the bash's git print what it writes for
+/// every path, so `tests-kept`, `plain-rules`, and `binding-adrs` are not decided on a change whose
+/// hunks decide their report, and run no driver.
+/// Verifies: SEC-repository-commands-neutralized-or-refused
+#[cfg(unix)]
+#[test]
+fn an_external_diff_is_not_decided_where_hunks_decide() {
+    let readme = "# Fixture\n\n- **Template release:** v0.12.0\n";
+    let fixture = Fixture::project("sense-external-diff", CONFIG, readme);
+    binding_checks(&fixture, ":");
+    fixture.write("tests/a_test.rs", "fn a() {}\n");
+    fixture.write("AGENTS.md", "# Agent Guide\n\n- The human decides.\n");
+    fixture.commit("start");
+    fixture.git(&["switch", "-q", "-c", "feature"]);
+    binding_checks(&fixture, "true");
+    fixture.write("tests/a_test.rs", "#[ignore]\nfn a() {}\n");
+    fixture.write(
+        "AGENTS.md",
+        "# Agent Guide\n\n- The human decides.\n- The session should read it.\n",
+    );
+    fixture.commit("change");
+    let marker = fixture.root().join(".git").join("driver-ran");
+    let command = bait(&fixture, "command.sh", &marker);
+    fixture.git(&["config", "diff.external", &command]);
+    for sensor in ["tests-kept", "plain-rules", "binding-adrs"] {
+        let output = fixture.nuc(&["sense", sensor, "main", "feature"]);
+        assert_eq!(code(&output), Some(2), "{sensor}: {}", stdout(&output));
+        assert_eq!(stdout(&output), "", "{sensor}");
+        assert!(
+            stderr(&output).contains("diff.external")
+                && stderr(&output)
+                    .trim_end()
+                    .ends_with(&format!("[sense/{sensor}:driver]")),
+            "{sensor}: {}",
+            stderr(&output)
+        );
+    }
+    assert!(!marker.exists(), "nuc sense ran the external diff");
+}
+
+/// A textconv driver on a project ADR has the bash's git read the ADR's hunks through what the
+/// driver prints: a line the change inserts above an old "should" can turn that line into an added
+/// one, which `--require` fails where `nuc`, reading the raw bytes, would pass. The ADR is not
+/// decided, and named, as is one renamed from a path under such a driver.
+/// Verifies: SEC-repository-commands-neutralized-or-refused
+#[cfg(unix)]
+#[test]
+fn plain_rules_refuses_an_adr_under_a_textconv_driver() {
+    let readme = "# Fixture\n\n- **Template release:** v0.12.0\n";
+    let fixture = Fixture::project("sense-plain-rules-textconv", CONFIG, readme);
+    fixture.write(".gitattributes", "docs/adr/*.md diff=bait\n");
+    fixture.write(
+        "docs/adr/FIX-rule-x.md",
+        "# FIX-rule-x: X\n\n## Decision\n\nIt should run.\n",
+    );
+    fixture.commit("rule");
+    fixture.write(
+        "docs/adr/FIX-rule-x.md",
+        "# FIX-rule-x: X\n\n## Decision\n\nThe human decides.\nIt should run.\n",
+    );
+    let marker = fixture.root().join(".git").join("driver-ran");
+    let textconv = bait(&fixture, "textconv.sh", &marker);
+    fixture.git(&["config", "diff.bait.textconv", &textconv]);
+    let output = fixture.nuc(&["sense", "plain-rules", "--require", "HEAD"]);
+    assert_eq!(code(&output), Some(2), "{}", stdout(&output));
+    assert_eq!(stdout(&output), "");
+    assert!(
+        stderr(&output).contains("docs/adr/FIX-rule-x.md: ")
+            && stderr(&output)
+                .trim_end()
+                .ends_with("[sense/plain-rules:driver]"),
+        "{}",
+        stderr(&output)
+    );
+    assert!(
+        !marker.exists(),
+        "nuc sense plain-rules ran the textconv driver"
+    );
+
+    // The old side of a rename is diffed through its driver too.
+    let fixture = Fixture::project("sense-plain-rules-textconv-rename", CONFIG, readme);
+    fixture.write(".gitattributes", "docs/adr/FIX-rule-x.md diff=bait\n");
+    let adr = "# FIX-rule-x: X\n\n## Decision\n\nIt should run.\nLine two of the rule.\n\
+               Line three of the rule.\nLine four of the rule.\nLine five of the rule.\n";
+    fixture.write("docs/adr/FIX-rule-x.md", adr);
+    fixture.commit("rule");
+    fixture.git(&["switch", "-q", "-c", "feature"]);
+    fixture.git(&["mv", "docs/adr/FIX-rule-x.md", "docs/adr/FIX-rule-y.md"]);
+    fixture.write(
+        "docs/adr/FIX-rule-y.md",
+        &adr.replace("Line five of the rule.", "Line five, edited."),
+    );
+    fixture.commit("rename");
+    let marker = fixture.root().join(".git").join("driver-ran");
+    let textconv = bait(&fixture, "textconv.sh", &marker);
+    fixture.git(&["config", "diff.bait.textconv", &textconv]);
+    let output = fixture.nuc(&["sense", "plain-rules", "--require", "main", "feature"]);
+    assert_eq!(code(&output), Some(2), "{}", stdout(&output));
+    assert!(
+        stderr(&output).contains("docs/adr/FIX-rule-x.md: ")
+            && stderr(&output)
+                .trim_end()
+                .ends_with("[sense/plain-rules:driver]"),
+        "{}",
+        stderr(&output)
+    );
+    assert!(
+        !marker.exists(),
+        "nuc sense plain-rules ran the textconv driver"
     );
 }
 
@@ -1434,10 +1913,11 @@ fn moved_submodule(name: &str, applies: &str) -> (Fixture, std::path::PathBuf) {
 }
 
 /// A change that ends in the working tree runs no filter the repository names (Q-7). A path under
-/// a filter whose stat changed while its bytes did not reads alike to the bash, which runs the
-/// filter, and to nuc, which runs none; one whose bytes changed is not decided, since the bash's
-/// git tells it through the filter. A submodule checked out is not decided either, whatever its
-/// `ignore` setting, since the bash's git may ask its own status, which runs its filters.
+/// a filter whose stat is unchanged and older than the index reads alike to the bash and to nuc.
+/// One whose stat changed is not decided, whatever its bytes, since the bash's git hashes it
+/// through the filter, as a file committed before its filter was set and then touched. A
+/// submodule checked out is not decided either, whatever its `ignore` setting, since the bash's
+/// git may ask its own status, which runs its filters.
 /// Verifies: SEC-repository-commands-neutralized-or-refused
 #[cfg(unix)]
 #[test]
@@ -1446,6 +1926,10 @@ fn binding_adrs_in_the_working_tree_runs_no_filter() {
     let fixture = Fixture::project("sense-binding-filter", CONFIG, readme);
     fixture.write(".gitattributes", "*.png filter=bait\n");
     fixture.write("a.png", "image\n");
+    set_mtime(
+        &fixture.root().join("a.png"),
+        std::time::SystemTime::now() - std::time::Duration::from_secs(60),
+    );
     binding_checks(&fixture, ":");
     fixture.commit("image");
     let marker = fixture.root().join(".git").join("filter-ran");
@@ -1453,7 +1937,6 @@ fn binding_adrs_in_the_working_tree_runs_no_filter() {
     fixture.git(&["config", "filter.bait.clean", &clean]);
     fixture.git(&["config", "filter.bait.process", &clean]);
     fixture.git(&["config", "filter.bait.required", "true"]);
-    stat_changed(&fixture.root().join("a.png"));
     binding_checks(&fixture, "true");
     let output = fixture.nuc(&["sense", "binding-adrs", "HEAD"]);
     assert_eq!(code(&output), Some(0), "{}", stderr(&output));
@@ -1462,21 +1945,22 @@ fn binding_adrs_in_the_working_tree_runs_no_filter() {
         "{}",
         stdout(&output)
     );
-    assert!(
-        !marker.exists(),
-        "nuc sense binding-adrs ran the filter of a.png"
-    );
-    fixture.write("a.png", "another image\n");
-    let output = fixture.nuc(&["sense", "binding-adrs", "HEAD"]);
-    assert_eq!(code(&output), Some(2), "{}", stdout(&output));
-    assert_eq!(stdout(&output), "");
-    assert!(
-        stderr(&output)
-            .trim_end()
-            .ends_with("[sense/binding-adrs:filter]"),
-        "{}",
-        stderr(&output)
-    );
+    // Touched, its bytes as committed; then changed.
+    stat_changed(&fixture.root().join("a.png"));
+    for _ in 0..2 {
+        let output = fixture.nuc(&["sense", "binding-adrs", "HEAD"]);
+        assert_eq!(code(&output), Some(2), "{}", stdout(&output));
+        assert_eq!(stdout(&output), "");
+        assert!(
+            stderr(&output).contains("a.png: changed in the working tree under a filter")
+                && stderr(&output)
+                    .trim_end()
+                    .ends_with("[sense/binding-adrs:filter]"),
+            "{}",
+            stderr(&output)
+        );
+        fixture.write("a.png", "another image\n");
+    }
     assert!(
         !marker.exists(),
         "nuc sense binding-adrs ran the filter of a.png"

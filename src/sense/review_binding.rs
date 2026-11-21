@@ -26,7 +26,7 @@ pub const SENSOR: Sensor = Sensor {
     name: "review-binding",
     since: Version(0, 5, 0),
     changes: &[BELOW, NAMED, ARGUMENTS, LINEAR],
-    reasons: &["ref", "git", "file", super::RELEASE],
+    reasons: &["ref", "git", "file", super::ENVIRONMENT, super::RELEASE],
 };
 
 /// The label that opens each headline of the report.

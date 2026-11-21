@@ -13,6 +13,7 @@ pub mod review_binding;
 pub mod revision_due;
 pub mod tests_kept;
 
+use std::collections::BTreeSet;
 use std::fmt;
 
 use crate::config::Version;
@@ -113,9 +114,133 @@ pub fn positional<'a, 'b>(
     Some(&rest[..rest.len().min(most)])
 }
 
+/// The reason every sensor refuses with where the caller's environment names a command git would
+/// run on a diff, a filtered file, or a hash of the working tree, which `nuc`'s git does not see
+/// (SEC-repository-commands-neutralized-or-refused).
+pub const ENVIRONMENT: &str = "environment";
+
+/// The reason of a sensor that refuses a path whose diff the bash's git reads through a driver of
+/// the repository (SEC-repository-commands-neutralized-or-refused).
+pub const DRIVER: &str = "driver";
+
+/// What of the configuration changes what the bash's porcelain diff compares, where `nuc`'s,
+/// under `--no-textconv`, `--no-ext-diff`, and `diff.submodule=short`, compares the raw bytes.
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct DiffDrivers {
+    /// The drivers any entry gives a `textconv`.
+    pub textconv: BTreeSet<Vec<u8>>,
+    /// The drivers any entry gives a `command`.
+    pub command: BTreeSet<Vec<u8>>,
+    /// Whether an entry sets `diff.external`.
+    pub external: bool,
+    /// Whether an entry sets `diff.submodule` to `diff` or `log`, which prints a submodule's hunks.
+    pub submodule: bool,
+}
+
+impl DiffDrivers {
+    /// Whether a path's hunks can read otherwise than its raw bytes: a driver is active, or
+    /// `diff.external` set.
+    pub fn any(&self) -> bool {
+        self.external || !self.textconv.is_empty() || !self.command.is_empty()
+    }
+}
+
+/// The diff drivers of the configuration, from the output of
+/// `git config -z --get-regexp '^diff\.'`, `<key> LF <value> NUL` an entry. The
+/// `diff.submodule=short` that `nuc` sets itself with `-c` is among them, and reads as no driver.
+/// A command set empty counts too: git runs it and fails, and the bash can report as though the
+/// diff were empty, so its report is not decided either.
+pub fn diff_drivers(config: &[u8]) -> DiffDrivers {
+    let mut drivers = DiffDrivers::default();
+    for entry in config.split(|&b| b == 0).filter(|e| !e.is_empty()) {
+        let (key, value) = match entry.iter().position(|&b| b == b'\n') {
+            Some(at) => (&entry[..at], &entry[at + 1..]),
+            None => (entry, &b""[..]),
+        };
+        let Some(rest) = key.strip_prefix(b"diff.") else {
+            continue;
+        };
+        match rest {
+            b"external" => drivers.external = true,
+            b"submodule" => drivers.submodule |= value == b"diff" || value == b"log",
+            _ => {
+                // `diff.<name>.<variable>`, the name between the first and the last dot.
+                let Some(dot) = rest.iter().rposition(|&b| b == b'.') else {
+                    continue;
+                };
+                let (name, variable) = (&rest[..dot], &rest[dot + 1..]);
+                match variable {
+                    b"textconv" => drivers.textconv.insert(name.to_vec()),
+                    b"command" => drivers.command.insert(name.to_vec()),
+                    _ => false,
+                };
+            }
+        }
+    }
+    drivers
+}
+
+/// The first submodule whose commit a patch of `git diff` moves, adds, or deletes, by the mode
+/// `160000` of its header, named by its path on the new side, or the old where it is deleted.
+pub fn moved_submodule(diff: &[u8]) -> Option<Vec<u8>> {
+    let mut gitlink = false;
+    let mut old: &[u8] = b"";
+    for line in diff.split(|&b| b == b'\n') {
+        if line.starts_with(b"diff --git ") {
+            gitlink = false;
+        } else if (line.starts_with(b"index ")
+            || line.starts_with(b"new file mode ")
+            || line.starts_with(b"deleted file mode ")
+            || line.starts_with(b"old mode ")
+            || line.starts_with(b"new mode "))
+            && line.ends_with(b" 160000")
+        {
+            gitlink = true;
+        } else if let Some(path) = line.strip_prefix(b"--- ") {
+            old = path.strip_prefix(b"a/").unwrap_or(path);
+        } else if let Some(path) = line.strip_prefix(b"+++ ")
+            && gitlink
+        {
+            let new = path.strip_prefix(b"b/").unwrap_or(path);
+            return Some(if new == b"/dev/null" { old } else { new }.to_vec());
+        }
+    }
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_diff_drivers_are_the_repository_s() {
+        let config = b"diff.bait.textconv\nconv\0diff.empty.textconv\n\0diff.cmd.command\nx\0diff.submodule\nshort\0diff.x.xfuncname\n^f\0";
+        let drivers = diff_drivers(config);
+        assert_eq!(
+            drivers.textconv,
+            BTreeSet::from([b"bait".to_vec(), b"empty".to_vec()])
+        );
+        assert_eq!(drivers.command, BTreeSet::from([b"cmd".to_vec()]));
+        assert!(!drivers.external && !drivers.submodule);
+        let drivers =
+            diff_drivers(b"diff.submodule\nlog\0diff.external\n\0diff.submodule\nshort\0");
+        assert!(drivers.external && drivers.submodule && drivers.any());
+        assert!(!diff_drivers(b"diff.submodule\nshort\0").any());
+    }
+
+    #[test]
+    fn a_moved_submodule_is_named_by_its_path() {
+        let moved = b"diff --git a/sm b/sm\nindex 1111111..2222222 160000\n--- a/sm\n+++ b/sm\n@@ -1 +1 @@\n-Subproject commit 1\n+Subproject commit 2\n";
+        assert_eq!(moved_submodule(moved), Some(b"sm".to_vec()));
+        let deleted = b"diff --git a/f b/f\nindex 1..2 100644\n--- a/f\n+++ b/f\ndiff --git a/sm b/sm\ndeleted file mode 160000\nindex 1..0\n--- a/sm\n+++ /dev/null\n";
+        assert_eq!(moved_submodule(deleted), Some(b"sm".to_vec()));
+        assert_eq!(
+            moved_submodule(
+                b"diff --git a/f b/f\nindex 1..2 100644\n--- a/f\n+++ b/f\n+x 160000\n"
+            ),
+            None
+        );
+    }
 
     #[test]
     fn a_release_before_the_sensor_is_refused_and_none_reads_as_the_newest() {
@@ -147,6 +272,7 @@ mod tests {
         for sensor in ALL {
             assert_eq!(ALL.iter().filter(|s| s.name == sensor.name).count(), 1);
             assert!(sensor.reasons.contains(&RELEASE), "{}", sensor.name);
+            assert!(sensor.reasons.contains(&ENVIRONMENT), "{}", sensor.name);
             for reason in sensor.reasons {
                 assert!(reason.bytes().all(|b| b.is_ascii_lowercase()), "{reason}");
             }

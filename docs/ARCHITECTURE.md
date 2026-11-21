@@ -70,7 +70,10 @@ golden path and the test pattern an agent copies from are named here.
   no `nuc.toml`, a file `nuc` cannot read, one without a minimum, a minimum above the running
   `nuc`, or an unknown rule ID ends the run before it.
   The blob of a hook is git's, `git hash-object` as the bash runs it. A hook whose attributes name
-  a filter is not decided, since git would run the filter's driver (Q-7).
+  a filter is not decided, since git would run the filter's driver (Q-7); so is a file
+  `docs/base-blobs` hashes under an active filter, the `NUC-` files of the record, tracked or not,
+  and `AGENTS.md`
+  ([SEC-repository-commands-neutralized-or-refused](adr/SEC-repository-commands-neutralized-or-refused.md)).
   The rules of `scripts/check-devcontainer.sh`, one per rule ID of its keys under `devcontainer/`,
   share one reading of the Dev Container's files in `src/devcontainer.rs`: text without its
   full-line `//` comments, the Features by the depth of the braces, and the value of a top-level
@@ -114,15 +117,21 @@ golden path and the test pattern an agent copies from are named here.
   2.45.0 on, and an older git runs only on a repository that names no promisor remote;
   `git::blob_at` reads a blob at a revision, telling a path the commit lacks from an object a
   partial clone lacks, which is not decided
-  ([SEC-git-cleared-without-lazy-fetch](adr/SEC-git-cleared-without-lazy-fetch.md)). Its `Tree`, in
-  `shell::tree`, reads every file and lists every directory the rules need, each resolved through
-  one function that refuses a path outside the repository, and refuses as well, as not decided, one
-  the bash would read differently from its bytes alone. `shell::hook` reads `nuc.toml` and the
-  README through the `Tree` as well; the two files of the green-tree record and the sides of a
-  merge, at the paths git gives, it reads in the two functions `tests/functional_core.guarded` names
-  for them. It writes, renames, creates, and removes only in the functions
-  `tests/functional_core.writers` names, each inside the repository or its git directory (Q-8); `git
-  merge-file` writes ours for the merge driver.
+  ([SEC-git-cleared-without-lazy-fetch](adr/SEC-git-cleared-without-lazy-fetch.md)); and
+  `git::diff` starts every diff, `diff-tree`, and `log -G` with `--no-ext-diff` and
+  `--no-textconv`
+  ([SEC-repository-commands-neutralized-or-refused](adr/SEC-repository-commands-neutralized-or-refused.md));
+  and `git::environment_driver` reads, once a run, whether the caller's environment names a filter,
+  a diff driver, or an external diff that the cleared git does not see: `nuc check` and every
+  sensor are then not decided, and `nuc hook pre-push` runs the checks.
+  Its `Tree`, in `shell::tree`, reads every file and lists every directory the rules need, each
+  resolved through one function that refuses a path outside the repository, and refuses as well, as
+  not decided, one the bash would read differently from its bytes alone. `shell::hook` reads
+  `nuc.toml` and the README through the `Tree` as well; the two files of the green-tree record and
+  the sides of a merge, at the paths git gives, it reads in the two functions
+  `tests/functional_core.guarded` names for them. It writes, renames, creates, and removes only in
+  the functions `tests/functional_core.writers` names, each inside the repository or its git
+  directory (Q-8); `git merge-file` writes ours for the merge driver.
 - **Measure** — `src/measure.rs` counts the tokens of `nuc measure` from the requests an adapter
   per harness reads out of its transcripts, `src/measure/claude_code.rs` the one for Claude Code,
   each request once at the largest usage its lines report, selected by branch and time, and
@@ -148,10 +157,15 @@ golden path and the test pattern an agent copies from are named here.
   tree (Q-7,
   [SEC-repository-commands-neutralized-or-refused](adr/SEC-repository-commands-neutralized-or-refused.md)).
   Where that could change what they report, they refuse: plain-rules a file of rules under a filter
-  and a rename a filter could pair otherwise, binding-adrs a path under a filter whose raw bytes
-  differ from the index and any submodule checked out. A file whose index holds bytes its filter
-  would clean otherwise is not refused yet, and can read otherwise than the bash; ticket 12 of
-  `docs/plan/revision-2026-11-20/` refuses it.
+  and a rename a filter could pair otherwise, binding-adrs a path under a filter whose stat differs
+  from the index or that is racily clean, its modification time no older than the index's in whole
+  seconds, and any submodule checked out. A path whose hunks decide a report and that the
+  bash's git reads through a textconv driver or a diff command the configuration sets, or through
+  `diff.external`, is refused as well: in tests-kept every path its diff does not leave out, in
+  plain-rules a file of rules and the path it was renamed from, in binding-adrs a path named with
+  checks, and in revision-due the overview under a textconv driver, the one driver its `log -G`
+  runs. A submodule the change moves where `diff.submodule` reads `diff` or `log` is refused in
+  tests-kept and, where checks name it, in binding-adrs.
   review-binding asks git what each answer leads it to, as its bash does, so its core asks through
   the trait `review_binding::Repo`, which `shell::sense` answers with git; its diffs compare commits
   and read no working tree, and its hand-off is a file named from where `nuc` runs that must resolve
@@ -310,7 +324,11 @@ holds. Otherwise it writes the tree of a clean `HEAD` to `checks-pending-tree` o
 directory, with the run its shim names in `NUC_HOOK_RUN`, and answers 3; its shim runs the checks
 and, on green, calls `nuc hook pre-push --record`, which moves that tree into the record and keeps
 the last 50, and records nothing where another run's push replaced it. These two files are the only
-state `nuc` keeps between runs.
+state `nuc` keeps between runs. A tree is clean where git's status, every active filter
+neutralized, lists nothing, and none of these holds: the caller's environment names a driver, a
+submodule is checked out, asked before any git looks into it, an active filter's name cannot be
+neutralized, or a tracked path under an active filter is stat-dirty or racily clean
+([SEC-repository-commands-neutralized-or-refused](adr/SEC-repository-commands-neutralized-or-refused.md)).
 `nuc hook reference-transaction prepared` reads the updates of a transaction from the standard input
 and, where one touches `refs/heads/main`, asks git once for `main` and `origin/main` and refuses a
 move of `main` to a commit `origin/main` lacks, as the transaction leaves it. It reads `nuc.toml` in

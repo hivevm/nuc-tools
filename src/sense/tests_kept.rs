@@ -17,7 +17,13 @@ pub const SENSOR: Sensor = Sensor {
     name: "tests-kept",
     since: Version(0, 1, 0),
     changes: &[BY_EXTENSION, ARGUMENTS],
-    reasons: &["ref", "git", super::RELEASE],
+    reasons: &[
+        "ref",
+        "git",
+        super::DRIVER,
+        super::ENVIRONMENT,
+        super::RELEASE,
+    ],
 };
 
 /// The label that opens each line of the report.

@@ -130,6 +130,36 @@ pub fn rerun_under_a_home(name: &str, gitconfig: &str, files: &[(&str, &str)]) -
     output
 }
 
+/// The variables that hand git configuration on or move where git reads it, which make `nuc` not
+/// decide where they name a driver (SEC-repository-commands-neutralized-or-refused).
+const GIT_ENVIRONMENT: &[&str] = &[
+    "GIT_CONFIG_PARAMETERS",
+    "GIT_CONFIG_COUNT",
+    "XDG_CONFIG_HOME",
+    "GIT_CONFIG_GLOBAL",
+    "GIT_CONFIG_SYSTEM",
+    "GIT_CONFIG_NOSYSTEM",
+    "GIT_EXTERNAL_DIFF",
+    "GIT_ATTR_SOURCE",
+];
+
+/// `nuc` with the parent's environment, as a test that runs it with an inherited environment
+/// needs, but without the variables of the runner's own git configuration, so that a developer's
+/// `XDG_CONFIG_HOME` decides nothing.
+pub fn nuc_with_parent_env() -> Command {
+    let mut command = Command::new(NUC);
+    for name in GIT_ENVIRONMENT {
+        command.env_remove(name);
+    }
+    for (name, _) in std::env::vars_os() {
+        let name = name.to_string_lossy();
+        if name.starts_with("GIT_CONFIG_KEY_") || name.starts_with("GIT_CONFIG_VALUE_") {
+            command.env_remove(name.as_ref());
+        }
+    }
+    command
+}
+
 /// The command with the environment cleared and the allowlist, the tests' `HOME`, and the fixed
 /// values set.
 pub fn cleared(command: &mut Command) -> &mut Command {

@@ -8,19 +8,21 @@
 //! decoy repository, `nuc` reports on the repository it runs in and leaves the decoy untouched.
 //! A git stand-in, first on the `PATH`, records the environment and the arguments `nuc` gives git:
 //! nothing outside the allowlist, `-C` on every call, and each key of `git_cli.neutralized`.
+//! A second stand-in passes each call on to git: every diff of every sensor carries the guards, and
+//! no command the repository's configuration names runs.
 
 mod support;
 
-use std::process::{Command, Output};
+use std::process::Output;
 
-use support::{CONFIG, Fixture, NUC, README, snapshot, stderr, stdout};
+use support::{CONFIG, Fixture, README, snapshot, stderr, stdout};
 
 /// `nuc check` in the fixture, with the parent's environment and the decoy variables set, as an
 /// inherited environment would carry them, and the tests' `HOME` over the parent's
 /// (TEST-fixtures-with-own-home).
 fn check_with_decoy(fixture: &Fixture, decoy: &Fixture) -> Output {
     let git_dir = decoy.root().join(".git");
-    Command::new(NUC)
+    support::nuc_with_parent_env()
         .current_dir(fixture.root())
         .arg("check")
         .env("HOME", support::home())
@@ -69,7 +71,7 @@ fn the_repository_run_in_is_the_one_reported() {
 /// `nuc hook pre-commit` in the fixture, with the decoy variables set as given and the tests'
 /// `HOME` over the parent's.
 fn hook_with(fixture: &Fixture, vars: &[(&str, std::ffi::OsString)]) -> Output {
-    let mut command = Command::new(NUC);
+    let mut command = support::nuc_with_parent_env();
     command
         .current_dir(fixture.root())
         .args(["hook", "pre-commit"])
@@ -131,7 +133,7 @@ mod stand_in {
     use std::path::Path;
     use std::process::Command;
 
-    use super::support::{CONFIG, Fixture, NUC, README, stderr};
+    use super::support::{CONFIG, Fixture, README, stderr};
 
     const NEUTRALIZED: &str = include_str!("git_cli.neutralized");
 
@@ -190,7 +192,7 @@ mod stand_in {
             bin.root().display(),
             std::env::var("PATH").unwrap_or_default()
         );
-        let output = Command::new(NUC)
+        let output = super::support::nuc_with_parent_env()
             .current_dir(fixture.root())
             .arg("check")
             .env("HOME", super::support::home())
@@ -240,6 +242,331 @@ mod stand_in {
         }
     }
 
+    /// The git on the `PATH`, as the tests find it.
+    fn real_git() -> String {
+        let out = Command::new("sh")
+            .args(["-c", "command -v git"])
+            .output()
+            .expect("sh runs")
+            .stdout;
+        String::from_utf8(out).expect("UTF-8").trim().to_owned()
+    }
+
+    /// A script that creates the canary wherever it runs, and passes its input or its first
+    /// argument through, as a filter, a textconv driver, or a diff command of the repository would.
+    fn bait(path: &Path, canary: &Path) -> String {
+        let script = format!(
+            "#!/bin/sh\ntouch '{}'\nif [ -n \"$1\" ]; then cat \"$1\"; else cat; fi\nexit 0\n",
+            canary.display()
+        );
+        fs::write(path, script).expect("the bait is written");
+        fs::set_permissions(path, fs::Permissions::from_mode(0o755)).expect("it is executable");
+        path.to_str().expect("UTF-8").to_owned()
+    }
+
+    /// The git command of a call, past `--no-lazy-fetch`, `-C`, and each `-c`, and whether the
+    /// call names the repository by `-C`.
+    fn command_of(args: &[String]) -> (Option<&str>, bool) {
+        let mut repo = false;
+        let mut rest = args.iter();
+        while let Some(arg) = rest.next() {
+            match arg.as_str() {
+                "--no-lazy-fetch" => {}
+                "-C" => {
+                    repo = true;
+                    rest.next();
+                }
+                "-c" => {
+                    rest.next();
+                }
+                command => return (Some(command), repo),
+            }
+        }
+        (None, repo)
+    }
+
+    /// Whether a call shows a diff, which a driver of the repository could produce: a `diff`, a
+    /// `diff-tree`, a `show`, or a `log` that shows patches or searches them.
+    fn shows_a_diff(command: &str, args: &[String]) -> bool {
+        match command {
+            "diff" | "diff-tree" | "show" => true,
+            "log" => args
+                .iter()
+                .any(|arg| arg == "-p" || arg == "--patch" || arg.starts_with("-G")),
+            _ => false,
+        }
+    }
+
+    /// Every sensor `nuc sense` ports, as it names them for a name it does not know.
+    fn sensors(fixture: &Fixture) -> Vec<String> {
+        let output = fixture.nuc(&["sense", "no-such-sensor"]);
+        let text = stderr(&output);
+        let list = text
+            .split_once("it ports ")
+            .and_then(|(_, rest)| rest.split_once(" — "))
+            .map(|(list, _)| list)
+            .unwrap_or_else(|| panic!("no list of sensors: {text}"));
+        list.split(", ").map(str::to_owned).collect()
+    }
+
+    /// A repository whose configuration names a command for the diffs a sensor could start: a
+    /// clean and a process filter, a textconv driver, and a diff command, all on the paths
+    /// `*.txt`, which no commit changes, and `diff.submodule`, each the bait that creates the
+    /// canary. An external diff, and a driver on a path whose hunks decide, under which a sensor is
+    /// not decided, have their tests in `tests/contract.rs`. `feature` changes a file of rules, a
+    /// test, a source, a backlog entry, a script an ADR binds by one of its checks, and the text
+    /// of an ADR together with a source; a commit follows the one the hand-off names as reviewed.
+    /// The working tree changes the file of rules and the script again, holds the hand-off, and
+    /// has a path under the filter, older than the index, whose stat alone changed where `dirty`
+    /// says so, on which binding-adrs is not decided.
+    fn baited(dirty: bool) -> (Fixture, std::path::PathBuf) {
+        let readme = "# Fixture\n\n- **Template release:** v0.12.0\n";
+        let fixture = Fixture::project("stand-in-sensors", CONFIG, readme);
+        fixture
+            .write(".gitattributes", "*.txt diff=bait filter=bait\n")
+            .write("AGENTS.md", "# Agent Guide\n\n- The human decides.\n")
+            .write("tests/a_test.rs", "fn a() {}\n")
+            .write("data.txt", "data\n")
+            .write(
+                "docs/ARCHITECTURE.md",
+                "# A\n\n**Last design revision:** 2026-01-01, due after 9 changes.\n",
+            )
+            .write(
+                "docs/adr/FIX-a-rule.md",
+                "# FIX-a-rule: X\n\n- **Status:** 🟢 accepted\n- **Applies to:** `src/`\n",
+            )
+            .write(
+                "docs/adr/FIX-b-rule.md",
+                "# FIX-b-rule: Y\n\n- **Status:** 🟢 accepted\n- **Applies to:** the rule `a/b` of `scripts/check-a.sh`\n",
+            )
+            .write("scripts/check-a.sh", "x\n");
+        set_mtime(
+            &fixture.root().join("data.txt"),
+            std::time::SystemTime::now() - std::time::Duration::from_secs(120),
+        );
+        fixture.commit("start");
+        fixture.git(&["switch", "-q", "-c", "feature"]);
+        fixture
+            .write(
+                "AGENTS.md",
+                "# Agent Guide\n\n- The human decides.\n- The session should read it.\n",
+            )
+            .write("tests/a_test.rs", "#[ignore]\nfn a() {}\n")
+            .write("src/a.rs", "a\n")
+            .write("docs/backlog/an-entry.md", "# An entry\n")
+            .write("scripts/check-a.sh", "x\ny\n")
+            .write(
+                "docs/adr/FIX-a-rule.md",
+                "# FIX-a-rule: X2\n\n- **Status:** 🟢 accepted\n- **Applies to:** `src/`\n",
+            )
+            .commit("change");
+        let reviewed = super::support::stdout(&fixture.git(&["rev-parse", "--short", "HEAD"]));
+        fixture.write("src/a.rs", "a\nb\n").commit("fix");
+        fixture.write("h.md", &format!("Reviewed at: {}", reviewed.trim_end()));
+        fixture.write(
+            "AGENTS.md",
+            "# Agent Guide\n\n- The human decides.\n- The session should read it.\n- More.\n",
+        );
+        fixture.write("scripts/check-a.sh", "x\ny\nz\n");
+        if dirty {
+            // Its stat changed, its bytes not: git reads it again, through its filter where one
+            // runs.
+            set_mtime(
+                &fixture.root().join("data.txt"),
+                std::time::SystemTime::now() + std::time::Duration::from_secs(60),
+            );
+        }
+        let canary = fixture.root().join(".git").join("canary");
+        let script = bait(&fixture.root().join(".git").join("bait.sh"), &canary);
+        for key in [
+            "filter.bait.clean",
+            "filter.bait.process",
+            "diff.bait.textconv",
+            "diff.bait.command",
+        ] {
+            fixture.git(&["config", key, &script]);
+        }
+        fixture.git(&["config", "diff.submodule", "log"]);
+        (fixture, canary)
+    }
+
+    /// The file's modification time set to `at`.
+    fn set_mtime(path: &Path, at: std::time::SystemTime) {
+        fs::File::options()
+            .write(true)
+            .open(path)
+            .and_then(|file| file.set_modified(at))
+            .expect("the mtime is set");
+    }
+
+    /// A `git` in `dir` that appends the arguments of every call beside itself, each call ended by
+    /// [`END`], and runs the real git with them; and the `PATH` that finds it first.
+    fn recording_stand_in(dir: &Path) -> String {
+        let d = dir.display();
+        let git = dir.join("git");
+        fs::write(
+            &git,
+            format!(
+                "#!/bin/sh\n{{ for arg in \"$@\"; do printf '%s\\n' \"$arg\"; done; printf '%s\\n' '{END}'; }} >> '{d}/args'\nexec '{}' \"$@\"\n",
+                real_git()
+            ),
+        )
+        .expect("the stand-in is written");
+        fs::set_permissions(&git, fs::Permissions::from_mode(0o755)).expect("it is executable");
+        format!("{d}:{}", std::env::var("PATH").unwrap_or_default())
+    }
+
+    /// The diff calls among `calls`, each checked: every call that names the repository carries
+    /// each key of `git_cli.neutralized`, and every diff the guards.
+    fn diffs_checked<'c>(run: &str, calls: &'c [Vec<String>]) -> Vec<&'c Vec<String>> {
+        let keys: Vec<&str> = NEUTRALIZED
+            .lines()
+            .map(str::trim)
+            .filter(|line| !line.is_empty() && !line.starts_with('#'))
+            .collect();
+        let mut diffs = Vec::new();
+        for call in calls {
+            let (command, repo) = command_of(call);
+            if !repo {
+                continue;
+            }
+            for key in &keys {
+                assert!(
+                    call.windows(2)
+                        .any(|pair| pair[0] == "-c" && pair[1] == *key),
+                    "{run}: the call lacks -c {key}: {call:?}"
+                );
+            }
+            if !command.is_some_and(|command| shows_a_diff(command, call)) {
+                continue;
+            }
+            diffs.push(call);
+            for guard in ["--no-ext-diff", "--no-textconv"] {
+                assert!(
+                    call.iter().any(|arg| arg == guard),
+                    "{run}: the diff lacks {guard}: {call:?}"
+                );
+            }
+        }
+        diffs
+    }
+
+    /// A sensor, its arguments, and the diffs it must start.
+    type Run<'a> = (&'a str, &'a [&'a str], &'a [(&'a str, &'a str)]);
+
+    /// Every diff of every sensor carries the guards, with a head and on the working tree, and no
+    /// command the repository's configuration names runs. The stand-in records each call and runs
+    /// the real git, so that a guard missing from a call runs the bait, and the canary is created.
+    /// Verifies: SEC-repository-commands-neutralized-or-refused
+    #[test]
+    fn every_diff_of_every_sensor_carries_the_guards() {
+        let (fixture, canary) = baited(true);
+        let bin = Fixture::new("stand-in-sensors-bin");
+        let path = recording_stand_in(bin.root());
+        // Each sensor, and each that reads a change with a head and on the working tree, with the
+        // diffs it must start: the command, and an argument that starts as given. Together they
+        // are every call site of a diff in `shell::sense`.
+        let name_and_hunks: &[(&str, &str)] = &[("diff", "--name-status"), ("diff", "-U0")];
+        let runs: &[Run] = &[
+            ("action-refs", &[], &[]),
+            ("backlog", &[], &[("diff", "--diff-filter=A")]),
+            (
+                "binding-adrs",
+                &["main", "feature"],
+                &[("diff", "--name-only"), ("diff", "-U0")],
+            ),
+            // Refused before its diffs: the path under the filter is stat-dirty.
+            ("binding-adrs", &["main"], &[]),
+            ("plain-rules", &["main", "feature"], name_and_hunks),
+            ("plain-rules", &["main"], name_and_hunks),
+            ("plan-frontier", &[], &[]),
+            (
+                "review-binding",
+                &["--hand-off", "h.md", "main", "feature"],
+                &[
+                    ("diff", "--stat"),
+                    ("diff-tree", "-p"),
+                    ("diff-tree", "--name-only"),
+                ],
+            ),
+            ("revision-due", &[], &[("log", "-G")]),
+            ("tests-kept", &["main", "feature"], name_and_hunks),
+        ];
+        for sensor in sensors(&fixture) {
+            assert!(
+                runs.iter().any(|(name, _, _)| *name == sensor),
+                "the test runs no {sensor}"
+            );
+        }
+        for (sensor, args, expected) in runs {
+            let run = format!("{sensor} {args:?}");
+            let _ = fs::remove_file(bin.root().join("args"));
+            let output = fixture.nuc_with(
+                &[("PATH", path.as_str())],
+                &[&["sense", sensor][..], args].concat(),
+            );
+            let refused = *sensor == "binding-adrs" && args == &["main"];
+            assert!(
+                if refused {
+                    output.status.code() == Some(2)
+                        && stderr(&output).ends_with("[sense/binding-adrs:filter]\n")
+                } else {
+                    matches!(output.status.code(), Some(0 | 1))
+                },
+                "{run}: {}",
+                stderr(&output)
+            );
+            assert!(!canary.exists(), "{run} ran a command of the repository");
+            let calls = calls(bin.root(), "args");
+            let diffs = diffs_checked(&run, &calls);
+            for (command, start) in *expected {
+                assert!(
+                    diffs.iter().any(|call| {
+                        command_of(call).0 == Some(*command)
+                            && call.iter().any(|arg| arg.starts_with(start))
+                    }),
+                    "{run} started no {command} with {start}: {diffs:?}"
+                );
+            }
+        }
+    }
+
+    /// On a working tree whose path under the filter is older than the index and unchanged,
+    /// binding-adrs reads the change, and each diff of it that may read the working tree carries
+    /// the keys that keep git from running the filter: the guard for a file touched after the
+    /// check that refuses a stat-dirty one.
+    /// Verifies: SEC-repository-commands-neutralized-or-refused
+    #[test]
+    fn binding_adrs_on_a_clean_tree_neutralizes_the_filter_on_each_diff() {
+        let (fixture, canary) = baited(false);
+        let bin = Fixture::new("stand-in-clean-bin");
+        let path = recording_stand_in(bin.root());
+        let output = fixture.nuc_with(
+            &[("PATH", path.as_str())],
+            &["sense", "binding-adrs", "main"],
+        );
+        assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+        assert!(
+            !canary.exists(),
+            "binding-adrs ran a command of the repository"
+        );
+        let calls = calls(bin.root(), "args");
+        let diffs = diffs_checked("binding-adrs [\"main\"]", &calls);
+        for start in ["--name-only", "-U0"] {
+            let diff = diffs
+                .iter()
+                .find(|call| call.iter().any(|arg| arg == start))
+                .unwrap_or_else(|| panic!("no diff with {start}: {diffs:?}"));
+            for key in ["filter.bait.process=", "filter.bait.required=false"] {
+                assert!(
+                    diff.windows(2)
+                        .any(|pair| pair[0] == "-c" && pair[1] == key),
+                    "the diff with {start} lacks -c {key}: {diff:?}"
+                );
+            }
+        }
+    }
+
     /// A git before 2.45.0, which refuses `--no-lazy-fetch` as an unknown option, gets no such
     /// option: it runs on a repository that names no promisor remote, and on one that does, the
     /// run is not decided and names the version `nuc` needs for it.
@@ -272,7 +599,7 @@ mod stand_in {
             std::env::var("PATH").unwrap_or_default()
         );
         let run = |args: &[&str]| {
-            Command::new(NUC)
+            super::support::nuc_with_parent_env()
                 .current_dir(fixture.root())
                 .args(args)
                 .env("HOME", super::support::home())

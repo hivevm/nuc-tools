@@ -80,7 +80,9 @@ skimmed. The design revision drops what prevented nothing
   The test must run the command in every form the port calls it, a range of commits and the working
   tree alike. The list of neutralized keys guards only a key whose name is fixed
   (SEC-git-cleared-without-lazy-fetch). A driver's name changes from repository to repository, so
-  only such a test sees a command run under it (Q-7).
+  only such a test sees a command run under it (Q-7). For a sensor, the stand-in test of
+  `tests/git_cli.rs` is that test for everything but a checked-out submodule. The author of a port
+  must add each form of a sensor the port adds to the runs of that test.
 - **A check's cases are a table** — a new or changed check writes its cases into a table under
   `scripts/fixtures/` before its code, and its self-test reads the table, so a port of the
   checks is held to the same cases. A case expects a key, a rule identifier and a reason word that
