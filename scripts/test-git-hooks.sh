@@ -192,6 +192,12 @@ lib="$ROOT/scripts/lib/selftest.sh"
 # shellcheck disable=SC2016 # expanded by the inner shell
 leaked="$(GIT_DIR="$ROOT/.git" GIT_WORK_TREE="$ROOT" bash -c 'source "$1"; echo "${GIT_DIR-}${GIT_WORK_TREE-}"' _ "$lib")"
 check "a self-test sourcing the library keeps neither GIT_DIR nor GIT_WORK_TREE" test -z "$leaked"
+# The bash floor guards every other script, each check, sensor, and skill script, as the rule
+# shell/bash-floor of scripts/check-shell.sh holds that each sources it or the library above.
+# shellcheck disable=SC2016 # expanded by the inner shell
+leaked="$(GIT_DIR="$ROOT/.git" GIT_WORK_TREE="$ROOT" GIT_INDEX_FILE="$ROOT/.git/index" bash -c 'source "$1"; echo "${GIT_DIR-}${GIT_WORK_TREE-}${GIT_INDEX_FILE-}"' _ "$ROOT/scripts/lib/bash.sh")"
+check "a script sourcing the bash floor keeps no variable that binds git to a repository" \
+  test -z "$leaked"
 # '$outside' is shaped like a fixture but lies outside $work: it decides the clause on $work
 # where '$ROOT' cannot, in a linked worktree, whose .git is a file.
 outside="$(mktemp -d)"

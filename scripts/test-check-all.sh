@@ -19,6 +19,8 @@ set -uo pipefail
 # shellcheck source-path=SCRIPTDIR source=lib/selftest.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib/selftest.sh"
 RUNNER="$ROOT/scripts/check-all.sh"
+# The copies the cases run take a lock under $work, never the one of a run of this machine.
+export CHECK_ALL_LOCK="$work/lock"
 
 # g <dir> <git args...> — git in the fixture with an identity, so that commits need no config.
 g() {
@@ -307,6 +309,48 @@ expect_exit "an unknown argument exits 2" 2 "$d" --everything
 d="$(repo red)"
 printf 'exit 1\n' >> "$d/${checks[0]}"
 expect_exit "--changed fails on a red check" 1 "$d" --changed
+
+# One run at a time: a run takes the lock and removes it when it ends; a second run waits while a
+# live run holds it and says so; a lock whose run has ended is taken over; a run beneath the one
+# that holds the lock takes none. Each case names a lock of its own, and none inherits the holder
+# of a check-all.sh that runs this self-test.
+# locked <lock> <dir> [env...] — run the runner on the lock without an inherited holder.
+locked() {
+  local lock="$1" dir="$2"
+  shift 2
+  env -u CHECK_ALL_LOCK_HOLDER CHECK_ALL_LOCK="$lock" "$@" bash "$dir/scripts/check-all.sh" 2>&1
+}
+d="$(repo lock)"
+# shellcheck disable=SC2016 # expanded by the stub when it runs
+echo 'echo "HOLDER ${CHECK_ALL_LOCK_HOLDER:-none}"' >> "$d/${checks[0]}"
+out="$(locked "$work/lock-free" "$d")"; rc=$?
+check "a run takes a free lock and passes" test "$rc" -eq 0
+check "and hands its checks its own process id as the holder" grep -qE "HOLDER [0-9]+" <<< "$out"
+check "and removes the lock when it ends" test ! -e "$work/lock-free"
+# The holder releases its lock as a run does when it ends: it removes the directory.
+mkdir "$work/lock-held"
+(sleep 2; rm -rf "$work/lock-held") & holder=$!
+echo "$holder" > "$work/lock-held/pid"
+start=$SECONDS
+out="$(locked "$work/lock-held" "$d")"; rc=$?
+check "a run waits while a live run holds the lock, and then passes" \
+  test "$rc" -eq 0 -a $((SECONDS - start)) -ge 1
+check "and says that it waits, naming the run and the lock" \
+  grep -qF "waits for run $holder to end, which holds the lock $work/lock-held" <<< "$out"
+check "and takes the lock its holder released, not over it" \
+  test -z "$(grep -F 'takes over' <<< "$out")" -a ! -e "$work/lock-held"
+wait "$holder"
+true & ended=$!
+wait "$ended"
+mkdir "$work/lock-stale" && echo "$ended" > "$work/lock-stale/pid"
+out="$(locked "$work/lock-stale" "$d")"; rc=$?
+check "a run takes over a lock whose run has ended, says so, and passes" \
+  test "$rc" -eq 0 -a -n "$(grep -F "takes over the lock $work/lock-stale of run $ended" <<< "$out")"
+mkdir "$work/lock-own" && echo "$$" > "$work/lock-own/pid"
+start=$SECONDS
+out="$(locked "$work/lock-own" "$d" CHECK_ALL_LOCK_HOLDER=$$)"; rc=$?
+check "a run beneath the holder neither waits nor removes the lock" \
+  test "$rc" -eq 0 -a $((SECONDS - start)) -lt 2 -a -e "$work/lock-own/pid"
 
 # --- summary -------------------------------------------------------------------------------
 

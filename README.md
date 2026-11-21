@@ -193,7 +193,7 @@ git settings as the template's hooks, listed under [Git hooks](CONTRIBUTING.md#g
 
 ## Template
 
-- **Template release:** v0.12.0 — the release of [NUC](https://github.com/hivevm/nuc) this
+- **Template release:** v0.12.1 — the release of [NUC](https://github.com/hivevm/nuc) this
   repository carries; a project moves the line when it takes up a later one
   ([NUC-releases-are-semver-tags §5](docs/adr/NUC-releases-are-semver-tags.md)).
 

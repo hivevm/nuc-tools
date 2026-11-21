@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 #
 # Applies a map of ADR identifiers, clauses, and criteria to every reference in the tree
-# (NUC-decisions-are-proposed-then-accepted §8, NUC-releases-are-semver-tags §7).
+# (NUC-decisions-are-proposed-then-accepted §8, NUC-releases-are-semver-tags §7), and the citations
+# of the ADRs a newly accepted ADR supersedes (section 5 of the propose-adr skill).
 #
 # The map is a reviewed file of lines 'OLD NEW'. Blank lines and lines starting with '#' are
 # ignored. An identifier is '<CAT>-<slug>'; a clause is written without a space, '<CAT>-<slug>§n'.

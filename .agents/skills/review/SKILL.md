@@ -35,6 +35,9 @@ The reviewer runs in a context that did not write the change and is handed only:
 - the output of the sensors the toolchain ADR names, and of
   [`scripts/check-all.sh`](../../../scripts/check-all.sh) `--verbose`, whose tests-kept sensor
   lists the test files deleted and the skip markers added since the base;
+- the report of [`scripts/sensor-plain-rules.sh`](../../../scripts/sensor-plain-rules.sh) on the
+  change's commits, run by itself: `check-all.sh` passes a long sentence, and its report stands
+  among a long output;
 - for a normalization, its map and its clause table, and the record at the base commit
   ([NUC-decisions-are-proposed-then-accepted §8](../../../docs/adr/NUC-decisions-are-proposed-then-accepted.md)).
 
@@ -81,7 +84,9 @@ not met, or met by a test that does not decide it. Scope the task did not ask fo
 3. The conventions, the ADRs, and the sensor output. A sensor finding the implementer suppressed
    is a finding here.
 4. Of each statement the change adds to the rules, whether it is one sentence
-   ([`AGENTS.md` §4](../../../AGENTS.md#4-working-style)).
+   ([`AGENTS.md` §4](../../../AGENTS.md#4-working-style)). Each sentence the plain-rules report
+   names on a line the change adds to a project ADR is a lesser finding. A `proposed` ADR can
+   still be revised. After its acceptance, only a superseding ADR shortens the sentence.
 5. Last, the *Doubts*, in their four fields:
    - each point under *Disagreed*, checked against its evidence;
    - each point under *Unsure*, settled or left to the human by name;
@@ -148,3 +153,7 @@ The fixes come after that commit.
 [`scripts/sensor-review-binding.sh`](../../../scripts/sensor-review-binding.sh) lists them for
 the human who decides the merge, unless a second review sees them first and the line moves.
 After a rework, the pull request's description carries that line.
+
+The `Measures:` line of the hand-off counts this review among its review rounds. Its tokens
+include the reviewer's session: the implementer runs `nuc measure` after the last round, where the
+harness is one it reads ([Measuring a session](../../../CONTRIBUTING.md#measuring-a-session)).

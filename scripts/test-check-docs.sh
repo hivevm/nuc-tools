@@ -301,7 +301,7 @@ g() { local dir="$1"; shift; fixture "$dir"; git -C "$dir" -c user.name=t -c use
 
 n=0
 while IFS= read -r line; do
-  [[ "$line" =~ ^(docs/[a-z0-9-]+|all)\ \| ]] || continue
+  table_row "$line" "^(docs/[a-z0-9-]+|all) \\| " || continue
   n=$((n + 1))
   line="$(table_hyphens "$line")"
   IFS=$'\x1f' read -r rule want needle name tree <<< "${line// | /$'\x1f'}"

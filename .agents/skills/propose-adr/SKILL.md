@@ -78,7 +78,48 @@ nobody chose is an alternative in the record.
 
 ## 4. Submit
 
+Run [`scripts/sensor-plain-rules.sh`](../../../scripts/sensor-plain-rules.sh) by itself and split
+each long sentence it names in the ADR. `--require` passes a long sentence, and after the
+acceptance only a superseding ADR shortens it. Do the same after each revision of the ADR.
+
 Commit on a branch and hand the ADR to the human as
 [NUC-decisions-are-proposed-then-accepted §3](../../../docs/adr/NUC-decisions-are-proposed-then-accepted.md)
 asks. What follows is
 [NUC-decisions-are-proposed-then-accepted §4](../../../docs/adr/NUC-decisions-are-proposed-then-accepted.md).
+
+## 5. The acceptance of a superseding ADR
+
+When the human accepts an ADR whose `Supersedes:` field names others, each old ADR flips to
+superseded in the same change
+([NUC-adrs-are-named-by-category §4](../../../docs/adr/NUC-adrs-are-named-by-category.md)). From
+then on, each `Verifies:` marker that cites an old ADR fails
+([NUC-decisions-cite-tests §6](../../../docs/adr/NUC-decisions-cite-tests.md)). So the same change
+moves the citations to the successor:
+
+1. **The map.** Write a map under `.scratch/` from the `Supersedes:` fields, in the form the
+   header of the map script [`remap.sh`](../normalize/remap.sh) gives. Each old ADR gets a line
+   `<old> <successor>`. A cited clause that the successor carries under another number gets a
+   line `<old>§n <successor>§m` of its own.
+2. **The move.** Check the map with `.agents/skills/normalize/remap.sh --check <map>`, then apply
+   it without `--check`. Rewrite by hand what it lists as left. The script drops an old identifier
+   from a marker that already names the successor. It reads no file under `docs/adr/`, and an
+   accepted ADR keeps its citations
+   ([NUC-decisions-are-proposed-then-accepted §6](../../../docs/adr/NUC-decisions-are-proposed-then-accepted.md)).
+3. **The width.** A longer successor may push a line past the width. Split such a line only
+   within its comment or its paragraph, never into the line that follows it. Keep each marker on
+   one line: the traceability check reads no marker split over two lines. Leave every other line
+   as it was.
+4. **The comparison.** Compare each changed file with the base before the commit. This loop
+   prints each file whose marker lines name fewer identifiers than at the base:
+
+   ```bash
+   ids() { grep Verifies: | grep -oE '[A-Z]{2,5}-[a-z0-9]+(-[a-z0-9]+)+|[GQ]-[0-9]+' | wc -l; }
+   git diff HEAD --name-only | while read -r f; do
+     [ "$(git show HEAD:"$f" | ids)" -le "$(ids < "$f")" ] || echo "$f"
+   done
+   ```
+
+   A file it prints lost an identifier from a marker. Either the script dropped it beside its
+   successor, or a split moved it off the marker's line, where the traceability check no longer
+   reads it. Check each such file by hand before the commit. Its count of words, `wc -w`, may fall
+   only by the identifiers the script dropped.
