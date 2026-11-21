@@ -312,6 +312,65 @@ expect pass "a tree that names no release and lacks the sensor still compares it
 expect fail "a tree that names its release is compared with its own sensor" "the standard output differs" \
   tree_rows "$work/st-newest" "$work/st-old"
 
+# The rows of other states run SENSOR_JOBS at once, and report in the order of the trees and the
+# rows, whatever order they end in: the first row sleeps, so that with eight jobs it ends last.
+printf '%s\n' 'st_slow() { sleep 0.5; }' 'st_built() { :; }' 'st_broken() { return 1; }' \
+  > "$work/st-scen.sh"
+# scenarios_run <name> <jobs> <table> <tree>... — the rows of the table on the trees, with the
+# jobs; the output and the exit into st-scen-<name>.out.
+# shellcheck disable=SC2317,SC2329 # run through check
+scenarios_run() {
+  local name="$1" jobs="$2" table="$3"
+  shift 3
+  (
+    eval "$(sed -n '/^release_of() {/,/^}/p' "$HARNESS")"
+    # shellcheck source=/dev/null # the library, read as the harness reads it
+    source "$ROOT/scripts/lib/sensor-parity.sh"
+    # The library's own names of its tables, set after it read the defaults.
+    # shellcheck disable=SC2034 # read by load_sensor_tables of the library
+    SENSOR_TABLE="$table" SENSOR_SCENARIOS="$work/st-scen.sh"
+    load_sensor_tables || exit 2
+    mkdir -p "$work/st-scen-work-$name"
+    SENSOR_JOBS="$jobs" sensor_scenarios "$work/st-nuc" "$work/st-scen-work-$name" "$@"
+  ) > "$work/st-scen-$name.out" 2>&1
+  echo "exit $?" >> "$work/st-scen-$name.out"
+}
+# Two rows that differ on the old tree, and one whose fixture cannot be built, on both trees.
+printf 'x\tst_slow\t-\nx\tst_broken\t-\nx\tst_built\t-\n' > "$work/st-scen-mixed.tsv"
+scenarios_run mixed-1 1 "$work/st-scen-mixed.tsv" "$work/st-old" "$work/st-newest"
+scenarios_run mixed-8 8 "$work/st-scen-mixed.tsv" "$work/st-old" "$work/st-newest"
+check "one scenario job and eight report the same, in the same order" \
+  cmp -s "$work/st-scen-mixed-1.out" "$work/st-scen-mixed-8.out"
+check "the scenarios fail where one differs or cannot be built" \
+  grep -qx 'exit 1' "$work/st-scen-mixed-8.out"
+# scenarios_ordered — whether, with eight jobs, the old tree's slow row comes before its last row,
+# and both before the newest tree's broken state.
+# shellcheck disable=SC2317,SC2329 # run through check
+scenarios_ordered() {
+  local out="$work/st-scen-mixed-8.out" a b c
+  a="$(grep -n 'v0.6.2, state st_slow' "$out" | head -n 1 | cut -d: -f1)"
+  b="$(grep -n 'v0.6.2, state st_built' "$out" | head -n 1 | cut -d: -f1)"
+  c="$(grep -n 'v0.12.0, sensor x — the state st_broken could not be built' "$out" | cut -d: -f1)"
+  [[ -n "$a" && -n "$b" && -n "$c" ]] && ((a < b && b < c))
+}
+check "the scenarios report in the order of the trees and the rows" scenarios_ordered
+check "the scenarios leave no fixture behind" \
+  bash -c "[[ -z \"\$(ls -A \"$work/st-scen-work-mixed-8/sensor-scenarios\")\" ]]"
+# A fixture that cannot be built fails the run by itself, beside a row that agrees.
+printf 'x\tst_built\t-\nx\tst_broken\t-\n' > "$work/st-scen-broken.tsv"
+scenarios_run broken 8 "$work/st-scen-broken.tsv" "$work/st-newest"
+check "a fixture that cannot be built fails the scenarios by itself" \
+  grep -qx 'exit 1' "$work/st-scen-broken.out"
+check "the run names the state that could not be built" \
+  grep -q 'the state st_broken could not be built' "$work/st-scen-broken.out"
+# Rows that agree pass, and the run counts them.
+printf 'x\tst_slow\t-\nx\tst_built\t-\n' > "$work/st-scen-agree.tsv"
+scenarios_run agree 8 "$work/st-scen-agree.tsv" "$work/st-newest"
+check "scenarios that agree pass" grep -qx 'exit 0' "$work/st-scen-agree.out"
+check "the run counts the scenarios it compared" \
+  grep -qx 'Parity check: the sensor scenarios — 2 run(s), the same from bash and nuc.' \
+  "$work/st-scen-agree.out"
+
 # Both sides run in the tree, so that a path an argument names from where the sensor runs, as
 # --hand-off's, names the same file there: each side prints where it runs, the other where it must.
 mkdir -p "$work/st-cwd-bash/scripts" "$work/st-cwd-nuc/scripts"

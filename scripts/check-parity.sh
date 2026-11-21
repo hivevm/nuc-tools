@@ -17,13 +17,14 @@
 #
 # The comparisons run in parallel, one job per processor or PARITY_JOBS, and their outputs follow
 # in the order of the corpus and the variants, after what the preparation of the trees reports,
-# such as a refused tree. Every run computes every tree and variant anew. With --shard <k>/<n>, a
-# run makes only its share of the comparisons: each tree as pinned and each variant for it is one,
-# in the order of the corpus, each tree as pinned first and then its variants, and the n shards
-# take contiguous slices of that sequence of about equal cost. A comparison costs the 'cost' of its
-# tree in the corpus. WHOLE_COST, the seconds of the parts that read all the template's trees at
-# once, the pins of the copied fixture tables, the releases a rule's check changed at, and the
-# hook scenarios, which run in the last shard alone, n/n, is appended at the end of the sequence.
+# such as a refused tree; so do the sensor scenarios, in the order of the trees and the rows. Every
+# run computes every tree and variant anew. With --shard <k>/<n>, a run makes only its share of the
+# comparisons: each tree as pinned and each variant for it is one, in the order of the corpus, each
+# tree as pinned first and then its variants, and the n shards take contiguous slices of that
+# sequence of about equal cost. A comparison costs the 'cost' of its tree in the corpus.
+# WHOLE_COST, the seconds of the parts that read all the template's trees at once, the pins of the
+# copied fixture tables, the releases a rule's check changed at, the sensor scenarios, and the hook
+# scenarios, which run in the last shard alone, n/n, is appended at the end of the sequence.
 # The deal reads the corpus and the variants alone, so that every shard deals the same, a tree it
 # refuses or cannot fetch included. A slice that starts inside a tree also compares that tree as
 # pinned, since its variants are measured against it, but reports that comparison only where it is
@@ -100,8 +101,9 @@
 # --compare compares one pair of outputs, and --sense-compare one pair of a sensor's, for
 # scripts/test-check-parity.sh. PARITY_TABLE names
 # another normalization table, PARITY_RELEASES another table of releases, PARITY_TABLE_BLOBS
-# another list of the blobs of the copied fixture tables, PARITY_JOBS the number of comparisons
-# that run at once, and PARITY_WHOLE_COST other seconds for the parts the last shard alone runs.
+# another list of the blobs of the copied fixture tables, PARITY_JOBS the number of comparisons,
+# and of sensor scenarios, that run at once, and PARITY_WHOLE_COST other seconds for the parts the
+# last shard alone runs.
 # Exit code 0 when every repository and variant agrees, 1 on a difference, a refused tree, a
 # variant that fits no tree or does not fire, a cache that cannot be filled, or a pin of a copied
 # table the template's tag does not bear out, 2 on a missing or malformed list of pins, a malformed
@@ -406,7 +408,8 @@ jobs_max="${PARITY_JOBS:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 1)}"
 # alone runs, appended at the end of the sequence: PARITY_WHOLE_COST, or WHOLE_COST. Measured on a
 # runner of CI with PARITY_JOBS=4, as tests/parity/corpus.toml measures the cost of a tree, the
 # hook scenarios took 129 to 155 s in six runs, the pins of the copied tables and the releases a
-# few more.
+# few more. The sensor scenarios, which ran one at a time then, run PARITY_JOBS at once since; the
+# cost is not measured again on CI.
 WHOLE_COST=150
 whole_cost="${PARITY_WHOLE_COST:-$WHOLE_COST}"
 [[ "$whole_cost" =~ ^[0-9]+(\.[0-9]+)?$ ]] || die "PARITY_WHOLE_COST is '$whole_cost', not a number of seconds"
@@ -991,7 +994,7 @@ for tree in "${template_trees[@]}"; do tree_dirs+=("${tree#* }"); done
 
 # The sensor scenarios, on the template's trees of the corpus (API-sensor-cores-ask-the-shell).
 if ((whole)); then
-  sensor_scenarios "$nuc" "$work" "${tree_dirs[@]}" || failed=1
+  SENSOR_JOBS="$jobs_max" sensor_scenarios "$nuc" "$work" "${tree_dirs[@]}" || failed=1
 fi
 
 # The hook scenarios, on the template's trees of the corpus (TEST-hook-scenarios-on-bash-hooks).
