@@ -65,6 +65,7 @@ pub(super) fn run(name: &str, options: &[&str]) -> Result<u8, String> {
     };
     let carried = super::template_release(&tree.root)?;
     let release = sense::release(sensor, carried).map_err(|refusal| refusal.to_string())?;
+    refuse_environment(sensor.name, &tree.root)?;
     if sensor.name == action_refs::SENSOR.name {
         let require = match args {
             [] => None,
@@ -129,6 +130,23 @@ pub(super) fn run(name: &str, options: &[&str]) -> Result<u8, String> {
     .map_err(|refusal| refusal.to_string())?;
     write_report(&report)?;
     Ok(PASSED)
+}
+
+/// Not decided, `:environment`, where the caller's environment names a command git would run that
+/// nuc's git does not see (SEC-repository-commands-neutralized-or-refused).
+fn refuse_environment(sensor: &'static str, root: &Path) -> Result<(), String> {
+    let refuse = |message: String| {
+        Refusal {
+            sensor,
+            reason: sense::ENVIRONMENT,
+            message: unwrapped(message),
+        }
+        .to_string()
+    };
+    match git::environment_driver(root).map_err(refuse)? {
+        Some(why) => Err(refuse(why)),
+        None => Ok(()),
+    }
 }
 
 /// The report written on the standard output.
@@ -651,17 +669,23 @@ fn refuse_driven(
     }
     let attrs = git::run_bytes_with_input(root, &["check-attr", "-z", "--stdin", "diff"], &input)
         .map_err(git_refusal(sensor))?;
+    // The attributes the caller's environment has git read as well, for a path the index lacks.
+    let theirs = git::attributes_under_caller(root, &["diff"], &input)
+        .map_err(git_refusal(sensor))?
+        .unwrap_or_default();
     // `<path> NUL diff NUL <value> NUL` for each path.
-    let fields: Vec<&[u8]> = attrs.split(|&b| b == 0).collect();
-    for entry in fields.chunks(3) {
-        let [path, _, value] = entry else {
-            continue;
-        };
-        if active.contains(value) {
-            return Err(refuse(
-                path,
-                format!("the diff driver '{}'", String::from_utf8_lossy(value)),
-            ));
+    for attrs in [&attrs, &theirs] {
+        let fields: Vec<&[u8]> = attrs.split(|&b| b == 0).collect();
+        for entry in fields.chunks(3) {
+            let [path, _, value] = entry else {
+                continue;
+            };
+            if active.contains(value) {
+                return Err(refuse(
+                    path,
+                    format!("the diff driver '{}'", String::from_utf8_lossy(value)),
+                ));
+            }
         }
     }
     Ok(())

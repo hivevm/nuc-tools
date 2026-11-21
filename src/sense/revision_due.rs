@@ -28,6 +28,7 @@ pub const SENSOR: Sensor = Sensor {
         "number",
         "git",
         super::DRIVER,
+        super::ENVIRONMENT,
         super::RELEASE,
     ],
 };

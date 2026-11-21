@@ -114,6 +114,11 @@ pub fn positional<'a, 'b>(
     Some(&rest[..rest.len().min(most)])
 }
 
+/// The reason every sensor refuses with where the caller's environment names a command git would
+/// run on a diff, a filtered file, or a hash of the working tree, which `nuc`'s git does not see
+/// (SEC-repository-commands-neutralized-or-refused).
+pub const ENVIRONMENT: &str = "environment";
+
 /// The reason of a sensor that refuses a path whose diff the bash's git reads through a driver of
 /// the repository (SEC-repository-commands-neutralized-or-refused).
 pub const DRIVER: &str = "driver";
@@ -267,6 +272,7 @@ mod tests {
         for sensor in ALL {
             assert_eq!(ALL.iter().filter(|s| s.name == sensor.name).count(), 1);
             assert!(sensor.reasons.contains(&RELEASE), "{}", sensor.name);
+            assert!(sensor.reasons.contains(&ENVIRONMENT), "{}", sensor.name);
             for reason in sensor.reasons {
                 assert!(reason.bytes().all(|b| b.is_ascii_lowercase()), "{reason}");
             }

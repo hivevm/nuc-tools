@@ -1169,6 +1169,34 @@ fn a_tree_written_into_the_record_by_hand_skips_the_checks() {
     assert!(!both(&output).contains("check output"), "the checks ran");
 }
 
+/// A tree recorded green is still taken as not clean where the caller's environment names a command
+/// git's status would run that `nuc`'s git does not see, so the checks run.
+/// Verifies: SEC-repository-commands-neutralized-or-refused
+#[test]
+fn a_driver_of_the_caller_s_environment_runs_the_checks() {
+    let fixture = pushing(
+        "hooks-push-environment",
+        "echo \"check output for the test\"\nexit 1",
+    );
+    std::fs::write(
+        fixture.root().join(".git/checks-green-trees"),
+        format!("{}\n", head_tree(&fixture)),
+    )
+    .expect("the record is written");
+    for var in [
+        ("GIT_EXTERNAL_DIFF", "cat"),
+        ("GIT_CONFIG_PARAMETERS", "'filter.lfs.clean'='cat'"),
+    ] {
+        let output = git_hooked(&fixture, Some(&built()), &[var], PUSH);
+        assert!(!output.status.success(), "{var:?}: {}", both(&output));
+        assert!(
+            both(&output).contains("check output"),
+            "{var:?}: {}",
+            both(&output)
+        );
+    }
+}
+
 #[test]
 fn a_record_that_cannot_be_written_lets_the_push_pass() {
     let fixture = pushing("hooks-push-unwritable", "exit 0");

@@ -18,7 +18,7 @@ pub const SENSOR: Sensor = Sensor {
     name: "plan-frontier",
     since: Version(0, 5, 0),
     changes: &[],
-    reasons: &["ticket", "git", "file", super::RELEASE],
+    reasons: &["ticket", "git", "file", super::ENVIRONMENT, super::RELEASE],
 };
 
 /// The directory of the plan.

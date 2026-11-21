@@ -156,6 +156,271 @@ fn refuse_promisor(repo: &Path) -> Result<(), String> {
     Ok(())
 }
 
+/// The variables that hand git configuration on, or move where git reads it: what `git -c` sets,
+/// and the global and system files (SEC-repository-commands-neutralized-or-refused).
+const CONFIGURING: &[&str] = &[
+    "GIT_CONFIG_PARAMETERS",
+    "GIT_CONFIG_COUNT",
+    "XDG_CONFIG_HOME",
+    "GIT_CONFIG_GLOBAL",
+    "GIT_CONFIG_SYSTEM",
+    "GIT_CONFIG_NOSYSTEM",
+];
+
+/// Why the caller's environment names a command git would run on a diff, a filtered file, or a
+/// hash of the working tree that `nuc`'s git, under the cleared environment, does not see; none
+/// where it names none (SEC-repository-commands-neutralized-or-refused). Asked once a run.
+///
+/// `GIT_EXTERNAL_DIFF` names one wherever it is set. `GIT_ATTR_SOURCE` does as well: it moves the
+/// attributes to a tree, which `nuc` does not read, a wider refusal the ADR allows. For the rest,
+/// git itself reads its configuration twice, under the variables of [`CONFIGURING`] the caller set
+/// and without them, its includes followed: an entry of a filter or diff driver, `diff.external`,
+/// or `diff.submodule` that only one of the two lists names one. So does a tracked path whose
+/// `filter` or `diff` attribute git tells otherwise under them, naming a driver with a command on
+/// either side; a file the index lacks is held where a command reads it, by
+/// [`attributes_under_caller`] and [`refuse_attributes_under_caller`]. A configuration git cannot
+/// read under the caller's variables names one too, the side that never passes. The answer is kept
+/// for the run, which reads one repository.
+pub fn environment_driver(repo: &Path) -> Result<Option<String>, String> {
+    static ASKED: OnceLock<Result<Option<String>, String>> = OnceLock::new();
+    ASKED.get_or_init(|| ask_environment(repo)).clone()
+}
+
+/// Not decided, with `why`, where the caller's environment names a driver nuc's git does not see.
+pub fn refuse_environment(repo: &Path) -> Result<(), String> {
+    match environment_driver(repo)? {
+        Some(why) => Err(format!("{why} — not decided")),
+        None => Ok(()),
+    }
+}
+
+fn ask_environment(repo: &Path) -> Result<Option<String>, String> {
+    for name in ["GIT_EXTERNAL_DIFF", "GIT_ATTR_SOURCE"] {
+        if env::var_os(name).is_some() {
+            return Ok(Some(format!(
+                "{name} is set in the environment, which the bash's git reads and nuc's does not"
+            )));
+        }
+    }
+    let carried = carried();
+    if carried.is_empty() {
+        return Ok(None);
+    }
+    let names = carried
+        .iter()
+        .map(|(name, _)| name.to_string_lossy().into_owned())
+        .collect::<Vec<_>>()
+        .join(", ");
+    let ours = configured(repo, &[])?
+        .ok_or_else(|| "git config could not read nuc's own configuration".to_owned())?;
+    let Some(theirs) = configured(repo, &carried)? else {
+        return Ok(Some(format!(
+            "{names}: a git configuration of the environment that git cannot read"
+        )));
+    };
+    let mut seen = ours.clone();
+    for (key, value) in &theirs {
+        if let Some(at) = seen
+            .iter()
+            .position(|entry| entry == &(key.clone(), value.clone()))
+        {
+            seen.remove(at);
+            continue;
+        }
+        if names_driver(key) {
+            return Ok(Some(format!(
+                "{}: configured by {names} in the environment, which the bash's git reads and \
+                 nuc's does not",
+                String::from_utf8_lossy(key)
+            )));
+        }
+    }
+    // A filter nuc's git sees that the caller's variables take away: the bash's git hashes raw
+    // where nuc's runs the filter. A diff driver taken away changes no answer, since nuc's diffs
+    // run none.
+    if let Some((key, _)) = seen
+        .iter()
+        .find(|(key, _)| key.starts_with(b"filter.") && names_driver(key))
+    {
+        return Ok(Some(format!(
+            "{}: taken away by {names} in the environment, which the bash's git reads and nuc's \
+             does not",
+            String::from_utf8_lossy(key)
+        )));
+    }
+    let tracked = run_bytes(repo, &["ls-files", "-z"])?;
+    if let Some(path) = attributed_driver(repo, &carried, &ours, &theirs, &tracked)? {
+        return Ok(Some(format!(
+            "{}: {names} in the environment give it an attribute that names a filter or a diff \
+             driver, which the bash's git runs and nuc's does not see",
+            String::from_utf8_lossy(&path)
+        )));
+    }
+    Ok(None)
+}
+
+/// The variables of [`CONFIGURING`] and the entries of `GIT_CONFIG_COUNT` the caller set.
+fn carried() -> Vec<(std::ffi::OsString, std::ffi::OsString)> {
+    env::vars_os()
+        .filter(|(name, _)| {
+            let name = name.to_string_lossy();
+            CONFIGURING.contains(&name.as_ref())
+                || name.starts_with("GIT_CONFIG_KEY_")
+                || name.starts_with("GIT_CONFIG_VALUE_")
+        })
+        .collect()
+}
+
+/// The output of `git check-attr -z --stdin <attributes>` for the paths of `input`, NUL-ended, as
+/// git tells them under the caller's variables of [`CONFIGURING`]; none where the caller set none.
+/// A path a range of commits reads that the index lacks is told here, where
+/// [`environment_driver`], which reads the tracked paths, does not reach it.
+pub fn attributes_under_caller(
+    repo: &Path,
+    attributes: &[&str],
+    input: &[u8],
+) -> Result<Option<Vec<u8>>, String> {
+    let carried = carried();
+    if carried.is_empty() {
+        return Ok(None);
+    }
+    let mut git = bare(repo, blocks_lazy_fetch()?);
+    git.envs(carried.iter().map(|(name, value)| (name, value)));
+    let mut args = vec!["check-attr", "-z", "--stdin"];
+    args.extend(attributes);
+    git.args(&args);
+    with_input(git, &args, input).map(Some)
+}
+
+/// Entries of git's configuration, `(key, value)` in the order git lists them.
+type Entries = Vec<(Vec<u8>, Vec<u8>)>;
+
+/// Whether a configuration key names a command git runs on a diff, a filtered file, or a hash of
+/// the working tree, as git writes the key, its section and variable in lower case.
+fn names_driver(key: &[u8]) -> bool {
+    if key.starts_with(b"filter.") || key == b"diff.external" || key == b"diff.submodule" {
+        return true;
+    }
+    key.starts_with(b"diff.") && (key.ends_with(b".textconv") || key.ends_with(b".command"))
+}
+
+/// The entries of git's configuration that name a filter or a diff driver, `(key, value)` in
+/// the order git lists them, read under the cleared environment and the variables of `carried`;
+/// none where git cannot read it.
+fn configured(
+    repo: &Path,
+    carried: &[(std::ffi::OsString, std::ffi::OsString)],
+) -> Result<Option<Entries>, String> {
+    let mut git = bare(repo, blocks_lazy_fetch()?);
+    git.envs(carried.iter().map(|(name, value)| (name, value)));
+    git.args(["config", "-z", "--get-regexp", r"^(filter\.|diff\.)"])
+        .stdin(Stdio::null());
+    let output = git
+        .output()
+        .map_err(|e| format!("git could not be run ({e}) — install git and put it on the PATH"))?;
+    match output.status.code() {
+        Some(0 | 1) => {}
+        _ if carried.is_empty() => return Err(failure(&["config"], &output.stderr)),
+        _ => return Ok(None),
+    }
+    // `<key> LF <value> NUL` an entry.
+    let entries = output
+        .stdout
+        .split(|&b| b == 0)
+        .filter(|entry| !entry.is_empty())
+        .map(|entry| match entry.iter().position(|&b| b == b'\n') {
+            Some(at) => (entry[..at].to_vec(), entry[at + 1..].to_vec()),
+            None => (entry.to_vec(), Vec::new()),
+        })
+        .collect();
+    Ok(Some(entries))
+}
+
+/// Not decided where git tells a `filter` or `diff` attribute of one of `paths` otherwise under the
+/// caller's variables than without them, naming a driver with a command on either side, as for
+/// the files `nuc check` hashes, which the index may lack (SEC-repository-commands-neutralized-or-
+/// refused).
+pub fn refuse_attributes_under_caller(repo: &Path, paths: &[&str]) -> Result<(), String> {
+    let carried = carried();
+    if carried.is_empty() || paths.is_empty() {
+        return Ok(());
+    }
+    let ours = configured(repo, &[])?
+        .ok_or_else(|| "git config could not read nuc's own configuration".to_owned())?;
+    let Some(theirs) = configured(repo, &carried)? else {
+        return Err(
+            "a git configuration of the environment that git cannot read — not decided".to_owned(),
+        );
+    };
+    let mut input = Vec::new();
+    for path in paths {
+        input.extend_from_slice(path.as_bytes());
+        input.push(0);
+    }
+    match attributed_driver(repo, &carried, &ours, &theirs, &input)? {
+        Some(path) => Err(format!(
+            "{}: the caller's environment gives it another attribute for a filter or a diff \
+             driver, so the bash's git hashes it otherwise — not decided",
+            String::from_utf8_lossy(&path)
+        )),
+        None => Ok(()),
+    }
+}
+
+/// The first of the NUL-ended `paths` whose `filter` or `diff` attribute git tells otherwise under
+/// the caller's variables of `carried` than without them, where either value names a driver its
+/// side's configuration, `ours` or `theirs`, gives a command: an attributes file they have git
+/// read or take away, its macros resolved by git as git resolves them. A value that names no
+/// driver with a command, as `binary` does, runs no command; what it changes in a diff is
+/// configuration that names none, which the ADR leaves out of scope.
+fn attributed_driver(
+    repo: &Path,
+    carried: &[(std::ffi::OsString, std::ffi::OsString)],
+    ours_config: &Entries,
+    theirs: &Entries,
+    tracked: &[u8],
+) -> Result<Option<Vec<u8>>, String> {
+    if tracked.is_empty() {
+        return Ok(None);
+    }
+    let attributes = |carried: &[(std::ffi::OsString, std::ffi::OsString)]| {
+        let mut git = bare(repo, blocks_lazy_fetch()?);
+        git.envs(carried.iter().map(|(name, value)| (name, value)));
+        let args = ["check-attr", "-z", "--stdin", "filter", "diff"];
+        git.args(args);
+        with_input(git, &args, tracked)
+    };
+    let ours = attributes(&[])?;
+    let theirs_attributes = attributes(carried)?;
+    // `<path> NUL <attribute> NUL <value> NUL` for each path and attribute, in the order given.
+    let ours: Vec<&[u8]> = ours.split(|&b| b == 0).collect();
+    let mine: Vec<&[u8]> = theirs_attributes.split(|&b| b == 0).collect();
+    for (our, their) in ours.chunks(3).zip(mine.chunks(3)) {
+        let ([_, _, our_value], [path, attribute, value]) = (our, their) else {
+            continue;
+        };
+        if our_value == value {
+            continue;
+        }
+        let variables: &[&[u8]] = match *attribute {
+            b"filter" => &[b"clean", b"process"],
+            b"diff" => &[b"textconv", b"command"],
+            _ => continue,
+        };
+        let names = |config: &Entries, value: &[u8]| {
+            config.iter().any(|(key, _)| {
+                variables
+                    .iter()
+                    .any(|variable| *key == [&attribute[..], b".", value, b".", variable].concat())
+            })
+        };
+        if names(theirs, value) || names(ours_config, our_value) {
+            return Ok(Some(path.to_vec()));
+        }
+    }
+    Ok(None)
+}
+
 /// The standard output of git for `args` on `repo`, or why it could not be had.
 pub fn run(repo: &Path, args: &[&str]) -> Result<String, String> {
     String::from_utf8(run_bytes(repo, args)?)
@@ -214,11 +479,17 @@ pub fn diff(repo: &Path, config: &[&str], command: Diff, args: &[&str]) -> Resul
 /// The standard output of git for `args` on `repo` as bytes, the input written to its standard
 /// input, as `--stdin` reads it; or why it could not be had.
 pub fn run_bytes_with_input(repo: &Path, args: &[&str], input: &[u8]) -> Result<Vec<u8>, String> {
+    with_input(command(repo, args)?, args, input)
+}
+
+/// The standard output of the git command `git`, its arguments `args`, the input written to its
+/// standard input; or why it could not be had.
+fn with_input(mut git: Command, args: &[&str], input: &[u8]) -> Result<Vec<u8>, String> {
     use std::io::Write;
     let unrun = |e: std::io::Error| {
         format!("git could not be run ({e}) — install git and put it on the PATH")
     };
-    let mut child = command(repo, args)?
+    let mut child = git
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())

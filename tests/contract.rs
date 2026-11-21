@@ -1546,6 +1546,223 @@ fn binding_adrs_counts_a_racily_clean_path_under_a_filter() {
     );
 }
 
+/// A repository on `main` with drivers of its own, a filter `bait` with a clean command, which
+/// `data.bin` is under, a filter `proc` with a process command, a diff driver `conv` with a
+/// textconv, and a macro `bm` that names `bait`; its working tree adds a soft modal verb to a file
+/// of rules. For the tests of a driver the caller's environment configures.
+fn environment_fixture(name: &str) -> Fixture {
+    let readme = "# Fixture\n\n- **Template release:** v0.12.0\n";
+    let fixture = Fixture::project(name, CONFIG, readme);
+    fixture.write(
+        ".gitattributes",
+        "[attr]bm filter=bait\ndata.bin filter=bait\n",
+    );
+    fixture.write("AGENTS.md", "# Agent Guide\n\n- The human decides.\n");
+    fixture.write("data.bin", "data\n");
+    fixture.write("notes.txt", "notes\n");
+    fixture.commit("rules");
+    fixture.git(&["config", "filter.bait.clean", "cat"]);
+    fixture.git(&["config", "filter.proc.process", "cat"]);
+    fixture.git(&["config", "diff.conv.textconv", "cat"]);
+    fixture.write(
+        "AGENTS.md",
+        "# Agent Guide\n\n- The human decides.\n- The session should read it.\n",
+    );
+    fixture
+}
+
+/// The run is not decided, `:environment`, nothing on the standard output, and names what
+/// configures the driver.
+fn refused_by_environment(output: &std::process::Output, sensor: &str, names: &str) {
+    assert_eq!(
+        code(output),
+        Some(2),
+        "{sensor} {names}: {}",
+        stdout(output)
+    );
+    assert_eq!(stdout(output), "", "{sensor} {names}");
+    assert!(
+        stderr(output).contains(names)
+            && stderr(output)
+                .trim_end()
+                .ends_with(&format!("[sense/{sensor}:environment]")),
+        "{sensor} {names}: {}",
+        stderr(output)
+    );
+}
+
+/// A command the caller's environment configures, which the bash's git runs and `nuc`'s, under
+/// the cleared environment, does not see, has every sensor not decide, `:environment`, and names
+/// what configures it: a key of `GIT_CONFIG_PARAMETERS` or of `GIT_CONFIG_COUNT`, and
+/// `GIT_EXTERNAL_DIFF`. A value git cannot read counts as well.
+/// Verifies: SEC-repository-commands-neutralized-or-refused
+#[test]
+fn a_driver_of_the_caller_s_environment_is_not_decided() {
+    let fixture = environment_fixture("sense-environment");
+    let plain = |vars: &[(&str, &str)]| fixture.nuc_with(vars, &["sense", "plain-rules", "HEAD"]);
+    let output = plain(&[("GIT_CONFIG_PARAMETERS", "'filter.lfs.clean'='cat'")]);
+    refused_by_environment(&output, "plain-rules", "filter.lfs.clean");
+    refused_by_environment(
+        &plain(&[("GIT_CONFIG_PARAMETERS", "'unclosed")]),
+        "plain-rules",
+        "cannot read",
+    );
+    for key in ["diff.conv.textconv", "diff.conv.command", "diff.submodule"] {
+        let output = plain(&[("GIT_CONFIG_PARAMETERS", &format!("'{key}'='cat'"))]);
+        refused_by_environment(&output, "plain-rules", key);
+    }
+    // Every sensor, for an external diff by `GIT_CONFIG_COUNT` and by `GIT_EXTERNAL_DIFF`.
+    let count = [
+        ("GIT_CONFIG_COUNT", "1"),
+        ("GIT_CONFIG_KEY_0", "diff.external"),
+        ("GIT_CONFIG_VALUE_0", "cat"),
+    ];
+    for sensor in [
+        "action-refs",
+        "backlog",
+        "binding-adrs",
+        "plain-rules",
+        "plan-frontier",
+        "review-binding",
+        "revision-due",
+        "tests-kept",
+    ] {
+        let output = fixture.nuc_with(&count, &["sense", sensor]);
+        refused_by_environment(&output, sensor, "diff.external");
+        let output = fixture.nuc_with(&[("GIT_EXTERNAL_DIFF", "cat")], &["sense", sensor]);
+        refused_by_environment(&output, sensor, "GIT_EXTERNAL_DIFF");
+    }
+}
+
+/// A file outside the repository the caller's environment has git read names a driver too: an
+/// attributes file `GIT_CONFIG_PARAMETERS` or `XDG_CONFIG_HOME` names, whose attribute names a
+/// driver with a command, itself or through a macro of the repository; a global configuration that
+/// `XDG_CONFIG_HOME` or `GIT_CONFIG_GLOBAL` moves, itself or through an include; and the tree
+/// `GIT_ATTR_SOURCE` names.
+/// Verifies: SEC-repository-commands-neutralized-or-refused
+#[test]
+fn a_file_the_caller_s_environment_has_git_read_is_not_decided() {
+    let fixture = environment_fixture("sense-environment-file");
+    let plain = |vars: &[(&str, &str)]| fixture.nuc_with(vars, &["sense", "plain-rules", "HEAD"]);
+    let outside = Fixture::new("sense-environment-files");
+    let file = |name: &str, text: &str| {
+        let path = outside.root().join(name);
+        std::fs::create_dir_all(path.parent().expect("a parent")).expect("directories");
+        std::fs::write(&path, text).expect("written");
+        // A path git reads in a configuration file, as on Windows too.
+        path.to_str().expect("UTF-8").replace('\\', "/")
+    };
+    for (name, line) in [
+        ("attributes", "AGENTS.md filter=bait\n"),
+        ("macro", "AGENTS.md bm\n"),
+        ("process", "AGENTS.md filter=proc\n"),
+        ("diff", "AGENTS.md diff=conv\n"),
+    ] {
+        let attributes = file(name, line);
+        let parameters = format!("'core.attributesfile'='{attributes}'");
+        let output = plain(&[("GIT_CONFIG_PARAMETERS", &parameters)]);
+        refused_by_environment(&output, "plain-rules", "AGENTS.md: ");
+    }
+    let driver = "[filter \"lfs\"]\n\tclean = cat\n";
+    file("xdg/git/config", driver);
+    let xdg = outside.root().join("xdg");
+    let output = plain(&[("XDG_CONFIG_HOME", xdg.to_str().expect("UTF-8"))]);
+    refused_by_environment(&output, "plain-rules", "filter.lfs.clean");
+    file("xdg-attributes/git/attributes", "*.md filter=bait\n");
+    let xdg = outside.root().join("xdg-attributes");
+    let output = plain(&[("XDG_CONFIG_HOME", xdg.to_str().expect("UTF-8"))]);
+    refused_by_environment(&output, "plain-rules", "AGENTS.md: ");
+    let global = file("global", driver);
+    let output = plain(&[("GIT_CONFIG_GLOBAL", &global)]);
+    refused_by_environment(&output, "plain-rules", "filter.lfs.clean");
+    let included = file("included", driver);
+    let including = file("including", &format!("[include]\n\tpath = {included}\n"));
+    let output = plain(&[("GIT_CONFIG_GLOBAL", &including)]);
+    refused_by_environment(&output, "plain-rules", "filter.lfs.clean");
+    let output = plain(&[("GIT_ATTR_SOURCE", "HEAD")]);
+    refused_by_environment(&output, "plain-rules", "GIT_ATTR_SOURCE");
+
+    // A path a range of commits reads that the index lacks, under a driver of the repository by an
+    // attribute of the environment: the diff that reads it refuses.
+    fixture.git(&["stash", "-q"]);
+    fixture.git(&["switch", "-q", "-c", "feature"]);
+    fixture.write(
+        "docs/adr/FIX-rule-x.md",
+        "# FIX-rule-x: X\n\nIt must run.\n",
+    );
+    fixture.commit("an ADR");
+    fixture.git(&["switch", "-q", "main"]);
+    let attributes = file("range", "docs/adr/*.md diff=conv\n");
+    let parameters = format!("'core.attributesfile'='{attributes}'");
+    let output = fixture.nuc_with(
+        &[("GIT_CONFIG_PARAMETERS", &parameters)],
+        &["sense", "plain-rules", "main", "feature"],
+    );
+    assert_eq!(code(&output), Some(2), "{}", stdout(&output));
+    assert!(
+        stderr(&output).contains("docs/adr/FIX-rule-x.md: ")
+            && stderr(&output)
+                .trim_end()
+                .ends_with("[sense/plain-rules:driver]"),
+        "{}",
+        stderr(&output)
+    );
+}
+
+/// The variables of the caller's git configuration naming only other keys, an attribute that names
+/// no driver with a command, an empty `XDG_CONFIG_HOME`, or the files `nuc`'s git reads anyway,
+/// leave the report as without them.
+/// Verifies: SEC-repository-commands-neutralized-or-refused
+#[test]
+fn an_environment_naming_no_driver_leaves_the_report_alone() {
+    let fixture = environment_fixture("sense-environment-none");
+    let plain = |vars: &[(&str, &str)]| fixture.nuc_with(vars, &["sense", "plain-rules", "HEAD"]);
+    let without = plain(&[]);
+    assert_eq!(code(&without), Some(0), "{}", stderr(&without));
+    let home_config = support::home().join(".config");
+    for vars in [
+        &[("GIT_CONFIG_PARAMETERS", "'user.name'='x'")][..],
+        &[
+            ("GIT_CONFIG_COUNT", "1"),
+            ("GIT_CONFIG_KEY_0", "user.name"),
+            ("GIT_CONFIG_VALUE_0", "x"),
+        ],
+        &[("XDG_CONFIG_HOME", home_config.to_str().expect("UTF-8"))],
+        &[("XDG_CONFIG_HOME", "")],
+    ] {
+        let output = plain(vars);
+        assert_eq!(code(&output), Some(0), "{vars:?}: {}", stderr(&output));
+        assert_eq!(stdout(&output), stdout(&without), "{vars:?}");
+    }
+    // A home whose configuration names a driver and an attribute for it, which `nuc`'s git reads
+    // through `HOME` as the bash's does through `XDG_CONFIG_HOME`; and an attribute that names no
+    // driver with a command.
+    let home = Fixture::new("sense-environment-home");
+    let config = home.root().join(".config").join("git");
+    std::fs::create_dir_all(&config).expect("directories");
+    std::fs::write(config.join("config"), "[filter \"lfs\"]\n\tclean = cat\n").expect("written");
+    std::fs::write(config.join("attributes"), "*.txt filter=lfs\n").expect("written");
+    let home_dir = home.root().to_str().expect("UTF-8");
+    let xdg = home.root().join(".config");
+    let binary = home.root().join("binary");
+    std::fs::write(&binary, "*.md binary\n").expect("written");
+    let parameters = format!(
+        "'core.attributesfile'='{}'",
+        binary.to_str().expect("UTF-8").replace('\\', "/")
+    );
+    for vars in [
+        &[
+            ("HOME", home_dir),
+            ("XDG_CONFIG_HOME", xdg.to_str().expect("UTF-8")),
+        ][..],
+        &[("GIT_CONFIG_PARAMETERS", &parameters)],
+    ] {
+        let output = plain(vars);
+        assert_eq!(code(&output), Some(0), "{vars:?}: {}", stderr(&output));
+        assert_eq!(stdout(&output), stdout(&without), "{vars:?}");
+    }
+}
+
 /// An external diff in the repository's configuration has the bash's git print what it writes for
 /// every path, so `tests-kept`, `plain-rules`, and `binding-adrs` are not decided on a change whose
 /// hunks decide their report, and run no driver.

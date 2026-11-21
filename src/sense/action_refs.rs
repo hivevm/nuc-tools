@@ -15,7 +15,7 @@ pub const SENSOR: Sensor = Sensor {
     name: "action-refs",
     since: Version(0, 1, 0),
     changes: &[],
-    reasons: &["require", "file", super::RELEASE],
+    reasons: &["require", "file", super::ENVIRONMENT, super::RELEASE],
 };
 
 /// The directory of the workflows.

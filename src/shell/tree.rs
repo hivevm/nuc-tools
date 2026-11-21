@@ -273,6 +273,8 @@ impl Tree {
                 }
             })
             .collect();
+        let hashed: Vec<&str> = paths.iter().map(String::as_str).collect();
+        git::refuse_attributes_under_caller(&self.root, &hashed)?;
         let mut args = vec!["hash-object", "--"];
         args.extend(paths.iter().map(String::as_str));
         let output = git::command(&self.root, &args)?.output().map_err(|e| {
@@ -430,6 +432,7 @@ impl Tree {
                      it — not decided"
                 ));
             }
+            git::refuse_attributes_under_caller(&self.root, &[&relative])?;
             let (code, out) =
                 git::status_and_output(&self.root, &["hash-object", "--", &relative])?;
             let blob = String::from_utf8_lossy(&out).trim_end().to_owned();

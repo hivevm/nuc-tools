@@ -25,6 +25,7 @@ pub const SENSOR: Sensor = Sensor {
         "name",
         "ref",
         super::DRIVER,
+        super::ENVIRONMENT,
         super::RELEASE,
     ],
 };

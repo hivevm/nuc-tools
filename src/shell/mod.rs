@@ -142,6 +142,9 @@ fn check(repo: Option<&Path>, format: Format) -> Result<u8, String> {
     // A hook rule decides in `nuc hook` alone: its ID is known, and it is in no `rules::ALL`, so
     // it runs never here.
     let config = config::read(&text, running()).map_err(|refusal| refusal.to_string())?;
+    // A command the caller's environment configures, which the bash's git runs and nuc's does not
+    // see (SEC-repository-commands-neutralized-or-refused).
+    git::refuse_environment(&tree.root)?;
     let selected = config::select(&config, rules::ALL);
     // Only what a rule turned on reads: an input no rule needs can neither refuse nor cost.
     let needs = |input: Input| selected.iter().any(|rule| rule.reads.contains(&input));

@@ -117,7 +117,10 @@ golden path and the test pattern an agent copies from are named here.
   ([SEC-git-cleared-without-lazy-fetch](adr/SEC-git-cleared-without-lazy-fetch.md)); and
   `git::diff` starts every diff, `diff-tree`, and `log -G` with `--no-ext-diff` and
   `--no-textconv`
-  ([SEC-repository-commands-neutralized-or-refused](adr/SEC-repository-commands-neutralized-or-refused.md)).
+  ([SEC-repository-commands-neutralized-or-refused](adr/SEC-repository-commands-neutralized-or-refused.md));
+  and `git::environment_driver` reads, once a run, whether the caller's environment names a filter,
+  a diff driver, or an external diff that the cleared git does not see: `nuc check` and every
+  sensor are then not decided, and `nuc hook pre-push` runs the checks.
   Its `Tree`, in `shell::tree`, reads every file and lists every directory the rules need, each
   resolved through one function that refuses a path outside the repository, and refuses as well, as
   not decided, one the bash would read differently from its bytes alone. `shell::hook` reads

@@ -172,8 +172,14 @@ fn pre_push(args: &[&str]) -> Result<u8, String> {
             .map(|object| drafts(&dir, object));
         refs.push((pushed.remote_ref.clone(), drafts));
     }
+    // A tree is clean only where git's status says so and the caller's environment names no
+    // command that status would run and nuc's git does not see
+    // (SEC-repository-commands-neutralized-or-refused): otherwise the checks run.
     let tree = match &root {
-        Some(_) if git::run(&dir, &["status", "--porcelain"])?.is_empty() => {
+        Some(root)
+            if git::environment_driver(root)?.is_none()
+                && git::run(&dir, &["status", "--porcelain"])?.is_empty() =>
+        {
             git::probe(&dir, &["rev-parse", "-q", "--verify", "HEAD^{tree}"])?
                 .map(|tree| line(&tree).to_owned())
         }
