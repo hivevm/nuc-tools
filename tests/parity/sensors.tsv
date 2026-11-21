@@ -1,5 +1,5 @@
 # The sensors nuc ports and the runs that compare them with the bash
-# (API-git-only-sensors-under-sense), read by scripts/lib/sensor-parity.sh. One row per run, three
+# (API-sensor-cores-ask-the-shell), read by scripts/lib/sensor-parity.sh. One row per run, three
 # fields separated by tabs: the sensor, the name after 'sensor-' of its script; the state it runs
 # on, 'tree' for each tree and variant of the corpus, or a function of
 # tests/parity/sensor-scenarios.sh that builds a fixture repository on each template tree of the

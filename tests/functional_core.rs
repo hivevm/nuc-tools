@@ -1,5 +1,5 @@
 //! The structural test of the shape of the code. Verifies: ARCH-rules-outcome-hooks-answer
-//! Verifies: API-git-only-sensors-under-sense
+//! Verifies: API-sensor-cores-ask-the-shell
 //!
 //! The library outside `src/shell/` names nothing of `functional_core.forbidden`, the list kept
 //! beside this test, and `src/main.rs` does nothing but call the shell. The source is read as
@@ -551,6 +551,176 @@ fn the_core_names_no_effect() {
         "the core has effects only src/shell/ may have:\n{}",
         found.join("\n")
     );
+}
+
+/// The names of the traits the code declares, `trait <name>`.
+fn declared_traits(code: &str) -> Vec<String> {
+    let chars: Vec<char> = code.chars().collect();
+    (0..chars.len())
+        .filter(|&i| word_at(&chars, i, "trait"))
+        .filter_map(|i| ident_from(&chars, i + "trait".len()).map(|(name, _)| name))
+        .collect()
+}
+
+/// The ranges of the code inside a `#[cfg(test)]` module, from its `mod` to its closing brace: an
+/// attribute counts only where `mod` follows it, past whitespace and other attributes.
+fn test_modules(code: &str) -> Vec<std::ops::Range<usize>> {
+    let chars: Vec<char> = code.chars().collect();
+    let mut ranges = Vec::new();
+    let mut i = 0;
+    while i < chars.len() {
+        let rest: String = chars[i..]
+            .iter()
+            .take(40)
+            .filter(|c| !c.is_whitespace())
+            .collect();
+        if rest.starts_with("#[cfg(test)]") {
+            // The `mod <name> {` the attribute stands on, and its matching brace.
+            if let Some(m) = attributed_item(&chars, i)
+                && word_at(&chars, m, "mod")
+                && let Some(open) = (m..chars.len()).find(|&k| chars[k] == '{' || chars[k] == ';')
+                && chars[open] == '{'
+            {
+                let mut depth = 0usize;
+                let mut end = chars.len();
+                for (k, c) in chars.iter().enumerate().skip(open) {
+                    match c {
+                        '{' => depth += 1,
+                        '}' => {
+                            depth -= 1;
+                            if depth == 0 {
+                                end = k + 1;
+                                break;
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                ranges.push(m..end);
+                i = end;
+                continue;
+            }
+        }
+        i += 1;
+    }
+    ranges
+}
+
+/// The index of the item the attribute that starts at `i` stands on: past the attribute's brackets,
+/// whitespace, and any further attributes.
+fn attributed_item(chars: &[char], mut i: usize) -> Option<usize> {
+    loop {
+        while chars.get(i).is_some_and(|c| c.is_whitespace()) {
+            i += 1;
+        }
+        if chars.get(i) != Some(&'#') {
+            return (i < chars.len()).then_some(i);
+        }
+        let open = (i..chars.len()).find(|&k| chars[k] == '[')?;
+        let mut depth = 0usize;
+        let mut end = None;
+        for (k, c) in chars.iter().enumerate().skip(open) {
+            match c {
+                '[' => depth += 1,
+                ']' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        end = Some(k + 1);
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+        i = end?;
+    }
+}
+
+/// The traits the code implements outside a `#[cfg(test)]` module, `impl <Trait> for <Type>`, by
+/// the last segment of the trait's path.
+fn implemented_traits(code: &str) -> Vec<String> {
+    let chars: Vec<char> = code.chars().collect();
+    let tests = test_modules(code);
+    let mut found = Vec::new();
+    for i in (0..chars.len()).filter(|&i| word_at(&chars, i, "impl")) {
+        if tests.iter().any(|range| range.contains(&i)) {
+            continue;
+        }
+        let Some(end) = (i..chars.len()).find(|&k| chars[k] == '{' || chars[k] == ';') else {
+            continue;
+        };
+        let header: Vec<char> = chars[i + "impl".len()..end].to_vec();
+        // The header with every generic list left out, an arrow's `>` no end of one, and its
+        // whitespace, line breaks included, read as one space.
+        let mut flat = String::new();
+        let mut depth = 0usize;
+        for (k, &c) in header.iter().enumerate() {
+            match c {
+                '<' => depth += 1,
+                '>' if k > 0 && header[k - 1] == '-' => {}
+                '>' => depth = depth.saturating_sub(1),
+                c if depth == 0 && c.is_whitespace() => flat.push(' '),
+                _ if depth == 0 => flat.push(c),
+                _ => {}
+            }
+        }
+        let flat = flat.split_whitespace().collect::<Vec<_>>().join(" ");
+        if let Some((trait_path, _)) = flat.split_once(" for ") {
+            let name = trait_path.trim().rsplit("::").next().unwrap_or_default();
+            found.push(name.trim_start_matches('!').to_owned());
+        }
+    }
+    found
+}
+
+/// Each trait the sensors' core declares, in `src/sense.rs` or under `src/sense/`, is implemented
+/// only in `src/shell/` or in the core's test code, a `tests.rs` or a `#[cfg(test)]` module: a core
+/// that asks the shell is found by its implementation there.
+/// Verifies: API-sensor-cores-ask-the-shell
+#[test]
+fn a_trait_of_the_sensors_core_is_implemented_only_by_the_shell() {
+    let src = root().join("src");
+    let mut core = rust_files(&src.join("sense"), None);
+    core.push(src.join("sense.rs"));
+    let mut traits = Vec::new();
+    for file in &core {
+        let source = fs::read_to_string(file).expect("a source is readable");
+        traits.extend(declared_traits(&code(&source)));
+    }
+    assert!(
+        traits.iter().any(|t| t == "Repo"),
+        "the test finds no trait of the core: {traits:?}"
+    );
+    let shell = src.join("shell");
+    let mut misplaced = Vec::new();
+    for file in rust_files(&src, None) {
+        if file.starts_with(&shell) || file.file_name().is_some_and(|name| name == "tests.rs") {
+            continue;
+        }
+        let source = fs::read_to_string(&file).expect("a source is readable");
+        for name in implemented_traits(&code(&source)) {
+            if traits.contains(&name) {
+                misplaced.push(format!("{}: impl {name}", file.display()));
+            }
+        }
+    }
+    assert!(
+        misplaced.is_empty(),
+        "a trait of the sensors' core implemented outside the shell: {misplaced:?}"
+    );
+}
+
+/// The reading finds a trait implemented outside a test module, and leaves one inside it.
+#[test]
+fn an_implementation_outside_a_test_module_is_found() {
+    let source = "pub trait Repo { fn x(&self); }\nimpl Repo for Real { fn x(&self) {} }\n\
+                  impl<'a> crate::sense::Repo for Other<'a> {}\n\
+                  #[cfg(test)]\nmod tests { impl Repo for Fake {} }\nimpl Real { fn y() {} }\n\
+                  impl<F: FnMut(u8) -> u8> Repo for W<F> {}\nimpl Repo\n    for Wrapped {}\n\
+                  #[cfg(test)]\nfn helper() {}\nmod inner { impl Repo for Hidden {} }\n";
+    let code = code(source);
+    assert_eq!(declared_traits(&code), ["Repo"]);
+    assert_eq!(implemented_traits(&code), ["Repo"; 5]);
 }
 
 #[test]

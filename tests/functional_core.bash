@@ -23,6 +23,13 @@ read_tab_pair
 awk_fields
 # The bytes as a command substitution gives them.
 substituted
+# The number awk reads at the start of a field.
+awk_number
+# A hunk's head as each awk pass of the bash sensors reads it: tests-kept's first `+<digits>`,
+# binding-adrs' sed pattern, plain-rules' third field.
+hunk_first_added
+hunk_new_side
+hunk_third_field
 
 # `find` and `contains` of src/bash.rs are no reader: they read no byte otherwise than Rust, and
 # the names are taken by `rules::find` and a method of src/glob.rs. The test reads names only, so

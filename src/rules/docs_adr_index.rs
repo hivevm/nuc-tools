@@ -286,7 +286,9 @@ fn file_findings(file: Option<&[u8]>, row: &Row) -> Vec<Finding> {
         )),
         Some(_) => {}
     }
-    let applies = bash::trim(after_last_label(header.field("Applies to").unwrap_or(b"")));
+    let applies = bash::trim(adr::after_applies_label(
+        header.field("Applies to").unwrap_or(b""),
+    ));
     if applies.is_empty() {
         found.push(finding(
             "noapplies",
@@ -312,15 +314,6 @@ fn file_findings(file: Option<&[u8]>, row: &Row) -> Vec<Finding> {
         ));
     }
     found
-}
-
-/// The bytes after the last `**Applies to:**` of the line, as `${line##*\*\*Applies to:\*\*}`.
-fn after_last_label(line: &[u8]) -> &[u8] {
-    let label: &[u8] = b"**Applies to:**";
-    (0..=line.len().saturating_sub(label.len()))
-        .rev()
-        .find(|&i| line[i..].starts_with(label))
-        .map_or(line, |i| &line[i + label.len()..])
 }
 
 #[cfg(test)]

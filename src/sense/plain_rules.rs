@@ -8,9 +8,9 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use super::Sensor;
+use super::{Refusal, Sensor};
 use crate::adr;
-use crate::bash::{awk_lines, contains, find, is_space};
+use crate::bash::{self, awk_lines, contains, find, is_space};
 use crate::config::Version;
 
 /// The sensor, which reports from v0.8.0, the release that brings it.
@@ -26,6 +26,7 @@ pub const SENSOR: Sensor = Sensor {
         "ref",
         super::DRIVER,
         super::ENVIRONMENT,
+        super::HUNK,
         super::RELEASE,
     ],
 };
@@ -67,24 +68,7 @@ pub fn is_rule_file(path: &[u8], release: Version) -> bool {
     if path == b"AGENTS.md" {
         return true;
     }
-    let Some(name) = path.strip_prefix(b"docs/adr/") else {
-        return false;
-    };
-    if name.contains(&b'/') {
-        return false;
-    }
-    let Some(stem) = name.strip_suffix(b".md") else {
-        return false;
-    };
-    if release >= REQUIRE {
-        // `[A-Za-z]+-[^/]*\.md`
-        let letters = stem.iter().take_while(|b| b.is_ascii_alphabetic()).count();
-        letters > 0 && stem.get(letters) == Some(&b'-')
-    } else {
-        // `([0-9]{4}-[^/]*|draft-[^/]*)\.md`
-        (stem.len() >= 5 && stem[..4].iter().all(u8::is_ascii_digit) && stem[4] == b'-')
-            || stem.starts_with(b"draft-")
-    }
+    adr::is_listed_adr(path, release >= REQUIRE)
 }
 
 /// The files the change touches as `rule_stream` lists them: the last path of each line of
@@ -190,39 +174,22 @@ pub fn filter_drivers(config: &[u8]) -> BTreeSet<Vec<u8>> {
     active
 }
 
-/// The lines a diff of `git diff -U0` adds, by the new side of each hunk header.
-pub fn added_lines(diff: &[u8]) -> BTreeSet<usize> {
+/// The lines a diff of `git diff -U0` adds, by the new side of each hunk header as the bash's awk
+/// reads its third field; not decided on a number awk reads inexactly.
+pub fn added_lines(diff: &[u8]) -> Result<BTreeSet<usize>, Refusal> {
+    let overflow = super::hunk_refusal(SENSOR.name);
     let mut added = BTreeSet::new();
     for line in awk_lines(diff) {
-        if !line.starts_with(b"@@ ") {
-            continue;
-        }
-        let fields: Vec<&[u8]> = line
-            .split(|&b| b == b' ' || b == b'\t')
-            .filter(|f| !f.is_empty())
-            .collect();
-        let Some(new) = fields.get(2) else {
+        let Some((start, count)) = bash::hunk_third_field(line).map_err(&overflow)? else {
             continue;
         };
-        let mut parts = new.split(|&b| b == b',');
-        let start = awk_number(
-            parts
-                .next()
-                .map_or(&[][..], |p| p.get(1..).unwrap_or_default()),
-        );
-        let count = parts.next().map_or(1, awk_number);
-        added.extend(start..start + count);
+        // `start + count`, the bound of awk's loop, one past the last line it adds: kept within
+        // what awk holds exactly, one value early at worst.
+        let end = bash::awk_sum(&[start, count]).map_err(&overflow)?;
+        let usize_of = |n: u64| usize::try_from(n).map_err(|_| overflow(bash::Overflow));
+        added.extend(usize_of(start)?..usize_of(end)?);
     }
-    added
-}
-
-/// The number awk reads at the start of the bytes, 0 where none stands.
-fn awk_number(bytes: &[u8]) -> usize {
-    let digits = bytes.iter().take_while(|b| b.is_ascii_digit()).count();
-    std::str::from_utf8(&bytes[..digits])
-        .ok()
-        .and_then(|d| d.parse().ok())
-        .unwrap_or(0)
+    Ok(added)
 }
 
 /// Every line of the file, as an untracked file adds them.
@@ -1452,8 +1419,27 @@ mod tests {
     fn the_added_lines_are_the_new_side_of_each_hunk() {
         let diff =
             b"diff --git a/x b/x\n@@ -1,2 +3,2 @@ ctx\n+a\n@@ -9 +12 @@\n@@ -20,3 +30,0 @@\n";
-        assert_eq!(added_lines(diff), BTreeSet::from([3, 4, 12]));
+        assert_eq!(added_lines(diff).unwrap(), BTreeSet::from([3, 4, 12]));
         assert_eq!(every_line(b"a\nb"), BTreeSet::from([1, 2]));
+    }
+
+    #[test]
+    fn a_hunk_head_awk_reads_inexactly_is_not_decided() {
+        for diff in [
+            &b"@@ -1 +99999999999999999999 @@\n"[..],
+            b"@@ -1 +9007199254740993 @@\n",
+            b"@@ -1 +9007199254740992,5 @@\n",
+        ] {
+            let refusal = added_lines(diff).unwrap_err();
+            assert!(
+                refusal.to_string().ends_with("[sense/plain-rules:hunk]"),
+                "{refusal}"
+            );
+        }
+        assert_eq!(
+            added_lines(b"@@ -1 +9007199254740990,2 @@\n").unwrap(),
+            BTreeSet::from([9007199254740990, 9007199254740991])
+        );
     }
 
     #[test]

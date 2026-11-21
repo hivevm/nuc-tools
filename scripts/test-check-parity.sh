@@ -2,7 +2,7 @@
 #
 # Self-test of scripts/check-parity.sh.
 # Verifies: TEST-parity-harness TEST-hook-scenarios-on-bash-hooks Q-1 Q-2
-# Verifies: API-git-only-sensors-under-sense
+# Verifies: API-sensor-cores-ask-the-shell
 #
 # The comparison cases feed the harness pairs of outputs through '--compare': pairs that differ in
 # one finding, in one exit status, by one bash message the table does not know, or by a line nuc
@@ -250,7 +250,7 @@ expect fail "a reason of nuc other than the bash's is a difference" "nuc gives t
   compare "$(bash_out keyed-other "$MALFORMED [docs/template-release:version]")" 1 \
   "$(nuc_out keyed-other "README.md:5: docs/template-release: $MALFORMED_TEXT [docs/template-release:line]")" 1
 
-# The sensors (API-git-only-sensors-under-sense): the standard output byte for byte, and an exit
+# The sensors (API-sensor-cores-ask-the-shell): the standard output byte for byte, and an exit
 # that differs only where tests/parity/sensor-exits.tsv lists it.
 # shellcheck disable=SC2317,SC2329 # run through expect
 sense() { bash "$HARNESS" --sense-compare "$@"; }
@@ -311,6 +311,65 @@ expect pass "a tree that names no release and lacks the sensor still compares it
   tree_rows "$work/st-newest" "$work/st-none"
 expect fail "a tree that names its release is compared with its own sensor" "the standard output differs" \
   tree_rows "$work/st-newest" "$work/st-old"
+
+# The rows of other states run SENSOR_JOBS at once, and report in the order of the trees and the
+# rows, whatever order they end in: the first row sleeps, so that with eight jobs it ends last.
+printf '%s\n' 'st_slow() { sleep 0.5; }' 'st_built() { :; }' 'st_broken() { return 1; }' \
+  > "$work/st-scen.sh"
+# scenarios_run <name> <jobs> <table> <tree>... — the rows of the table on the trees, with the
+# jobs; the output and the exit into st-scen-<name>.out.
+# shellcheck disable=SC2317,SC2329 # run through check
+scenarios_run() {
+  local name="$1" jobs="$2" table="$3"
+  shift 3
+  (
+    eval "$(sed -n '/^release_of() {/,/^}/p' "$HARNESS")"
+    # shellcheck source=/dev/null # the library, read as the harness reads it
+    source "$ROOT/scripts/lib/sensor-parity.sh"
+    # The library's own names of its tables, set after it read the defaults.
+    # shellcheck disable=SC2034 # read by load_sensor_tables of the library
+    SENSOR_TABLE="$table" SENSOR_SCENARIOS="$work/st-scen.sh"
+    load_sensor_tables || exit 2
+    mkdir -p "$work/st-scen-work-$name"
+    SENSOR_JOBS="$jobs" sensor_scenarios "$work/st-nuc" "$work/st-scen-work-$name" "$@"
+  ) > "$work/st-scen-$name.out" 2>&1
+  echo "exit $?" >> "$work/st-scen-$name.out"
+}
+# Two rows that differ on the old tree, and one whose fixture cannot be built, on both trees.
+printf 'x\tst_slow\t-\nx\tst_broken\t-\nx\tst_built\t-\n' > "$work/st-scen-mixed.tsv"
+scenarios_run mixed-1 1 "$work/st-scen-mixed.tsv" "$work/st-old" "$work/st-newest"
+scenarios_run mixed-8 8 "$work/st-scen-mixed.tsv" "$work/st-old" "$work/st-newest"
+check "one scenario job and eight report the same, in the same order" \
+  cmp -s "$work/st-scen-mixed-1.out" "$work/st-scen-mixed-8.out"
+check "the scenarios fail where one differs or cannot be built" \
+  grep -qx 'exit 1' "$work/st-scen-mixed-8.out"
+# scenarios_ordered — whether, with eight jobs, the old tree's slow row comes before its last row,
+# and both before the newest tree's broken state.
+# shellcheck disable=SC2317,SC2329 # run through check
+scenarios_ordered() {
+  local out="$work/st-scen-mixed-8.out" a b c
+  a="$(grep -n 'v0.6.2, state st_slow' "$out" | head -n 1 | cut -d: -f1)"
+  b="$(grep -n 'v0.6.2, state st_built' "$out" | head -n 1 | cut -d: -f1)"
+  c="$(grep -n 'v0.12.0, sensor x — the state st_broken could not be built' "$out" | cut -d: -f1)"
+  [[ -n "$a" && -n "$b" && -n "$c" ]] && ((a < b && b < c))
+}
+check "the scenarios report in the order of the trees and the rows" scenarios_ordered
+check "the scenarios leave no fixture behind" \
+  bash -c "[[ -z \"\$(ls -A \"$work/st-scen-work-mixed-8/sensor-scenarios\")\" ]]"
+# A fixture that cannot be built fails the run by itself, beside a row that agrees.
+printf 'x\tst_built\t-\nx\tst_broken\t-\n' > "$work/st-scen-broken.tsv"
+scenarios_run broken 8 "$work/st-scen-broken.tsv" "$work/st-newest"
+check "a fixture that cannot be built fails the scenarios by itself" \
+  grep -qx 'exit 1' "$work/st-scen-broken.out"
+check "the run names the state that could not be built" \
+  grep -q 'the state st_broken could not be built' "$work/st-scen-broken.out"
+# Rows that agree pass, and the run counts them.
+printf 'x\tst_slow\t-\nx\tst_built\t-\n' > "$work/st-scen-agree.tsv"
+scenarios_run agree 8 "$work/st-scen-agree.tsv" "$work/st-newest"
+check "scenarios that agree pass" grep -qx 'exit 0' "$work/st-scen-agree.out"
+check "the run counts the scenarios it compared" \
+  grep -qx 'Parity check: the sensor scenarios — 2 run(s), the same from bash and nuc.' \
+  "$work/st-scen-agree.out"
 
 # Both sides run in the tree, so that a path an argument names from where the sensor runs, as
 # --hand-off's, names the same file there: each side prints where it runs, the other where it must.
@@ -1104,6 +1163,50 @@ expect pass "a function no tree has, whose check comes at a release ahead of the
   run_releases "$changed" "$work/r-ahead.tsv"
 expect pass "a change at a release ahead of the corpus is not compared" "" \
   run_releases "$changed" "$(releases "$work/r-listed-ahead.tsv" v0.6.0,v9.0.0)"
+# A sensor's row holds the libraries its script sources (API-sensor-cores-ask-the-shell).
+# sensor_repo <name> <release> <lines of git.sh>... — a tree of the template whose
+# scripts/sensor-x.sh sources scripts/lib/git.sh, which holds the lines.
+sensor_repo() {
+  local name="$1" release="$2"
+  shift 2
+  source_repo "$name" "- **Template release:** $release" > /dev/null
+  printf '# Setup\n' > "$work/src-$name/TEMPLATE-SETUP.md"
+  mkdir -p "$work/src-$name/scripts/lib"
+  # shellcheck disable=SC2016 # the script is the tree's
+  printf '%s\n' '#!/usr/bin/env bash' '# shellcheck source=lib/git.sh' \
+    'source "$(dirname "${BASH_SOURCE[0]}")/lib/git.sh"' 'echo x' > "$work/src-$name/scripts/sensor-x.sh"
+  printf '%s\n' "$@" > "$work/src-$name/scripts/lib/git.sh"
+  git -C "$work/src-$name" add -A
+  git -C "$work/src-$name" -c user.name=F -c user.email=f@example.invalid -c core.hooksPath=/dev/null commit -qm sensor
+  git -C "$work/src-$name" rev-parse HEAD > "$work/src-$name.commit"
+}
+# sensor_releases <file> <rule> <changed> — a table of releases with the one row of the sensor.
+sensor_releases() {
+  printf '# One sensor.\n%s\tscripts/sensor-x.sh\t-\t%s\n' "$2" "$3" > "$1"
+  echo "$1"
+}
+sensor_repo sens-old v0.5.0 ': one'
+sensor_repo sens-new v0.6.0 ': two'
+sensor_repo sens-reworded v0.6.0 '# Reworded.' ': one'
+check "the library of the changed tree differs in a line that is no comment" \
+  grep -qx ': two' "$work/src-sens-new/scripts/lib/git.sh"
+check "the library of the reworded tree differs from the old one in a comment" \
+  grep -qx '# Reworded.' "$work/src-sens-reworded/scripts/lib/git.sh"
+check "the old tree's library has no such comment" \
+  test "$(cat "$work/src-sens-old/scripts/lib/git.sh")" = ': one'
+check "the sensor's script is the same in both trees" \
+  cmp -s "$work/src-sens-old/scripts/sensor-x.sh" "$work/src-sens-new/scripts/sensor-x.sh"
+lib_changed="$(corpus "$work/sens-changed.toml" sens-old sens-new)"
+expect fail "a library a sensor sources that changed at a release its row lacks fails and names the library" \
+  "r-lib-unlisted.tsv says -; at v0.6.0 in scripts/lib/git.sh" \
+  run_releases "$lib_changed" "$(sensor_releases "$work/r-lib-unlisted.tsv" sense/x -)"
+expect pass "a change of a library a sensor's row lists passes" "" \
+  run_releases "$lib_changed" "$(sensor_releases "$work/r-lib-listed.tsv" sense/x v0.6.0)"
+expect pass "a change of a library's comments alone is no change" "" \
+  run_releases "$(corpus "$work/sens-reworded.toml" sens-old sens-reworded)" \
+  "$(sensor_releases "$work/r-lib-reworded.tsv" sense/x -)"
+expect pass "the libraries count for a sensor's row alone" "" \
+  run_releases "$lib_changed" "$(sensor_releases "$work/r-lib-rule.tsv" docs/x -)"
 printf 'docs/template-release\tREADME.md\tcheck_template_release\t-\n' > "$work/r-malformed.tsv"
 expect fail "a malformed row of the table of releases is refused" "a row needs a rule ID" \
   run_releases "$c" "$work/r-malformed.tsv"

@@ -1,7 +1,8 @@
-//! The sensors `nuc sense` ports from the template (API-git-only-sensors-under-sense): each a pure
-//! function of the values the shell gathered, which returns its report, the bytes the bash sensor
-//! of the tree's release writes on the standard output, or a refusal. A sensor reads no file and
-//! runs no process; the shell reads, prints, and exits (API-command-line-with-sense).
+//! The sensors `nuc sense` ports from the template (API-sensor-cores-ask-the-shell): each a
+//! function of the values the shell gathered, or of the answers to a trait only the shell
+//! implements where its bash reads by each answer, which returns its report, the bytes the bash
+//! sensor of the tree's release writes on the standard output, or a refusal. A sensor reads no file
+//! and runs no process; the shell reads, prints, and exits (API-command-line-with-sense).
 
 pub mod action_refs;
 pub mod backlog;
@@ -32,7 +33,7 @@ pub struct Sensor {
 }
 
 /// Every sensor `nuc sense` knows. The template's sensors that need a process other than git, or
-/// the network, are none of them (API-git-only-sensors-under-sense).
+/// the network, are none of them (API-sensor-cores-ask-the-shell).
 pub const ALL: &[Sensor] = &[
     action_refs::SENSOR,
     backlog::SENSOR,
@@ -102,7 +103,7 @@ pub fn release(sensor: &Sensor, carried: Option<Carried>) -> Result<Version, Ref
 ///   bash of v0.10.0 on refuses it, where an earlier bash takes it as a base or a head, which names
 ///   no commit, or ignores it past them;
 /// - an argument past `most` is refused where `refuses_extra`, from the release whose bash refuses
-///   it, and ignored before, as the bash before ignores it (API-git-only-sensors-under-sense).
+///   it, and ignored before, as the bash before ignores it (API-sensor-cores-ask-the-shell).
 pub fn positional<'a, 'b>(
     rest: &'b [&'a str],
     most: usize,
@@ -118,6 +119,22 @@ pub fn positional<'a, 'b>(
 /// run on a diff, a filtered file, or a hash of the working tree, which `nuc`'s git does not see
 /// (SEC-repository-commands-neutralized-or-refused).
 pub const ENVIRONMENT: &str = "environment";
+
+/// The reason of a sensor that meets a hunk's head whose number, or awk's sum of its numbers, runs
+/// past 2^53, which awk's double does not hold exactly: git writes none, and nuc does not decide
+/// one.
+pub const HUNK: &str = "hunk";
+
+/// The refusal of the sensor for a hunk's head whose number awk reads inexactly.
+pub fn hunk_refusal(sensor: &'static str) -> impl Fn(crate::bash::Overflow) -> Refusal {
+    move |_| Refusal {
+        sensor,
+        reason: HUNK,
+        message: "a hunk's head whose number, or a sum of its numbers, runs past 2^53, which awk \
+                  reads inexactly"
+            .to_owned(),
+    }
+}
 
 /// The reason of a sensor that refuses a path whose diff the bash's git reads through a driver of
 /// the repository (SEC-repository-commands-neutralized-or-refused).

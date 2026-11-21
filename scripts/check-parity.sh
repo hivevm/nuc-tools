@@ -17,13 +17,14 @@
 #
 # The comparisons run in parallel, one job per processor or PARITY_JOBS, and their outputs follow
 # in the order of the corpus and the variants, after what the preparation of the trees reports,
-# such as a refused tree. Every run computes every tree and variant anew. With --shard <k>/<n>, a
-# run makes only its share of the comparisons: each tree as pinned and each variant for it is one,
-# in the order of the corpus, each tree as pinned first and then its variants, and the n shards
-# take contiguous slices of that sequence of about equal cost. A comparison costs the 'cost' of its
-# tree in the corpus. WHOLE_COST, the seconds of the parts that read all the template's trees at
-# once, the pins of the copied fixture tables, the releases a rule's check changed at, and the
-# hook scenarios, which run in the last shard alone, n/n, is appended at the end of the sequence.
+# such as a refused tree; so do the sensor scenarios, in the order of the trees and the rows. Every
+# run computes every tree and variant anew. With --shard <k>/<n>, a run makes only its share of the
+# comparisons: each tree as pinned and each variant for it is one, in the order of the corpus, each
+# tree as pinned first and then its variants, and the n shards take contiguous slices of that
+# sequence of about equal cost. A comparison costs the 'cost' of its tree in the corpus.
+# WHOLE_COST, the seconds of the parts that read all the template's trees at once, the pins of the
+# copied fixture tables, the releases a rule's check changed at, the sensor scenarios, and the hook
+# scenarios, which run in the last shard alone, n/n, is appended at the end of the sequence.
 # The deal reads the corpus and the variants alone, so that every shard deals the same, a tree it
 # refuses or cannot fetch included. A slice that starts inside a tree also compares that tree as
 # pinned, since its variants are measured against it, but reports that comparison only where it is
@@ -58,10 +59,12 @@
 # order of their releases. A change the table does not list, or one it lists that the trees do not
 # show, fails the harness and names the rule; tests/releases.rs holds the rules to the table
 # (API-version-coupling-hook-defaults). A tree whose script lacks the function has no such check,
-# and its body counts as empty, so the release a check comes or goes at is a change. A release the
-# table names that is later than every tree of the template is ahead of the corpus and not
-# compared; a function no tree has fails, unless its row names such a release. With fewer than two
-# trees of the template there is nothing to compare. A helper the function calls is not compared.
+# and its body counts as empty, so the release a check comes or goes at is a change. A row of a
+# sensor compares the libraries under scripts/lib/ its script sources as well, each whole, and a
+# change of one the table does not list names the library. A release the table names that is
+# later than every tree of the template is ahead of the corpus and not compared; a function no
+# tree has fails, unless its row names such a release. With fewer than two trees of the template
+# there is nothing to compare. A helper the function calls is not compared.
 #
 # Before the comparisons, each blob of tests/tables.blobs, the pins of the copies of the
 # template's fixture tables under tests/tables/, is held to the blob the template's tag of its
@@ -70,7 +73,7 @@
 #
 # Each comparison also runs the sensors nuc ports on the tree or variant, and the last shard runs
 # the sensor scenarios on the template's trees, through scripts/lib/sensor-parity.sh
-# (API-git-only-sensors-under-sense).
+# (API-sensor-cores-ask-the-shell).
 #
 # Then the hook scenarios run on the template's trees of the corpus, through
 # scripts/lib/hook-parity.sh (TEST-hook-scenarios-on-bash-hooks): each scenario of
@@ -98,8 +101,9 @@
 # --compare compares one pair of outputs, and --sense-compare one pair of a sensor's, for
 # scripts/test-check-parity.sh. PARITY_TABLE names
 # another normalization table, PARITY_RELEASES another table of releases, PARITY_TABLE_BLOBS
-# another list of the blobs of the copied fixture tables, PARITY_JOBS the number of comparisons
-# that run at once, and PARITY_WHOLE_COST other seconds for the parts the last shard alone runs.
+# another list of the blobs of the copied fixture tables, PARITY_JOBS the number of comparisons,
+# and of sensor scenarios, that run at once, and PARITY_WHOLE_COST other seconds for the parts the
+# last shard alone runs.
 # Exit code 0 when every repository and variant agrees, 1 on a difference, a refused tree, a
 # variant that fits no tree or does not fire, a cache that cannot be filled, or a pin of a copied
 # table the template's tag does not bear out, 2 on a missing or malformed list of pins, a malformed
@@ -404,7 +408,8 @@ jobs_max="${PARITY_JOBS:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 1)}"
 # alone runs, appended at the end of the sequence: PARITY_WHOLE_COST, or WHOLE_COST. Measured on a
 # runner of CI with PARITY_JOBS=4, as tests/parity/corpus.toml measures the cost of a tree, the
 # hook scenarios took 129 to 155 s in six runs, the pins of the copied tables and the releases a
-# few more.
+# few more. The sensor scenarios, which ran one at a time then, run PARITY_JOBS at once since; the
+# cost is not measured again on CI.
 WHOLE_COST=150
 whole_cost="${PARITY_WHOLE_COST:-$WHOLE_COST}"
 [[ "$whole_cost" =~ ^[0-9]+(\.[0-9]+)?$ ]] || die "PARITY_WHOLE_COST is '$whole_cost', not a number of seconds"
@@ -519,6 +524,15 @@ check_body() {
     on && $0 == "}" { done = 1; exit }
     END { exit !done }
   ' "$1"
+}
+
+# sourced_libs <script> — the libraries under scripts/lib/ that the script sources, as its lines
+# that are no comment name them with 'source' or '.', each once (API-sensor-cores-ask-the-shell: a
+# change of a library a sensor sources counts). What a library sources in turn is not followed: no
+# sensor of the template sources a library that does.
+sourced_libs() {
+  [[ -f "$1" ]] || return 0
+  grep -E '^[[:space:]]*(source|\.)[[:space:]]' "$1" | grep -oE 'lib/[A-Za-z0-9_.-]+\.sh' | sort -u
 }
 
 # at_least_floor <vX.Y.Z> — whether the release is FLOOR or later.
@@ -909,14 +923,39 @@ if ((whole && ${#template_trees[@]} >= 2)); then
   mapfile -t template_trees < <(printf '%s\n' "${template_trees[@]}" | sort -V -k1,1)
   for row in "${release_rows[@]}"; do
     read -r r_rule r_script r_function r_changed <<< "$row"
-    changed=() previous="" first=1 present=0
+    changed=() first=1 present=0 why=()
+    declare -A previous=() current=()
     for tree in "${template_trees[@]}"; do
       t_release="${tree%% *}" t_dir="${tree#* }"
+      current=()
       # A release whose script has no such function has no such check yet, or no longer: its body
       # is empty, so that the release it comes or goes at is a change.
       if body="$(check_body "$t_dir/$r_script" "$r_function")"; then present=1; else body=""; fi
-      ((first)) || [[ "$body" == "$previous" ]] || changed+=("$t_release")
-      previous="$body" first=0
+      current["$r_script"]="$body"
+      # A sensor's row holds the libraries its script sources too, each whole, comments left out.
+      if [[ "$r_rule" == sense/* ]]; then
+        while IFS= read -r lib; do
+          current["scripts/$lib"]="$(check_body "$t_dir/scripts/$lib" - || true)"
+        done < <(sourced_libs "$t_dir/$r_script")
+      fi
+      parts=()
+      for part in "${!previous[@]}" "${!current[@]}"; do
+        [[ " ${parts[*]} " == *" $part "* ]] || parts+=("$part")
+      done
+      moved=()
+      for part in "${parts[@]}"; do
+        [[ -v "previous[$part]" && -v "current[$part]" && "${previous[$part]}" == "${current[$part]}" ]] \
+          || moved+=("$part")
+      done
+      if ((!first)) && ((${#moved[@]})); then
+        changed+=("$t_release")
+        mapfile -t moved < <(printf '%s\n' "${moved[@]}" | sort)
+        printf -v joined '%s, ' "${moved[@]}"
+        why+=("$t_release in ${joined%, }")
+      fi
+      previous=()
+      for part in "${!current[@]}"; do previous["$part"]="${current[$part]}"; done
+      first=0
     done
     # A release the row names that is later than every tree of the template in the corpus is ahead
     # of the corpus: it is not compared until a tree of it is pinned.
@@ -940,7 +979,11 @@ if ((whole && ${#template_trees[@]} >= 2)); then
     r_changed="$(IFS=,; echo "${listed[*]:--}")"
     got="$(IFS=,; echo "${changed[*]:--}")"
     if [[ "$got" != "$r_changed" ]]; then
-      echo "Parity check: $r_rule — its bash check changed at $got across the template's trees of the corpus, where ${RELEASES#"$ROOT/"} says $r_changed" >&2
+      parts_named=""
+      for entry in "${why[@]}"; do
+        [[ ",$r_changed," == *",${entry%% *},"* ]] || parts_named+="; at ${entry}"
+      done
+      echo "Parity check: $r_rule — its bash check changed at $got across the template's trees of the corpus, where ${RELEASES#"$ROOT/"} says $r_changed$parts_named" >&2
       failed=1
     fi
   done
@@ -949,9 +992,9 @@ fi
 tree_dirs=()
 for tree in "${template_trees[@]}"; do tree_dirs+=("${tree#* }"); done
 
-# The sensor scenarios, on the template's trees of the corpus (API-git-only-sensors-under-sense).
+# The sensor scenarios, on the template's trees of the corpus (API-sensor-cores-ask-the-shell).
 if ((whole)); then
-  sensor_scenarios "$nuc" "$work" "${tree_dirs[@]}" || failed=1
+  SENSOR_JOBS="$jobs_max" sensor_scenarios "$nuc" "$work" "${tree_dirs[@]}" || failed=1
 fi
 
 # The hook scenarios, on the template's trees of the corpus (TEST-hook-scenarios-on-bash-hooks).

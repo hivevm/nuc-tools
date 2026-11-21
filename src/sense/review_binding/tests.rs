@@ -176,7 +176,7 @@ fn the_arguments_read_as_the_bash_of_each_release_reads_them() {
     // `--hand-off` only before the base and the head.
     assert_eq!(parse(&["main", "--hand-off", "h.md"], NEWEST), None);
     assert_eq!(parse(&["--hand-off", "a", "--hand-off", "b"], V0_5), None);
-    // `--root` anywhere, as API-git-only-sensors-under-sense refuses it.
+    // `--root` anywhere, as API-sensor-cores-ask-the-shell refuses it.
     assert_eq!(parse(&["--hand-off", "--root"], V0_5), None);
     assert_eq!(parse(&["main", "work", "--root"], V0_5), None);
     // A third positional argument: ignored before v0.10.0, refused from it.

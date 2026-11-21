@@ -35,6 +35,7 @@ pub const SENSOR: Sensor = Sensor {
         "submodule",
         super::DRIVER,
         super::ENVIRONMENT,
+        super::HUNK,
         super::RELEASE,
     ],
 };
@@ -160,13 +161,8 @@ pub fn is_adr_name(name: &str, release: Version) -> bool {
 /// Of the lines `git ls-tree -r --name-only` lists under `docs/adr/` at a head, those
 /// `ADR_FILE_RE` matches, as git quotes them: a name git quotes matches none.
 pub fn listed_adrs(ls_tree: &[u8], release: Version) -> Vec<Vec<u8>> {
-    let pattern = if release >= NAMED {
-        regex!(r"(?-u)^docs/adr/[A-Za-z]+-[^/]*\.md$")
-    } else {
-        regex!(r"(?-u)^docs/adr/([0-9]{4}-[^/]*|draft-[^/]*)\.md$")
-    };
     bash::sed_lines(bash::substituted(ls_tree))
-        .filter(|line| pattern.is_match(line))
+        .filter(|line| adr::is_listed_adr(line, release >= NAMED))
         .map(<[u8]>::to_vec)
         .collect()
 }
@@ -192,14 +188,50 @@ pub struct Record {
     pub index: Vec<u8>,
 }
 
-/// The report, as the bash of the release writes it on the standard output. `diffed` gives the file
-/// at a path and its diff, asked only where the bash runs `checked` on that path.
+/// The file and the diff of each path [`checked_paths`] names, by its path.
+pub type Diffs = BTreeMap<Vec<u8>, Diffed>;
+
+/// The paths the bash runs `checked` on, each once, in the order its loop over the ADRs first
+/// reaches them: a changed path that an ADR in force binds by its checks, where no path of the
+/// same *Applies to* without checks matched it first. Which paths these are depends on the record
+/// and the paths alone, never on a diff, so the shell reads exactly these before the report
+/// (API-sensor-cores-ask-the-shell). Named paths are read for no checks.
+pub fn checked_paths(release: Version, listing: &Listing, record: &Record) -> Vec<Vec<u8>> {
+    let Listing::Changed { paths, .. } = listing else {
+        return Vec::new();
+    };
+    let mut checked: Vec<Vec<u8>> = Vec::new();
+    for adr in &record.adrs {
+        let text = Text::of(&adr.text);
+        if !text.in_force() {
+            continue;
+        }
+        let applies = text.field_line(b"Applies to").unwrap_or_default();
+        let bound = bound_paths(applies, release);
+        for changed in paths {
+            // The first bound path that matches decides whether `checked` runs: one without checks
+            // binds and ends the search, one with checks reads the file's diff.
+            if let Some(path) = bound
+                .iter()
+                .find(|path| path.matches(changed, false, release))
+                && path.checks.is_some()
+                && !checked.contains(changed)
+            {
+                checked.push(changed.clone());
+            }
+        }
+    }
+    checked
+}
+
+/// The report, as the bash of the release writes it on the standard output. `diffs` holds the file
+/// and the diff of each path [`checked_paths`] names, which the shell read for it.
 pub fn report(
     release: Version,
     sections: bool,
     listing: &Listing,
     record: &Record,
-    diffed: &mut dyn FnMut(&[u8]) -> Result<Diffed, Refusal>,
+    diffs: &Diffs,
 ) -> Result<Vec<u8>, Refusal> {
     let mut out = Vec::new();
     let sections = sections && release >= OPTIONS;
@@ -221,7 +253,7 @@ pub fn report(
         finish(&mut out, release, sections, record, &[]);
         return Ok(out);
     }
-    let (found, files) = bind(&record.adrs, paths, named, release, diffed)?;
+    let (found, files) = bind(&record.adrs, paths, named, release, diffs)?;
     let (hint, hint_list) = if sections {
         (
             "The ADRs whose Applies to is prose follow below.",
@@ -268,7 +300,7 @@ fn bind<'r>(
     paths: &[Vec<u8>],
     named: bool,
     release: Version,
-    diffed: &mut dyn FnMut(&[u8]) -> Result<Diffed, Refusal>,
+    diffs: &Diffs,
 ) -> Result<(Vec<Vec<u8>>, Vec<&'r Adr>), Refusal> {
     let mut touched: BTreeMap<Vec<u8>, Vec<u8>> = BTreeMap::new();
     let mut found = Vec::new();
@@ -294,8 +326,10 @@ fn bind<'r>(
                     break;
                 };
                 if !touched.contains_key(changed) {
-                    let got = diffed(changed)?;
-                    touched.insert(changed.clone(), held_in_hunks(&got, release));
+                    let got = diffs
+                        .get(changed)
+                        .expect("the shell read every path checked_paths names");
+                    touched.insert(changed.clone(), held_in_hunks(got, release)?);
                 }
                 if in_checks(&touched[changed], checks) {
                     hits.push(changed);
@@ -306,7 +340,7 @@ fn bind<'r>(
         if hits.is_empty() {
             continue;
         }
-        let mut line = id(&adr.path, release);
+        let mut line = adr::identifier(&adr.path, release >= NAMED);
         line.extend(b" (");
         line.extend(&adr.path);
         line.extend(") — ".as_bytes());
@@ -385,9 +419,9 @@ fn prose_rows(release: Version, record: &Record, files: &[&Adr]) -> (usize, Vec<
             if bash::contains(&listed, &[b" ", adr.path.as_slice(), b" "].concat()) {
                 continue;
             }
-            let applies = field_value(text.field_line(b"Applies to").unwrap_or_default());
+            let applies = adr::applies_value(text.field_line(b"Applies to").unwrap_or_default());
             if is_prose(applies, release) {
-                let mut row = id(&adr.path, release);
+                let mut row = adr::identifier(&adr.path, release >= NAMED);
                 row.extend(b": ");
                 row.extend(applies);
                 prose.push(row);
@@ -396,10 +430,10 @@ fn prose_rows(release: Version, record: &Record, files: &[&Adr]) -> (usize, Vec<
     } else {
         let mut listed = b" ".to_vec();
         for adr in files {
-            listed.extend(key(&adr.path));
+            listed.extend(adr::key_of_bytes(adr::file_name(&adr.path)));
             listed.push(b' ');
         }
-        for (key, applies) in binding_rows(&record.index) {
+        for (key, applies) in adr::binding_rows(&record.index) {
             rows += 1;
             if bash::contains(&listed, &[b" ", key.as_slice(), b" "].concat()) {
                 continue;
@@ -420,7 +454,7 @@ fn prose_rows(release: Version, record: &Record, files: &[&Adr]) -> (usize, Vec<
 fn print_sections(out: &mut Vec<u8>, release: Version, adr: &Adr) {
     let text = Text::of(&adr.text);
     out.extend(b"\n=== ");
-    out.extend(id(&adr.path, release));
+    out.extend(adr::identifier(&adr.path, release >= NAMED));
     out.extend(b" (");
     out.extend(&adr.path);
     out.extend(b"): the header, the Decision, and the Enforcement ===\n");
@@ -438,7 +472,7 @@ fn print_sections(out: &mut Vec<u8>, release: Version, adr: &Adr) {
         let lines = if release >= FENCES {
             adr::section(text.stream(), part)
         } else {
-            unfenced_section(&text.lines, part)
+            adr::unfenced_section(&text.lines, part)
         };
         for line in lines {
             out.extend(line);
@@ -480,47 +514,8 @@ impl<'a> Text<'a> {
 
     /// Whether the status line names the ADR accepted or proposed, by its emoji.
     fn in_force(&self) -> bool {
-        self.field_line(b"Status").is_some_and(|status| {
-            bash::contains(status, "🟢".as_bytes()) || bash::contains(status, "🟡".as_bytes())
-        })
+        self.field_line(b"Status").is_some_and(adr::names_in_force)
     }
-}
-
-/// The section `## <name>` before `FENCES`: from its heading to the next `## ` line, as the
-/// sensor's own `section` and the first `adr_section` print it.
-fn unfenced_section<'a>(lines: &[&'a [u8]], name: &str) -> Vec<&'a [u8]> {
-    let heading = format!("## {name}");
-    let mut inside = false;
-    let mut found = Vec::new();
-    for line in lines {
-        if *line == heading.as_bytes() {
-            inside = true;
-            found.push(*line);
-            continue;
-        }
-        if inside && line.starts_with(b"## ") {
-            break;
-        }
-        if inside {
-            found.push(*line);
-        }
-    }
-    found
-}
-
-/// What `adr_field_value` leaves of the line for `Applies to`, its leading POSIX space dropped:
-/// what follows the last `**Applies to:**` on it.
-fn field_value(line: &[u8]) -> &[u8] {
-    let mark = b"**Applies to:**";
-    let value = line
-        .windows(mark.len())
-        .rposition(|window| window == mark)
-        .map_or(line, |at| &line[at + mark.len()..]);
-    let start = value
-        .iter()
-        .position(|&b| !bash::is_space(b))
-        .unwrap_or(value.len());
-    &value[start..]
 }
 
 /// Whether an *Applies to* is prose: an item of it, split at `, and `, ` and `, and `, `, is not
@@ -561,76 +556,6 @@ fn is_one_path(item: &[u8]) -> bool {
         && item[1..item.len() - 1]
             .iter()
             .all(|&b| b != b'`' && !bash::is_space(b))
-}
-
-/// The rows of the index's *Binding* table, as the awk before `NAMED` prints them and
-/// `IFS=$'\t' read -r key applies` reads them: the key of the row's link and its *Applies to*.
-fn binding_rows(index: &[u8]) -> Vec<(Vec<u8>, Vec<u8>)> {
-    let mut rows = Vec::new();
-    let mut inside = false;
-    for line in bash::awk_lines(index) {
-        if line.starts_with(b"### Binding") {
-            inside = true;
-            continue;
-        }
-        if inside && line.starts_with(b"#") {
-            break;
-        }
-        if !(inside && line.starts_with(b"| [")) {
-            continue;
-        }
-        let fields: Vec<&[u8]> = line.split(|&b| b == b'|').collect();
-        let field = |n: usize| fields.get(n).copied().unwrap_or_default();
-        let key = field(1);
-        // sub(/^ *\[/, "", key): the spaces go only with the bracket after them.
-        let spaces = key.iter().take_while(|&&b| b == b' ').count();
-        let key = key[spaces..].strip_prefix(b"[").unwrap_or(key);
-        let key = key
-            .iter()
-            .position(|&b| b == b']')
-            .map_or(key, |at| &key[..at]);
-        let applies = field(3);
-        let start = applies.iter().take_while(|&&b| b == b' ').count();
-        let end = applies
-            .iter()
-            .rposition(|&b| b != b' ')
-            .map_or(start, |i| i + 1);
-        let printed = [key, b"\t", &applies[start..end.max(start)]].concat();
-        rows.push(bash::read_tab_pair(&printed));
-    }
-    rows
-}
-
-/// The identifier the report names an ADR by: `ADR-` and its key before `NAMED`, its file's name
-/// without `.md` from it.
-fn id(path: &[u8], release: Version) -> Vec<u8> {
-    let name = basename(path);
-    if release >= NAMED {
-        return name.strip_suffix(b".md").unwrap_or(name).to_vec();
-    }
-    let mut id = b"ADR-".to_vec();
-    id.extend(key(path));
-    id
-}
-
-/// What follows `ADR-` in the identifier of the file before `NAMED`: a draft's name without
-/// `.md`, else what precedes its first hyphen.
-fn key(path: &[u8]) -> &[u8] {
-    let name = basename(path);
-    if name.starts_with(b"draft-") {
-        name.strip_suffix(b".md").unwrap_or(name)
-    } else {
-        name.iter()
-            .position(|&b| b == b'-')
-            .map_or(name, |at| &name[..at])
-    }
-}
-
-/// The part of the path after its last `/`.
-fn basename(path: &[u8]) -> &[u8] {
-    path.iter()
-        .rposition(|&b| b == b'/')
-        .map_or(path, |at| &path[at + 1..])
 }
 
 /// A path an *Applies to* names, with the directory of its module's children, and the checks of
@@ -733,7 +658,7 @@ const NOT_MODULE_DIRS: [&[u8]; 4] = [b"lib.rs", b"main.rs", b"mod.rs", b"build.r
 /// The directory that holds the children of the module in the file, with its trailing slash, as
 /// `module_dir` finds it; empty for a path that names none.
 fn module_dir(path: &[u8]) -> Vec<u8> {
-    let name = basename(path);
+    let name = adr::file_name(path);
     // `?*.*`: a dot after the first byte.
     if name.len() < 2 || !name[1..].contains(&b'.') {
         return Vec::new();
@@ -751,21 +676,18 @@ fn module_dir(path: &[u8]) -> Vec<u8> {
 /// What `checked` reads of a file the change touches: the string its awk prints of the checks
 /// that hold the lines of each hunk and the lines on either side, ` <held> <held> … `, where a line
 /// outside every check is `all`; ` ` where the diff has no hunk.
-fn held_in_hunks(diffed: &Diffed, release: Version) -> Vec<u8> {
+fn held_in_hunks(diffed: &Diffed, release: Version) -> Result<Vec<u8>, Refusal> {
     let held = held(&diffed.file, release);
-    let hunk = regex!(r"(?-u)^@@ [^+]*\+([0-9,]+) ");
+    let overflow = super::hunk_refusal(SENSOR.name);
     let mut touched: BTreeSet<&[u8]> = BTreeSet::new();
     for line in bash::sed_lines(&diffed.diff) {
-        let Some(captures) = hunk.captures(line) else {
+        let Some((start, count)) = bash::hunk_new_side(line).map_err(&overflow)? else {
             continue;
         };
-        let range = &captures[1];
-        let mut parts = range.split(|&b| b == b',');
-        let start = awk_number(parts.next().unwrap_or_default());
-        let count = parts
-            .next()
-            .filter(|count| !count.is_empty())
-            .map_or(1, awk_number);
+        // A bound one past the largest number awk computes of the two, `start - 1 + count + 1`:
+        // kept within what awk holds exactly, one value early at worst.
+        bash::awk_sum(&[start, count, 1]).map_err(&overflow)?;
+        let (start, count) = (start as i64, count as i64);
         let first = start - i64::from(count > 0);
         let last = first + count + 1;
         // Each line of the range; one outside the file holds no check.
@@ -786,17 +708,7 @@ fn held_in_hunks(diffed: &Diffed, release: Version) -> Vec<u8> {
         out.extend(key);
         out.push(b' ');
     }
-    out
-}
-
-/// The number awk reads at the start of the field: its leading digits, 0 for none.
-fn awk_number(field: &[u8]) -> i64 {
-    field
-        .iter()
-        .take_while(|b| b.is_ascii_digit())
-        .fold(0i64, |n, &b| {
-            n.saturating_mul(10).saturating_add(i64::from(b - b'0'))
-        })
+    Ok(out)
 }
 
 /// Whether awk reads the line `held` printed as true: a line of digits as its number, any other

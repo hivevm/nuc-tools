@@ -1,12 +1,12 @@
 # shellcheck shell=bash
-# The comparison of the sensors (API-git-only-sensors-under-sense), sourced by
+# The comparison of the sensors (API-sensor-cores-ask-the-shell), sourced by
 # scripts/check-parity.sh.
 #
 # Each row of tests/parity/sensors.tsv names a sensor nuc ports, the git state it runs on, and its
 # arguments. The state 'tree' is the tree of the corpus, or the variant, as the comparison has it:
 # the sensor runs there in every comparison, on each tree whose scripts/ holds the sensor, the
 # release that has it. On one whose README names no release, nuc sense reports as the newest
-# release it knows (API-git-only-sensors-under-sense): the bash sensor run there, and the one whose
+# release it knows (API-sensor-cores-ask-the-shell): the bash sensor run there, and the one whose
 # presence decides the run, is the newest template tree's, SENSOR_NEWEST_TREE. Any other state
 # names a function of tests/parity/sensor-scenarios.sh, which builds a fixture repository through
 # git; it runs on each template tree of the corpus whose scripts/ holds the sensor, the fixture's
@@ -21,7 +21,7 @@
 # and the cause. The standard error is not compared: its wording is each side's own.
 #
 # PARITY_SENSOR_TABLE, PARITY_SENSOR_EXITS, and PARITY_SENSOR_SCENARIOS name other files, for
-# scripts/test-check-parity.sh.
+# scripts/test-check-parity.sh. SENSOR_JOBS is the number of scenarios that run at once.
 #
 # Usage: sensor_tree <nuc> <label> <dir> <out prefix>, sensor_scenarios <nuc> <work dir> <tree>...,
 # and sensor_compare <label> <sensor> <release> <bash out> <bash exit> <nuc out> <nuc exit>; each
@@ -163,29 +163,52 @@ sp_repo() {
   printf 'nuc.toml\n' >> "$1/.git/info/exclude"
 }
 
+# sensor_scenario <nuc> <release> <row> <script> <fixture> — one row of another state on one tree:
+# its fixture built, then both sides compared; exit 3 where the fixture could not be built.
+sensor_scenario() {
+  local nuc="$1" release="$2" i="$3" script="$4" fixture="$5" rc=0
+  rm -rf "$fixture"
+  if ! { sp_repo "$fixture" "$release" && "${st_states[i]}" "$fixture"; } > /dev/null 2>&1; then
+    echo "Parity check: ${release:-unreleased}, sensor ${st_sensors[i]} — the state ${st_states[i]} could not be built" >&2
+    rm -rf "$fixture"
+    return 3
+  fi
+  sensor_pair "$nuc" "${release:-unreleased}, state ${st_states[i]}" "$script" "${st_sensors[i]}" \
+    "${st_args[i]}" "$release" "$fixture" "$fixture" || rc=1
+  rm -rf "$fixture" "$fixture".sb "$fixture".sn "$fixture".sn.err
+  return "$rc"
+}
+
 # sensor_scenarios <nuc> <work dir> <tree>... — the rows of the other states, on each template
-# tree that has the sensor.
+# tree that has the sensor. Up to SENSOR_JOBS run at once, one by default, each into files of its
+# own; their outputs follow in the order of the trees and the rows, whatever order they end in.
 sensor_scenarios() {
-  local nuc="$1" work="$2" tree i script release fixture rc=0 n=0
+  local nuc="$1" work="$2" tree i script release k=0 j rc=0 n=0 code
+  local dir="$work/sensor-scenarios" max="${SENSOR_JOBS:-1}"
+  # A number of jobs that is none runs them one at a time.
+  [[ "$max" =~ ^[1-9][0-9]*$ ]] || max=1
   shift 2
+  mkdir -p "$dir"
   for tree in "$@"; do
     release="$(release_of "$tree/README.md")"
     for i in "${!st_sensors[@]}"; do
       [[ "${st_states[i]}" == tree ]] && continue
       script="$tree/scripts/sensor-${st_sensors[i]}.sh"
       [[ -f "$script" ]] || continue
-      fixture="$work/sensor-scenarios/${release:-unreleased}-$i"
-      rm -rf "$fixture"
-      if ! { sp_repo "$fixture" "$release" && "${st_states[i]}" "$fixture"; } > /dev/null 2>&1; then
-        echo "Parity check: ${release:-unreleased}, sensor ${st_sensors[i]} — the state ${st_states[i]} could not be built" >&2
-        rc=1
-        continue
-      fi
-      sensor_pair "$nuc" "${release:-unreleased}, state ${st_states[i]}" "$script" "${st_sensors[i]}" \
-        "${st_args[i]}" "$release" "$fixture" "$fixture" || rc=1
-      n=$((n + 1))
-      rm -rf "$fixture" "$fixture".sb "$fixture".sn "$fixture".sn.err
+      k=$((k + 1))
+      while (($(jobs -rp | wc -l) >= max)); do wait -n; done
+      { sensor_scenario "$nuc" "$release" "$i" "$script" "$dir/$k"; echo "$?" > "$dir/$k.rc"; } \
+        > "$dir/$k.log" 2> "$dir/$k.err" &
     done
+  done
+  wait
+  for ((j = 1; j <= k; j++)); do
+    cat "$dir/$j.log"
+    cat "$dir/$j.err" >&2
+    code="$(cat "$dir/$j.rc" 2>/dev/null)"
+    [[ "$code" == 3 ]] || n=$((n + 1))
+    [[ "$code" == 0 ]] || rc=1
+    rm -f "$dir/$j.log" "$dir/$j.err" "$dir/$j.rc"
   done
   ((rc)) || echo "Parity check: the sensor scenarios — $n run(s), the same from bash and nuc."
   return "$rc"

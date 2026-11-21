@@ -10,6 +10,7 @@
 use regex::bytes::Regex;
 
 use super::{Refusal, Sensor};
+use crate::adr;
 use crate::bash;
 use crate::config::Version;
 
@@ -59,7 +60,7 @@ pub struct Args<'a> {
 
 /// The arguments as the bash of the release reads them: `--hand-off <file>` first, then the base
 /// and the head; none where `nuc sense` refuses them: `--root` wherever it stands
-/// (API-git-only-sensors-under-sense), and what [`super::positional`] refuses, one rule for every
+/// (API-sensor-cores-ask-the-shell), and what [`super::positional`] refuses, one rule for every
 /// sensor that takes a base and a head.
 pub fn parse<'a>(args: &[&'a str], release: Version) -> Option<Args<'a>> {
     if args.contains(&"--root") {
@@ -111,15 +112,11 @@ pub trait Repo {
 }
 
 /// The pathspecs of the ADR files whose text a commit can change, as the release's glob names them.
-fn adr_pathspecs(release: Version) -> &'static [&'static str] {
-    if release >= NAMED {
-        &[":(glob)docs/adr/[A-Za-z]*-*.md"]
-    } else {
-        &[
-            ":(glob)docs/adr/[0-9][0-9][0-9][0-9]-*.md",
-            ":(glob)docs/adr/draft-*.md",
-        ]
-    }
+fn adr_pathspecs(release: Version) -> Vec<String> {
+    adr::name_patterns(release >= NAMED)
+        .iter()
+        .map(|pattern| format!(":(glob)docs/adr/{pattern}"))
+        .collect()
 }
 
 /// The pathspecs of the paths outside the record, the index under `docs/adr/` among those left out.
@@ -298,9 +295,11 @@ fn mixed_entry(subject: &[u8], texts: &[Vec<u8>], others: &[Vec<u8>]) -> Vec<u8>
 /// together with a path outside the record, each as its entry.
 fn mixed(repo: &mut dyn Repo, range: &str, release: Version) -> Result<Vec<Vec<u8>>, Refusal> {
     let mut entries = Vec::new();
+    let pathspecs = adr_pathspecs(release);
+    let pathspecs: Vec<&str> = pathspecs.iter().map(String::as_str).collect();
     for commit in repo.rev_list(&["--no-merges", "--reverse"], range)? {
         let commit = String::from_utf8_lossy(&commit).into_owned();
-        let texts = adr_texts(&repo.patch(&commit, adr_pathspecs(release))?);
+        let texts = adr_texts(&repo.patch(&commit, &pathspecs)?);
         if texts.is_empty() {
             continue;
         }

@@ -1,5 +1,5 @@
 //! `nuc sense <name>`: the report of a sensor of the template, as the bash sensor of the tree's
-//! release writes it (API-git-only-sensors-under-sense). The shell reads `nuc.toml` as `nuc check`
+//! release writes it (API-sensor-cores-ask-the-shell). The shell reads `nuc.toml` as `nuc check`
 //! does, the README's release line, and what the sensor needs from the tree and from git; the
 //! sensor decides; the shell writes the report on the standard output and exits 0, or ends the
 //! run not decided with the sensor's key (API-command-line-with-sense).
@@ -409,7 +409,7 @@ fn tests_kept(tree: &Tree, release: config::Version, change: &[&str]) -> Result<
     let diff = git::diff(root, config, git::Diff::Diff, &args).map_err(undecided)?;
     refuse_driven_markers(root, &base, &head, &diff)?;
     let mut findings = tests_kept::removals(&name_status);
-    findings.extend(tests_kept::markers(&diff, release));
+    findings.extend(tests_kept::markers(&diff, release)?);
     Ok(tests_kept::report(
         &commit(&base, true)?,
         &commit(&head, true)?,
@@ -871,7 +871,7 @@ fn rule_file_added(
     args.push(path);
     let diff =
         git::diff(root, hunks.config, git::Diff::Diff, &args).map_err(git_refusal(sensor))?;
-    Ok(plain_rules::added_lines(&diff))
+    plain_rules::added_lines(&diff)
 }
 
 /// What `binding-adrs` needs: the paths named, or the change and the paths it touches; the ADRs
@@ -941,24 +941,26 @@ fn binding_adrs(
         Vec::new()
     };
     let record = binding_adrs::Record { adrs, index };
+    // The file and the diff of each path the bash runs `checked` on, read before the report.
     let mut drivers = None;
-    let mut diffed = |path: &[u8]| -> Result<binding_adrs::Diffed, Refusal> {
+    let mut diffs = binding_adrs::Diffs::new();
+    for path in binding_adrs::checked_paths(release, &listing, &record) {
         // The hunks of a file named with checks decide whether it binds.
         let drivers = cached(&mut drivers, root, sensor)?;
-        refuse_driven(root, sensor, drivers, &[path], false)?;
-        let path = spelled_for(sensor, path)?;
-        let file = shown(tree, &change, &path)?;
+        refuse_driven(root, sensor, drivers, &[&path], false)?;
+        let spelled = spelled_for(sensor, &path)?;
+        let file = shown(tree, &change, &spelled)?;
         let config: Vec<&str> = unfiltered.iter().map(String::as_str).collect();
         let mut args = vec!["--no-color", "-U0", "--no-renames", &change.base];
         if !change.worktree {
             args.push(&change.head);
         }
-        args.extend(["--", &path]);
+        args.extend(["--", &spelled]);
         let diff = git::diff(root, &config, git::Diff::Diff, &args).map_err(undecided)?;
         refuse_moved_submodule(sensor, drivers, &diff)?;
-        Ok(binding_adrs::Diffed { file, diff })
-    };
-    binding_adrs::report(release, args.sections, &listing, &record, &mut diffed)
+        diffs.insert(path, binding_adrs::Diffed { file, diff });
+    }
+    binding_adrs::report(release, args.sections, &listing, &record, &diffs)
 }
 
 /// The paths a change touches, as `git diff --name-only --no-renames` names them unquoted under

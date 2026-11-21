@@ -29,8 +29,11 @@ fn changed(paths: &[&str]) -> Listing {
 
 /// The report where no path is named with checks of its own.
 fn plain(release: Version, sections: bool, listing: &Listing, record: &Record) -> String {
-    let mut never = |_: &[u8]| -> Result<Diffed, Refusal> { panic!("no file is read for checks") };
-    let report = report(release, sections, listing, record, &mut never).expect("a report");
+    assert!(
+        checked_paths(release, listing, record).is_empty(),
+        "no file is read for checks"
+    );
+    let report = report(release, sections, listing, record, &Diffs::new()).expect("a report");
     String::from_utf8(report).expect("UTF-8")
 }
 
@@ -202,6 +205,28 @@ fn held_names_each_line_by_the_check_whose_function_holds_it() {
 }
 
 #[test]
+fn a_hunk_head_awk_reads_inexactly_is_not_decided() {
+    let diffed = Diffed {
+        file: b"check_a() {  # t/a\n  :\n}\n".to_vec(),
+        diff: b"@@ -1 +99999999999999999999 @@\n".to_vec(),
+    };
+    let refusal = held_in_hunks(&diffed, RULE_KEYS).unwrap_err();
+    assert!(
+        refusal.to_string().ends_with("[sense/binding-adrs:hunk]"),
+        "{refusal}"
+    );
+    // Where awk's `start + count + 1` runs past what it holds exactly as well.
+    let with = |diff: &[u8]| Diffed {
+        file: diffed.file.clone(),
+        diff: diff.to_vec(),
+    };
+    assert!(held_in_hunks(&with(b"@@ -1 +9007199254740993 @@\n"), RULE_KEYS).is_err());
+    assert!(held_in_hunks(&with(b"@@ -1 +9007199254740991,1 @@\n"), RULE_KEYS).is_err());
+    let held = held_in_hunks(&with(b"@@ -1 +9007199254740990,1 @@\n"), RULE_KEYS).unwrap();
+    assert_eq!(held, b" all ");
+}
+
+#[test]
 fn a_hunk_binds_the_checks_of_its_lines_and_the_lines_on_either_side() {
     let file = b"check_a() {  # t/a\n  :\n}\n\ncheck_b() {  # t/b\n  :\n}\n".to_vec();
     let touched = |diff: &str| {
@@ -209,7 +234,7 @@ fn a_hunk_binds_the_checks_of_its_lines_and_the_lines_on_either_side() {
             file: file.clone(),
             diff: diff.as_bytes().to_vec(),
         };
-        String::from_utf8(held_in_hunks(&diffed, RULE_KEYS)).unwrap()
+        String::from_utf8(held_in_hunks(&diffed, RULE_KEYS).unwrap()).unwrap()
     };
     // Line 6 changed: lines 5 to 7, all in check b.
     assert_eq!(touched("@@ -6 +6 @@\n-  :\n+  x\n"), " t/b ");
@@ -236,29 +261,6 @@ fn prose_is_an_item_that_is_not_one_path_in_backticks() {
     // A split that ends in a newline: v0.7.0 reads the empty line after it, v0.8.0 drops it.
     assert!(is_prose(b"`a`, ", OPTIONS));
     assert!(!is_prose(b"`a`, ", V0_8));
-}
-
-#[test]
-fn the_index_s_binding_table_gives_each_row_s_key_and_applies_to() {
-    let index = b"# ADRs\n\n### Binding\n\n| ADR | T | A |\n| [0001](0001-a.md) | A |  the plan  |\n\
-                  | [draft-x] | X |\n|  [0009](z) | Z | skipped |\n### Binding again\n| [0002](b) | B | `b` |\n## Later\n| [0003](c) | C | c |\n";
-    let rows: Vec<(String, String)> = binding_rows(index)
-        .into_iter()
-        .map(|(k, a)| {
-            (
-                String::from_utf8_lossy(&k).into_owned(),
-                String::from_utf8_lossy(&a).into_owned(),
-            )
-        })
-        .collect();
-    assert_eq!(
-        rows,
-        [
-            ("0001".to_owned(), "the plan".to_owned()),
-            ("draft-x".to_owned(), String::new()),
-            ("0002".to_owned(), "`b`".to_owned()),
-        ]
-    );
 }
 
 #[test]
@@ -402,6 +404,44 @@ fn sections_print_the_prose_and_of_each_adr_listed_its_header_decision_and_enfor
     ));
 }
 
+/// The first bound path that matches decides: one without checks binds and reads no diff, even
+/// where a later one of the same ADR has checks; a later ADR that binds the path by its checks
+/// reads it.
+#[test]
+fn the_first_bound_path_that_matches_decides_whether_the_diff_is_read() {
+    let listing = changed(&["c.sh"]);
+    let plain_first = record(vec![adr(
+        "docs/adr/FIX-a-b.md",
+        "🟢 accepted",
+        "`c.sh` and the rule `t/a` of `c.sh`",
+        "",
+    )]);
+    assert!(checked_paths(NEWEST, &listing, &plain_first).is_empty());
+    let checks_first = record(vec![adr(
+        "docs/adr/FIX-a-b.md",
+        "🟢 accepted",
+        "the rule `t/a` of `c.sh` and `c.sh`",
+        "",
+    )]);
+    assert_eq!(
+        checked_paths(NEWEST, &listing, &checks_first),
+        [b"c.sh".to_vec()]
+    );
+    let later_by_checks = record(vec![
+        adr("docs/adr/FIX-a-b.md", "🟢 accepted", "`c.sh`", ""),
+        adr(
+            "docs/adr/FIX-c-d.md",
+            "🟢 accepted",
+            "the rule `t/a` of `c.sh`",
+            "",
+        ),
+    ]);
+    assert_eq!(
+        checked_paths(NEWEST, &listing, &later_by_checks),
+        [b"c.sh".to_vec()]
+    );
+}
+
 #[test]
 fn a_file_named_with_checks_is_read_only_where_the_bash_runs_checked() {
     let record = record(vec![
@@ -419,16 +459,19 @@ fn a_file_named_with_checks_is_read_only_where_the_bash_runs_checked() {
         ),
         adr("docs/adr/FIX-e-f.md", "🟢 accepted", "`c.sh`", ""),
     ]);
-    let mut asked = Vec::new();
-    let mut diffed = |path: &[u8]| -> Result<Diffed, Refusal> {
-        asked.push(path.to_vec());
-        Ok(Diffed {
-            file: b"check_a() {  # t/a\n  :\n}\ncheck_b() {  # t/b\n  :\n}\n".to_vec(),
-            diff: b"@@ -5 +5 @@\n".to_vec(),
-        })
-    };
     let listing = changed(&["c.sh", "d.sh"]);
-    let report = report(NEWEST, false, &listing, &record, &mut diffed).unwrap();
+    let asked = checked_paths(NEWEST, &listing, &record);
+    let diffs: Diffs = asked
+        .iter()
+        .map(|path| {
+            let diffed = Diffed {
+                file: b"check_a() {  # t/a\n  :\n}\ncheck_b() {  # t/b\n  :\n}\n".to_vec(),
+                diff: b"@@ -5 +5 @@\n".to_vec(),
+            };
+            (path.clone(), diffed)
+        })
+        .collect();
+    let report = report(NEWEST, false, &listing, &record, &diffs).unwrap();
     let report = String::from_utf8(report).unwrap();
     assert!(!report.contains("FIX-a-b"), "{report}");
     assert!(report.contains("  - FIX-c-d (docs/adr/FIX-c-d.md) — c.sh\n"));

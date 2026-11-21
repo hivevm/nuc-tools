@@ -73,7 +73,8 @@ Only a normalization renumbers them
    counts them, or stops with exit 2 where it cannot read them.
 9. **G-9** — When a project runs `nuc sense <name>` for a sensor of the template that needs only
    git, it prints the report the bash sensor of the release the project carries prints on the
-   same tree, byte for byte, or stops with exit 2 where it cannot decide.
+   same tree, byte for byte, or stops with exit 2 where it cannot decide, configuration of the
+   caller's environment that names no command aside.
 
 ## Quality Goals
 
@@ -90,7 +91,8 @@ from the threats below.
 - **Q-2** — Parity with the bash checks during the migration: the parity harness reports zero
   differences in findings and exit status between `nuc` and the bash scripts of the template
   release each repository carries, on the template and on every repository of the corpus, for
-  every ported check, hook, and script.
+  every ported check, hook, and script, except an exit of a sensor that an accepted ADR lists with
+  its cause.
 - **Q-3** — Supply chain: every release artifact carries a SHA-256 checksum and a
   build-provenance attestation that `gh attestation verify` accepts; a rebuild of the tag in CI
   yields the published checksum for each target; `cargo deny check` and `cargo audit` pass on

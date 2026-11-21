@@ -48,13 +48,13 @@ golden path and the test pattern an agent copies from are named here.
   as its bash check would, and notes for the summary. Each has one rule ID, the reason `nuc explain`
   gives, and the inputs it reads; the list of every rule is `rules::ALL`. A rule reads no file and
   runs no process ([ARCH-rules-outcome-hooks-answer](adr/ARCH-rules-outcome-hooks-answer.md)). The
-  rules of the decision record share one reading of it in `src/adr.rs`, and the rules of Markdown
-  one reading of its links in `src/markdown.rs`, both outside `src/rules/`, the way the bash's
+  rules of the decision record share one reading of it in `src/adr.rs` with the sensors
+  binding-adrs, plain-rules, and review-binding. The rules of Markdown share one reading of its
+  links in `src/markdown.rs`. Both stand outside `src/rules/`, the way the bash's
   `scripts/lib/adr.sh` and awk passes read them. The byte-level readings of the bash's tools, lines
-  as awk, `read`, and `sed` split them, POSIX space and the bytes without it, and the first word
-  `read` splits off, are in `src/bash.rs`, and the structural test holds that the names it lists
-  stand nowhere else; the sensors binding-adrs, plain-rules, and tests-kept read awk's numbers
-  and git's hunk headers in their own modules, which it does not list. The
+  as awk, `read`, and `sed` split them, POSIX space and the bytes without it, the first word
+  `read` splits off, awk's numbers, exact up to 2^53, and the new side of git's hunk headers, are
+  in `src/bash.rs`, and the structural test holds that the names it lists stand nowhere else. The
   rules of the area `traceability` share one reading of the criteria of the specification and of the
   identifiers the `Verifies:` markers cite in `src/traceability.rs`, beside `src/adr.rs`, so that no
   rule module calls another. The shell matches path patterns as bash's pathname expansion does
@@ -81,7 +81,8 @@ golden path and the test pattern an agent copies from are named here.
   with a NUL byte is not decided. Before v0.8.0 the bash pipes `devcontainer.json` into `grep -q`
   for the socket, so a match in one longer than a pipe holds is not decided either.
   `src/adr.rs` reads the record in each of its two forms, numbered and named by category, through
-  pairs of functions, and each rule, and the shell for the inputs, chooses one by the release.
+  pairs of functions, and each rule, and the shell for the inputs, chooses one by the release; a
+  sensor passes whether its release names the ADRs by category, by the release its bash changed.
   `tests/parity/releases.tsv` names the releases at which each
   rule's check changed, which the parity harness holds to the template's trees and
   `tests/releases.rs` holds the rules to; a rule that checks some or every release alike although
@@ -145,12 +146,15 @@ golden path and the test pattern an agent copies from are named here.
 - **Sensors** — `src/sense.rs` lists the sensors of the template `nuc sense` ports, `sense::ALL`,
   each a module beside it, as `src/sense/revision_due.rs`: a function to the report the bash sensor
   of the tree's release writes on the standard output, byte for byte, or a refusal keyed
-  `sense/<name>:<reason>`. Six of them take only the values the shell gathered. binding-adrs asks
-  the shell for the file at a path and its diff through the callback `diffed`, only where its bash
-  reads them, and review-binding asks git through a trait, below; neither reads a file or runs a
-  process itself. Both go against the *Core* of API-git-only-sensors-under-sense, which ticket 01 of
-  `docs/plan/revision-2026-11-20/` decides. The sensors that read a change share one resolution of
-  it, as the bash's share `resolve_change`: `src/sense/change.rs` reads the base and the head they
+  `sense/<name>:<reason>`. Seven of them take only the values the shell gathered: binding-adrs
+  takes the file and the diff of each path `binding_adrs::checked_paths` names, which the shell
+  reads before the report. review-binding asks git through a trait, below, since each of its
+  questions depends on the answer before; its core reads no file and runs no process. The *Core*
+  of [API-sensor-cores-ask-the-shell](adr/API-sensor-cores-ask-the-shell.md) allows that where
+  gathering up front would read more than the bash and no value of the core can tell the shell
+  what to read; `tests/functional_core.rs` holds that only the shell implements a trait of the
+  sensors' core. The sensors that read a change share one resolution of it, as the bash's share
+  `resolve_change`: `src/sense/change.rs` reads the base and the head they
   were given, and `resolve_change` in `shell::sense` asks git for the commits; a change without a
   head ends in the working tree, its untracked files included. Their diffs against the working tree
   run with every filter driver of the repository neutralized and look into no submodule's working
@@ -173,7 +177,7 @@ golden path and the test pattern an agent copies from are named here.
   line, the files of the tree, and git as the bash asks it, and writes the report. A tree whose
   release has no such sensor is not decided. The template's sensors that need a process other than
   git or the network are none of them
-  ([API-git-only-sensors-under-sense](adr/API-git-only-sensors-under-sense.md)).
+  ([API-sensor-cores-ask-the-shell](adr/API-sensor-cores-ask-the-shell.md)).
 - **Binary** — `src/main.rs` calls the shell and nothing else.
 - **Parity harness** — `scripts/check-parity.sh` runs the bash checks of each repository of the
   corpus, `check-docs.sh`, `check-traceability.sh`, and `check-devcontainer.sh`, from v0.10.0 on
@@ -184,8 +188,9 @@ golden path and the test pattern an agent copies from are named here.
   every rule the table maps to, and keeps the minimum and the `hook/` rules of the tree's own, which
   `check-hooks.sh` reads as well. A variant edits, deletes, or writes one path inside a copy of the
   tree, never under its `.git` ([TEST-parity-harness](adr/TEST-parity-harness.md)). Across the
-  template's trees of the corpus it compares each rule's bash function, and each sensor's script,
-  with `tests/parity/releases.tsv`; a change to a helper the function calls shows in no row. Then
+  template's trees of the corpus it holds to `tests/parity/releases.tsv` each rule's bash function,
+  and each sensor's script together with the libraries it sources; a change to a helper the
+  function calls shows in no row. Then
   `scripts/lib/hook-parity.sh` runs the scenarios of `tests/parity/hook-scenarios.sh` through git,
   with the bash hook of each of the template's trees and with the shim and `nuc`, maps the hooks'
   lines by `tests/parity/hooks.tsv`, and holds the template's hook self-test to the scenarios and
@@ -197,7 +202,7 @@ golden path and the test pattern an agent copies from are named here.
   `tests/parity/sensor-scenarios.sh` built for each of the template's trees, both sides run in
   the tree or the fixture, and compares the standard output byte for byte and the exit status; an
   exit that differs stands in `tests/parity/sensor-exits.tsv` with its cause
-  ([API-git-only-sensors-under-sense](adr/API-git-only-sensors-under-sense.md)). A
+  ([API-sensor-cores-ask-the-shell](adr/API-sensor-cores-ask-the-shell.md)). A
   tree whose blob list `.githooks/nuc.blobs` pins a hook, as the template's trees do from v0.12.0
   on, carries nuc's own shims and no bash hook. The scenarios and their coverage leave it out,
   whatever release it names, and its checks are compared as any tree's. They also leave out a tree
