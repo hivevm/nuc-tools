@@ -1,4 +1,4 @@
-# API-sensor-cores-ask-the-shell: `nuc sense <name>` ports the template's sensors that need only git, prints their report byte for byte as the bash does, exits as every `nuc` command does, and a sensor's core asks the shell where gathering its inputs up front would read more than its bash
+# API-sensor-cores-ask-the-shell: `nuc sense <name>` ports the template's sensors that need only git, prints their report byte for byte as the bash does, exits as every `nuc` command does, and a sensor's core may ask the shell only where gathering its inputs up front would read more than its bash and no value it returns first could tell the shell what to read
 
 - **Status:** 🟡 proposed
 - **Date:** 2026-11-21
@@ -41,19 +41,21 @@ counts in the core, and the shell reads and prints.
 The ports showed two sensors whose bash reads an input on some answers and not on others.
 `sensor-review-binding.sh` asks git about the commit a hand-off's `Reviewed at:` line names only
 where the line names one: whether the range holds it, then how many commits follow it, then their
-diffstat. Before v0.11.0 it also binds the hand-off of each merge on the first-parent line, read
-from the merge's message.
-`sensor-binding-adrs.sh` diffs a path only where an ADR binds it by its checks. Their cores in
-`src/sense/review_binding.rs` and `src/sense/binding_adrs.rs` ask the shell for those inputs:
-review-binding through the trait `review_binding::Repo`, thirteen questions that
-`shell::sense::ReviewRepo` answers each with one git call or the hand-off, and binding-adrs through
-the callback `diffed`, which runs one git diff a call. Each core reads no file and runs no process,
-which `tests/functional_core.rs` holds. Each breaks "takes the values the shell gathered" of the
-superseded ADR, since the core picks the next git call. The hand-off of ticket 07 of
-`sensors-under-nuc-sense` and both its reviews left the shape open. The first review found no
-simpler shape that reads only where the bash reads. The unit tests of
-`src/sense/review_binding/tests.rs` record the questions the core asks a fake `Repo` and decide
-their order.
+diffstat. Before v0.11.0 it also binds the hand-off of each merge that lands a branch on the
+first-parent line, read from the merge's message. `sensor-binding-adrs.sh` diffs a path only where
+an ADR binds it by its checks. Their cores in `src/sense/review_binding.rs` and
+`src/sense/binding_adrs.rs` ask the shell for those inputs: review-binding through the trait
+`review_binding::Repo`, thirteen questions that `shell::sense::ReviewRepo` answers each with one git
+call or the hand-off, and binding-adrs through a callback, `diffed`, which ran one git diff a call.
+Each core reads no file and runs no process, which `tests/functional_core.rs` holds. Each broke
+"takes the values the shell gathered" of the superseded ADR, since the core picked the next git
+call. Which paths binding-adrs diffs is known once the ADRs are read, whatever a diff says, so a
+value of its core can name them: with this ADR it takes the diffs as a value, those of the paths
+`binding_adrs::checked_paths` names. review-binding asks a chain, each question decided by the
+answer before. The hand-off of ticket 07 of `sensors-under-nuc-sense` and both its reviews left the
+shape open. The first review found no simpler shape that reads only where the bash reads. The unit
+tests of `src/sense/review_binding/tests.rs` record the questions the core asks a fake `Repo` and
+decide their order.
 
 [ARCH-rules-need-only-git](ARCH-rules-need-only-git.md) keeps every rule that needs a process
 other than git in the bash, for Q-4 and Q-7. The constraints make git the only runtime dependency,
@@ -80,7 +82,8 @@ sensor's core asks the shell instead of taking values.
 - **Standard output:** `nuc sense` must write the report on the standard output, byte for byte as
   the bash sensor writes it there.
 - **Core:** each sensor must be a function of the library outside `src/shell/`. It takes the
-  values the shell gathered and returns its report or a refusal. The shell prints the report or
+  values the shell gathered, or asks the shell where the next item allows, and returns its report
+  or a refusal. The shell prints the report or
   the refusal and exits. A sensor reads no file and runs no process, as a rule does.
   - **Asking the shell:** a sensor's core may ask the shell for its inputs instead of taking them as
     values, where two things hold. First, gathering every input its bash may read, up front, would
@@ -98,8 +101,8 @@ sensor's core asks the shell instead of taking values.
     [SEC-repository-commands-neutralized-or-refused](SEC-repository-commands-neutralized-or-refused.md),
     and `Tree::resolve`, as it gathers a value.
   - A sensor for which the two things do not hold must take its inputs as values.
-  - review-binding asks through the trait `review_binding::Repo`, and binding-adrs through the
-    callback `diffed` of `binding_adrs::report`.
+  - review-binding asks through the trait `review_binding::Repo`. binding-adrs takes as a value
+    the diffs of the paths `binding_adrs::checked_paths` names, which the shell reads first.
 - **Release:** `nuc sense` must report as the sensor of the release the tree carries, as the rules
   do ([API-version-coupling-hook-defaults](API-version-coupling-hook-defaults.md)). Where the
   README names no release, it must report as the newest release `nuc` knows.
@@ -165,10 +168,13 @@ one question, a trait for several.
   logic in the shell. But `nuc` reads more than the bash. It makes git calls the bash does not
   make, and refuses where the bash reads nothing, as for a blob a partial clone lacks or a path
   under a diff driver (G-9, Q-2).
-- **A value the core returns first, which tells the shell what to read** — binding-adrs does so
-  with `reads_adrs` and `reads_index`, and its core still takes values. It fits where one answer
-  decides the reads. review-binding asks a chain, each question decided by the answer before: the
-  shell would call the core once per answer, the trait in another form.
+- **A value the core returns first, which tells the shell what to read, for review-binding too** —
+  binding-adrs does so with `reads_adrs`, `reads_index`, and `checked_paths`, and its core takes
+  values. It fits where one answer decides the reads. review-binding asks a chain, each question
+  decided by the answer before: the shell would call the core once per answer, the trait in
+  another form.
+- **binding-adrs keeps its callback `diffed`** — no change of code, but its reads are known before
+  any diff, so a value names them, and the condition of this ADR would not hold for it.
 - **Let every sensor ask the shell** — one rule for all, but the form of values becomes the
   exception, and a review can no longer tell whether a trait was needed.
 - **Review alone, no test** — no test to keep, but a reviewer would have to search the core for
@@ -238,18 +244,20 @@ check the following:
 `tests/releases.rs` must cite it the same way and hold each row `sense/<name>` to the template's
 trees, as it holds the rows of the rules. `tests/functional_core.rs` must cite it and hold the
 sensors' modules to no effect outside the shell. It must also check that each trait declared in
-`src/sense.rs` or under `src/sense/` is implemented only in `src/shell/` or in the core's test
-code, a `tests.rs` or a `#[cfg(test)]` module. A reviewer then finds every core that asks by its
-implementation in `src/shell/`. The existing lists of `tests/functional_core.rs` decide that the
-core reads no file and runs no process, so a question can be answered only in the shell.
+`src/sense.rs` or under `src/sense/` is implemented only in `src/shell/` or in the core's test code,
+a `tests.rs` or a `#[cfg(test)]` module. A reviewer then finds every core that asks through a trait
+by its implementation in `src/shell/`. The existing lists of `tests/functional_core.rs` decide that
+the core reads no file and runs no process, so a question can be answered only in the shell.
 
-**Not mechanically decidable:** four parts.
+**Not mechanically decidable:** five parts.
 
 - Whether the two things hold for a sensor whose core asks.
 - Whether the shell's answers keep the guards.
 - Whether a sensor that does not ask takes all its inputs as values.
 - A callback, and a trait another module of the core declares outside `src/sense/`, which the
   test does not search.
+- A trait the test tells only by its name. One implemented under a renamed import escapes it. One
+  of the same name declared elsewhere is held as the core's.
 
 The reviewer of the change decides each against the bash sensor, and the maintainer who merges it
 confirms.
