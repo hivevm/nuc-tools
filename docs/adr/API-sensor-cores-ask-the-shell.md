@@ -1,4 +1,4 @@
-# API-sensor-cores-ask-the-shell: `nuc sense <name>` ports the template's sensors that need only git, prints their report byte for byte as the bash does, exits as every `nuc` command does, and a sensor's core asks the shell only for what the bash reads by an earlier answer
+# API-sensor-cores-ask-the-shell: `nuc sense <name>` ports the template's sensors that need only git, prints their report byte for byte as the bash does, exits as every `nuc` command does, and a sensor's core asks the shell where gathering its inputs up front would read more than its bash
 
 - **Status:** 🟡 proposed
 - **Date:** 2026-11-21
@@ -40,8 +40,9 @@ counts in the core, and the shell reads and prints.
 
 The ports showed two sensors whose bash reads an input on some answers and not on others.
 `sensor-review-binding.sh` asks git about the commit a hand-off's `Reviewed at:` line names only
-where the line names one that the range holds: whether it is an ancestor, how many commits follow
-it, and their diffstat. Before v0.11.0 it reads the message of each merge on the first-parent line.
+where the line names one: whether the range holds it, then how many commits follow it, then their
+diffstat. Before v0.11.0 it also binds the hand-off of each merge on the first-parent line, read
+from the merge's message.
 `sensor-binding-adrs.sh` diffs a path only where an ADR binds it by its checks. Their cores in
 `src/sense/review_binding.rs` and `src/sense/binding_adrs.rs` ask the shell for those inputs:
 review-binding through the trait `review_binding::Repo`, thirteen questions that
@@ -64,8 +65,8 @@ or would port `sensor-red-commits.sh` with a run of the project's scripts.
 
 We will port the template's eight sensors that need only git as `nuc sense <name>`, with the
 bash's report and the exit codes of
-[API-command-line-with-sense](API-command-line-with-sense.md). A sensor's core asks the shell only
-for an input the bash reads by an earlier answer.
+[API-command-line-with-sense](API-command-line-with-sense.md). The *Core* clause names where a
+sensor's core asks the shell instead of taking values.
 
 - **Names:** `<name>` is the part of the script's name after `sensor-` and before `.sh`, such as
   `revision-due`. `nuc sense` knows `action-refs`, `backlog`, `binding-adrs`, `plain-rules`,
@@ -82,17 +83,21 @@ for an input the bash reads by an earlier answer.
   values the shell gathered and returns its report or a refusal. The shell prints the report or
   the refusal and exits. A sensor reads no file and runs no process, as a rule does.
   - **Asking the shell:** a sensor's core may ask the shell for its inputs instead of taking them as
-    values. It may do so only where its bash reads an input on some answers and not on others.
-    Gathering such an input up front would make a git call the bash does not make, or refuse where
-    the bash reads nothing.
+    values, where two things hold. First, gathering every input its bash may read, up front, would
+    read more than the bash. It would make a git call the bash does not make, or refuse where the
+    bash reads nothing. Second, no value the core returns first can tell the shell what to read.
+    `binding_adrs::reads_adrs` is such a value: it tells the shell whether to read the ADRs. Where
+    each read depends on the answer to the one before, no such value exists.
   - Such a core must ask through a trait or a callback that it declares and only the shell
-    implements. The core implements none outside its tests. The same trait may carry the sensor's
-    questions that the bash asks on every run, so that one seam answers them all.
+    implements. The same trait may carry the sensor's questions that the bash asks on every run,
+    so that one seam answers them all.
+  - A trait the sensors' core declares must not be implemented in the core outside its test code.
+    The test code is a `tests.rs` or a `#[cfg(test)]` module, where a fake answers it.
   - The shell must answer each question through `shell::git` or the `Tree` of `shell::tree`, under
     the guards of [SEC-git-cleared-without-lazy-fetch](SEC-git-cleared-without-lazy-fetch.md),
     [SEC-repository-commands-neutralized-or-refused](SEC-repository-commands-neutralized-or-refused.md),
     and `Tree::resolve`, as it gathers a value.
-  - A sensor whose bash reads every input whatever the answers must take its inputs as values.
+  - A sensor for which the two things do not hold must take its inputs as values.
   - review-binding asks through the trait `review_binding::Repo`, and binding-adrs through the
     callback `diffed` of `binding_adrs::report`.
 - **Release:** `nuc sense` must report as the sensor of the release the tree carries, as the rules
@@ -126,7 +131,8 @@ for an input the bash reads by an earlier answer.
 
 ## Latitude
 
-None.
+Whether a core that asks declares a trait or takes a callback is the implementer's: a callback for
+one question, a trait for several.
 
 ## Alternatives considered
 
@@ -158,7 +164,11 @@ None.
 - **Gather every input the bash may read, up front** — the cores stay functions of values without
   logic in the shell. But `nuc` reads more than the bash. It makes git calls the bash does not
   make, and refuses where the bash reads nothing, as for a blob a partial clone lacks or a path
-  under a diff driver (Q-1, Q-2, G-9).
+  under a diff driver (G-9, Q-2).
+- **A value the core returns first, which tells the shell what to read** — binding-adrs does so
+  with `reads_adrs` and `reads_index`, and its core still takes values. It fits where one answer
+  decides the reads. review-binding asks a chain, each question decided by the answer before: the
+  shell would call the core once per answer, the trait in another form.
 - **Let every sensor ask the shell** — one rule for all, but the form of values becomes the
   exception, and a review can no longer tell whether a trait was needed.
 - **Review alone, no test** — no test to keep, but a reviewer would have to search the core for
@@ -177,7 +187,7 @@ None.
 - The template's sensors under `scripts/` and their self-tests `scripts/test-sensor-*.sh`, at the
   release this repository carries.
 - `scripts/check-all.sh`, which tells a sensor from a check by `--require`.
-- The specification: *Problem*, *Strategy*, *Constraints*, *Non-Goals*, G-5, Q-2, Q-4, Q-7, and
+- The specification: *Problem*, *Strategy*, *Constraints*, *Non-Goals*, G-5, G-9, Q-2, Q-4, Q-7, and
   Q-11.
 - The hand-off and both reviews of ticket 07 of `sensors-under-nuc-sense`, and ticket 01 of
   `docs/plan/revision-2026-11-20/`.
@@ -196,7 +206,7 @@ None.
   checks can move to `nuc` with the rest of the gates. Parity is decided byte for byte, so the
   report a session reads does not drift (Q-2). A sensor that asks reads only what its bash reads,
   so it makes no git call the bash does not make and refuses no input the bash leaves unread
-  (Q-1, Q-2, G-9). Its decisions keep unit tests of the order of its questions.
+  (G-9, Q-2). Its decisions keep unit tests of the order of its questions.
 - Negative / trade-offs: `nuc` copies the bash's prose, and every change of a sensor's wording in
   a template release is a change of `nuc`. The parity harness needs scenarios with arguments and
   git state, since most sensors read a range of commits, and a pinned tree alone has none. The
@@ -204,12 +214,13 @@ None.
   is no function of values, so its unit tests need a fake of the trait or the callback. That fake
   answers as the test says, not as git does, and only the parity harness compares the answers
   with git's.
-- Follow-ups: in the change that accepts this ADR, the `Verifies:` markers that cite the
-  superseded one move to it, in `tests/contract.rs`, `tests/releases.rs`,
-  `tests/functional_core.rs`, and `scripts/test-check-parity.sh`, with the citations in comments;
-  the structural test of the traits; the Sensors of `docs/ARCHITECTURE.md` and the header of
-  `src/sense.rs`, which call the cores pure functions; a later decision on the sensors that call
-  `gh`, should the constraint on runtime dependencies move.
+- Follow-ups: the structural test of the traits, beside this proposal and before its acceptance;
+  in the change that accepts it, the `Verifies:` markers that cite the superseded ADR move to this
+  one, in `tests/contract.rs`, `tests/releases.rs`, `tests/functional_core.rs`, and
+  `scripts/test-check-parity.sh`, with the citations in comments; the Sensors of
+  `docs/ARCHITECTURE.md` and the header of `src/sense.rs`, which call the cores pure functions; a
+  later decision on the sensors that call `gh`, should the constraint on runtime dependencies
+  move.
 
 ## Enforcement
 
@@ -227,15 +238,21 @@ check the following:
 `tests/releases.rs` must cite it the same way and hold each row `sense/<name>` to the template's
 trees, as it holds the rows of the rules. `tests/functional_core.rs` must cite it and hold the
 sensors' modules to no effect outside the shell. It must also check that each trait declared in
-`src/sense.rs` or under `src/sense/` is implemented only in `src/shell/` or in a `tests.rs` of the
-core. A reviewer then finds every core that asks by its implementation in `src/shell/`.
+`src/sense.rs` or under `src/sense/` is implemented only in `src/shell/` or in the core's test
+code, a `tests.rs` or a `#[cfg(test)]` module. A reviewer then finds every core that asks by its
+implementation in `src/shell/`. The existing lists of `tests/functional_core.rs` decide that the
+core reads no file and runs no process, so a question can be answered only in the shell.
 
-**Not mechanically decidable:** three parts. Whether a sensor's bash reads an input on some
-answers and not on others, the condition under which its core may ask. Whether the shell's
-answers keep the guards. Whether a sensor that does not ask takes all its inputs as values. The
-reviewer of the change decides each against the bash sensor, and the maintainer who merges it
-confirms. A callback, unlike a trait, has no `impl` a test can find, so the review finds it as
-well.
+**Not mechanically decidable:** four parts.
+
+- Whether the two things hold for a sensor whose core asks.
+- Whether the shell's answers keep the guards.
+- Whether a sensor that does not ask takes all its inputs as values.
+- A callback, and a trait another module of the core declares outside `src/sense/`, which the
+  test does not search.
+
+The reviewer of the change decides each against the bash sensor, and the maintainer who merges it
+confirms.
 
 The self-test of the parity harness, `scripts/test-check-parity.sh`, must cite it the same way. It
 must check that each of the following fails:
