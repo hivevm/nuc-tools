@@ -317,8 +317,9 @@ mod stand_in {
     /// test, a source, a backlog entry, a script an ADR binds by one of its checks, and the text
     /// of an ADR together with a source; a commit follows the one the hand-off names as reviewed.
     /// The working tree changes the file of rules and the script again, holds the hand-off, and
-    /// has a path under the filter whose stat alone changed.
-    fn baited() -> (Fixture, std::path::PathBuf) {
+    /// has a path under the filter, older than the index, whose stat alone changed where `dirty`
+    /// says so, on which binding-adrs is not decided.
+    fn baited(dirty: bool) -> (Fixture, std::path::PathBuf) {
         let readme = "# Fixture\n\n- **Template release:** v0.12.0\n";
         let fixture = Fixture::project("stand-in-sensors", CONFIG, readme);
         fixture
@@ -338,8 +339,12 @@ mod stand_in {
                 "docs/adr/FIX-b-rule.md",
                 "# FIX-b-rule: Y\n\n- **Status:** 🟢 accepted\n- **Applies to:** the rule `a/b` of `scripts/check-a.sh`\n",
             )
-            .write("scripts/check-a.sh", "x\n")
-            .commit("start");
+            .write("scripts/check-a.sh", "x\n");
+        set_mtime(
+            &fixture.root().join("data.txt"),
+            std::time::SystemTime::now() - std::time::Duration::from_secs(120),
+        );
+        fixture.commit("start");
         fixture.git(&["switch", "-q", "-c", "feature"]);
         fixture
             .write(
@@ -363,13 +368,14 @@ mod stand_in {
             "# Agent Guide\n\n- The human decides.\n- The session should read it.\n- More.\n",
         );
         fixture.write("scripts/check-a.sh", "x\ny\nz\n");
-        // Its stat changed, its bytes not: git reads it again, through its filter where one runs.
-        let later = std::time::SystemTime::now() + std::time::Duration::from_secs(60);
-        fs::File::options()
-            .write(true)
-            .open(fixture.root().join("data.txt"))
-            .and_then(|file| file.set_modified(later))
-            .expect("the mtime is set");
+        if dirty {
+            // Its stat changed, its bytes not: git reads it again, through its filter where one
+            // runs.
+            set_mtime(
+                &fixture.root().join("data.txt"),
+                std::time::SystemTime::now() + std::time::Duration::from_secs(60),
+            );
+        }
         let canary = fixture.root().join(".git").join("canary");
         let script = bait(&fixture.root().join(".git").join("bait.sh"), &canary);
         for key in [
@@ -382,6 +388,15 @@ mod stand_in {
         }
         fixture.git(&["config", "diff.submodule", "log"]);
         (fixture, canary)
+    }
+
+    /// The file's modification time set to `at`.
+    fn set_mtime(path: &Path, at: std::time::SystemTime) {
+        fs::File::options()
+            .write(true)
+            .open(path)
+            .and_then(|file| file.set_modified(at))
+            .expect("the mtime is set");
     }
 
     /// A `git` in `dir` that appends the arguments of every call beside itself, each call ended by
@@ -445,7 +460,7 @@ mod stand_in {
     /// Verifies: SEC-repository-commands-neutralized-or-refused
     #[test]
     fn every_diff_of_every_sensor_carries_the_guards() {
-        let (fixture, canary) = baited();
+        let (fixture, canary) = baited(true);
         let bin = Fixture::new("stand-in-sensors-bin");
         let path = recording_stand_in(bin.root());
         // Each sensor, and each that reads a change with a head and on the working tree, with the
@@ -460,11 +475,8 @@ mod stand_in {
                 &["main", "feature"],
                 &[("diff", "--name-only"), ("diff", "-U0")],
             ),
-            (
-                "binding-adrs",
-                &["main"],
-                &[("diff", "-z"), ("diff", "--name-only"), ("diff", "-U0")],
-            ),
+            // Refused before its diffs: the path under the filter is stat-dirty.
+            ("binding-adrs", &["main"], &[]),
             ("plain-rules", &["main", "feature"], name_and_hunks),
             ("plain-rules", &["main"], name_and_hunks),
             ("plan-frontier", &[], &[]),
@@ -493,8 +505,14 @@ mod stand_in {
                 &[("PATH", path.as_str())],
                 &[&["sense", sensor][..], args].concat(),
             );
+            let refused = *sensor == "binding-adrs" && args == &["main"];
             assert!(
-                matches!(output.status.code(), Some(0 | 1)),
+                if refused {
+                    output.status.code() == Some(2)
+                        && stderr(&output).ends_with("[sense/binding-adrs:filter]\n")
+                } else {
+                    matches!(output.status.code(), Some(0 | 1))
+                },
                 "{run}: {}",
                 stderr(&output)
             );
@@ -508,6 +526,42 @@ mod stand_in {
                             && call.iter().any(|arg| arg.starts_with(start))
                     }),
                     "{run} started no {command} with {start}: {diffs:?}"
+                );
+            }
+        }
+    }
+
+    /// On a working tree whose path under the filter is older than the index and unchanged,
+    /// binding-adrs reads the change, and each diff of it that may read the working tree carries
+    /// the keys that keep git from running the filter: the guard for a file touched after the
+    /// check that refuses a stat-dirty one.
+    /// Verifies: SEC-repository-commands-neutralized-or-refused
+    #[test]
+    fn binding_adrs_on_a_clean_tree_neutralizes_the_filter_on_each_diff() {
+        let (fixture, canary) = baited(false);
+        let bin = Fixture::new("stand-in-clean-bin");
+        let path = recording_stand_in(bin.root());
+        let output = fixture.nuc_with(
+            &[("PATH", path.as_str())],
+            &["sense", "binding-adrs", "main"],
+        );
+        assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+        assert!(
+            !canary.exists(),
+            "binding-adrs ran a command of the repository"
+        );
+        let calls = calls(bin.root(), "args");
+        let diffs = diffs_checked("binding-adrs [\"main\"]", &calls);
+        for start in ["--name-only", "-U0"] {
+            let diff = diffs
+                .iter()
+                .find(|call| call.iter().any(|arg| arg == start))
+                .unwrap_or_else(|| panic!("no diff with {start}: {diffs:?}"));
+            for key in ["filter.bait.process=", "filter.bait.required=false"] {
+                assert!(
+                    diff.windows(2)
+                        .any(|pair| pair[0] == "-c" && pair[1] == key),
+                    "the diff with {start} lacks -c {key}: {diff:?}"
                 );
             }
         }

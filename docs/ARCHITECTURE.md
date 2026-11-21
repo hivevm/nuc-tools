@@ -151,10 +151,9 @@ golden path and the test pattern an agent copies from are named here.
   tree (Q-7,
   [SEC-repository-commands-neutralized-or-refused](adr/SEC-repository-commands-neutralized-or-refused.md)).
   Where that could change what they report, they refuse: plain-rules a file of rules under a filter
-  and a rename a filter could pair otherwise, binding-adrs a path under a filter whose raw bytes
-  differ from the index and any submodule checked out. A file whose index holds bytes its filter
-  would clean otherwise is not refused yet, and can read otherwise than the bash; ticket 12 of
-  `docs/plan/revision-2026-11-20/` refuses it. A path whose hunks decide a report and that the
+  and a rename a filter could pair otherwise, binding-adrs a path under a filter whose stat differs
+  from the index or that is racily clean, its modification time no older than the index's in whole
+  seconds, and any submodule checked out. A path whose hunks decide a report and that the
   bash's git reads through a textconv driver or a diff command the configuration sets, or through
   `diff.external`, is refused as well: in tests-kept every path its diff does not leave out, in
   plain-rules a file of rules and the path it was renamed from, in binding-adrs a path named with

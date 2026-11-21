@@ -915,8 +915,8 @@ fn rule_file_added(
 /// never through a textconv driver, an external diff, or a filter of the repository or of a
 /// submodule (Q-7). Where the change ends in the working tree, a submodule checked out is not
 /// decided, since the bash's git may ask its own status; the diffs neutralize every filter driver,
-/// and a path under a filter whose raw bytes differ from the index is not decided, since the bash's
-/// git tells it through the filter. A submodule not checked out is read under the repository's own
+/// and a path under a filter that is stat-dirty or racily clean is not decided, since the bash's
+/// git hashes it through the filter. A submodule not checked out is read under the repository's own
 /// `ignore` settings, as the bash's git reads it.
 fn binding_adrs(
     tree: &Tree,
@@ -1028,37 +1028,81 @@ fn changed_paths(root: &Path, change: &Change) -> Result<(Vec<Vec<u8>>, Vec<Stri
     Ok((paths, keys))
 }
 
-/// Refused where a tracked path under an active filter differs from the index by its raw bytes:
-/// its stat changed, so the bash's git hashes it through the filter, and nuc's, which runs none,
-/// can tell another change of it. A path whose stat is unchanged is read from the index by both,
-/// and one whose raw bytes are the index's is unchanged to both, but where the index holds bytes
-/// the filter would clean otherwise, as a file committed before its filter was set.
+/// Refused where a tracked path under an active filter may differ from the index to the bash's git,
+/// which hashes it through the filter where nuc's runs none
+/// (SEC-repository-commands-neutralized-or-refused). That is a path whose stat differs from the
+/// index, whatever its raw bytes, as a file committed before its filter was set and then touched;
+/// and a racily clean one, whose stat matches but whose modification time is no older than the
+/// index's, since git then compares its content. `diff-files` names the first by their stat alone,
+/// under the keys that keep it from running a filter on a racily clean entry it hashes; the second
+/// it names only where the raw bytes differ, so each path's modification time is compared with the
+/// index's in whole seconds, as git compares them where it does not compare finer, which errs
+/// toward counting.
 fn refuse_filtered_dirty(root: &Path, filters: &Filters, keys: &[String]) -> Result<(), Refusal> {
     let sensor = binding_adrs::SENSOR.name;
     if filters.paths.is_empty() {
         return Ok(());
     }
-    let config: Vec<&str> = keys.iter().map(String::as_str).collect();
-    // The porcelain diff of the index and the working tree hashes a path whose stat changed, raw
-    // under the neutralized filters; `diff-files` would name it for its stat alone.
-    let dirty = git::diff(root, &config, git::Diff::Diff, &["-z", "--name-only"])
-        .map_err(git_refusal(sensor))?;
+    let undecided = git_refusal(sensor);
+    let mut args: Vec<&str> = keys.iter().flat_map(|key| ["-c", key.as_str()]).collect();
+    args.extend(["diff-files", "-z", "--name-only"]);
+    let dirty = git::run_bytes(root, &args).map_err(undecided)?;
     let dirty: std::collections::BTreeSet<&[u8]> = dirty.split(|&b| b == 0).collect();
-    match filters
-        .paths
-        .iter()
-        .find(|path| dirty.contains(path.as_slice()))
+    let index = git::run(root, &["rev-parse", "--git-path", "index"]).map_err(undecided)?;
+    let index = mtime_secs(&root.join(index.trim_end_matches(['\n', '\r'])));
+    let refuse = |path: &[u8], why: &str| Refusal {
+        sensor,
+        reason: "filter",
+        message: format!(
+            "{}: {why}, so the bash's git reads it through its filter",
+            String::from_utf8_lossy(path)
+        ),
+    };
+    for path in &filters.paths {
+        if dirty.contains(path.as_slice()) {
+            return Err(refuse(path, "changed in the working tree under a filter"));
+        }
+        let racy = match (
+            relative_path(root, path).and_then(|p| mtime_secs(&p)),
+            index,
+        ) {
+            (Some(file), Some(index)) => file >= index,
+            (Some(_), None) => true,
+            (None, _) => false,
+        };
+        if racy {
+            return Err(refuse(
+                path,
+                "racily clean under a filter, its modification time no older than the index's",
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// The modification time of the file at `path` in whole seconds since the epoch, of the link where
+/// it is one, as git's `lstat` reads it; none where it has none.
+fn mtime_secs(path: &Path) -> Option<u64> {
+    let modified = std::fs::symlink_metadata(path).ok()?.modified().ok()?;
+    modified
+        .duration_since(std::time::UNIX_EPOCH)
+        .ok()
+        .map(|since| since.as_secs())
+}
+
+/// The path of the repository's file at `relative`, as git names it; none where the platform cannot
+/// spell it.
+fn relative_path(root: &Path, relative: &[u8]) -> Option<PathBuf> {
+    #[cfg(unix)]
     {
-        Some(path) => Err(Refusal {
-            sensor,
-            reason: "filter",
-            message: format!(
-                "{}: changed in the working tree under a filter, through which the bash's git \
-                 reads it",
-                String::from_utf8_lossy(path)
-            ),
-        }),
-        None => Ok(()),
+        use std::os::unix::ffi::OsStrExt;
+        Some(root.join(std::ffi::OsStr::from_bytes(relative)))
+    }
+    #[cfg(not(unix))]
+    {
+        std::str::from_utf8(relative)
+            .ok()
+            .map(|relative| root.join(relative))
     }
 }
 

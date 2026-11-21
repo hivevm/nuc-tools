@@ -867,16 +867,24 @@ fn tests_kept_runs_no_driver_of_the_repository() {
     );
 }
 
+/// The file's modification time set to `at`.
+#[cfg(unix)]
+fn set_mtime(path: &std::path::Path, at: std::time::SystemTime) {
+    std::fs::File::options()
+        .write(true)
+        .open(path)
+        .and_then(|f| f.set_modified(at))
+        .expect("the mtime is set");
+}
+
 /// The file's modification time a minute ahead, its content as it was: git must read it again to
 /// tell whether it changed, as it does for a file the working tree touched.
 #[cfg(unix)]
 fn stat_changed(path: &std::path::Path) {
-    let later = std::time::SystemTime::now() + std::time::Duration::from_secs(60);
-    std::fs::File::options()
-        .write(true)
-        .open(path)
-        .and_then(|f| f.set_modified(later))
-        .expect("the mtime is set");
+    set_mtime(
+        path,
+        std::time::SystemTime::now() + std::time::Duration::from_secs(60),
+    );
 }
 
 /// The diffs of `plain-rules` run no textconv driver and no diff command the repository names on a
@@ -1481,6 +1489,63 @@ fn binding_adrs_runs_no_driver_of_the_repository() {
     );
 }
 
+/// A path under a filter whose stat matches the index but is no older than it, a racily clean
+/// entry, is not decided, since git then compares its content through the filter: nuc compares the
+/// times in whole seconds, so one in the index's second counts, below it by a fraction as well,
+/// where a git that compares finer would read the entry as clean. Where the times are equal to the
+/// nanosecond, git hashes the entry, and runs no filter where nuc neutralized it.
+/// Verifies: SEC-repository-commands-neutralized-or-refused
+#[cfg(unix)]
+#[test]
+fn binding_adrs_counts_a_racily_clean_path_under_a_filter() {
+    let readme = "# Fixture\n\n- **Template release:** v0.12.0\n";
+    let fixture = Fixture::project("sense-binding-racy", CONFIG, readme);
+    fixture.write(".gitattributes", "*.png filter=bait\n");
+    fixture.write("a.png", "image\n");
+    binding_checks(&fixture, ":");
+    // A whole second, two hours back, and a tenth of a second into it.
+    let second = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("after the epoch")
+        .as_secs()
+        - 7200;
+    let file = std::time::UNIX_EPOCH + std::time::Duration::from_millis(second * 1000 + 100);
+    set_mtime(&fixture.root().join("a.png"), file);
+    fixture.commit("image");
+    let marker = fixture.root().join(".git").join("filter-ran");
+    let clean = bait(&fixture, "clean.sh", &marker);
+    fixture.git(&["config", "filter.bait.clean", &clean]);
+    fixture.git(&["config", "filter.bait.process", &clean]);
+    fixture.git(&["config", "filter.bait.required", "true"]);
+    binding_checks(&fixture, "true");
+    let index = fixture.root().join(".git").join("index");
+    for at in [file + std::time::Duration::from_millis(500), file] {
+        set_mtime(&index, at);
+        let output = fixture.nuc(&["sense", "binding-adrs", "HEAD"]);
+        assert_eq!(code(&output), Some(2), "{}", stdout(&output));
+        assert!(
+            stderr(&output).contains("a.png: racily clean")
+                && stderr(&output)
+                    .trim_end()
+                    .ends_with("[sense/binding-adrs:filter]"),
+            "{}",
+            stderr(&output)
+        );
+        assert!(
+            !marker.exists(),
+            "nuc sense binding-adrs ran the filter of a.png"
+        );
+    }
+    // A second later, the entry is clean to git and to nuc.
+    set_mtime(&index, file + std::time::Duration::from_secs(1));
+    let output = fixture.nuc(&["sense", "binding-adrs", "HEAD"]);
+    assert_eq!(code(&output), Some(0), "{}", stderr(&output));
+    assert!(
+        !marker.exists(),
+        "nuc sense binding-adrs ran the filter of a.png"
+    );
+}
+
 /// An external diff in the repository's configuration has the bash's git print what it writes for
 /// every path, so `tests-kept`, `plain-rules`, and `binding-adrs` are not decided on a change whose
 /// hunks decide their report, and run no driver.
@@ -1631,10 +1696,11 @@ fn moved_submodule(name: &str, applies: &str) -> (Fixture, std::path::PathBuf) {
 }
 
 /// A change that ends in the working tree runs no filter the repository names (Q-7). A path under
-/// a filter whose stat changed while its bytes did not reads alike to the bash, which runs the
-/// filter, and to nuc, which runs none; one whose bytes changed is not decided, since the bash's
-/// git tells it through the filter. A submodule checked out is not decided either, whatever its
-/// `ignore` setting, since the bash's git may ask its own status, which runs its filters.
+/// a filter whose stat is unchanged and older than the index reads alike to the bash and to nuc.
+/// One whose stat changed is not decided, whatever its bytes, since the bash's git hashes it
+/// through the filter, as a file committed before its filter was set and then touched. A
+/// submodule checked out is not decided either, whatever its `ignore` setting, since the bash's
+/// git may ask its own status, which runs its filters.
 /// Verifies: SEC-repository-commands-neutralized-or-refused
 #[cfg(unix)]
 #[test]
@@ -1643,6 +1709,10 @@ fn binding_adrs_in_the_working_tree_runs_no_filter() {
     let fixture = Fixture::project("sense-binding-filter", CONFIG, readme);
     fixture.write(".gitattributes", "*.png filter=bait\n");
     fixture.write("a.png", "image\n");
+    set_mtime(
+        &fixture.root().join("a.png"),
+        std::time::SystemTime::now() - std::time::Duration::from_secs(60),
+    );
     binding_checks(&fixture, ":");
     fixture.commit("image");
     let marker = fixture.root().join(".git").join("filter-ran");
@@ -1650,7 +1720,6 @@ fn binding_adrs_in_the_working_tree_runs_no_filter() {
     fixture.git(&["config", "filter.bait.clean", &clean]);
     fixture.git(&["config", "filter.bait.process", &clean]);
     fixture.git(&["config", "filter.bait.required", "true"]);
-    stat_changed(&fixture.root().join("a.png"));
     binding_checks(&fixture, "true");
     let output = fixture.nuc(&["sense", "binding-adrs", "HEAD"]);
     assert_eq!(code(&output), Some(0), "{}", stderr(&output));
@@ -1659,21 +1728,22 @@ fn binding_adrs_in_the_working_tree_runs_no_filter() {
         "{}",
         stdout(&output)
     );
-    assert!(
-        !marker.exists(),
-        "nuc sense binding-adrs ran the filter of a.png"
-    );
-    fixture.write("a.png", "another image\n");
-    let output = fixture.nuc(&["sense", "binding-adrs", "HEAD"]);
-    assert_eq!(code(&output), Some(2), "{}", stdout(&output));
-    assert_eq!(stdout(&output), "");
-    assert!(
-        stderr(&output)
-            .trim_end()
-            .ends_with("[sense/binding-adrs:filter]"),
-        "{}",
-        stderr(&output)
-    );
+    // Touched, its bytes as committed; then changed.
+    stat_changed(&fixture.root().join("a.png"));
+    for _ in 0..2 {
+        let output = fixture.nuc(&["sense", "binding-adrs", "HEAD"]);
+        assert_eq!(code(&output), Some(2), "{}", stdout(&output));
+        assert_eq!(stdout(&output), "");
+        assert!(
+            stderr(&output).contains("a.png: changed in the working tree under a filter")
+                && stderr(&output)
+                    .trim_end()
+                    .ends_with("[sense/binding-adrs:filter]"),
+            "{}",
+            stderr(&output)
+        );
+        fixture.write("a.png", "another image\n");
+    }
     assert!(
         !marker.exists(),
         "nuc sense binding-adrs ran the filter of a.png"
