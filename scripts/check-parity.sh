@@ -58,10 +58,12 @@
 # order of their releases. A change the table does not list, or one it lists that the trees do not
 # show, fails the harness and names the rule; tests/releases.rs holds the rules to the table
 # (API-version-coupling-hook-defaults). A tree whose script lacks the function has no such check,
-# and its body counts as empty, so the release a check comes or goes at is a change. A release the
-# table names that is later than every tree of the template is ahead of the corpus and not
-# compared; a function no tree has fails, unless its row names such a release. With fewer than two
-# trees of the template there is nothing to compare. A helper the function calls is not compared.
+# and its body counts as empty, so the release a check comes or goes at is a change. A row of a
+# sensor compares the libraries under scripts/lib/ its script sources as well, each whole, and a
+# change of one the table does not list names the library. A release the table names that is
+# later than every tree of the template is ahead of the corpus and not compared; a function no
+# tree has fails, unless its row names such a release. With fewer than two trees of the template
+# there is nothing to compare. A helper the function calls is not compared.
 #
 # Before the comparisons, each blob of tests/tables.blobs, the pins of the copies of the
 # template's fixture tables under tests/tables/, is held to the blob the template's tag of its
@@ -521,6 +523,15 @@ check_body() {
   ' "$1"
 }
 
+# sourced_libs <script> — the libraries under scripts/lib/ that the script sources, as its lines
+# that are no comment name them with 'source' or '.', each once (API-sensor-cores-ask-the-shell: a
+# change of a library a sensor sources counts). What a library sources in turn is not followed: no
+# sensor of the template sources a library that does.
+sourced_libs() {
+  [[ -f "$1" ]] || return 0
+  grep -E '^[[:space:]]*(source|\.)[[:space:]]' "$1" | grep -oE 'lib/[A-Za-z0-9_.-]+\.sh' | sort -u
+}
+
 # at_least_floor <vX.Y.Z> — whether the release is FLOOR or later.
 at_least_floor() {
   [[ -n "$1" ]] && [[ "$(printf '%s\n%s\n' "$FLOOR" "$1" | sort -V | head -1)" == "$FLOOR" ]]
@@ -909,14 +920,39 @@ if ((whole && ${#template_trees[@]} >= 2)); then
   mapfile -t template_trees < <(printf '%s\n' "${template_trees[@]}" | sort -V -k1,1)
   for row in "${release_rows[@]}"; do
     read -r r_rule r_script r_function r_changed <<< "$row"
-    changed=() previous="" first=1 present=0
+    changed=() first=1 present=0 why=()
+    declare -A previous=() current=()
     for tree in "${template_trees[@]}"; do
       t_release="${tree%% *}" t_dir="${tree#* }"
+      current=()
       # A release whose script has no such function has no such check yet, or no longer: its body
       # is empty, so that the release it comes or goes at is a change.
       if body="$(check_body "$t_dir/$r_script" "$r_function")"; then present=1; else body=""; fi
-      ((first)) || [[ "$body" == "$previous" ]] || changed+=("$t_release")
-      previous="$body" first=0
+      current["$r_script"]="$body"
+      # A sensor's row holds the libraries its script sources too, each whole, comments left out.
+      if [[ "$r_rule" == sense/* ]]; then
+        while IFS= read -r lib; do
+          current["scripts/$lib"]="$(check_body "$t_dir/scripts/$lib" - || true)"
+        done < <(sourced_libs "$t_dir/$r_script")
+      fi
+      parts=()
+      for part in "${!previous[@]}" "${!current[@]}"; do
+        [[ " ${parts[*]} " == *" $part "* ]] || parts+=("$part")
+      done
+      moved=()
+      for part in "${parts[@]}"; do
+        [[ -v "previous[$part]" && -v "current[$part]" && "${previous[$part]}" == "${current[$part]}" ]] \
+          || moved+=("$part")
+      done
+      if ((!first)) && ((${#moved[@]})); then
+        changed+=("$t_release")
+        mapfile -t moved < <(printf '%s\n' "${moved[@]}" | sort)
+        printf -v joined '%s, ' "${moved[@]}"
+        why+=("$t_release in ${joined%, }")
+      fi
+      previous=()
+      for part in "${!current[@]}"; do previous["$part"]="${current[$part]}"; done
+      first=0
     done
     # A release the row names that is later than every tree of the template in the corpus is ahead
     # of the corpus: it is not compared until a tree of it is pinned.
@@ -940,7 +976,11 @@ if ((whole && ${#template_trees[@]} >= 2)); then
     r_changed="$(IFS=,; echo "${listed[*]:--}")"
     got="$(IFS=,; echo "${changed[*]:--}")"
     if [[ "$got" != "$r_changed" ]]; then
-      echo "Parity check: $r_rule — its bash check changed at $got across the template's trees of the corpus, where ${RELEASES#"$ROOT/"} says $r_changed" >&2
+      parts_named=""
+      for entry in "${why[@]}"; do
+        [[ ",$r_changed," == *",${entry%% *},"* ]] || parts_named+="; at ${entry}"
+      done
+      echo "Parity check: $r_rule — its bash check changed at $got across the template's trees of the corpus, where ${RELEASES#"$ROOT/"} says $r_changed$parts_named" >&2
       failed=1
     fi
   done

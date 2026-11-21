@@ -1104,6 +1104,50 @@ expect pass "a function no tree has, whose check comes at a release ahead of the
   run_releases "$changed" "$work/r-ahead.tsv"
 expect pass "a change at a release ahead of the corpus is not compared" "" \
   run_releases "$changed" "$(releases "$work/r-listed-ahead.tsv" v0.6.0,v9.0.0)"
+# A sensor's row holds the libraries its script sources (API-sensor-cores-ask-the-shell).
+# sensor_repo <name> <release> <lines of git.sh>... — a tree of the template whose
+# scripts/sensor-x.sh sources scripts/lib/git.sh, which holds the lines.
+sensor_repo() {
+  local name="$1" release="$2"
+  shift 2
+  source_repo "$name" "- **Template release:** $release" > /dev/null
+  printf '# Setup\n' > "$work/src-$name/TEMPLATE-SETUP.md"
+  mkdir -p "$work/src-$name/scripts/lib"
+  # shellcheck disable=SC2016 # the script is the tree's
+  printf '%s\n' '#!/usr/bin/env bash' '# shellcheck source=lib/git.sh' \
+    'source "$(dirname "${BASH_SOURCE[0]}")/lib/git.sh"' 'echo x' > "$work/src-$name/scripts/sensor-x.sh"
+  printf '%s\n' "$@" > "$work/src-$name/scripts/lib/git.sh"
+  git -C "$work/src-$name" add -A
+  git -C "$work/src-$name" -c user.name=F -c user.email=f@example.invalid -c core.hooksPath=/dev/null commit -qm sensor
+  git -C "$work/src-$name" rev-parse HEAD > "$work/src-$name.commit"
+}
+# sensor_releases <file> <rule> <changed> — a table of releases with the one row of the sensor.
+sensor_releases() {
+  printf '# One sensor.\n%s\tscripts/sensor-x.sh\t-\t%s\n' "$2" "$3" > "$1"
+  echo "$1"
+}
+sensor_repo sens-old v0.5.0 ': one'
+sensor_repo sens-new v0.6.0 ': two'
+sensor_repo sens-reworded v0.6.0 '# Reworded.' ': one'
+check "the library of the changed tree differs in a line that is no comment" \
+  grep -qx ': two' "$work/src-sens-new/scripts/lib/git.sh"
+check "the library of the reworded tree differs from the old one in a comment" \
+  grep -qx '# Reworded.' "$work/src-sens-reworded/scripts/lib/git.sh"
+check "the old tree's library has no such comment" \
+  test "$(cat "$work/src-sens-old/scripts/lib/git.sh")" = ': one'
+check "the sensor's script is the same in both trees" \
+  cmp -s "$work/src-sens-old/scripts/sensor-x.sh" "$work/src-sens-new/scripts/sensor-x.sh"
+lib_changed="$(corpus "$work/sens-changed.toml" sens-old sens-new)"
+expect fail "a library a sensor sources that changed at a release its row lacks fails and names the library" \
+  "r-lib-unlisted.tsv says -; at v0.6.0 in scripts/lib/git.sh" \
+  run_releases "$lib_changed" "$(sensor_releases "$work/r-lib-unlisted.tsv" sense/x -)"
+expect pass "a change of a library a sensor's row lists passes" "" \
+  run_releases "$lib_changed" "$(sensor_releases "$work/r-lib-listed.tsv" sense/x v0.6.0)"
+expect pass "a change of a library's comments alone is no change" "" \
+  run_releases "$(corpus "$work/sens-reworded.toml" sens-old sens-reworded)" \
+  "$(sensor_releases "$work/r-lib-reworded.tsv" sense/x -)"
+expect pass "the libraries count for a sensor's row alone" "" \
+  run_releases "$lib_changed" "$(sensor_releases "$work/r-lib-rule.tsv" docs/x -)"
 printf 'docs/template-release\tREADME.md\tcheck_template_release\t-\n' > "$work/r-malformed.tsv"
 expect fail "a malformed row of the table of releases is refused" "a row needs a rule ID" \
   run_releases "$c" "$work/r-malformed.tsv"

@@ -188,8 +188,9 @@ golden path and the test pattern an agent copies from are named here.
   every rule the table maps to, and keeps the minimum and the `hook/` rules of the tree's own, which
   `check-hooks.sh` reads as well. A variant edits, deletes, or writes one path inside a copy of the
   tree, never under its `.git` ([TEST-parity-harness](adr/TEST-parity-harness.md)). Across the
-  template's trees of the corpus it compares each rule's bash function, and each sensor's script,
-  with `tests/parity/releases.tsv`; a change to a helper the function calls shows in no row. Then
+  template's trees of the corpus it holds to `tests/parity/releases.tsv` each rule's bash function,
+  and each sensor's script together with the libraries it sources; a change to a helper the
+  function calls shows in no row. Then
   `scripts/lib/hook-parity.sh` runs the scenarios of `tests/parity/hook-scenarios.sh` through git,
   with the bash hook of each of the template's trees and with the shim and `nuc`, maps the hooks'
   lines by `tests/parity/hooks.tsv`, and holds the template's hook self-test to the scenarios and
