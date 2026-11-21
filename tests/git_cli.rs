@@ -309,10 +309,12 @@ mod stand_in {
         list.split(", ").map(str::to_owned).collect()
     }
 
-    /// A repository whose configuration names a command for each diff a sensor could start: a
-    /// clean and a process filter, a textconv driver, a diff command, an external diff, and
-    /// `diff.submodule`, each the bait that creates the canary. `feature` changes a file of rules,
-    /// a test, a source, a backlog entry, a script an ADR binds by one of its checks, and the text
+    /// A repository whose configuration names a command for the diffs a sensor could start: a
+    /// clean and a process filter, a textconv driver, and a diff command, all on the paths
+    /// `*.txt`, which no commit changes, and `diff.submodule`, each the bait that creates the
+    /// canary. An external diff, and a driver on a path whose hunks decide, under which a sensor is
+    /// not decided, have their tests in `tests/contract.rs`. `feature` changes a file of rules, a
+    /// test, a source, a backlog entry, a script an ADR binds by one of its checks, and the text
     /// of an ADR together with a source; a commit follows the one the hand-off names as reviewed.
     /// The working tree changes the file of rules and the script again, holds the hand-off, and
     /// has a path under the filter whose stat alone changed.
@@ -320,7 +322,7 @@ mod stand_in {
         let readme = "# Fixture\n\n- **Template release:** v0.12.0\n";
         let fixture = Fixture::project("stand-in-sensors", CONFIG, readme);
         fixture
-            .write(".gitattributes", "* diff=bait\n*.txt filter=bait\n")
+            .write(".gitattributes", "*.txt diff=bait filter=bait\n")
             .write("AGENTS.md", "# Agent Guide\n\n- The human decides.\n")
             .write("tests/a_test.rs", "fn a() {}\n")
             .write("data.txt", "data\n")
@@ -375,7 +377,6 @@ mod stand_in {
             "filter.bait.process",
             "diff.bait.textconv",
             "diff.bait.command",
-            "diff.external",
         ] {
             fixture.git(&["config", key, &script]);
         }

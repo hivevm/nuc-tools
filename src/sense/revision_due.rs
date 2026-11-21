@@ -27,6 +27,7 @@ pub const SENSOR: Sensor = Sensor {
         "unreadable",
         "number",
         "git",
+        super::DRIVER,
         super::RELEASE,
     ],
 };

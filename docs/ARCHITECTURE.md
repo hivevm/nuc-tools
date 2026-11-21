@@ -154,7 +154,13 @@ golden path and the test pattern an agent copies from are named here.
   and a rename a filter could pair otherwise, binding-adrs a path under a filter whose raw bytes
   differ from the index and any submodule checked out. A file whose index holds bytes its filter
   would clean otherwise is not refused yet, and can read otherwise than the bash; ticket 12 of
-  `docs/plan/revision-2026-11-20/` refuses it.
+  `docs/plan/revision-2026-11-20/` refuses it. A path whose hunks decide a report and that the
+  bash's git reads through a textconv driver or a diff command the configuration sets, or through
+  `diff.external`, is refused as well: in tests-kept every path its diff does not leave out, in
+  plain-rules a file of rules and the path it was renamed from, in binding-adrs a path named with
+  checks, and in revision-due the overview under a textconv driver, the one driver its `log -G`
+  runs. A submodule the change moves where `diff.submodule` reads `diff` or `log` is refused in
+  tests-kept and, where checks name it, in binding-adrs.
   review-binding asks git what each answer leads it to, as its bash does, so its core asks through
   the trait `review_binding::Repo`, which `shell::sense` answers with git; its diffs compare commits
   and read no working tree, and its hand-off is a file named from where `nuc` runs that must resolve

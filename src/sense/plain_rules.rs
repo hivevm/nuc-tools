@@ -18,7 +18,15 @@ pub const SENSOR: Sensor = Sensor {
     name: "plain-rules",
     since: Version(0, 8, 0),
     changes: &[HELD, REQUIRE, KEYED, ARGUMENTS, TOKENS],
-    reasons: &["file", "filter", "git", "name", "ref", super::RELEASE],
+    reasons: &[
+        "file",
+        "filter",
+        "git",
+        "name",
+        "ref",
+        super::DRIVER,
+        super::RELEASE,
+    ],
 };
 
 /// The label that opens each line of the report.

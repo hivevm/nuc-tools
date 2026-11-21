@@ -33,6 +33,7 @@ pub const SENSOR: Sensor = Sensor {
         "name",
         "filter",
         "submodule",
+        super::DRIVER,
         super::RELEASE,
     ],
 };
