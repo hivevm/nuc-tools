@@ -264,29 +264,6 @@ fn prose_is_an_item_that_is_not_one_path_in_backticks() {
 }
 
 #[test]
-fn the_index_s_binding_table_gives_each_row_s_key_and_applies_to() {
-    let index = b"# ADRs\n\n### Binding\n\n| ADR | T | A |\n| [0001](0001-a.md) | A |  the plan  |\n\
-                  | [draft-x] | X |\n|  [0009](z) | Z | skipped |\n### Binding again\n| [0002](b) | B | `b` |\n## Later\n| [0003](c) | C | c |\n";
-    let rows: Vec<(String, String)> = binding_rows(index)
-        .into_iter()
-        .map(|(k, a)| {
-            (
-                String::from_utf8_lossy(&k).into_owned(),
-                String::from_utf8_lossy(&a).into_owned(),
-            )
-        })
-        .collect();
-    assert_eq!(
-        rows,
-        [
-            ("0001".to_owned(), "the plan".to_owned()),
-            ("draft-x".to_owned(), String::new()),
-            ("0002".to_owned(), "`b`".to_owned()),
-        ]
-    );
-}
-
-#[test]
 fn ads_head_listing_matches_the_pattern_of_the_release_and_no_quoted_name() {
     let ls_tree =
         b"docs/adr/0001-a.md\ndocs/adr/draft-b.md\ndocs/adr/Ab-c-d.md\ndocs/adr/README.md\n\

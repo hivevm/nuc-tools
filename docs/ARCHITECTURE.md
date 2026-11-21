@@ -48,8 +48,9 @@ golden path and the test pattern an agent copies from are named here.
   as its bash check would, and notes for the summary. Each has one rule ID, the reason `nuc explain`
   gives, and the inputs it reads; the list of every rule is `rules::ALL`. A rule reads no file and
   runs no process ([ARCH-rules-outcome-hooks-answer](adr/ARCH-rules-outcome-hooks-answer.md)). The
-  rules of the decision record share one reading of it in `src/adr.rs`, and the rules of Markdown
-  one reading of its links in `src/markdown.rs`, both outside `src/rules/`, the way the bash's
+  rules of the decision record share one reading of it in `src/adr.rs` with the sensors
+  binding-adrs, plain-rules, and review-binding. The rules of Markdown share one reading of its
+  links in `src/markdown.rs`. Both stand outside `src/rules/`, the way the bash's
   `scripts/lib/adr.sh` and awk passes read them. The byte-level readings of the bash's tools, lines
   as awk, `read`, and `sed` split them, POSIX space and the bytes without it, the first word
   `read` splits off, awk's numbers, exact up to 2^53, and the new side of git's hunk headers, are
@@ -80,7 +81,8 @@ golden path and the test pattern an agent copies from are named here.
   with a NUL byte is not decided. Before v0.8.0 the bash pipes `devcontainer.json` into `grep -q`
   for the socket, so a match in one longer than a pipe holds is not decided either.
   `src/adr.rs` reads the record in each of its two forms, numbered and named by category, through
-  pairs of functions, and each rule, and the shell for the inputs, chooses one by the release.
+  pairs of functions, and each rule, and the shell for the inputs, chooses one by the release; a
+  sensor passes whether its release names the ADRs by category, by the release its bash changed.
   `tests/parity/releases.tsv` names the releases at which each
   rule's check changed, which the parity harness holds to the template's trees and
   `tests/releases.rs` holds the rules to; a rule that checks some or every release alike although

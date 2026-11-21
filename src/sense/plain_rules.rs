@@ -68,24 +68,7 @@ pub fn is_rule_file(path: &[u8], release: Version) -> bool {
     if path == b"AGENTS.md" {
         return true;
     }
-    let Some(name) = path.strip_prefix(b"docs/adr/") else {
-        return false;
-    };
-    if name.contains(&b'/') {
-        return false;
-    }
-    let Some(stem) = name.strip_suffix(b".md") else {
-        return false;
-    };
-    if release >= REQUIRE {
-        // `[A-Za-z]+-[^/]*\.md`
-        let letters = stem.iter().take_while(|b| b.is_ascii_alphabetic()).count();
-        letters > 0 && stem.get(letters) == Some(&b'-')
-    } else {
-        // `([0-9]{4}-[^/]*|draft-[^/]*)\.md`
-        (stem.len() >= 5 && stem[..4].iter().all(u8::is_ascii_digit) && stem[4] == b'-')
-            || stem.starts_with(b"draft-")
-    }
+    adr::is_listed_adr(path, release >= REQUIRE)
 }
 
 /// The files the change touches as `rule_stream` lists them: the last path of each line of

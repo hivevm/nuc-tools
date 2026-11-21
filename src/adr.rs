@@ -1,8 +1,9 @@
 //! The decision record as the template's `scripts/check-docs.sh` and `scripts/lib/adr.sh` read
 //! it: which files are ADRs, the header fields of each, its `# ADR-` heading, a header field in
-//! another form than the list item, and the template's instruction paragraph left in it. The rules
-//! of the record share this reading, so that each reads an ADR the one way the bash does: byte by
-//! byte, as awk and bash do under `LC_ALL=C`.
+//! another form than the list item, and the template's instruction paragraph left in it; and the
+//! record as the bash sensors read it, the patterns of its names, the index's *Binding* table. The
+//! rules of the record and the sensors share this reading, so that each reads an ADR the one way
+//! the bash does: byte by byte, as awk and bash do under `LC_ALL=C`.
 
 use crate::bash::{awk_lines, contains, find, is_space, read_lines};
 use std::collections::{BTreeMap, BTreeSet};
@@ -29,13 +30,37 @@ const NAMED_FIELDS: &[&str] = &[
 /// `template.md`, by name, with their bytes; empty when the directory does not exist.
 pub type Dir = BTreeMap<String, Vec<u8>>;
 
-/// Whether the name is that of an ADR file, as `find -name` matches `[0-9][0-9][0-9][0-9]-*.md`
-/// or `draft-*.md`, the `*` empty as well.
+/// The patterns of an ADR file's name in the numbered record, before template release v0.9.0, as
+/// `find -name` and git's `:(glob)` pathspecs match them: numbered, and the drafts. No pattern
+/// starts with a wildcard, so the rule of `src/glob.rs` for a leading `.`, bash's, and `find`'s
+/// agree on them.
+pub const NUMBERED_PATTERNS: &[&str] = &["[0-9][0-9][0-9][0-9]-*.md", "draft-*.md"];
+
+/// The pattern of an ADR file's name from template release v0.9.0 on: a letter of ASCII first,
+/// and a hyphen before the `.md` it ends in.
+pub const CATEGORY_PATTERNS: &[&str] = &["[A-Za-z]*-*.md"];
+
+/// The patterns of an ADR file's name: [`CATEGORY_PATTERNS`] where the record names its ADRs by
+/// category, [`NUMBERED_PATTERNS`] before.
+pub fn name_patterns(by_category: bool) -> &'static [&'static str] {
+    if by_category {
+        CATEGORY_PATTERNS
+    } else {
+        NUMBERED_PATTERNS
+    }
+}
+
+/// Whether one of the patterns matches the name.
+fn matches_any(patterns: &[&str], name: &str) -> bool {
+    patterns
+        .iter()
+        .any(|pattern| crate::glob::matches(pattern, name) == Some(true))
+}
+
+/// Whether the name is that of an ADR file, as `find -name` matches [`NUMBERED_PATTERNS`], the
+/// `*` empty as well.
 pub fn is_adr_name(name: &str) -> bool {
-    let bytes = name.as_bytes();
-    let numbered =
-        bytes.len() >= 8 && bytes[..4].iter().all(u8::is_ascii_digit) && bytes[4] == b'-';
-    (numbered || name.starts_with("draft-")) && name.ends_with(".md")
+    matches_any(NUMBERED_PATTERNS, name)
 }
 
 /// The ADR files of the directory, the numbered ones in order, then the drafts.
@@ -47,12 +72,29 @@ pub fn adr_names(dir: &Dir) -> Vec<&str> {
 }
 
 /// Whether the name is that of an ADR file from template release v0.9.0 on, as `find -name`
-/// matches `[A-Za-z]*-*.md`: a letter of ASCII first, and a hyphen before the `.md` it ends in.
+/// matches [`CATEGORY_PATTERNS`].
 pub fn is_category_name(name: &str) -> bool {
-    name.as_bytes().first().is_some_and(u8::is_ascii_alphabetic)
-        && name
-            .strip_suffix(".md")
-            .is_some_and(|stem| stem.contains('-'))
+    matches_any(CATEGORY_PATTERNS, name)
+}
+
+/// Whether a path, or a line `git ls-tree -r --name-only` lists as git quotes it, is an ADR file
+/// directly in `docs/adr/` as the bash sensors' `ADR_FILE_RE` matches it:
+/// `^docs/adr/[A-Za-z]+-[^/]*\.md$` by category, `^docs/adr/([0-9]{4}-[^/]*|draft-[^/]*)\.md$`
+/// before. Unlike the pattern of `find`, the letters by category run up to the first hyphen; a
+/// name git quotes matches neither.
+pub fn is_listed_adr(line: &[u8], by_category: bool) -> bool {
+    static CATEGORY: std::sync::OnceLock<regex::bytes::Regex> = std::sync::OnceLock::new();
+    static NUMBERED: std::sync::OnceLock<regex::bytes::Regex> = std::sync::OnceLock::new();
+    let (cell, pattern) = if by_category {
+        (&CATEGORY, r"(?-u)^docs/adr/[A-Za-z]+-[^/]*\.md$")
+    } else {
+        (
+            &NUMBERED,
+            r"(?-u)^docs/adr/([0-9]{4}-[^/]*|draft-[^/]*)\.md$",
+        )
+    };
+    cell.get_or_init(|| regex::bytes::Regex::new(pattern).expect("a valid pattern"))
+        .is_match(line)
 }
 
 /// Whether the name is that of a numbered file as `find -name` matches `[0-9]*-*.md`, which the
@@ -129,11 +171,38 @@ pub fn title(text: &[u8]) -> Option<&[u8]> {
 
 /// What follows `ADR-` in the identifier of the ADR file: its number, or `draft-<slug>`.
 pub fn key_of(name: &str) -> &str {
-    if name.starts_with("draft-") {
-        name.strip_suffix(".md").unwrap_or(name)
+    // The key is a prefix of the name, ended at an ASCII byte.
+    &name[..key_of_bytes(name.as_bytes()).len()]
+}
+
+/// [`key_of`] on the bytes of the name: a draft's name without `.md`, else what precedes its
+/// first hyphen.
+pub fn key_of_bytes(name: &[u8]) -> &[u8] {
+    if name.starts_with(b"draft-") {
+        name.strip_suffix(b".md").unwrap_or(name)
     } else {
-        name.split('-').next().unwrap_or(name)
+        name.iter()
+            .position(|&b| b == b'-')
+            .map_or(name, |at| &name[..at])
     }
+}
+
+/// The part of the path after its last `/`, as `basename` prints it of a path with no `/` at its
+/// end.
+pub fn file_name(path: &[u8]) -> &[u8] {
+    path.iter()
+        .rposition(|&b| b == b'/')
+        .map_or(path, |at| &path[at + 1..])
+}
+
+/// The identifier of the ADR at the path: its file's name without `.md` where the record names
+/// its ADRs by category, `ADR-` and its key before.
+pub fn identifier(path: &[u8], by_category: bool) -> Vec<u8> {
+    let name = file_name(path);
+    if by_category {
+        return name.strip_suffix(b".md").unwrap_or(name).to_vec();
+    }
+    [b"ADR-", key_of_bytes(name)].concat()
 }
 
 /// The header of one ADR, read as the bash's awk pass reads it.
@@ -351,6 +420,12 @@ pub fn status_emoji(text: &[u8]) -> (Option<&'static str>, usize) {
         }
     }
     (first.map(|(_, emoji)| emoji), count)
+}
+
+/// Whether the status names the ADR accepted or proposed: it holds the emoji of either anywhere,
+/// as `grep -qE '🟢|🟡'` finds it, whatever else it holds.
+pub fn names_in_force(status: &[u8]) -> bool {
+    contains(status, STATUS_EMOJI[0].as_bytes()) || contains(status, STATUS_EMOJI[1].as_bytes())
 }
 
 /// Whether the line continues a field: POSIX space, then something else.
@@ -592,6 +667,88 @@ pub fn section<'a>(text: &'a [u8], name: &str) -> Vec<&'a [u8]> {
     found
 }
 
+/// The section `## <name>` of the lines, as the bash read it before it skipped fences: from its
+/// heading to the next `## ` line.
+pub fn unfenced_section<'a>(lines: &[&'a [u8]], name: &str) -> Vec<&'a [u8]> {
+    let heading = format!("## {name}");
+    let mut inside = false;
+    let mut found = Vec::new();
+    for line in lines {
+        if *line == heading.as_bytes() {
+            inside = true;
+            found.push(*line);
+            continue;
+        }
+        if inside && line.starts_with(b"## ") {
+            break;
+        }
+        if inside {
+            found.push(*line);
+        }
+    }
+    found
+}
+
+/// What follows the last `**Applies to:**` on the line, as `${line##*\*\*Applies to:\*\*}`
+/// leaves it; the whole line where none stands.
+pub fn after_applies_label(line: &[u8]) -> &[u8] {
+    let label: &[u8] = b"**Applies to:**";
+    (0..=line.len().saturating_sub(label.len()))
+        .rev()
+        .find(|&i| line[i..].starts_with(label))
+        .map_or(line, |i| &line[i + label.len()..])
+}
+
+/// What `adr_field_value` leaves of the line for `Applies to`: [`after_applies_label`], its
+/// leading POSIX space dropped.
+pub fn applies_value(line: &[u8]) -> &[u8] {
+    let value = after_applies_label(line);
+    let start = value
+        .iter()
+        .position(|&b| !is_space(b))
+        .unwrap_or(value.len());
+    &value[start..]
+}
+
+/// The rows of the index's *Binding* table, as the awk of the bash sensors before template
+/// release v0.9.0 prints them and `IFS=$'\t' read -r key applies` reads them: the key of the
+/// row's link and its *Applies to*.
+pub fn binding_rows(index: &[u8]) -> Vec<(Vec<u8>, Vec<u8>)> {
+    let mut rows = Vec::new();
+    let mut inside = false;
+    for line in awk_lines(index) {
+        if line.starts_with(b"### Binding") {
+            inside = true;
+            continue;
+        }
+        if inside && line.starts_with(b"#") {
+            break;
+        }
+        if !(inside && line.starts_with(b"| [")) {
+            continue;
+        }
+        let fields: Vec<&[u8]> = line.split(|&b| b == b'|').collect();
+        let field = |n: usize| fields.get(n).copied().unwrap_or_default();
+        let key = field(1);
+        // sub(/^ *\[/, "", key): the spaces go only with the bracket after them.
+        let spaces = key.iter().take_while(|&&b| b == b' ').count();
+        let key = key[spaces..].strip_prefix(b"[").unwrap_or(key);
+        let key = key
+            .iter()
+            .position(|&b| b == b']')
+            .map_or(key, |at| &key[..at]);
+        let applies = field(3);
+        let start = applies.iter().take_while(|&&b| b == b' ').count();
+        let end = applies
+            .iter()
+            .rposition(|&b| b != b' ')
+            .map_or(start, |i| i + 1);
+        let printed = [key, b"\t", &applies[start..end.max(start)]].concat();
+        rows.push(crate::bash::read_tab_pair(&printed));
+    }
+    rows
+}
+
 /// The successor a status line names, as `superseding_id` reads it: `superseded by`, an optional
 /// `[`, and a `<CAT>-<slug>` with no word character after it.
 pub fn named_successor(status: &[u8], categories: &[String]) -> Option<String> {
@@ -796,6 +953,84 @@ pub fn rule_path_bytes(applies: &[u8]) -> Vec<(Vec<u8>, Vec<Vec<u8>>)> {
 mod tests {
     use super::*;
     use crate::testing::adr_id;
+
+    #[test]
+    fn the_patterns_of_a_name_are_find_s_and_the_listing_s_are_the_sensors() {
+        // The globs of `find -name` and of review-binding's pathspecs in the bash.
+        assert_eq!(
+            name_patterns(false),
+            ["[0-9][0-9][0-9][0-9]-*.md", "draft-*.md"]
+        );
+        assert_eq!(name_patterns(true), ["[A-Za-z]*-*.md"]);
+        assert!(is_adr_name("0001-.md") && is_adr_name("draft-.md") && !is_adr_name("001-a.md"));
+        assert!(is_category_name("A1-x.md") && !is_category_name("1A-x.md"));
+        assert!(!is_category_name("Ab.md") && !is_category_name("Ab-x.mdx"));
+        assert!(is_listed_adr(b"docs/adr/Ab-c-d.md", true));
+        // The letters run up to the first hyphen in the listing, not in the pattern of `find`.
+        assert!(!is_listed_adr(b"docs/adr/A1-x.md", true));
+        assert!(!is_listed_adr(b"docs/adr/sub/A-x.md", true));
+        assert!(is_listed_adr(b"docs/adr/0001-.md", false));
+        assert!(is_listed_adr(b"docs/adr/draft-b.md", false));
+        assert!(!is_listed_adr(b"\"docs/adr/0003-\\303\\274.md\"", false));
+    }
+
+    #[test]
+    fn the_identifier_is_the_name_by_category_and_adr_and_its_key_before() {
+        assert_eq!(key_of("0007-a-b.md"), "0007");
+        assert_eq!(key_of("draft-a-b.md"), "draft-a-b");
+        assert_eq!(key_of_bytes(b"x\xff-a.md"), b"x\xff");
+        assert_eq!(file_name(b"docs/adr/0007-a.md"), b"0007-a.md");
+        assert_eq!(file_name(b"a"), b"a");
+        assert_eq!(identifier(b"docs/adr/0007-a.md", false), b"ADR-0007");
+        let named = crate::testing::cat_id("SEC", "a-b");
+        let path = format!("docs/adr/{named}.md");
+        assert_eq!(identifier(path.as_bytes(), true), named.as_bytes());
+    }
+
+    #[test]
+    fn a_status_is_in_force_with_either_emoji_anywhere() {
+        assert!(names_in_force("🟢 accepted".as_bytes()));
+        assert!(names_in_force("⚪ superseded, was 🟡".as_bytes()));
+        assert!(!names_in_force("🔴 rejected".as_bytes()));
+    }
+
+    #[test]
+    fn the_applies_to_value_follows_the_last_label() {
+        let line = b"- **Applies to:** x **Applies to:** \t `a`";
+        assert_eq!(after_applies_label(line), b" \t `a`");
+        assert_eq!(applies_value(line), b"`a`");
+        assert_eq!(applies_value(b"`b`"), b"`b`");
+    }
+
+    #[test]
+    fn an_unfenced_section_reads_a_heading_inside_a_fence() {
+        let lines: Vec<&[u8]> = vec![b"## A", b"a", b"```", b"## B", b"```", b"## C"];
+        assert_eq!(unfenced_section(&lines, "A"), [&b"## A"[..], b"a", b"```"]);
+        assert_eq!(unfenced_section(&lines, "B"), [&b"## B"[..], b"```"]);
+    }
+
+    #[test]
+    fn the_index_s_binding_table_gives_each_row_s_key_and_applies_to() {
+        let index = b"# ADRs\n\n### Binding\n\n| ADR | T | A |\n| [0001](0001-a.md) | A |  the plan  |\n\
+                      | [draft-x] | X |\n|  [0009](z) | Z | skipped |\n### Binding again\n| [0002](b) | B | `b` |\n## Later\n| [0003](c) | C | c |\n";
+        let rows: Vec<(String, String)> = binding_rows(index)
+            .into_iter()
+            .map(|(k, a)| {
+                (
+                    String::from_utf8_lossy(&k).into_owned(),
+                    String::from_utf8_lossy(&a).into_owned(),
+                )
+            })
+            .collect();
+        assert_eq!(
+            rows,
+            [
+                ("0001".to_owned(), "the plan".to_owned()),
+                ("draft-x".to_owned(), String::new()),
+                ("0002".to_owned(), "`b`".to_owned()),
+            ]
+        );
+    }
 
     #[test]
     fn adr_names_are_the_numbered_files_then_the_drafts_the_star_empty_too() {
