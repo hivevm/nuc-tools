@@ -192,14 +192,50 @@ pub struct Record {
     pub index: Vec<u8>,
 }
 
-/// The report, as the bash of the release writes it on the standard output. `diffed` gives the file
-/// at a path and its diff, asked only where the bash runs `checked` on that path.
+/// The file and the diff of each path [`checked_paths`] names, by its path.
+pub type Diffs = BTreeMap<Vec<u8>, Diffed>;
+
+/// The paths the bash runs `checked` on, each once, in the order its loop over the ADRs first
+/// reaches them: a changed path that an ADR in force binds by its checks, where no path of the
+/// same *Applies to* without checks matched it first. Which paths these are depends on the record
+/// and the paths alone, never on a diff, so the shell reads exactly these before the report
+/// (API-sensor-cores-ask-the-shell). Named paths are read for no checks.
+pub fn checked_paths(release: Version, listing: &Listing, record: &Record) -> Vec<Vec<u8>> {
+    let Listing::Changed { paths, .. } = listing else {
+        return Vec::new();
+    };
+    let mut checked: Vec<Vec<u8>> = Vec::new();
+    for adr in &record.adrs {
+        let text = Text::of(&adr.text);
+        if !text.in_force() {
+            continue;
+        }
+        let applies = text.field_line(b"Applies to").unwrap_or_default();
+        let bound = bound_paths(applies, release);
+        for changed in paths {
+            // The first bound path that matches decides whether `checked` runs: one without checks
+            // binds and ends the search, one with checks reads the file's diff.
+            if let Some(path) = bound
+                .iter()
+                .find(|path| path.matches(changed, false, release))
+                && path.checks.is_some()
+                && !checked.contains(changed)
+            {
+                checked.push(changed.clone());
+            }
+        }
+    }
+    checked
+}
+
+/// The report, as the bash of the release writes it on the standard output. `diffs` holds the file
+/// and the diff of each path [`checked_paths`] names, which the shell read for it.
 pub fn report(
     release: Version,
     sections: bool,
     listing: &Listing,
     record: &Record,
-    diffed: &mut dyn FnMut(&[u8]) -> Result<Diffed, Refusal>,
+    diffs: &Diffs,
 ) -> Result<Vec<u8>, Refusal> {
     let mut out = Vec::new();
     let sections = sections && release >= OPTIONS;
@@ -221,7 +257,7 @@ pub fn report(
         finish(&mut out, release, sections, record, &[]);
         return Ok(out);
     }
-    let (found, files) = bind(&record.adrs, paths, named, release, diffed)?;
+    let (found, files) = bind(&record.adrs, paths, named, release, diffs);
     let (hint, hint_list) = if sections {
         (
             "The ADRs whose Applies to is prose follow below.",
@@ -268,8 +304,8 @@ fn bind<'r>(
     paths: &[Vec<u8>],
     named: bool,
     release: Version,
-    diffed: &mut dyn FnMut(&[u8]) -> Result<Diffed, Refusal>,
-) -> Result<(Vec<Vec<u8>>, Vec<&'r Adr>), Refusal> {
+    diffs: &Diffs,
+) -> (Vec<Vec<u8>>, Vec<&'r Adr>) {
     let mut touched: BTreeMap<Vec<u8>, Vec<u8>> = BTreeMap::new();
     let mut found = Vec::new();
     let mut files = Vec::new();
@@ -294,8 +330,10 @@ fn bind<'r>(
                     break;
                 };
                 if !touched.contains_key(changed) {
-                    let got = diffed(changed)?;
-                    touched.insert(changed.clone(), held_in_hunks(&got, release));
+                    let got = diffs
+                        .get(changed)
+                        .expect("the shell read every path checked_paths names");
+                    touched.insert(changed.clone(), held_in_hunks(got, release));
                 }
                 if in_checks(&touched[changed], checks) {
                     hits.push(changed);
@@ -317,7 +355,7 @@ fn bind<'r>(
         found.push(line);
         files.push(adr);
     }
-    Ok((found, files))
+    (found, files)
 }
 
 /// What `finish` prints for `--sections`: the prose of the ADRs in force not listed, and of each

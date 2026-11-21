@@ -29,8 +29,11 @@ fn changed(paths: &[&str]) -> Listing {
 
 /// The report where no path is named with checks of its own.
 fn plain(release: Version, sections: bool, listing: &Listing, record: &Record) -> String {
-    let mut never = |_: &[u8]| -> Result<Diffed, Refusal> { panic!("no file is read for checks") };
-    let report = report(release, sections, listing, record, &mut never).expect("a report");
+    assert!(
+        checked_paths(release, listing, record).is_empty(),
+        "no file is read for checks"
+    );
+    let report = report(release, sections, listing, record, &Diffs::new()).expect("a report");
     String::from_utf8(report).expect("UTF-8")
 }
 
@@ -402,6 +405,44 @@ fn sections_print_the_prose_and_of_each_adr_listed_its_header_decision_and_enfor
     ));
 }
 
+/// The first bound path that matches decides: one without checks binds and reads no diff, even
+/// where a later one of the same ADR has checks; a later ADR that binds the path by its checks
+/// reads it.
+#[test]
+fn the_first_bound_path_that_matches_decides_whether_the_diff_is_read() {
+    let listing = changed(&["c.sh"]);
+    let plain_first = record(vec![adr(
+        "docs/adr/FIX-a-b.md",
+        "🟢 accepted",
+        "`c.sh` and the rule `t/a` of `c.sh`",
+        "",
+    )]);
+    assert!(checked_paths(NEWEST, &listing, &plain_first).is_empty());
+    let checks_first = record(vec![adr(
+        "docs/adr/FIX-a-b.md",
+        "🟢 accepted",
+        "the rule `t/a` of `c.sh` and `c.sh`",
+        "",
+    )]);
+    assert_eq!(
+        checked_paths(NEWEST, &listing, &checks_first),
+        [b"c.sh".to_vec()]
+    );
+    let later_by_checks = record(vec![
+        adr("docs/adr/FIX-a-b.md", "🟢 accepted", "`c.sh`", ""),
+        adr(
+            "docs/adr/FIX-c-d.md",
+            "🟢 accepted",
+            "the rule `t/a` of `c.sh`",
+            "",
+        ),
+    ]);
+    assert_eq!(
+        checked_paths(NEWEST, &listing, &later_by_checks),
+        [b"c.sh".to_vec()]
+    );
+}
+
 #[test]
 fn a_file_named_with_checks_is_read_only_where_the_bash_runs_checked() {
     let record = record(vec![
@@ -419,16 +460,19 @@ fn a_file_named_with_checks_is_read_only_where_the_bash_runs_checked() {
         ),
         adr("docs/adr/FIX-e-f.md", "🟢 accepted", "`c.sh`", ""),
     ]);
-    let mut asked = Vec::new();
-    let mut diffed = |path: &[u8]| -> Result<Diffed, Refusal> {
-        asked.push(path.to_vec());
-        Ok(Diffed {
-            file: b"check_a() {  # t/a\n  :\n}\ncheck_b() {  # t/b\n  :\n}\n".to_vec(),
-            diff: b"@@ -5 +5 @@\n".to_vec(),
-        })
-    };
     let listing = changed(&["c.sh", "d.sh"]);
-    let report = report(NEWEST, false, &listing, &record, &mut diffed).unwrap();
+    let asked = checked_paths(NEWEST, &listing, &record);
+    let diffs: Diffs = asked
+        .iter()
+        .map(|path| {
+            let diffed = Diffed {
+                file: b"check_a() {  # t/a\n  :\n}\ncheck_b() {  # t/b\n  :\n}\n".to_vec(),
+                diff: b"@@ -5 +5 @@\n".to_vec(),
+            };
+            (path.clone(), diffed)
+        })
+        .collect();
+    let report = report(NEWEST, false, &listing, &record, &diffs).unwrap();
     let report = String::from_utf8(report).unwrap();
     assert!(!report.contains("FIX-a-b"), "{report}");
     assert!(report.contains("  - FIX-c-d (docs/adr/FIX-c-d.md) — c.sh\n"));

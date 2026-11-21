@@ -941,24 +941,26 @@ fn binding_adrs(
         Vec::new()
     };
     let record = binding_adrs::Record { adrs, index };
+    // The file and the diff of each path the bash runs `checked` on, read before the report.
     let mut drivers = None;
-    let mut diffed = |path: &[u8]| -> Result<binding_adrs::Diffed, Refusal> {
+    let mut diffs = binding_adrs::Diffs::new();
+    for path in binding_adrs::checked_paths(release, &listing, &record) {
         // The hunks of a file named with checks decide whether it binds.
         let drivers = cached(&mut drivers, root, sensor)?;
-        refuse_driven(root, sensor, drivers, &[path], false)?;
-        let path = spelled_for(sensor, path)?;
-        let file = shown(tree, &change, &path)?;
+        refuse_driven(root, sensor, drivers, &[&path], false)?;
+        let spelled = spelled_for(sensor, &path)?;
+        let file = shown(tree, &change, &spelled)?;
         let config: Vec<&str> = unfiltered.iter().map(String::as_str).collect();
         let mut args = vec!["--no-color", "-U0", "--no-renames", &change.base];
         if !change.worktree {
             args.push(&change.head);
         }
-        args.extend(["--", &path]);
+        args.extend(["--", &spelled]);
         let diff = git::diff(root, &config, git::Diff::Diff, &args).map_err(undecided)?;
         refuse_moved_submodule(sensor, drivers, &diff)?;
-        Ok(binding_adrs::Diffed { file, diff })
-    };
-    binding_adrs::report(release, args.sections, &listing, &record, &mut diffed)
+        diffs.insert(path, binding_adrs::Diffed { file, diff });
+    }
+    binding_adrs::report(release, args.sections, &listing, &record, &diffs)
 }
 
 /// The paths a change touches, as `git diff --name-only --no-renames` names them unquoted under
