@@ -1230,6 +1230,7 @@ fn filtered_push(name: &str, file_time: std::time::SystemTime) -> (Fixture, Path
 }
 
 /// The file's modification time set to `at`.
+#[cfg(unix)]
 fn set_mtime(path: &Path, at: std::time::SystemTime) {
     std::fs::File::options()
         .write(true)
@@ -1239,6 +1240,7 @@ fn set_mtime(path: &Path, at: std::time::SystemTime) {
 }
 
 /// Whether the push ran the checks: it fails with their line.
+#[cfg(unix)]
 fn ran_the_checks(output: &Output) -> bool {
     !output.status.success() && both(output).contains("check output")
 }
