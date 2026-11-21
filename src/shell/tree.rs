@@ -231,11 +231,11 @@ impl Tree {
     /// where there is one, of `AGENTS.md` after them, as `adr_blobs` has git hash each, or the line
     /// adr_blobs ends on where git could not; and the bytes of `docs/adr/NUC.blobs`. `AGENTS.md`
     /// is hashed only where it resolves inside the repository, since git would read it (Q-12).
-    /// git hashes each file as it would store it, its line endings converted, so it applies the
-    /// filters `.gitattributes` names, as the bash does: a filter's clean command comes from the
-    /// user's configuration, which SEC-git-cleared-without-lazy-fetch trusts, and no key of
-    /// `tests/git_cli.neutralized` can name every filter; `--no-filters` would hash other blobs
-    /// than the bash where line endings are converted.
+    /// git hashes each file as it would store it, its line endings converted, as the bash does;
+    /// `--no-filters` would hash other blobs than the bash where line endings are converted. A
+    /// file under an active filter, tracked or not, is not decided before any hash, since git
+    /// would run the filter's driver to hash it
+    /// (SEC-repository-commands-neutralized-or-refused).
     pub(super) fn read_base(&self) -> Result<rules::docs_base_blobs::Base, String> {
         let dir = self.root.join("docs/adr");
         let record = self.read_adr(&dir, true)?;
@@ -274,6 +274,7 @@ impl Tree {
             })
             .collect();
         let hashed: Vec<&str> = paths.iter().map(String::as_str).collect();
+        git::refuse_filtered_hash(&self.root, &hashed)?;
         git::refuse_attributes_under_caller(&self.root, &hashed)?;
         let mut args = vec!["hash-object", "--"];
         args.extend(paths.iter().map(String::as_str));

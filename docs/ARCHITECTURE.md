@@ -70,7 +70,10 @@ golden path and the test pattern an agent copies from are named here.
   no `nuc.toml`, a file `nuc` cannot read, one without a minimum, a minimum above the running
   `nuc`, or an unknown rule ID ends the run before it.
   The blob of a hook is git's, `git hash-object` as the bash runs it. A hook whose attributes name
-  a filter is not decided, since git would run the filter's driver (Q-7).
+  a filter is not decided, since git would run the filter's driver (Q-7); so is a file
+  `docs/base-blobs` hashes under an active filter, the `NUC-` files of the record, tracked or not,
+  and `AGENTS.md`
+  ([SEC-repository-commands-neutralized-or-refused](adr/SEC-repository-commands-neutralized-or-refused.md)).
   The rules of `scripts/check-devcontainer.sh`, one per rule ID of its keys under `devcontainer/`,
   share one reading of the Dev Container's files in `src/devcontainer.rs`: text without its
   full-line `//` comments, the Features by the depth of the braces, and the value of a top-level

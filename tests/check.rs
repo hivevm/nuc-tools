@@ -45,6 +45,67 @@ fn a_driver_of_the_caller_s_environment_is_not_decided() {
     assert_eq!(code(&output), Some(0), "{}", stderr(&output));
 }
 
+/// `docs/base-blobs` hashes no file under an active filter, whose driver git would run: a `NUC-`
+/// file of the record under one, tracked or not, makes the run not decided, and names it. A filter
+/// attribute whose driver no entry makes active runs nothing, and the rule decides as without it.
+/// Verifies: SEC-repository-commands-neutralized-or-refused
+#[cfg(unix)]
+#[test]
+fn base_blobs_hashes_no_file_under_a_filter() {
+    use std::os::unix::fs::PermissionsExt;
+    let config = "minimum = \"0.0.0\"\nrules = [\"docs/base-blobs\"]\n";
+    let readme = "# Fixture\n\n- **Template release:** v0.12.0\n";
+    let fixture = Fixture::project("check-base-filter", config, readme);
+    fixture.write(".gitattributes", "docs/adr/NUC-*.md filter=bait\n");
+    fixture.write("docs/adr/NUC-a.md", "# NUC-a: a\n");
+    let blob = stdout(&fixture.git(&["hash-object", "--", "docs/adr/NUC-a.md"]));
+    fixture.write("docs/adr/NUC.blobs", &format!("{} NUC-a.md\n", blob.trim()));
+    fixture.commit("the record");
+    // No entry makes the driver active, while another is: the rule decides as without the
+    // attribute.
+    fixture.git(&["config", "filter.other.clean", "cat"]);
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(
+        code(&output),
+        Some(0),
+        "{}{}",
+        stdout(&output),
+        stderr(&output)
+    );
+    let canary = fixture.root().join(".git").join("canary");
+    let script = fixture.root().join(".git").join("clean.sh");
+    std::fs::write(
+        &script,
+        format!("#!/bin/sh\ntouch '{}'\ncat\n", canary.display()),
+    )
+    .expect("written");
+    std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).expect("mode");
+    fixture.git(&[
+        "config",
+        "filter.bait.clean",
+        script.to_str().expect("UTF-8"),
+    ]);
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(2), "{}", stdout(&output));
+    assert!(
+        stderr(&output).contains("docs/adr/NUC-a.md: its attributes name a filter"),
+        "{}",
+        stderr(&output)
+    );
+    assert!(!canary.exists(), "nuc check ran the filter's driver");
+    // An untracked one as well. The test's own `git rm --cached` hashes it through the filter.
+    fixture.git(&["rm", "-q", "--cached", "docs/adr/NUC-a.md"]);
+    let _ = std::fs::remove_file(&canary);
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(2), "{}", stdout(&output));
+    assert!(
+        stderr(&output).contains("docs/adr/NUC-a.md: its attributes name a filter"),
+        "{}",
+        stderr(&output)
+    );
+    assert!(!canary.exists(), "nuc check ran the filter's driver");
+}
+
 /// The files `docs/base-blobs` hashes, which the index may lack, are held to the caller's
 /// environment too: an attribute it gives an untracked `NUC-` file, for a filter of the
 /// repository, has the bash's git hash it otherwise, so `nuc check` is not decided. So is an
@@ -82,7 +143,8 @@ fn a_hashed_file_the_caller_s_environment_reads_otherwise_is_not_decided() {
         stderr(&output)
     );
     // An attribute of the home's attributes file that a moved `XDG_CONFIG_HOME` takes away, under
-    // which the bash's git hashes raw where nuc's filters.
+    // which the bash's git hashes raw where nuc's would filter: nuc hashes no file under a filter,
+    // so the refusal of a filtered hash decides it first.
     let home = Fixture::new("check-environment-attributes-home");
     let git_config = home.root().join(".config").join("git");
     std::fs::create_dir_all(&git_config).expect("directories");
@@ -101,7 +163,7 @@ fn a_hashed_file_the_caller_s_environment_reads_otherwise_is_not_decided() {
     );
     assert_eq!(code(&output), Some(2), "{}", stdout(&output));
     assert!(
-        stderr(&output).contains("docs/adr/NUC-a.md: "),
+        stderr(&output).contains("docs/adr/NUC-a.md: its attributes name a filter"),
         "{}",
         stderr(&output)
     );

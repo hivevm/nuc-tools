@@ -442,12 +442,7 @@ pub struct Filters {
 /// where a driver of that name is active, the side that never passes.
 pub fn filters(root: &Path) -> Result<Result<Filters, String>, String> {
     let mut filters = Filters::default();
-    // `<key> LF <value> NUL` for each key; none, and exit 1, where the configuration has none.
-    let (code, config) = status_and_output(root, &["config", "-z", "--get-regexp", r"^filter\."])?;
-    if code > 1 {
-        return Err("git config --get-regexp failed".to_owned());
-    }
-    let active = crate::sense::plain_rules::filter_drivers(&config);
+    let active = active_filters(root)?;
     for name in &active {
         let Some(name) = String::from_utf8(name.clone())
             .ok()
@@ -481,6 +476,48 @@ pub fn filters(root: &Path) -> Result<Result<Filters, String>, String> {
         }
     }
     Ok(Ok(filters))
+}
+
+/// The filter drivers git may run: those any entry of the configuration gives a `clean` or
+/// `process` command that is not empty.
+fn active_filters(root: &Path) -> Result<std::collections::BTreeSet<Vec<u8>>, String> {
+    // `<key> LF <value> NUL` for each key; none, and exit 1, where the configuration has none.
+    let (code, config) = status_and_output(root, &["config", "-z", "--get-regexp", r"^filter\."])?;
+    if code > 1 {
+        return Err("git config --get-regexp failed".to_owned());
+    }
+    Ok(crate::sense::plain_rules::filter_drivers(&config))
+}
+
+/// Not decided where one of `paths`, tracked or not, is under an active filter, whose driver git
+/// would run to hash it: a check that hashes a file of the working tree to compare its blob is not
+/// decided there (SEC-repository-commands-neutralized-or-refused). Asked before any hash. As for
+/// [`filters`], a value `set` counts where a driver of that name is active.
+pub fn refuse_filtered_hash(root: &Path, paths: &[&str]) -> Result<(), String> {
+    let active = active_filters(root)?;
+    if active.is_empty() || paths.is_empty() {
+        return Ok(());
+    }
+    let mut input = Vec::new();
+    for path in paths {
+        input.extend_from_slice(path.as_bytes());
+        input.push(0);
+    }
+    let attrs = run_bytes_with_input(root, &["check-attr", "-z", "--stdin", "filter"], &input)?;
+    // `<path> NUL filter NUL <value> NUL` for each path.
+    let fields: Vec<&[u8]> = attrs.split(|&b| b == 0).collect();
+    for entry in fields.chunks(3) {
+        if let [path, _, value] = entry
+            && active.contains(*value)
+        {
+            return Err(format!(
+                "{}: its attributes name a filter, whose driver git would run to hash it — not \
+                 decided",
+                String::from_utf8_lossy(path)
+            ));
+        }
+    }
+    Ok(())
 }
 
 /// How a tracked path under an active filter may differ from the index to a git that runs the
