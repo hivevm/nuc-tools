@@ -145,11 +145,13 @@ golden path and the test pattern an agent copies from are named here.
 - **Sensors** — `src/sense.rs` lists the sensors of the template `nuc sense` ports, `sense::ALL`,
   each a module beside it, as `src/sense/revision_due.rs`: a function to the report the bash sensor
   of the tree's release writes on the standard output, byte for byte, or a refusal keyed
-  `sense/<name>:<reason>`. Six of them take only the values the shell gathered. binding-adrs asks
-  the shell for the file at a path and its diff through the callback `diffed`, only where its bash
-  reads them, and review-binding asks git through a trait, below; neither reads a file or runs a
-  process itself. Both go against the *Core* of API-git-only-sensors-under-sense, which ticket 01 of
-  `docs/plan/revision-2026-11-20/` decides. The sensors that read a change share one resolution of
+  `sense/<name>:<reason>`. Seven of them take only the values the shell gathered: binding-adrs
+  takes the file and the diff of each path `binding_adrs::checked_paths` names, which the shell
+  reads before the report. review-binding asks git through a trait, below, since each of its
+  questions depends on the answer before; its core reads no file and runs no process. That goes
+  against the *Core* of API-git-only-sensors-under-sense, and the proposed
+  [API-sensor-cores-ask-the-shell](adr/API-sensor-cores-ask-the-shell.md)
+  allows it. The sensors that read a change share one resolution of
   it, as the bash's share `resolve_change`: `src/sense/change.rs` reads the base and the head they
   were given, and `resolve_change` in `shell::sense` asks git for the commits; a change without a
   head ends in the working tree, its untracked files included. Their diffs against the working tree
