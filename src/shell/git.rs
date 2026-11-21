@@ -421,6 +421,168 @@ fn attributed_driver(
     Ok(None)
 }
 
+/// The active filters of the repository: the keys that keep git from running one, and the tracked
+/// paths under one that git would run (SEC-repository-commands-neutralized-or-refused).
+#[derive(Debug, Default)]
+pub struct Filters {
+    pub keys: Vec<String>,
+    pub paths: std::collections::BTreeSet<Vec<u8>>,
+}
+
+/// The keys that keep git from running a filter, and the tracked paths under an active one. git
+/// runs a filter only for a driver that any entry of the configuration gives a `clean` or `process`
+/// command, not empty, and the attribute's value names the driver. It runs the filter of a
+/// stat-dirty file anywhere in the tree, whatever the pathspec, so every active driver gets an
+/// empty `process` command, which keeps git from running both it and the `clean` command, and
+/// `required` off, so that git does not fail for want of either (Q-7). A driver no entry makes
+/// active runs no command and is left as the bash's git reads it. An active driver whose name holds
+/// a `=`, which `-c` would split there and so neutralize another key, or is no UTF-8, is not
+/// decided: the inner error names it. `check-attr` prints `set` both for a bare `filter`, which
+/// names no driver, and for a driver named `set`, so such a path counts as under a filter only
+/// where a driver of that name is active, the side that never passes.
+pub fn filters(root: &Path) -> Result<Result<Filters, String>, String> {
+    let mut filters = Filters::default();
+    // `<key> LF <value> NUL` for each key; none, and exit 1, where the configuration has none.
+    let (code, config) = status_and_output(root, &["config", "-z", "--get-regexp", r"^filter\."])?;
+    if code > 1 {
+        return Err("git config --get-regexp failed".to_owned());
+    }
+    let active = crate::sense::plain_rules::filter_drivers(&config);
+    for name in &active {
+        let Some(name) = String::from_utf8(name.clone())
+            .ok()
+            .filter(|name| !name.contains('='))
+        else {
+            return Ok(Err(format!(
+                "'{}': a filter driver whose name nuc cannot neutralize",
+                String::from_utf8_lossy(name)
+            )));
+        };
+        for key in ["process=", "required=false"] {
+            filters.keys.push(format!("filter.{name}.{key}"));
+        }
+    }
+    if active.is_empty() {
+        return Ok(Ok(filters));
+    }
+    let tracked = run_bytes(root, &["ls-files", "-z"])?;
+    if tracked.is_empty() {
+        return Ok(Ok(filters));
+    }
+    let attrs = run_bytes_with_input(root, &["check-attr", "-z", "--stdin", "filter"], &tracked)?;
+    // `<path> NUL filter NUL <value> NUL` for each path.
+    let fields: Vec<&[u8]> = attrs.split(|&b| b == 0).collect();
+    for entry in fields.chunks(3) {
+        let [path, _, value] = entry else {
+            continue;
+        };
+        if active.contains(*value) {
+            filters.paths.insert(path.to_vec());
+        }
+    }
+    Ok(Ok(filters))
+}
+
+/// How a tracked path under an active filter may differ from the index to a git that runs the
+/// filter.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Dirty {
+    /// Its stat differs from the index, whatever its raw bytes.
+    Changed,
+    /// Its stat matches, but its modification time is no older than the index's, so git compares
+    /// its content.
+    Racy,
+}
+
+/// The first tracked path under an active filter that a git running the filter may read otherwise
+/// than the index, and how. `diff-files` names the stat-dirty ones by their stat alone, under the
+/// keys that keep it from running a filter on a racily clean entry it hashes; a racily clean one
+/// it names only where the raw bytes differ, so each path's modification time is compared with the
+/// index's in whole seconds, as git compares them where it does not compare finer, which errs
+/// toward counting (SEC-repository-commands-neutralized-or-refused).
+pub fn dirty_filtered(root: &Path, filters: &Filters) -> Result<Option<(Vec<u8>, Dirty)>, String> {
+    if filters.paths.is_empty() {
+        return Ok(None);
+    }
+    let mut args: Vec<&str> = filters
+        .keys
+        .iter()
+        .flat_map(|key| ["-c", key.as_str()])
+        .collect();
+    args.extend(["diff-files", "-z", "--name-only"]);
+    let dirty = run_bytes(root, &args)?;
+    let dirty: std::collections::BTreeSet<&[u8]> = dirty.split(|&b| b == 0).collect();
+    let index = run(root, &["rev-parse", "--git-path", "index"])?;
+    let index = mtime_secs(&root.join(index.trim_end_matches(['\n', '\r'])));
+    for path in &filters.paths {
+        if dirty.contains(path.as_slice()) {
+            return Ok(Some((path.clone(), Dirty::Changed)));
+        }
+        let racy = match (
+            relative_path(root, path).and_then(|p| mtime_secs(&p)),
+            index,
+        ) {
+            (Some(file), Some(index)) => file >= index,
+            (Some(_), None) => true,
+            (None, _) => false,
+        };
+        if racy {
+            return Ok(Some((path.clone(), Dirty::Racy)));
+        }
+    }
+    Ok(None)
+}
+
+/// The first submodule the index records that is checked out, its directory holding a `.git`,
+/// asked before any git looks into it: a status would ask the submodule's own, which runs its
+/// filters (Q-7). One whose path the platform cannot spell counts as checked out, the side that
+/// never passes.
+pub fn checked_out_submodule(root: &Path) -> Result<Option<Vec<u8>>, String> {
+    let staged = run_bytes(root, &["ls-files", "-z", "--stage"])?;
+    // '<mode> <object> <stage>\t<path>\0' for each entry.
+    for entry in staged.split(|&b| b == 0) {
+        let Some(tab) = entry.iter().position(|&b| b == b'\t') else {
+            continue;
+        };
+        if !entry.starts_with(b"160000 ") {
+            continue;
+        }
+        let path = &entry[tab + 1..];
+        let mut dot_git = path.to_vec();
+        dot_git.extend(b"/.git");
+        if relative_path(root, &dot_git).is_none_or(|dot_git| dot_git.exists()) {
+            return Ok(Some(path.to_vec()));
+        }
+    }
+    Ok(None)
+}
+
+/// The modification time of the file at `path` in whole seconds since the epoch, of the link where
+/// it is one, as git's `lstat` reads it; none where it has none.
+fn mtime_secs(path: &Path) -> Option<u64> {
+    let modified = std::fs::symlink_metadata(path).ok()?.modified().ok()?;
+    modified
+        .duration_since(std::time::UNIX_EPOCH)
+        .ok()
+        .map(|since| since.as_secs())
+}
+
+/// The path of the repository's file at `relative`, as git names it; none where the platform cannot
+/// spell it.
+fn relative_path(root: &Path, relative: &[u8]) -> Option<PathBuf> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::ffi::OsStrExt;
+        Some(root.join(std::ffi::OsStr::from_bytes(relative)))
+    }
+    #[cfg(not(unix))]
+    {
+        std::str::from_utf8(relative)
+            .ok()
+            .map(|relative| root.join(relative))
+    }
+}
+
 /// The standard output of git for `args` on `repo`, or why it could not be had.
 pub fn run(repo: &Path, args: &[&str]) -> Result<String, String> {
     String::from_utf8(run_bytes(repo, args)?)

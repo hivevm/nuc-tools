@@ -321,7 +321,11 @@ holds. Otherwise it writes the tree of a clean `HEAD` to `checks-pending-tree` o
 directory, with the run its shim names in `NUC_HOOK_RUN`, and answers 3; its shim runs the checks
 and, on green, calls `nuc hook pre-push --record`, which moves that tree into the record and keeps
 the last 50, and records nothing where another run's push replaced it. These two files are the only
-state `nuc` keeps between runs.
+state `nuc` keeps between runs. A tree is clean where git's status, every active filter
+neutralized, lists nothing, and none of these holds: the caller's environment names a driver, a
+submodule is checked out, asked before any git looks into it, an active filter's name cannot be
+neutralized, or a tracked path under an active filter is stat-dirty or racily clean
+([SEC-repository-commands-neutralized-or-refused](adr/SEC-repository-commands-neutralized-or-refused.md)).
 `nuc hook reference-transaction prepared` reads the updates of a transaction from the standard input
 and, where one touches `refs/heads/main`, asks git once for `main` and `origin/main` and refuses a
 move of `main` to a commit `origin/main` lacks, as the transaction leaves it. It reads `nuc.toml` in

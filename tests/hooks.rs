@@ -1197,6 +1197,186 @@ fn a_driver_of_the_caller_s_environment_runs_the_checks() {
     }
 }
 
+/// A pushing fixture whose checks fail with a line of their own, with `data.bin` under the filter
+/// `bait`, committed older than the index; the filter's clean command, set after the commit,
+/// creates the canary returned wherever it runs. Its tree is recorded green.
+#[cfg(unix)]
+fn filtered_push(name: &str, file_time: std::time::SystemTime) -> (Fixture, PathBuf) {
+    use std::os::unix::fs::PermissionsExt;
+    let fixture = pushing(name, "echo \"check output for the test\"\nexit 1");
+    fixture.write(".gitattributes", "data.bin filter=bait\n");
+    fixture.write("data.bin", "data\n");
+    set_mtime(&fixture.root().join("data.bin"), file_time);
+    fixture.commit("data");
+    let canary = fixture.root().join(".git").join("canary");
+    let script = fixture.root().join(".git").join("clean.sh");
+    std::fs::write(
+        &script,
+        format!("#!/bin/sh\ntouch '{}'\ncat\n", canary.display()),
+    )
+    .expect("written");
+    std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).expect("mode");
+    fixture.git(&[
+        "config",
+        "filter.bait.clean",
+        script.to_str().expect("UTF-8"),
+    ]);
+    std::fs::write(
+        fixture.root().join(".git/checks-green-trees"),
+        format!("{}\n", head_tree(&fixture)),
+    )
+    .expect("the record is written");
+    (fixture, canary)
+}
+
+/// The file's modification time set to `at`.
+fn set_mtime(path: &Path, at: std::time::SystemTime) {
+    std::fs::File::options()
+        .write(true)
+        .open(path)
+        .and_then(|file| file.set_modified(at))
+        .expect("the mtime is set");
+}
+
+/// Whether the push ran the checks: it fails with their line.
+fn ran_the_checks(output: &Output) -> bool {
+    !output.status.success() && both(output).contains("check output")
+}
+
+/// `pre-push` tells a clean tree without running a filter of the repository (Q-7): a file under
+/// an active filter older than the index and unchanged leaves the record to hold. A stat-dirty
+/// one, its bytes as committed, as a file committed before its filter was set and then touched,
+/// runs the checks, and so does a racily clean one, whose time falls in the index's second, below
+/// it by a fraction; no filter runs in any.
+/// Verifies: SEC-repository-commands-neutralized-or-refused
+#[cfg(unix)]
+#[test]
+fn pre_push_runs_no_filter_to_tell_a_clean_tree() {
+    let past = std::time::SystemTime::now() - std::time::Duration::from_secs(120);
+    let (fixture, canary) = filtered_push("hooks-push-filter-clean", past);
+    let output = git_hooked(&fixture, Some(&built()), &[], PUSH);
+    assert!(output.status.success(), "{}", both(&output));
+    assert!(both(&output).contains("not run again"), "{}", both(&output));
+    assert!(!canary.exists(), "pre-push ran the filter");
+
+    // Its stat changed, still older than the index: stat-dirty, not racily clean.
+    let (fixture, canary) = filtered_push("hooks-push-filter-dirty", past);
+    set_mtime(
+        &fixture.root().join("data.bin"),
+        std::time::SystemTime::now() - std::time::Duration::from_secs(60),
+    );
+    let output = git_hooked(&fixture, Some(&built()), &[], PUSH);
+    assert!(ran_the_checks(&output), "{}", both(&output));
+    assert!(!canary.exists(), "pre-push ran the filter");
+
+    // A whole second, two hours back, and a tenth of a second into it; the index half a second
+    // later.
+    let second = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("after the epoch")
+        .as_secs()
+        - 7200;
+    let file = std::time::UNIX_EPOCH + std::time::Duration::from_millis(second * 1000 + 100);
+    let (fixture, canary) = filtered_push("hooks-push-filter-racy", file);
+    set_mtime(
+        &fixture.root().join(".git/index"),
+        file + std::time::Duration::from_millis(500),
+    );
+    let output = git_hooked(&fixture, Some(&built()), &[], PUSH);
+    assert!(ran_the_checks(&output), "{}", both(&output));
+    assert!(!canary.exists(), "pre-push ran the filter");
+}
+
+/// A checked-out submodule takes the tree as not clean before any git looks into it, whose own
+/// filter would run for a stat-dirty file; a staged change of the gitlink of a submodule that is
+/// not checked out runs the checks too, as the bash's status shows it.
+/// Verifies: SEC-repository-commands-neutralized-or-refused
+#[cfg(unix)]
+#[test]
+fn pre_push_takes_a_submodule_as_git_shows_it_without_looking_into_it() {
+    use std::os::unix::fs::PermissionsExt;
+    let readme = "# Fixture\n\n- **Template release:** v0.12.0\n";
+    let sub = Fixture::project("hooks-push-sub", CONFIG, readme);
+    sub.write(".gitattributes", "f.txt filter=bait\n");
+    sub.write("f.txt", "a\n");
+    sub.commit("sub");
+    let fixture = pushing(
+        "hooks-push-submodule",
+        "echo \"check output for the test\"\nexit 1",
+    );
+    let url = sub.root().to_str().expect("UTF-8");
+    let added = fixture.git(&[
+        "-c",
+        "protocol.file.allow=always",
+        "submodule",
+        "-q",
+        "add",
+        url,
+        "sm",
+    ]);
+    assert!(added.status.success(), "{}", stderr(&added));
+    fixture.commit("submodule");
+    let canary = fixture.root().join(".git").join("canary");
+    let script = fixture.root().join(".git").join("clean.sh");
+    std::fs::write(
+        &script,
+        format!("#!/bin/sh\ntouch '{}'\ncat\n", canary.display()),
+    )
+    .expect("written");
+    std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).expect("mode");
+    support::git_in(
+        &fixture.root().join("sm"),
+        &[
+            "config",
+            "filter.bait.clean",
+            script.to_str().expect("UTF-8"),
+        ],
+    );
+    set_mtime(
+        &fixture.root().join("sm/f.txt"),
+        std::time::SystemTime::now() + std::time::Duration::from_secs(60),
+    );
+    std::fs::write(
+        fixture.root().join(".git/checks-green-trees"),
+        format!("{}\n", head_tree(&fixture)),
+    )
+    .expect("the record is written");
+    let output = git_hooked(&fixture, Some(&built()), &[], PUSH);
+    assert!(ran_the_checks(&output), "{}", both(&output));
+    assert!(!canary.exists(), "pre-push ran the submodule's filter");
+
+    // A submodule not checked out, its gitlink's next commit staged.
+    let fixture = pushing(
+        "hooks-push-gitlink",
+        "echo \"check output for the test\"\nexit 1",
+    );
+    let first = stdout(&fixture.git(&["rev-parse", "HEAD"]))
+        .trim()
+        .to_owned();
+    fixture.git(&[
+        "update-index",
+        "--add",
+        "--cacheinfo",
+        &format!("160000,{first},tools/sub"),
+    ]);
+    fixture.git(&["commit", "-q", "-m", "a submodule"]);
+    let second = stdout(&fixture.git(&["rev-parse", "HEAD"]))
+        .trim()
+        .to_owned();
+    fixture.git(&[
+        "update-index",
+        "--cacheinfo",
+        &format!("160000,{second},tools/sub"),
+    ]);
+    std::fs::write(
+        fixture.root().join(".git/checks-green-trees"),
+        format!("{}\n", head_tree(&fixture)),
+    )
+    .expect("the record is written");
+    let output = git_hooked(&fixture, Some(&built()), &[], PUSH);
+    assert!(ran_the_checks(&output), "{}", both(&output));
+}
+
 #[test]
 fn a_record_that_cannot_be_written_lets_the_push_pass() {
     let fixture = pushing("hooks-push-unwritable", "exit 0");

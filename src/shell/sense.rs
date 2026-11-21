@@ -521,78 +521,16 @@ fn without_nul(path: &str, bytes: Vec<u8>) -> Result<Vec<u8>, Refusal> {
     Ok(bytes)
 }
 
-/// The filters of a change that ends in the working tree: the keys that keep its diffs from
-/// running one, and the tracked paths under one that git would run.
-struct Filters {
-    keys: Vec<String>,
-    paths: std::collections::BTreeSet<Vec<u8>>,
-}
-
-/// The keys that keep a diff against the working tree from running a filter, and the tracked paths
-/// under an active one, for the sensor. git runs a filter only for a driver that any entry of the
-/// configuration gives a `clean` or `process` command, not empty, and the attribute's value names
-/// the driver. It runs the filter of a stat-dirty file anywhere in the tree, whatever the
-/// pathspec, so every active driver gets an empty `process` command, which keeps git from running
-/// both it and the `clean` command, and `required` off, so that the diff does not fail for want of
-/// either (Q-7). A driver no entry makes active runs no command and is left as the bash's git reads
-/// it. An active driver whose name holds a `=`, which `-c` would split there and so neutralize
-/// another key, or is no UTF-8, is not decided. `check-attr` prints `set` both for a bare `filter`,
-/// which names no driver, and for a driver named `set`, so such a path counts as under a filter
-/// only where a driver of that name is active, the side that never passes.
-fn neutralized_filters(root: &Path, sensor: &'static str) -> Result<Filters, Refusal> {
-    let undecided = git_refusal(sensor);
-    let refuse = |message: String| Refusal {
-        sensor,
-        reason: "filter",
-        message,
-    };
-    let mut filters = Filters {
-        keys: Vec::new(),
-        paths: std::collections::BTreeSet::new(),
-    };
-    // `<key> LF <value> NUL` for each key; none, and exit 1, where the configuration has none.
-    let (code, config) =
-        git::status_and_output(root, &["config", "-z", "--get-regexp", r"^filter\."])
-            .map_err(undecided)?;
-    if code > 1 {
-        return Err(undecided("git config --get-regexp failed".to_owned()));
-    }
-    let active = plain_rules::filter_drivers(&config);
-    for name in &active {
-        let name = String::from_utf8(name.clone())
-            .ok()
-            .filter(|name| !name.contains('='))
-            .ok_or_else(|| {
-                refuse(format!(
-                    "'{}': a filter driver whose name nuc cannot neutralize",
-                    String::from_utf8_lossy(name)
-                ))
-            })?;
-        for key in ["process=", "required=false"] {
-            filters.keys.push(format!("filter.{name}.{key}"));
-        }
-    }
-    if active.is_empty() {
-        return Ok(filters);
-    }
-    let tracked = git::run_bytes(root, &["ls-files", "-z"]).map_err(undecided)?;
-    if tracked.is_empty() {
-        return Ok(filters);
-    }
-    let attrs =
-        git::run_bytes_with_input(root, &["check-attr", "-z", "--stdin", "filter"], &tracked)
-            .map_err(undecided)?;
-    // `<path> NUL filter NUL <value> NUL` for each path.
-    let fields: Vec<&[u8]> = attrs.split(|&b| b == 0).collect();
-    for entry in fields.chunks(3) {
-        let [path, _, value] = entry else {
-            continue;
-        };
-        if active.contains(*value) {
-            filters.paths.insert(path.to_vec());
-        }
-    }
-    Ok(filters)
+/// The active filters for the sensor, as [`git::filters`] reads them: an active driver whose name
+/// `-c` cannot carry is not decided, `:filter`.
+fn neutralized_filters(root: &Path, sensor: &'static str) -> Result<git::Filters, Refusal> {
+    git::filters(root)
+        .map_err(git_refusal(sensor))?
+        .map_err(|message| Refusal {
+            sensor,
+            reason: "filter",
+            message,
+        })
 }
 
 /// The diff drivers of the repository's configuration, read once a run for the sensor
@@ -714,7 +652,10 @@ fn refuse_moved_submodule(
 
 /// A file of rules under an active driver is not decided: the bash's git reads it through the
 /// filter, nuc's would read it raw, and the two can tell another change.
-fn refuse_filtered_rule_files(filters: &Filters, release: config::Version) -> Result<(), Refusal> {
+fn refuse_filtered_rule_files(
+    filters: &git::Filters,
+    release: config::Version,
+) -> Result<(), Refusal> {
     match filters
         .paths
         .iter()
@@ -759,7 +700,7 @@ fn untracked(root: &Path, change: &Change, sensor: &'static str) -> Result<Vec<u
 /// renames, nothing is paired.
 fn refuse_filtered_renames(
     diff: &[u8],
-    filters: &Filters,
+    filters: &git::Filters,
     release: config::Version,
 ) -> Result<(), Refusal> {
     if release < plain_rules::REQUIRE {
@@ -1030,7 +971,7 @@ fn changed_paths(root: &Path, change: &Change) -> Result<(Vec<Vec<u8>>, Vec<Stri
         refuse_checked_out_submodule(root)?;
         let filters = neutralized_filters(root, sensor)?;
         keys.clone_from(&filters.keys);
-        refuse_filtered_dirty(root, &filters, &keys)?;
+        refuse_filtered_dirty(root, &filters)?;
     }
     let mut config = vec!["core.quotePath=false"];
     config.extend(keys.iter().map(String::as_str));
@@ -1053,116 +994,48 @@ fn changed_paths(root: &Path, change: &Change) -> Result<(Vec<Vec<u8>>, Vec<Stri
 }
 
 /// Refused where a tracked path under an active filter may differ from the index to the bash's git,
-/// which hashes it through the filter where nuc's runs none
-/// (SEC-repository-commands-neutralized-or-refused). That is a path whose stat differs from the
-/// index, whatever its raw bytes, as a file committed before its filter was set and then touched;
-/// and a racily clean one, whose stat matches but whose modification time is no older than the
-/// index's, since git then compares its content. `diff-files` names the first by their stat alone,
-/// under the keys that keep it from running a filter on a racily clean entry it hashes; the second
-/// it names only where the raw bytes differ, so each path's modification time is compared with the
-/// index's in whole seconds, as git compares them where it does not compare finer, which errs
-/// toward counting.
-fn refuse_filtered_dirty(root: &Path, filters: &Filters, keys: &[String]) -> Result<(), Refusal> {
+/// which hashes it through the filter where nuc's runs none: one stat-dirty or racily clean, as
+/// [`git::dirty_filtered`] finds it (SEC-repository-commands-neutralized-or-refused).
+fn refuse_filtered_dirty(root: &Path, filters: &git::Filters) -> Result<(), Refusal> {
     let sensor = binding_adrs::SENSOR.name;
-    if filters.paths.is_empty() {
-        return Ok(());
-    }
-    let undecided = git_refusal(sensor);
-    let mut args: Vec<&str> = keys.iter().flat_map(|key| ["-c", key.as_str()]).collect();
-    args.extend(["diff-files", "-z", "--name-only"]);
-    let dirty = git::run_bytes(root, &args).map_err(undecided)?;
-    let dirty: std::collections::BTreeSet<&[u8]> = dirty.split(|&b| b == 0).collect();
-    let index = git::run(root, &["rev-parse", "--git-path", "index"]).map_err(undecided)?;
-    let index = mtime_secs(&root.join(index.trim_end_matches(['\n', '\r'])));
-    let refuse = |path: &[u8], why: &str| Refusal {
+    let why = match git::dirty_filtered(root, filters).map_err(git_refusal(sensor))? {
+        None => return Ok(()),
+        Some((path, git::Dirty::Changed)) => (path, "changed in the working tree under a filter"),
+        Some((path, git::Dirty::Racy)) => (
+            path,
+            "racily clean under a filter, its modification time no older than the index's",
+        ),
+    };
+    Err(Refusal {
         sensor,
         reason: "filter",
         message: format!(
-            "{}: {why}, so the bash's git reads it through its filter",
-            String::from_utf8_lossy(path)
+            "{}: {}, so the bash's git reads it through its filter",
+            String::from_utf8_lossy(&why.0),
+            why.1
         ),
-    };
-    for path in &filters.paths {
-        if dirty.contains(path.as_slice()) {
-            return Err(refuse(path, "changed in the working tree under a filter"));
-        }
-        let racy = match (
-            relative_path(root, path).and_then(|p| mtime_secs(&p)),
-            index,
-        ) {
-            (Some(file), Some(index)) => file >= index,
-            (Some(_), None) => true,
-            (None, _) => false,
-        };
-        if racy {
-            return Err(refuse(
-                path,
-                "racily clean under a filter, its modification time no older than the index's",
-            ));
-        }
-    }
-    Ok(())
+    })
 }
 
-/// The modification time of the file at `path` in whole seconds since the epoch, of the link where
-/// it is one, as git's `lstat` reads it; none where it has none.
-fn mtime_secs(path: &Path) -> Option<u64> {
-    let modified = std::fs::symlink_metadata(path).ok()?.modified().ok()?;
-    modified
-        .duration_since(std::time::UNIX_EPOCH)
-        .ok()
-        .map(|since| since.as_secs())
-}
-
-/// The path of the repository's file at `relative`, as git names it; none where the platform cannot
-/// spell it.
-fn relative_path(root: &Path, relative: &[u8]) -> Option<PathBuf> {
-    #[cfg(unix)]
-    {
-        use std::os::unix::ffi::OsStrExt;
-        Some(root.join(std::ffi::OsStr::from_bytes(relative)))
-    }
-    #[cfg(not(unix))]
-    {
-        std::str::from_utf8(relative)
-            .ok()
-            .map(|relative| root.join(relative))
-    }
-}
-
-/// Refused where the index records a submodule that is checked out, its directory holding a
-/// `.git`: whether the bash's git lists it can depend on the submodule's own working tree, which
-/// git reads by running the submodule's status, and so its filters (Q-7). A submodule that is not
-/// checked out is read from the index alone, under the repository's own `ignore` settings, as the
-/// bash's git reads it.
+/// Refused where the index records a submodule that is checked out, as
+/// [`git::checked_out_submodule`] finds it: whether the bash's git lists it can depend on the
+/// submodule's own working tree, which git reads by running the submodule's status, and so its
+/// filters (Q-7). A submodule that is not checked out is read from the index alone, under the
+/// repository's own `ignore` settings, as the bash's git reads it.
 fn refuse_checked_out_submodule(root: &Path) -> Result<(), Refusal> {
     let sensor = binding_adrs::SENSOR.name;
-    let staged =
-        git::run_bytes(root, &["ls-files", "-z", "--stage"]).map_err(git_refusal(sensor))?;
-    // '<mode> <object> <stage>\t<path>\0' for each entry.
-    for entry in staged.split(|&b| b == 0) {
-        let Some(tab) = entry.iter().position(|&b| b == b'\t') else {
-            continue;
-        };
-        if !entry.starts_with(b"160000 ") {
-            continue;
-        }
-        let path = &entry[tab + 1..];
-        let mut dot_git = path.to_vec();
-        dot_git.extend(b"/.git");
-        if exists(root, &dot_git) {
-            return Err(Refusal {
-                sensor,
-                reason: "submodule",
-                message: format!(
-                    "{}: a submodule checked out, whose state the bash's git may read through its \
-                     own status, which runs its filters",
-                    String::from_utf8_lossy(path)
-                ),
-            });
-        }
+    match git::checked_out_submodule(root).map_err(git_refusal(sensor))? {
+        Some(path) => Err(Refusal {
+            sensor,
+            reason: "submodule",
+            message: format!(
+                "{}: a submodule checked out, whose state the bash's git may read through its own \
+                 status, which runs its filters",
+                String::from_utf8_lossy(&path)
+            ),
+        }),
+        None => Ok(()),
     }
-    Ok(())
 }
 
 /// The ADR files as the change has them, as `adr_list` lists them, with their bytes: in the
