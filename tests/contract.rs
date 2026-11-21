@@ -2,7 +2,7 @@
 //! the names it knows and refuses, `nuc.toml` judged first, `--repo` in place of the bash's
 //! `--root`, the release a sensor reports as, and the exits and keys of its refusals. The reports
 //! themselves are compared with the bash sensors by the parity harness.
-//! Verifies: API-command-line-with-sense, API-git-only-sensors-under-sense, G-9
+//! Verifies: API-command-line-with-sense, API-sensor-cores-ask-the-shell, G-9
 
 mod support;
 
@@ -367,7 +367,7 @@ fn shim_keys() -> Vec<(String, String)> {
 }
 
 /// Verifies: API-command-line-with-sense, API-hook-contract-keyed-shims, G-6
-/// Verifies: API-config-refusals-keyed, API-git-only-sensors-under-sense
+/// Verifies: API-config-refusals-keyed, API-sensor-cores-ask-the-shell
 #[test]
 fn every_key_stays_once_listed_and_each_reason_is_one_lower_case_word() {
     let listed: Vec<&str> = RULE_KEYS
@@ -2085,7 +2085,7 @@ fn binding_adrs_refuses_a_path_it_cannot_hand_to_git() {
     );
 }
 
-/// The eight sensors API-git-only-sensors-under-sense ports are known to `nuc sense`: none is
+/// The eight sensors API-sensor-cores-ask-the-shell ports are known to `nuc sense`: none is
 /// refused as unknown, and the four it leaves to the bash are refused as unknown by
 /// `the_sensors_left_to_the_bash_and_an_unknown_name_exit_two_with_their_key`.
 #[test]
@@ -2297,7 +2297,7 @@ fn review_binding_reads_the_hand_off_as_the_bash_does() {
 /// A hand-off that resolves outside the repository is not decided, before anything there is
 /// tested and whether the bash would read it or not: nuc reads no file outside the repository
 /// (API-measure-reads-harness-transcripts), where the bash takes any path
-/// (API-git-only-sensors-under-sense), a conflict left to the maintainer.
+/// (API-sensor-cores-ask-the-shell), a conflict left to the maintainer.
 #[cfg(unix)]
 #[test]
 fn review_binding_refuses_a_hand_off_outside_the_repository() {

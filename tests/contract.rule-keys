@@ -3,7 +3,7 @@
 # every key a refusal of nuc.toml ends in (API-config-refusals-keyed). A key stays once listed: a
 # reader or a test branches on it in place of a message's wording, so no reason is renamed,
 # dropped, or given to another cause. Also every key `nuc sense` ends a refusal in
-# (API-git-only-sensors-under-sense).
+# (API-sensor-cores-ask-the-shell).
 
 config/toml:missing
 config/toml:old

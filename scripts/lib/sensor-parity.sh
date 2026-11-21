@@ -1,12 +1,12 @@
 # shellcheck shell=bash
-# The comparison of the sensors (API-git-only-sensors-under-sense), sourced by
+# The comparison of the sensors (API-sensor-cores-ask-the-shell), sourced by
 # scripts/check-parity.sh.
 #
 # Each row of tests/parity/sensors.tsv names a sensor nuc ports, the git state it runs on, and its
 # arguments. The state 'tree' is the tree of the corpus, or the variant, as the comparison has it:
 # the sensor runs there in every comparison, on each tree whose scripts/ holds the sensor, the
 # release that has it. On one whose README names no release, nuc sense reports as the newest
-# release it knows (API-git-only-sensors-under-sense): the bash sensor run there, and the one whose
+# release it knows (API-sensor-cores-ask-the-shell): the bash sensor run there, and the one whose
 # presence decides the run, is the newest template tree's, SENSOR_NEWEST_TREE. Any other state
 # names a function of tests/parity/sensor-scenarios.sh, which builds a fixture repository through
 # git; it runs on each template tree of the corpus whose scripts/ holds the sensor, the fixture's

@@ -8,7 +8,7 @@
 //! covers stand in a field of their own before it, "-" for every release of the row.
 //!
 //! A row `sense/<name>` is a sensor's, held the same way to the releases its report changes at.
-//! Verifies: API-git-only-sensors-under-sense
+//! Verifies: API-sensor-cores-ask-the-shell
 
 use nuc::config::Version;
 use nuc::rules::{self, Input};

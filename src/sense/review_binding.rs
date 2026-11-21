@@ -59,7 +59,7 @@ pub struct Args<'a> {
 
 /// The arguments as the bash of the release reads them: `--hand-off <file>` first, then the base
 /// and the head; none where `nuc sense` refuses them: `--root` wherever it stands
-/// (API-git-only-sensors-under-sense), and what [`super::positional`] refuses, one rule for every
+/// (API-sensor-cores-ask-the-shell), and what [`super::positional`] refuses, one rule for every
 /// sensor that takes a base and a head.
 pub fn parse<'a>(args: &[&'a str], release: Version) -> Option<Args<'a>> {
     if args.contains(&"--root") {

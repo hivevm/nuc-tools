@@ -1,4 +1,4 @@
-# The exits of the bash sensors that differ from nuc's by API-git-only-sensors-under-sense, read by
+# The exits of the bash sensors that differ from nuc's by API-sensor-cores-ask-the-shell, read by
 # scripts/lib/sensor-parity.sh: a bash sensor that cannot read its input exits 1 where it measures
 # nothing, and nuc sense exits 2 for every cause that keeps it from deciding
 # (API-command-line-with-sense), the exception Q-2 makes for an exit an accepted ADR lists with its

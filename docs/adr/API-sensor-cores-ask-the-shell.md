@@ -1,6 +1,6 @@
 # API-sensor-cores-ask-the-shell: `nuc sense <name>` ports the template's sensors that need only git, prints their report byte for byte as the bash does, exits as every `nuc` command does, and a sensor's core may ask the shell only where gathering its inputs up front would read more than its bash and no value it returns first could tell the shell what to read
 
-- **Status:** 🟡 proposed
+- **Status:** 🟢 accepted
 - **Date:** 2026-11-21
 - **Deciders:** Markus Brigl
 - **Applies to:** which sensors of the template `nuc` ports, the `nuc sense` command, its source in the shell and in the core, the names of the sensors it knows, its exit codes against the bash's, the comparison of the sensors in the parity harness, and the traits and callbacks through which a sensor's core asks the shell

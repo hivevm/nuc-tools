@@ -70,7 +70,7 @@
 #
 # Each comparison also runs the sensors nuc ports on the tree or variant, and the last shard runs
 # the sensor scenarios on the template's trees, through scripts/lib/sensor-parity.sh
-# (API-git-only-sensors-under-sense).
+# (API-sensor-cores-ask-the-shell).
 #
 # Then the hook scenarios run on the template's trees of the corpus, through
 # scripts/lib/hook-parity.sh (TEST-hook-scenarios-on-bash-hooks): each scenario of
@@ -949,7 +949,7 @@ fi
 tree_dirs=()
 for tree in "${template_trees[@]}"; do tree_dirs+=("${tree#* }"); done
 
-# The sensor scenarios, on the template's trees of the corpus (API-git-only-sensors-under-sense).
+# The sensor scenarios, on the template's trees of the corpus (API-sensor-cores-ask-the-shell).
 if ((whole)); then
   sensor_scenarios "$nuc" "$work" "${tree_dirs[@]}" || failed=1
 fi

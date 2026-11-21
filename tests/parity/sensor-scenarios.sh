@@ -1,6 +1,6 @@
 # shellcheck shell=bash
 # The git states the sensors run on beside the trees of the corpus
-# (API-git-only-sensors-under-sense), sourced by scripts/lib/sensor-parity.sh. Each function gets
+# (API-sensor-cores-ask-the-shell), sourced by scripts/lib/sensor-parity.sh. Each function gets
 # a fixture repository on main whose README carries the release line of the template tree it runs
 # for and whose nuc.toml turns on no rule, nothing committed yet; it builds the state through
 # sp_git. tests/parity/sensors.tsv names the runs.

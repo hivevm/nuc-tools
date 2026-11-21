@@ -1,5 +1,5 @@
 //! `nuc sense <name>`: the report of a sensor of the template, as the bash sensor of the tree's
-//! release writes it (API-git-only-sensors-under-sense). The shell reads `nuc.toml` as `nuc check`
+//! release writes it (API-sensor-cores-ask-the-shell). The shell reads `nuc.toml` as `nuc check`
 //! does, the README's release line, and what the sensor needs from the tree and from git; the
 //! sensor decides; the shell writes the report on the standard output and exits 0, or ends the
 //! run not decided with the sensor's key (API-command-line-with-sense).

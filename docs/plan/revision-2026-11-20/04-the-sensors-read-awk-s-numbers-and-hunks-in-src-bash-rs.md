@@ -45,7 +45,7 @@ decided.
 
 - Touches: `src/bash.rs`, `src/sense/binding_adrs.rs`, `src/sense/plain_rules.rs`,
   `src/sense/tests_kept.rs`, `tests/functional_core.bash`
-- ARCH-rules-outcome-hooks-answer; API-git-only-sensors-under-sense; the convention "A port copies
+- ARCH-rules-outcome-hooks-answer; API-sensor-cores-ask-the-shell; the convention "A port copies
   the bash, quirks included" in `docs/CONVENTIONS.md`
 
 ## Blocked by

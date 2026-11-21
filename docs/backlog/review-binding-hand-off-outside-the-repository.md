@@ -6,7 +6,7 @@ workflow `.github/workflows/review-binding.yml` writes the pull request's descri
 `$RUNNER_TEMP/hand-off.md` and passes that path, so the call as the template makes it exits 2
 under `nuc`. The bash reads the file wherever it lies.
 
-Two accepted ADRs meet here. API-git-only-sensors-under-sense has `nuc sense` take the arguments
+Two accepted ADRs meet here. API-sensor-cores-ask-the-shell has `nuc sense` take the arguments
 the bash sensor takes, with the same meaning. API-measure-reads-harness-transcripts holds every
 read outside the repository to `nuc measure`, and the structural test of
 `tests/functional_core.rs` holds that. Both cannot hold for this call. The refusal keeps the second

@@ -39,7 +39,7 @@ and `review_binding::NAMED` stay: each names the release at which that sensor's 
 
 - Touches: `src/adr.rs`, `src/sense/binding_adrs.rs`, `src/sense/review_binding.rs`,
   `src/rules/docs_adr_index.rs`
-- ARCH-rules-outcome-hooks-answer; API-git-only-sensors-under-sense; the convention "A port copies
+- ARCH-rules-outcome-hooks-answer; API-sensor-cores-ask-the-shell; the convention "A port copies
   the bash, quirks included" in `docs/CONVENTIONS.md`
 
 ## Blocked by

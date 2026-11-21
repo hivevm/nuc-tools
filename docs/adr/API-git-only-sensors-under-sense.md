@@ -1,7 +1,7 @@
 # API-git-only-sensors-under-sense: `nuc sense <name>` ports the template's sensors that need only git, prints their report byte for byte as the bash does, and exits as every `nuc` command does
 
-- **Status:** 🟢 accepted
-- **Date:** 2026-11-19
+- **Status:** ⚪ superseded by API-sensor-cores-ask-the-shell
+- **Date:** 2026-11-21
 - **Deciders:** Markus Brigl
 - **Applies to:** which sensors of the template `nuc` ports, the `nuc sense` command, its source in the shell and in the core, the names of the sensors it knows, its exit codes against the bash's, and the comparison of the sensors in the parity harness
 

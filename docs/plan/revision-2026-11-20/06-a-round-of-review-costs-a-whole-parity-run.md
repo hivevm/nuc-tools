@@ -34,7 +34,7 @@ that saves most without weakening the gate. Options to weigh:
 
 - Touches: `scripts/check-parity.sh`, `scripts/lib/sensor-parity.sh`, `tests/parity/sensors.tsv`,
   `tests/parity/sensor-scenarios.sh`
-- TEST-parity-harness; API-git-only-sensors-under-sense
+- TEST-parity-harness; API-sensor-cores-ask-the-shell
 
 ## Blocked by
 

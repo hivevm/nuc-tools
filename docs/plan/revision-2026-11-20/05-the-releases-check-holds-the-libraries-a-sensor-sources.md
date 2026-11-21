@@ -2,7 +2,7 @@
 
 ## What to build
 
-API-git-only-sensors-under-sense names the releases at which each sensor changed, and "a change of
+API-sensor-cores-ask-the-shell names the releases at which each sensor changed, and "a change of
 the sensor's script or of a library it sources counts". The parity harness compares a sensor's
 row of `tests/parity/releases.tsv` with the trees of the corpus through `check_body` of
 `scripts/check-parity.sh`. It compares the sensor's script alone, comment lines left out. A change
@@ -29,7 +29,7 @@ then stand in the row, or in its reason.
 
 - Touches: `scripts/check-parity.sh`, `scripts/test-check-parity.sh`, `tests/parity/releases.tsv`,
   `tests/releases.rs`
-- API-git-only-sensors-under-sense; TEST-parity-harness; the convention "A self-test asserts what
+- API-sensor-cores-ask-the-shell; TEST-parity-harness; the convention "A self-test asserts what
   it builds" in `docs/CONVENTIONS.md`
 
 ## Blocked by

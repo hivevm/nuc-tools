@@ -148,11 +148,12 @@ golden path and the test pattern an agent copies from are named here.
   `sense/<name>:<reason>`. Seven of them take only the values the shell gathered: binding-adrs
   takes the file and the diff of each path `binding_adrs::checked_paths` names, which the shell
   reads before the report. review-binding asks git through a trait, below, since each of its
-  questions depends on the answer before; its core reads no file and runs no process. That goes
-  against the *Core* of API-git-only-sensors-under-sense, and the proposed
-  [API-sensor-cores-ask-the-shell](adr/API-sensor-cores-ask-the-shell.md)
-  allows it. The sensors that read a change share one resolution of
-  it, as the bash's share `resolve_change`: `src/sense/change.rs` reads the base and the head they
+  questions depends on the answer before; its core reads no file and runs no process. The *Core*
+  of [API-sensor-cores-ask-the-shell](adr/API-sensor-cores-ask-the-shell.md) allows that where
+  gathering up front would read more than the bash and no value of the core can tell the shell
+  what to read; `tests/functional_core.rs` holds that only the shell implements a trait of the
+  sensors' core. The sensors that read a change share one resolution of it, as the bash's share
+  `resolve_change`: `src/sense/change.rs` reads the base and the head they
   were given, and `resolve_change` in `shell::sense` asks git for the commits; a change without a
   head ends in the working tree, its untracked files included. Their diffs against the working tree
   run with every filter driver of the repository neutralized and look into no submodule's working
@@ -175,7 +176,7 @@ golden path and the test pattern an agent copies from are named here.
   line, the files of the tree, and git as the bash asks it, and writes the report. A tree whose
   release has no such sensor is not decided. The template's sensors that need a process other than
   git or the network are none of them
-  ([API-git-only-sensors-under-sense](adr/API-git-only-sensors-under-sense.md)).
+  ([API-sensor-cores-ask-the-shell](adr/API-sensor-cores-ask-the-shell.md)).
 - **Binary** — `src/main.rs` calls the shell and nothing else.
 - **Parity harness** — `scripts/check-parity.sh` runs the bash checks of each repository of the
   corpus, `check-docs.sh`, `check-traceability.sh`, and `check-devcontainer.sh`, from v0.10.0 on
@@ -199,7 +200,7 @@ golden path and the test pattern an agent copies from are named here.
   `tests/parity/sensor-scenarios.sh` built for each of the template's trees, both sides run in
   the tree or the fixture, and compares the standard output byte for byte and the exit status; an
   exit that differs stands in `tests/parity/sensor-exits.tsv` with its cause
-  ([API-git-only-sensors-under-sense](adr/API-git-only-sensors-under-sense.md)). A
+  ([API-sensor-cores-ask-the-shell](adr/API-sensor-cores-ask-the-shell.md)). A
   tree whose blob list `.githooks/nuc.blobs` pins a hook, as the template's trees do from v0.12.0
   on, carries nuc's own shims and no bash hook. The scenarios and their coverage leave it out,
   whatever release it names, and its checks are compared as any tree's. They also leave out a tree

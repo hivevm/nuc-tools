@@ -35,7 +35,7 @@ commit = "1f5a07c7e1959a52e45ff249a07db7c32bf4939c"
 cost = 0.41
 
 # The template at the commit of its release v0.6.2, whose sensor-revision-due.sh reads an ordinal
-# after the date (API-git-only-sensors-under-sense). No cost measured yet: dealt at the largest.
+# after the date (API-sensor-cores-ask-the-shell). No cost measured yet: dealt at the largest.
 [[repository]]
 name = "nuc-v0-6-2"
 url = "https://github.com/hivevm/nuc.git"
@@ -51,7 +51,7 @@ commit = "8ff4cf46bb887cd9471ff05a457a16bb83cc0f42"
 cost = 0.50
 
 # The template at the commit of its release v0.8.0, whose sensors gain the backlog and the plain
-# rules (API-git-only-sensors-under-sense). No cost measured yet: dealt at the largest.
+# rules (API-sensor-cores-ask-the-shell). No cost measured yet: dealt at the largest.
 [[repository]]
 name = "nuc-v0-8-0"
 url = "https://github.com/hivevm/nuc.git"

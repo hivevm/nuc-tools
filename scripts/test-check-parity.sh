@@ -2,7 +2,7 @@
 #
 # Self-test of scripts/check-parity.sh.
 # Verifies: TEST-parity-harness TEST-hook-scenarios-on-bash-hooks Q-1 Q-2
-# Verifies: API-git-only-sensors-under-sense
+# Verifies: API-sensor-cores-ask-the-shell
 #
 # The comparison cases feed the harness pairs of outputs through '--compare': pairs that differ in
 # one finding, in one exit status, by one bash message the table does not know, or by a line nuc
@@ -250,7 +250,7 @@ expect fail "a reason of nuc other than the bash's is a difference" "nuc gives t
   compare "$(bash_out keyed-other "$MALFORMED [docs/template-release:version]")" 1 \
   "$(nuc_out keyed-other "README.md:5: docs/template-release: $MALFORMED_TEXT [docs/template-release:line]")" 1
 
-# The sensors (API-git-only-sensors-under-sense): the standard output byte for byte, and an exit
+# The sensors (API-sensor-cores-ask-the-shell): the standard output byte for byte, and an exit
 # that differs only where tests/parity/sensor-exits.tsv lists it.
 # shellcheck disable=SC2317,SC2329 # run through expect
 sense() { bash "$HARNESS" --sense-compare "$@"; }

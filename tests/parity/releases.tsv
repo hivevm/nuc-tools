@@ -17,7 +17,7 @@
 # reading the release's diff. A row 'sense/<name>' is a sensor's, its check the whole script of
 # the sensor, and its reason covers the releases that leave the report on the standard output as it
 # was; tests/releases.rs holds the other releases to those the sensor reports by
-# (API-git-only-sensors-under-sense).
+# (API-sensor-cores-ask-the-shell).
 
 docs/adr-index	scripts/check-docs.sh	check_adr_index	v0.8.0,v0.9.0,v0.9.1	v0.8.0,v0.9.1	v0.8.0 moved its patterns and the ADR key into scripts/lib/adr.sh with the same expressions, so every release checks alike, which the parity corpus shows on the tree of v0.8.0; v0.9.1 adds only the key that ends each message, which nuc adds on every release
 docs/adr-numbering	scripts/check-docs.sh	check_adr_numbering	v0.8.0,v0.9.0	v0.8.0	v0.8.0 moved its patterns and the ADR key into scripts/lib/adr.sh with the same expressions, so every release checks alike, which the parity corpus shows on the tree of v0.8.0; from v0.9.0 on the record has no such check
