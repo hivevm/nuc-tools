@@ -44,9 +44,21 @@ inside a longer term of this glossary, such as "shape" in **Node shape**, is no 
   trees it is for, that makes a ported rule fire, so that the parity harness compares bash and
   `nuc` on a finding and not only on a clean tree
   ([TEST-parity-harness](adr/TEST-parity-harness.md)).
-- **migration** — One mechanical change `nuc upgrade` applies when a project takes up a later
-  template release.
+- **base** — The files of a template release a derived project never edits: `AGENTS.md`,
+  `docs/adr/NUC.blobs`, and each `docs/adr/NUC-*.md`
+  ([NUC-base-is-fixed §2](adr/NUC-base-is-fixed.md)). Not the base of a diff or a rebase in git,
+  which these documents name by its commit.
+- **take-up** — The move of a derived project from its carried release to a later template
+  release: the base replaced, the other files the template changed taken up, and the Template
+  release line moved
+  ([API-upgrade-by-blob-toml-optional](adr/API-upgrade-by-blob-toml-optional.md)).
+- **migration** — One mechanical change of a take-up that `nuc upgrade` decides from the two
+  template releases and the project's tree: a file written or deleted, or the release line moved.
   _Avoid:_ upgrade step.
+- **judgment** — What a take-up leaves to the maintainer because `nuc upgrade` cannot decide it: a
+  file both the template and the project changed, a citation of a `NUC-` ADR the new release lacks,
+  or the notes of a skipped release. It lists each as a finding of an `upgrade/` rule and writes
+  nothing for it.
 - **`nuc.toml`** — The file in a derived project that names the minimum version of `nuc` it
   requires.
 - **release commit** — The commit the release workflow writes on top of a tag `vX.Y.Z`, carrying

@@ -99,6 +99,8 @@ golden path and the test pattern an agent copies from are named here.
   ([API-config-refusals-keyed](adr/API-config-refusals-keyed.md)). It holds the
   one answer to which IDs `nuc.toml` may name, those of `rules::ALL` and of `hook::ALL`, and the
   reason `nuc explain` gives for each, so `nuc check`, `nuc hook`, and `nuc explain` ask it alike.
+  The rules of `upgrade::ALL`, which no `nuc.toml` names, `nuc explain` finds in `src/upgrade.rs`
+  where `config` knows none.
 - **Formats** — `src/format.rs` turns what a run of `nuc check` decided into its standard output:
   the lines of API-command-line-with-sense, one JSON document, or one SARIF 2.1.0 log, without
   a crate and byte for byte the same for the same findings
@@ -184,17 +186,16 @@ golden path and the test pattern an agent copies from are named here.
   ([API-sensor-cores-ask-the-shell](adr/API-sensor-cores-ask-the-shell.md)).
 - **Upgrade** — `src/upgrade.rs` decides the take-up of a template release
   ([API-upgrade-by-blob-toml-optional](adr/API-upgrade-by-blob-toml-optional.md)):
-  from the README the old and
-  the new release, or a refusal keyed `upgrade/run:<reason>`; from the trees of both and of `HEAD`,
-  each path with its kind and object, a plan of writes, deletions, and judgments, the findings of
-  `upgrade::ALL`; the plan settled against what the working tree holds at each path and each
-  directory above it, read by the shell without following a link, with each entry below a directory
-  at a path to write, listed the same way; the guards of a path, as git's `verify_path` refuses it
-  with `core.protectNTFS` and `core.protectHFS` on; the release line spliced into the README's
-  bytes; each line of a file outside the base that names a `NUC-` ADR the new release lacks, read as
-  the rule `docs/adr-refs` reads a reference; and whether the take-up skips a release.
-  `shell::upgrade` reads the trees and the blobs through git, refuses before the first write, and
-  writes the plan in `write_plan`, the one writer of the working tree.
+  from the README the old and the new release, or a refusal keyed `upgrade/run:<reason>`; from the
+  trees of both and of `HEAD`, each path with its kind and object, a plan of writes, deletions, and
+  judgments, the findings of `upgrade::ALL`; the plan settled against what the working tree holds at
+  each path and each directory above it, read by the shell without following a link, with each entry
+  below a directory at a path to write, listed the same way; the guards of a path, as git's
+  `verify_path` refuses it with `core.protectNTFS` and `core.protectHFS` on; the release line
+  spliced into the README's bytes; each line of a file outside the base that names a `NUC-` ADR the
+  new release lacks, read as the rule `docs/adr-refs` reads a reference; and whether the take-up
+  skips a release. `shell::upgrade` reads the trees and the blobs through git, refuses before the
+  first write, and writes the plan in `write_plan`, the one writer of the working tree.
 - **Binary** — `src/main.rs` calls the shell and nothing else.
 - **Parity harness** — `scripts/check-parity.sh` runs the bash checks of each repository of the
   corpus, `check-docs.sh`, `check-traceability.sh`, and `check-devcontainer.sh`, from v0.10.0 on
@@ -295,7 +296,10 @@ golden path and the test pattern an agent copies from are named here.
   structural test `tests/functional_core.rs` holds the shape, and inside the shell lets only the
   functions `tests/functional_core.guarded` names read, list, or resolve a path and only those
   `tests/functional_core.writers` names write. `tests/isolation.rs` runs `nuc check` on a tree of
-  bait and without the network (Q-7, Q-11), and `tests/contract.rs` holds the command line's
+  bait and without the network (Q-7, Q-11), and `nuc upgrade` against a filter and a textconv
+  driver of the repository and against the paths its guards refuse (Q-7, Q-8); the fixtures of
+  `nuc upgrade`, a template repository with an annotated tag per release and a project derived
+  from it, are built by `tests/support/upgrade.rs`; and `tests/contract.rs` holds the command line's
   contract and the rule IDs that stay (G-6). `tests/hooks.rs` runs the shims through git with the
   built `nuc` or a stand-in, and calls `nuc hook` directly for every shim, on every platform of Q-4
   (G-2, G-3, G-5, Q-1, Q-7 to Q-11). `tests/adr_citations.rs` fails on a citation of a superseded or
@@ -379,20 +383,21 @@ for; for the draft it reads the README through the `Tree`. The whole output is b
 printed, so that a refusal, exit 2 with its cause on the standard error, leaves the standard output
 empty. It writes nothing and keeps no state.
 
-`nuc upgrade <tag>` finds the root of the working tree, reads `nuc.toml` as `nuc check` does,
-refuses on `main`, and refuses a tree that is not clean as `nuc hook pre-push` tells it, an
-untracked file included. It reads the README's bytes and the release its line names, the old
-release, and takes the argument as the new one. It checks that each is an annotated tag of its name
-under `refs/template/`, and that the new release's `nuc.toml` asks for no newer `nuc`. It lists the
-trees of both tags and of `HEAD` with `git ls-tree`, and has the core plan the take-up. Before
-anything is written, it refuses a path the guards refuse, reads what the working tree holds at each
-path of the plan and above it, has the core settle the plan against that, and reads, in one `git
-cat-file --batch`, every blob the plan writes and every file outside the base as the plan leaves it,
-whose citations of a `NUC-` ADR the new release lacks it lists. Then it deletes, removes the
-directories the deletions leave empty, writes each file as a new one with the blob's bytes and mode,
-and splices the release line into the README. It prints the judgments as findings and exits 1 where
-there is one, and 0 otherwise; every refusal exits 2 with nothing written, and a write that fails
-after the first names what was written. It keeps no state.
+`nuc upgrade <tag>` finds the root of the working tree, reads `nuc.toml` as `nuc check` does where
+the project has one, refuses on `main`, and refuses a tree that is not clean as `nuc hook pre-push`
+tells it, an untracked file included. It reads the README's bytes and the release its line names,
+the old release, and takes the argument as the new one. It checks that each is an annotated tag of
+its name under `refs/template/`, and, where the new release ships a `nuc.toml`, that this `nuc`
+reads it and it asks for no newer `nuc`. It lists the trees of both tags and of `HEAD` with `git
+ls-tree`, and has the core plan the take-up. Before anything is written, it refuses a path the
+guards refuse, reads what the working tree holds at each path of the plan and above it, has the core
+settle the plan against that, and reads, in one `git cat-file --batch`, every blob the plan writes
+and every file outside the base as the plan leaves it, whose citations of a `NUC-` ADR the new
+release lacks it lists. Then it deletes, removes the directories the deletions leave empty, writes
+each file as a new one with the blob's bytes and mode, and splices the release line into the README.
+It prints the judgments as findings and exits 1 where there is one, and 0 otherwise; every refusal
+exits 2 with nothing written, and a write that fails after the first names what was written. It
+keeps no state.
 
 A release starts when a human pushes a tag `vX.Y.Z` that names the version of `Cargo.toml`.
 `release.yml` builds the four targets, writes `SHA256SUMS`, attests each binary and verifies the
