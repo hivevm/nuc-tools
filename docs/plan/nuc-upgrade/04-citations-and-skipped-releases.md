@@ -8,6 +8,11 @@ it by the map in B's notes. A take-up across releases between A and B, read from
 template under `refs/template/` or named by the version gap, is one finding that names them,
 since their notes may ask for more than files. Neither is written.
 
+The maintainer decided the scope of the citations: every tracked file outside the base, in the
+tree as the plan leaves it, that is UTF-8 and holds no NUL byte, code comments and `Verifies:`
+markers included. The skipped releases follow the rule of API-upgrade-takes-up-by-blob, read from
+the two versions alone.
+
 ## Acceptance criteria
 
 - [ ] Given a project ADR citing `NUC-x §2` and a B without `NUC-x`, when `nuc upgrade B` runs,
