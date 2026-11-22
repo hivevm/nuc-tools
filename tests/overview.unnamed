@@ -1,0 +1,3 @@
+# The modules of the crate that docs/ARCHITECTURE.md names under another name than its path
+# under src/ or its path in Rust, read by tests/overview.rs: one per line, "<path> <reason>", the
+# path as the test reads it, as upgrade.rs, shell/upgrade.rs, or rules/.

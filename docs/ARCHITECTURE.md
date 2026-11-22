@@ -297,11 +297,12 @@ golden path and the test pattern an agent copies from are named here.
   where the test binary was built from another checkout than the one it runs in. The structural test
   `tests/functional_core.rs` holds the shape, and inside the shell lets only the functions
   `tests/functional_core.guarded` names read, list, or resolve a path and only those
-  `tests/functional_core.writers` names write. `tests/isolation.rs` runs `nuc check` on a tree of
-  bait and without the network (Q-7, Q-11), and `nuc upgrade` against a filter and a textconv driver
-  of the repository, the paths its guards refuse, a decoy in the environment, a canary token, and a
-  README or a `nuc.toml` that links out (Q-7 to Q-10, Q-12); the fixtures of `nuc upgrade`, a
-  template repository with an annotated tag per release and a project derived from it, are built by
+  `tests/functional_core.writers` names write. `tests/overview.rs` fails on a module of the crate
+  this overview does not name. `tests/isolation.rs` runs `nuc check` on a tree of bait and without
+  the network (Q-7, Q-11), and `nuc upgrade` against a filter and a textconv driver of the
+  repository, the paths its guards refuse, a decoy in the environment, a canary token, and a README
+  or a `nuc.toml` that links out (Q-7 to Q-10, Q-12); the fixtures of `nuc upgrade`, a template
+  repository with an annotated tag per release and a project derived from it, are built by
   `tests/support/upgrade.rs`; and `tests/contract.rs` holds the command line's contract and the rule
   IDs that stay (G-6). `tests/hooks.rs` runs the shims through git with the built `nuc` or a
   stand-in, and calls `nuc hook` directly for every shim, on every platform of Q-4 (G-2, G-3, G-5,
