@@ -50,7 +50,6 @@ pub fn two_releases() -> Fixture {
             "v0.9.0",
             &[
                 ("README.md", Some(readme)),
-                ("nuc.toml", Some(UPGRADE_TOML)),
                 ("AGENTS.md", Some("# Agents v0.9.0\n")),
                 ("docs/adr/NUC.blobs", Some("blobs v0.9.0\n")),
                 ("docs/adr/NUC-kept.md", Some("# NUC-kept\n")),
@@ -106,7 +105,6 @@ pub fn three_way_releases() -> Fixture {
             "v0.9.0",
             &[
                 ("README.md", Some(readme)),
-                ("nuc.toml", Some(UPGRADE_TOML)),
                 ("AGENTS.md", Some("# Agents\n")),
                 ("scripts/same.sh", Some("same\n")),
                 ("scripts/taken.sh", Some("taken v0.9.0\n")),
