@@ -148,7 +148,7 @@ What this project explicitly does not try to do.
 - **No writes beyond the repository without a human's instruction.** `nuc` pushes nothing,
   writes nothing to GitHub, and applies no repository settings unless a human explicitly
   instructs it; sensors only read.
-- **No network access in checks and hooks,** except in a sensor that names it.
+- **No network access in checks, hooks, and take-ups,** except in a sensor that names it.
 
 ## Constraints
 
