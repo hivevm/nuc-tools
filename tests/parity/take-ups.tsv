@@ -1,0 +1,11 @@
+# The take-ups a human committed that scripts/lib/take-up-parity.sh replays with nuc upgrade
+# (API-upgrade-by-blob-toml-optional), read by scripts/check-parity.sh. One row per take-up, four
+# fields separated by tabs: the repository's URL, the commit before the take-up, the commit that
+# ends it, each by its 40-hex name, and the URL of the template. The releases are the ones the
+# README names at the two commits. This repository's own take-ups, since the derived repositories
+# of the corpus are on v0.6.1, before the earliest release nuc upgrade takes up from; a row joins
+# for each take-up from v0.9.0 on that a repository commits.
+
+https://github.com/hivevm/nuc-tools.git	e1d2125a0b88eb5b7540344f7efcb983ac8134e6	778d738eaa390f9f2c06fc640d34849629e67da7	https://github.com/hivevm/nuc.git
+https://github.com/hivevm/nuc-tools.git	dbb8643958bced0aa765e4503272fec872bd120d	c063bad16cec4dda25faedf9813a994ceb368f0b	https://github.com/hivevm/nuc.git
+https://github.com/hivevm/nuc-tools.git	cb06ad9d582a9a39c77a5f877d48269f4382c214	2110947c2b3473c7931b19974d8343b9bcf21110	https://github.com/hivevm/nuc.git

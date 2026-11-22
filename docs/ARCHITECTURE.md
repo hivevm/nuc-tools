@@ -234,7 +234,10 @@ golden path and the test pattern an agent copies from are named here.
   and the variants alone, so every shard deals the same, a refused or unfetched tree included.
   Every shard reports such a tree, and a variant that names a tree the corpus lacks, and fails on
   it. CI runs six shards, one required check run each, since the comparisons are bound by the
-  processor.
+  processor. The last shard also replays this repository's take-ups of `tests/parity/take-ups.tsv`
+  with `nuc upgrade`, through `scripts/lib/take-up-parity.sh`, and compares each path it writes
+  with the take-up a human committed, a difference `tests/parity/take-up-differences.tsv` lists
+  with its reason aside; `--take-ups` runs the replay alone.
 - **Table runner** — `tests/tables.rs` builds the tree of each case of the template's fixture
   tables, copied under `tests/tables/` from the newest release `nuc` ports and pinned by their
   blobs in `tests/tables.blobs`, runs `nuc check` on it, or `nuc sense plain-rules` for the

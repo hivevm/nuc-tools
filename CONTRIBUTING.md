@@ -66,8 +66,9 @@ scripts/lib/          # what the scripts share: the bash floor (bash.sh), the AD
                       # reads (root.sh): every scripts/*.sh but the self-tests and check-all.sh
                       # takes it, as check-shell.sh checks; the plain rules (rules.sh), the
                       # self-tests (selftest.sh), the ticket path (ticket.sh), the hook
-                      # scenarios of the parity harness (hook-parity.sh), and the files the
-                      # hooks' blob list pins (pin.sh)
+                      # scenarios of the parity harness (hook-parity.sh), its replay of the
+                      # take-ups (take-up-parity.sh), and the files the hooks' blob list pins
+                      # (pin.sh)
 scripts/fixtures/     # the cases of a check as a table, which its self-test reads
 scripts/*.sh          # run by hand, steps 7 and 8 of the integration branches: ready-for-main.sh,
                       # drop-merged-branch.sh
@@ -95,9 +96,9 @@ action.yml            # the GitHub Action: installs the nuc of its release and r
 release/              # the release tooling: build, checksums, the installer, and the release commit;
                       # gate/ holds the checksums and version of the nuc the gates install
 tests/                # the integration tests, their fixture helpers and the readings of the
-                      # crate's sources in tests/support/, the corpus, variants, tables, and
-                      # hook scenarios of the parity harness in tests/parity/, and the benchmark
-                      # of Q-5 in tests/bench/
+                      # crate's sources in tests/support/, the corpus, variants, tables, hook
+                      # scenarios, and take-ups of the parity harness in tests/parity/, and the
+                      # benchmark of Q-5 in tests/bench/
 .agents/skills/       # the procedures of AGENTS.md as Agent Skills, one directory each,
                       # with their scripts, templates, and maps (claim.sh, remap.sh, ticket.md)
 .claude/CLAUDE.md     # pointer for Claude Code to read AGENTS.md
@@ -112,6 +113,15 @@ and `rest_args` refuses an argument it does not read. The rule `shell/root` of
 `scripts/check-shell.sh` fails on one that does not. The rule `shell/mode` fails on a tracked
 script `scripts/*.sh` or `.agents/skills/<name>/*.sh` whose mode in the index is not 100755
 ([NUC-checks-are-bash §9](docs/adr/NUC-checks-are-bash.md)).
+
+The parity harness replays this repository's take-ups of template releases with `nuc upgrade`
+([API-upgrade-by-blob-toml-optional](docs/adr/API-upgrade-by-blob-toml-optional.md)). After a
+take-up lands, add a row to `tests/parity/take-ups.tsv`: the repository's URL, the commit before
+the take-up and the commit that ends it, each by its 40-hex name, and the template's URL,
+separated by tabs. Run `scripts/check-parity.sh --take-ups`. A path `nuc upgrade` writes otherwise
+than the take-up fails the replay; where the take-up was right to leave it, as an open ticket of
+the template's own plan, add a row to `tests/parity/take-up-differences.tsv` with the release, the
+path, and the reason.
 
 ## Dev Container
 
