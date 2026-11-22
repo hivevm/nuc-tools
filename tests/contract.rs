@@ -2477,7 +2477,7 @@ fn upgrade_replaces_the_base_and_moves_the_release_line() {
     assert_eq!(code(&output), Some(0), "{}", stderr(&output));
     assert_eq!(stdout(&output), "");
     assert!(
-        stderr(&output).contains("nuc upgrade v0.9.0 -> v0.10.0: 5 written, 1 deleted, 0 listed"),
+        stderr(&output).contains("nuc upgrade v0.9.0 -> v0.10.0: 6 written, 1 deleted, 0 listed"),
         "{}",
         stderr(&output)
     );
@@ -2498,12 +2498,132 @@ fn upgrade_replaces_the_base_and_moves_the_release_line() {
         std::fs::read(project.root().join("README.md")).expect("read"),
         expected
     );
-    // Outside the base, the tracer writes nothing; nuc writes no index and no commit.
+    // The script the project left as v0.9.0 had it is taken up; nuc writes no index and no commit.
+    assert_eq!(read(&project, "scripts/check-docs.sh"), "echo v0.10.0\n");
     let status = stdout(&project.git(&["status", "--porcelain"]));
     assert_eq!(
         status,
         " M AGENTS.md\n M README.md\n M docs/adr/NUC-changed.md\n D docs/adr/NUC-gone.md\n M \
-         docs/adr/NUC.blobs\n?? docs/adr/NUC-new.md\n"
+         docs/adr/NUC.blobs\n M scripts/check-docs.sh\n?? docs/adr/NUC-new.md\n"
+    );
+}
+
+/// Verifies: API-upgrade-takes-up-by-blob, G-4
+#[test]
+fn upgrade_takes_up_every_path_the_project_left_and_lists_the_rest() {
+    use support::upgrade::{three_way_project, three_way_releases};
+    let template = three_way_releases();
+    let project = three_way_project(&template);
+    let output = project.nuc(&["upgrade", "v0.10.0"]);
+    assert_eq!(code(&output), Some(1), "{}", stderr(&output));
+    let keys: Vec<String> = stdout(&output)
+        .lines()
+        .map(|line| {
+            let (file, rest) = line
+                .split_once(": upgrade/file: ")
+                .expect("a finding of upgrade/file");
+            let key = rest
+                .rsplit_once(" [")
+                .expect("a key")
+                .1
+                .trim_end_matches(']');
+            format!("{file} {key}")
+        })
+        .collect();
+    assert_eq!(
+        keys,
+        [
+            "README.md upgrade/file:both",
+            "scripts/both.sh upgrade/file:both",
+            "scripts/kept.sh upgrade/file:kept",
+            "scripts/lost.sh upgrade/file:deleted",
+            "scripts/own.sh upgrade/file:added",
+        ]
+    );
+    // Each judged path keeps the project's bytes, or stays missing.
+    assert_eq!(read(&project, "scripts/both.sh"), "both, edited\n");
+    assert_eq!(read(&project, "scripts/kept.sh"), "kept, edited\n");
+    assert_eq!(read(&project, "scripts/own.sh"), "own of the project\n");
+    assert!(!project.root().join("scripts/lost.sh").exists());
+    // What the project left is taken up, the file and the directory trading places included.
+    assert_eq!(read(&project, "scripts/same.sh"), "same, edited\n");
+    assert_eq!(read(&project, "scripts/taken.sh"), "taken v0.10.0\n");
+    assert_eq!(read(&project, "scripts/new.sh"), "new\n");
+    assert!(!project.root().join("scripts/gone.sh").exists());
+    assert_eq!(read(&project, "swap-a/inner.md"), "now inner\n");
+    assert_eq!(read(&project, "swap-b"), "now a file\n");
+    // The README both changed keeps the project's bytes, its release line moved.
+    assert_eq!(
+        read(&project, "README.md"),
+        "# Project\n\n- **Template release:** v0.10.0\n"
+    );
+    assert!(
+        stderr(&output).contains("5 written, 3 deleted, 5 listed"),
+        "{}",
+        stderr(&output)
+    );
+}
+
+/// Verifies: API-upgrade-takes-up-by-blob
+#[test]
+fn upgrade_lists_a_directory_the_plan_s_deletions_leave_standing() {
+    use support::upgrade::{three_way_project, three_way_releases};
+    // An ignored file, an empty directory below, and an empty directory where the release adds a
+    // file: each keeps its directory, and nothing fails half written.
+    let setups: [fn(&Fixture); 3] = [
+        |p| {
+            p.write(".gitignore", "*.log\n").commit("Ignore logs");
+            p.write("swap-b/build.log", "ignored\n");
+        },
+        |p| std::fs::create_dir(p.root().join("swap-b/cache")).expect("made"),
+        |p| std::fs::create_dir(p.root().join("scripts/new.sh")).expect("made"),
+    ];
+    for (n, setup) in setups.iter().enumerate() {
+        let template = three_way_releases();
+        let project = three_way_project(&template);
+        setup(&project);
+        let output = project.nuc(&["upgrade", "v0.10.0"]);
+        assert_eq!(code(&output), Some(1), "{n}: {}", stderr(&output));
+        let path = if n == 2 { "scripts/new.sh" } else { "swap-b" };
+        assert!(
+            stdout(&output)
+                .lines()
+                .any(|line| line.starts_with(&format!("{path}: upgrade/file: "))
+                    && line.ends_with("[upgrade/file:added]")),
+            "{n}: {}",
+            stdout(&output)
+        );
+        assert!(project.root().join(path).is_dir(), "{n}");
+    }
+}
+
+/// Verifies: API-upgrade-takes-up-by-blob
+#[test]
+fn upgrade_takes_up_a_readme_the_project_left_and_keeps_its_release_line() {
+    use support::upgrade::{three_way_project, three_way_releases};
+    let template = three_way_releases();
+    let project = three_way_project(&template);
+    project
+        .write(
+            "README.md",
+            "# NUC\n\n- **Template release:** v0.9.0 — this release.\n",
+        )
+        .commit("The template's README");
+    let output = project.nuc(&["upgrade", "v0.10.0"]);
+    assert_eq!(code(&output), Some(1), "{}", stderr(&output));
+    assert!(
+        !stdout(&output).contains("README.md"),
+        "{}",
+        stdout(&output)
+    );
+    assert_eq!(
+        read(&project, "README.md"),
+        "# NUC\n\n- **Template release:** v0.10.0 — this release.\n"
+    );
+    assert!(
+        stderr(&output).contains("5 written, 3 deleted, 4 listed"),
+        "{}",
+        stderr(&output)
     );
 }
 

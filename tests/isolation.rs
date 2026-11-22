@@ -276,39 +276,49 @@ fn upgrade_refuses_a_symbolic_link_above_a_path_it_writes() {
 
 /// Verifies: API-upgrade-takes-up-by-blob, Q-8
 #[test]
-fn upgrade_writes_nothing_of_a_template_tree_entry_under_dot_git() {
+fn upgrade_refuses_a_template_tree_entry_that_names_dot_git_or_leaves_the_tree() {
     use support::upgrade::{derived, fetch_release, two_releases};
-    let template = two_releases();
-    // A tree git would not build from a working tree: v0.10.0 with an entry `.git/config`.
-    let blob = support::stdout(&template.git_with_input(
-        &["hash-object", "-w", "--stdin"],
-        b"[core]\n\thooksPath = /tmp/evil\n",
-    ));
-    let inner = support::stdout(&template.git_with_input(
-        &["mktree"],
-        format!("100644 blob {}\tconfig\n", blob.trim()).as_bytes(),
-    ));
-    let mut listing = support::stdout(&template.git(&["ls-tree", "v0.10.0^{tree}"]));
-    listing.push_str(&format!("040000 tree {}\t.git\n", inner.trim()));
-    let tree = support::stdout(&template.git_with_input(&["mktree"], listing.as_bytes()));
-    let commit = support::stdout(&template.git(&[
-        "commit-tree",
-        tree.trim(),
-        "-p",
-        "v0.10.0^{commit}",
-        "-m",
-        "v0.10.1",
-    ]));
-    template.git(&["tag", "-a", "-m", "NUC v0.10.1", "v0.10.1", commit.trim()]);
-    let project = derived(&template);
-    fetch_release(&project, &template, "v0.10.1");
-    let config = std::fs::read(project.root().join(".git/config")).expect("read");
-    let output = project.nuc(&["upgrade", "v0.10.1"]);
-    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
-    assert_eq!(
-        std::fs::read(project.root().join(".git/config")).expect("read"),
-        config
-    );
+    // Trees git would not build from a working tree: v0.10.0 with an entry `<name>/config`, where a
+    // file system reads the name as `.git` or a way out of the tree.
+    for name in [".git", "GIT~1", "..", "a\\b"] {
+        let template = two_releases();
+        let blob = support::stdout(&template.git_with_input(
+            &["hash-object", "-w", "--stdin"],
+            b"[core]\n\thooksPath = /tmp/evil\n",
+        ));
+        let inner = support::stdout(&template.git_with_input(
+            &["mktree"],
+            format!("100644 blob {}\tconfig\n", blob.trim()).as_bytes(),
+        ));
+        let mut listing = support::stdout(&template.git(&["ls-tree", "v0.10.0^{tree}"]));
+        listing.push_str(&format!("040000 tree {}\t{name}\n", inner.trim()));
+        let tree = support::stdout(&template.git_with_input(&["mktree"], listing.as_bytes()));
+        let commit = support::stdout(&template.git(&[
+            "commit-tree",
+            tree.trim(),
+            "-p",
+            "v0.10.0^{commit}",
+            "-m",
+            "v0.10.1",
+        ]));
+        template.git(&["tag", "-a", "-m", "NUC v0.10.1", "v0.10.1", commit.trim()]);
+        let project = derived(&template);
+        fetch_release(&project, &template, "v0.10.1");
+        let config = std::fs::read(project.root().join(".git/config")).expect("read");
+        let status = stdout(&project.git(&["status", "--porcelain"]));
+        let output = project.nuc(&["upgrade", "v0.10.1"]);
+        assert_eq!(output.status.code(), Some(2), "{name}: {}", stderr(&output));
+        assert!(
+            stderr(&output).trim_end().ends_with("[upgrade/run:path]"),
+            "{name}: {}",
+            stderr(&output)
+        );
+        assert_eq!(
+            std::fs::read(project.root().join(".git/config")).expect("read"),
+            config
+        );
+        assert_eq!(stdout(&project.git(&["status", "--porcelain"])), status);
+    }
 }
 
 /// Verifies: API-upgrade-takes-up-by-blob, Q-8

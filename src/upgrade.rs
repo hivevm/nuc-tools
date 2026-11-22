@@ -29,10 +29,19 @@ pub const ADDED: &str = "added";
 /// A mode the plan writes that the working tree cannot carry.
 pub const MODE: &str = "mode";
 
+/// A path both the template and the project changed.
+pub const BOTH: &str = "both";
+
+/// A path the template changed that the project lacks.
+pub const DELETED: &str = "deleted";
+
+/// A path the template removes that the project changed.
+pub const KEPT: &str = "kept";
+
 /// The judgments on a path of the tree.
 pub const FILE: Rule = Rule {
     id: "upgrade/file",
-    reasons: &[ADDED, LINK, MODE],
+    reasons: &[ADDED, BOTH, DELETED, KEPT, LINK, MODE],
     explain: "nuc upgrade takes up a path of a template release only where the project left it as \
               its release had it, and writes regular files only; it lists each other path for the \
               maintainer to take up by hand, and leaves its bytes as they are \
@@ -214,57 +223,103 @@ pub fn is_base(path: &str) -> bool {
             .is_some_and(|rest| rest.ends_with(".md") && !rest.contains('/'))
 }
 
-/// The take-up from `old` to `new` of the project at `head`: the base takes the new release's
-/// entry, whatever the project holds, and a base path the new release lacks is deleted. A path
-/// the plan would write or delete is a judgment instead where one of the trees holds a link or a
-/// submodule there. Where the working tree carries no executable bit, as `carries_mode` says, a
-/// file whose bit the plan changes is written, and its mode is a judgment.
-pub fn plan(old: &Tree, new: &Tree, head: &Tree, carries_mode: bool) -> Plan {
+/// A judgment of `upgrade/file` at the path.
+fn judgment(path: &str, reason: &'static str, message: String) -> Finding {
+    Finding {
+        rule: FILE.id,
+        reason,
+        file: path.to_owned(),
+        line: None,
+        message,
+    }
+}
+
+/// The take-up from `old` to `new` of the project at `head`, the releases named for the messages.
+/// The base takes the new release's entry, whatever the project holds, and a base path the new
+/// release lacks is deleted. Every other path takes the new release's entry, or is deleted, where
+/// the project's entry equals the old release's, a missing one equal to a missing one; where the
+/// template left it, or the project holds the new release's entry already, nothing; and any other
+/// case is a judgment. A path the plan would write or delete is a judgment instead where one of
+/// the trees holds a link or a submodule there. Where the working tree carries no executable bit,
+/// as `carries_mode` says, a file whose bit the plan changes is written, and its mode is a
+/// judgment.
+pub fn plan(
+    old: &Tree,
+    new: &Tree,
+    head: &Tree,
+    releases: (Version, Version),
+    carries_mode: bool,
+) -> Plan {
     let mut plan = Plan::default();
+    let (from, to) = (tag(releases.0), tag(releases.1));
     let paths: BTreeSet<&String> = old.keys().chain(new.keys()).chain(head.keys()).collect();
     for path in paths {
-        if !is_base(path) {
+        let (was, now, have) = (old.get(path), new.get(path), head.get(path));
+        if now == have || (now == was && !is_base(path)) {
             continue;
         }
-        let (was, now, have) = (old.get(path), new.get(path), head.get(path));
-        if now == have {
+        let linked = [was, now, have]
+            .into_iter()
+            .flatten()
+            .any(|entry| matches!(entry.kind, Kind::Link | Kind::Submodule));
+        if linked {
+            plan.judgments.push(judgment(
+                path,
+                LINK,
+                "a symbolic link or a submodule in the old release, the new one, or the project; \
+                 take the path up by hand"
+                    .to_owned(),
+            ));
+            continue;
+        }
+        if !is_base(path) && have != was {
+            let diff = format!("git diff refs/template/{from} refs/template/{to} -- {path}");
+            let (reason, message) = match (was, now, have) {
+                (Some(_), Some(_), Some(_)) => (
+                    BOTH,
+                    format!(
+                        "{to} changed it since {from}, and so did the project; merge it by hand: {diff}"
+                    ),
+                ),
+                (Some(_), Some(_), None) => (
+                    DELETED,
+                    format!(
+                        "{to} changed it since {from}, and the project has none; take it up or leave it out: {diff}"
+                    ),
+                ),
+                (Some(_), None, _) => (
+                    KEPT,
+                    format!(
+                        "{to} removes it, and the project changed it since {from}; delete it or keep it: {diff}"
+                    ),
+                ),
+                (None, _, _) => (
+                    ADDED,
+                    format!(
+                        "{to} adds it, and the project has a path of its own there; merge it by hand: git show refs/template/{to}:{path}"
+                    ),
+                ),
+            };
+            plan.judgments.push(judgment(path, reason, message));
             continue;
         }
         let change = match now {
             Some(entry) => Change::Write(entry.clone()),
             None => Change::Delete,
         };
-        let linked = [was, now, have]
-            .into_iter()
-            .flatten()
-            .any(|entry| matches!(entry.kind, Kind::Link | Kind::Submodule));
-        if linked {
-            plan.judgments.push(Finding {
-                rule: FILE.id,
-                reason: LINK,
-                file: path.clone(),
-                line: None,
-                message: "a symbolic link or a submodule in the old release, the new one, or the \
-                          project; take the path up by hand"
-                    .to_owned(),
-            });
-            continue;
-        }
         if let Change::Write(entry) = &change {
             let executable =
                 |entry: Option<&Entry>| entry.is_some_and(|e| e.kind == Kind::Executable);
             if !carries_mode && executable(Some(entry)) != executable(have) {
-                plan.judgments.push(Finding {
-                    rule: FILE.id,
-                    reason: MODE,
-                    file: path.clone(),
-                    line: None,
-                    message: format!(
+                plan.judgments.push(judgment(
+                    path,
+                    MODE,
+                    format!(
                         "written, but the working tree carries no executable bit; set it in the \
                          index with 'git update-index --chmod={}x {path}'",
                         if executable(Some(entry)) { '+' } else { '-' }
                     ),
-                });
+                ));
             }
         }
         plan.changes.insert(path.clone(), change);
@@ -281,6 +336,16 @@ pub enum Found {
     Link,
     /// Anything else, such as a device or a socket.
     Other,
+}
+
+/// What `settle` knows of the working tree: what it holds at each path `asked` names; each entry
+/// below a directory at a path the plan writes, read without following a link; and whether its
+/// file system ignores case, as `core.ignoreCase` says.
+#[derive(Debug, Default, Clone)]
+pub struct WorkTree {
+    pub found: BTreeMap<String, Found>,
+    pub below: BTreeMap<String, Found>,
+    pub ignores_case: bool,
 }
 
 /// The paths of the working tree `settle` needs: each path the plan writes or deletes, and each
@@ -327,21 +392,45 @@ pub fn refuse_paths(plan: &Plan, head: &Tree) -> Result<(), Refusal> {
     Ok(())
 }
 
+/// Whether the plan's deletions leave the directory at `path` empty, as `below` lists what it
+/// holds: it holds a file the plan deletes, every other entry below it is one too, and each
+/// directory below holds one, so that removing each directory a deletion leaves empty removes it.
+fn emptied(plan: &Plan, below: &BTreeMap<String, Found>, path: &str) -> bool {
+    let deleted_below = |dir: &str| {
+        let prefix = format!("{dir}/");
+        plan.changes
+            .iter()
+            .any(|(other, change)| *change == Change::Delete && other.starts_with(&prefix))
+    };
+    let prefix = format!("{path}/");
+    deleted_below(path)
+        && below
+            .iter()
+            .filter(|(entry, _)| entry.starts_with(&prefix))
+            .all(|(entry, kind)| match kind {
+                Found::Dir => deleted_below(entry),
+                _ => plan.changes.get(entry) == Some(&Change::Delete),
+            })
+}
+
 /// The plan settled against the working tree, as `found` reads each path `asked` names: refused
 /// where a directory above a path is a symbolic link or no file and no directory, since a write
-/// there would leave the tree (Q-8). A write the working tree has a path of its own at, or a file
-/// above that the plan does not delete, becomes a judgment.
-pub fn settle(
-    plan: &mut Plan,
-    head: &Tree,
-    found: &BTreeMap<String, Found>,
-    ignores_case: bool,
-) -> Result<(), Refusal> {
+/// there would leave the tree (Q-8). A write the working tree has a path of its own at, a file or
+/// a directory the plan's deletions do not empty, or a file above that the plan does not delete,
+/// becomes a judgment.
+pub fn settle(plan: &mut Plan, head: &Tree, work: &WorkTree) -> Result<(), Refusal> {
+    let WorkTree {
+        found,
+        below,
+        ignores_case,
+    } = work;
+    let ignores_case = *ignores_case;
     let at = |path: &str| found.get(path).copied().unwrap_or(Found::Nothing);
     // A path the plan deletes that the working tree lacks, as under a sparse checkout, needs no
     // deletion.
     plan.changes
         .retain(|path, change| *change != Change::Delete || at(path) != Found::Nothing);
+    let emptied = |path: &str| emptied(plan, below, path);
     // A file a file system that ignores case finds at a path the plan writes, where the plan
     // deletes the path of the same letters in another case: the release renamed it by case.
     let renamed = |path: &str| {
@@ -381,6 +470,7 @@ pub fn settle(
                 Found::Nothing => None,
                 Found::Regular if tracked_file || renamed(path) => None,
                 Found::Regular => Some("a file of the working tree's own".to_owned()),
+                Found::Dir if emptied(path) => None,
                 Found::Dir => Some("a directory of the working tree".to_owned()),
                 Found::Link | Found::Other => {
                     Some("a symbolic link or no file of the working tree".to_owned())
@@ -542,6 +632,16 @@ mod tests {
         }
     }
 
+    const R: (Version, Version) = (Version(0, 9, 0), Version(0, 10, 0));
+
+    fn work(found: BTreeMap<String, Found>, ignores_case: bool) -> WorkTree {
+        WorkTree {
+            found,
+            below: BTreeMap::new(),
+            ignores_case,
+        }
+    }
+
     fn tree(entries: &[(&str, Entry)]) -> Tree {
         entries
             .iter()
@@ -638,7 +738,7 @@ mod tests {
             ("docs/adr/NUC-same.md", file("s1")),
             ("docs/adr/API-own.md", file("own")),
         ]);
-        let plan = plan(&old, &new, &head, true);
+        let plan = plan(&old, &new, &head, R, true);
         assert!(plan.judgments.is_empty());
         let expected: BTreeMap<String, Change> = [
             ("AGENTS.md", Change::Write(file("a2"))),
@@ -660,10 +760,10 @@ mod tests {
         let old = tree(&[("AGENTS.md", file("a1"))]);
         let new = tree(&[("AGENTS.md", exec.clone())]);
         assert_eq!(
-            plan(&old, &new, &old, true).changes.get("AGENTS.md"),
+            plan(&old, &new, &old, R, true).changes.get("AGENTS.md"),
             Some(&Change::Write(exec))
         );
-        assert_eq!(plan(&old, &old, &old, true), Plan::default());
+        assert_eq!(plan(&old, &old, &old, R, true), Plan::default());
     }
 
     #[test]
@@ -675,23 +775,23 @@ mod tests {
         let old = tree(&[("AGENTS.md", file("a1"))]);
         let new = tree(&[("AGENTS.md", file("a2"))]);
         let head = tree(&[("AGENTS.md", link.clone())]);
-        let plan = plan(&old, &new, &head, true);
+        let plan = plan(&old, &new, &head, R, true);
         assert!(plan.changes.is_empty());
         assert_eq!(plan.judgments.len(), 1);
         assert_eq!(plan.judgments[0].reason, LINK);
         assert_eq!(plan.judgments[0].file, "AGENTS.md");
         // The same link in every tree is left alone.
         let same = tree(&[("AGENTS.md", link)]);
-        assert_eq!(super::plan(&same, &same, &same, true), Plan::default());
+        assert_eq!(super::plan(&same, &same, &same, R, true), Plan::default());
     }
 
     #[test]
     fn a_symlink_above_a_path_to_write_is_refused() {
         let new = tree(&[("docs/adr/NUC-new.md", file("n"))]);
-        let mut plan = plan(&Tree::new(), &new, &Tree::new(), true);
+        let mut plan = plan(&Tree::new(), &new, &Tree::new(), R, true);
         let found: BTreeMap<String, Found> = [("docs".to_owned(), Found::Link)].into();
         assert_eq!(
-            settle(&mut plan, &Tree::new(), &found, true)
+            settle(&mut plan, &Tree::new(), &work(found.clone(), true))
                 .unwrap_err()
                 .reason,
             "path"
@@ -705,7 +805,7 @@ mod tests {
             ("docs/adr/NUC-dir.md", file("d")),
             ("docs/adr/NUC-link.md", file("l")),
         ]);
-        let mut plan = plan(&Tree::new(), &new, &Tree::new(), true);
+        let mut plan = plan(&Tree::new(), &new, &Tree::new(), R, true);
         assert_eq!(asked(&plan).len(), 5);
         let found: BTreeMap<String, Found> = [
             ("AGENTS.md".to_owned(), Found::Regular),
@@ -715,7 +815,7 @@ mod tests {
             ("docs/adr/NUC-link.md".to_owned(), Found::Link),
         ]
         .into();
-        settle(&mut plan, &Tree::new(), &found, true).unwrap();
+        settle(&mut plan, &Tree::new(), &work(found.clone(), true)).unwrap();
         assert!(plan.changes.is_empty());
         let files: Vec<(&str, &str)> = plan
             .judgments
@@ -736,9 +836,9 @@ mod tests {
     fn a_tracked_file_the_plan_replaces_is_no_judgment() {
         let old = tree(&[("AGENTS.md", file("a1"))]);
         let new = tree(&[("AGENTS.md", file("a2"))]);
-        let mut plan = plan(&old, &new, &old, true);
+        let mut plan = plan(&old, &new, &old, R, true);
         let found: BTreeMap<String, Found> = [("AGENTS.md".to_owned(), Found::Regular)].into();
-        settle(&mut plan, &old, &found, true).unwrap();
+        settle(&mut plan, &old, &work(found.clone(), true)).unwrap();
         assert_eq!(plan.changes.len(), 1);
         assert!(plan.judgments.is_empty());
     }
@@ -747,10 +847,181 @@ mod tests {
     fn a_path_refused_on_some_platform_refuses_the_plan() {
         let new = tree(&[("docs/adr/NUC-a.md", file("a"))]);
         let head = tree(&[("Docs/x.md", file("x"))]);
-        let plan = plan(&Tree::new(), &new, &head, true);
+        let plan = plan(&Tree::new(), &new, &head, R, true);
         assert_eq!(refuse_paths(&plan, &head).unwrap_err().reason, "path");
-        let plan = super::plan(&Tree::new(), &new, &Tree::new(), true);
+        let plan = super::plan(&Tree::new(), &new, &Tree::new(), R, true);
         assert_eq!(refuse_paths(&plan, &Tree::new()), Ok(()));
+    }
+
+    #[test]
+    fn every_other_path_is_taken_up_where_the_project_left_it_and_judged_otherwise() {
+        let old = tree(&[
+            ("same.sh", file("s")),
+            ("taken.sh", file("t1")),
+            ("both.sh", file("b1")),
+            ("lost.sh", file("l1")),
+            ("gone.sh", file("g")),
+            ("kept.sh", file("k1")),
+            ("ahead.sh", file("a1")),
+        ]);
+        let new = tree(&[
+            ("same.sh", file("s")),
+            ("taken.sh", file("t2")),
+            ("both.sh", file("b2")),
+            ("lost.sh", file("l2")),
+            ("new.sh", file("n")),
+            ("own.sh", file("o")),
+            ("ahead.sh", file("a2")),
+        ]);
+        let head = tree(&[
+            ("same.sh", file("edited")),
+            ("taken.sh", file("t1")),
+            ("both.sh", file("edited")),
+            ("own.sh", file("mine")),
+            ("gone.sh", file("g")),
+            ("kept.sh", file("edited")),
+            ("ahead.sh", file("a2")),
+            ("project.sh", file("p")),
+        ]);
+        let plan = plan(&old, &new, &head, R, true);
+        let changes: Vec<(&str, &Change)> =
+            plan.changes.iter().map(|(p, c)| (p.as_str(), c)).collect();
+        assert_eq!(
+            changes,
+            [
+                ("gone.sh", &Change::Delete),
+                ("new.sh", &Change::Write(file("n"))),
+                ("taken.sh", &Change::Write(file("t2"))),
+            ]
+        );
+        let judged: Vec<(&str, &str)> = plan
+            .judgments
+            .iter()
+            .map(|j| (j.file.as_str(), j.reason))
+            .collect();
+        assert_eq!(
+            judged,
+            [
+                ("both.sh", BOTH),
+                ("kept.sh", KEPT),
+                ("lost.sh", DELETED),
+                ("own.sh", ADDED)
+            ]
+        );
+        assert!(
+            plan.judgments[0]
+                .message
+                .contains("git diff refs/template/v0.9.0 refs/template/v0.10.0 -- both.sh")
+        );
+    }
+
+    #[test]
+    fn a_path_outside_the_base_takes_the_new_release_s_mode() {
+        let exec = Entry {
+            kind: Kind::Executable,
+            object: "t".to_owned(),
+        };
+        let old = tree(&[("scripts/t.sh", file("t"))]);
+        let new = tree(&[("scripts/t.sh", exec.clone())]);
+        let plan = plan(&old, &new, &old, R, true);
+        assert_eq!(
+            plan.changes.get("scripts/t.sh"),
+            Some(&Change::Write(exec.clone()))
+        );
+        assert!(plan.judgments.is_empty());
+        let plan = super::plan(&old, &new, &old, R, false);
+        assert_eq!(plan.changes.get("scripts/t.sh"), Some(&Change::Write(exec)));
+        assert_eq!(plan.judgments[0].reason, MODE);
+    }
+
+    #[test]
+    fn a_link_or_a_submodule_in_any_tree_is_never_written() {
+        let link = Entry {
+            kind: Kind::Link,
+            object: "l".to_owned(),
+        };
+        let module = Entry {
+            kind: Kind::Submodule,
+            object: "c".to_owned(),
+        };
+        let cases = [
+            (Some(link.clone()), Some(file("2")), Some(link.clone())),
+            (Some(file("1")), Some(module.clone()), Some(file("1"))),
+            (None, Some(link), None),
+            (Some(module.clone()), None, Some(module)),
+        ];
+        for (was, now, have) in cases {
+            let one = |entry: &Option<Entry>| -> Tree {
+                entry.iter().map(|e| ("x".to_owned(), e.clone())).collect()
+            };
+            let plan = plan(&one(&was), &one(&now), &one(&have), R, true);
+            assert!(!plan.changes.contains_key("x"), "{was:?} {now:?} {have:?}");
+            assert_eq!(plan.judgments.len(), 1, "{was:?} {now:?} {have:?}");
+            assert_eq!(plan.judgments[0].reason, LINK);
+        }
+    }
+
+    #[test]
+    fn a_link_outranks_every_other_reason() {
+        let link = Entry {
+            kind: Kind::Link,
+            object: "l".to_owned(),
+        };
+        let old = tree(&[("x", file("1"))]);
+        let new = tree(&[("x", file("2"))]);
+        let head = tree(&[("x", link)]);
+        let plan = plan(&old, &new, &head, R, true);
+        assert_eq!(plan.judgments.len(), 1);
+        assert_eq!(plan.judgments[0].reason, LINK);
+    }
+
+    #[test]
+    fn a_file_and_a_directory_trade_places() {
+        // A file that becomes a directory, and a directory that becomes a file.
+        let old = tree(&[("a", file("a")), ("b/inner.md", file("i"))]);
+        let new = tree(&[("a/inner.md", file("i")), ("b", file("b"))]);
+        let mut plan = plan(&old, &new, &old, R, true);
+        let found: BTreeMap<String, Found> = [
+            ("a".to_owned(), Found::Regular),
+            ("b".to_owned(), Found::Dir),
+            ("b/inner.md".to_owned(), Found::Regular),
+        ]
+        .into();
+        settle(&mut plan, &old, &work(found.clone(), true)).unwrap();
+        assert!(plan.judgments.is_empty(), "{:?}", plan.judgments);
+        assert_eq!(plan.changes.len(), 4);
+        // A file of the working tree's own in the directory, or an empty directory there, keeps
+        // it: the file is a judgment.
+        for (entry, kind) in [("b/build.log", Found::Regular), ("b/cache", Found::Dir)] {
+            let mut plan = super::plan(&old, &new, &old, R, true);
+            let mut work = work(found.clone(), true);
+            work.below = [
+                ("b/inner.md".to_owned(), Found::Regular),
+                (entry.to_owned(), kind),
+            ]
+            .into();
+            settle(&mut plan, &old, &work).unwrap();
+            let judged: Vec<(&str, &str)> = plan
+                .judgments
+                .iter()
+                .map(|j| (j.file.as_str(), j.reason))
+                .collect();
+            assert_eq!(judged, [("b", ADDED)], "{entry}");
+        }
+    }
+
+    #[test]
+    fn a_directory_the_plan_deletes_nothing_in_is_a_judgment() {
+        let new = tree(&[("newdir", file("n"))]);
+        let mut plan = plan(&Tree::new(), &new, &Tree::new(), R, true);
+        let found: BTreeMap<String, Found> = [("newdir".to_owned(), Found::Dir)].into();
+        settle(&mut plan, &Tree::new(), &work(found, true)).unwrap();
+        let judged: Vec<(&str, &str)> = plan
+            .judgments
+            .iter()
+            .map(|j| (j.file.as_str(), j.reason))
+            .collect();
+        assert_eq!(judged, [("newdir", ADDED)]);
     }
 
     #[test]
@@ -843,7 +1114,7 @@ mod tests {
         };
         let old = tree(&[("AGENTS.md", file("a1"))]);
         let new = tree(&[("AGENTS.md", exec.clone())]);
-        let plan = plan(&old, &new, &old, false);
+        let plan = plan(&old, &new, &old, R, false);
         assert_eq!(plan.changes.get("AGENTS.md"), Some(&Change::Write(exec)));
         assert_eq!(plan.judgments.len(), 1);
         assert_eq!(plan.judgments[0].reason, MODE);
@@ -851,7 +1122,7 @@ mod tests {
         // Content alone, the bit unchanged, needs no judgment.
         let changed = tree(&[("AGENTS.md", file("a2"))]);
         assert!(
-            super::plan(&old, &changed, &old, false)
+            super::plan(&old, &changed, &old, R, false)
                 .judgments
                 .is_empty()
         );
@@ -861,7 +1132,7 @@ mod tests {
     fn a_rename_by_case_alone_is_no_judgment_where_the_file_system_ignores_case() {
         let old = tree(&[("docs/adr/NUC-a.md", file("a"))]);
         let new = tree(&[("docs/adr/NUC-A.md", file("a"))]);
-        let mut plan = plan(&old, &new, &old, true);
+        let mut plan = plan(&old, &new, &old, R, true);
         let found: BTreeMap<String, Found> = [
             ("docs".to_owned(), Found::Dir),
             ("docs/adr".to_owned(), Found::Dir),
@@ -870,11 +1141,11 @@ mod tests {
         ]
         .into();
         let mut sensitive = plan.clone();
-        settle(&mut plan, &old, &found, true).unwrap();
+        settle(&mut plan, &old, &work(found.clone(), true)).unwrap();
         assert!(plan.judgments.is_empty(), "{:?}", plan.judgments);
         assert_eq!(plan.changes.len(), 2);
         // Where the file system tells case apart, the file found is one of the working tree's own.
-        settle(&mut sensitive, &old, &found, false).unwrap();
+        settle(&mut sensitive, &old, &work(found.clone(), false)).unwrap();
         assert_eq!(sensitive.judgments.len(), 1);
         assert_eq!(sensitive.judgments[0].reason, ADDED);
     }
@@ -882,14 +1153,16 @@ mod tests {
     #[test]
     fn a_deletion_the_working_tree_has_no_file_for_is_dropped() {
         let old = tree(&[("docs/adr/NUC-gone.md", file("g"))]);
-        let mut plan = plan(&old, &Tree::new(), &old, true);
-        settle(&mut plan, &old, &BTreeMap::new(), true).unwrap();
+        let mut plan = plan(&old, &Tree::new(), &old, R, true);
+        settle(&mut plan, &old, &work(BTreeMap::new(), true)).unwrap();
         assert_eq!(plan, Plan::default());
-        let mut plan = super::plan(&old, &Tree::new(), &old, true);
+        let mut plan = super::plan(&old, &Tree::new(), &old, R, true);
         let found: BTreeMap<String, Found> =
             [("docs/adr/NUC-gone.md".to_owned(), Found::Dir)].into();
         assert_eq!(
-            settle(&mut plan, &old, &found, true).unwrap_err().reason,
+            settle(&mut plan, &old, &work(found.clone(), true))
+                .unwrap_err()
+                .reason,
             "path"
         );
     }

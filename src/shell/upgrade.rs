@@ -11,7 +11,7 @@ use std::io::ErrorKind;
 use std::path::Path;
 
 use crate::config;
-use crate::upgrade::{self, Change, Entry, Found, Kind, Plan, Refusal, Tree};
+use crate::upgrade::{self, Change, Entry, Found, Kind, Plan, Refusal, Tree, WorkTree};
 
 use super::tree::Tree as Repo;
 use super::{FOUND, PASSED, git};
@@ -56,19 +56,26 @@ pub(super) fn run(args: &[&str]) -> Result<u8, String> {
         read_tree(&root, &new_ref)?,
         read_tree(&root, "HEAD")?,
     );
-    let mut plan = upgrade::plan(&was, &now, &head, carries_mode(&root)?);
+    let mut plan = upgrade::plan(&was, &now, &head, (old, new), carries_mode(&root)?);
     upgrade::refuse_paths(&plan, &head).map_err(|r| r.to_string())?;
-    let found = upgrade::asked(&plan)
-        .into_iter()
-        .map(|path| {
-            let at = found(&root, &path);
-            (path, at)
-        })
-        .collect();
-    let ignores_case = git::probe(&root, &["config", "--type=bool", "core.ignoreCase"])?
-        .is_some_and(|value| value.trim() == "true");
-    upgrade::settle(&mut plan, &head, &found, ignores_case).map_err(|r| r.to_string())?;
+    let work = work_tree(&root, &plan)?;
+    upgrade::settle(&mut plan, &head, &work).map_err(|r| r.to_string())?;
     let blobs = read_blobs(&root, &plan)?;
+    // The release line is moved in the README as the plan leaves it: the new release's where the
+    // plan takes it up, the project's otherwise.
+    let readme = match plan.changes.get("README.md") {
+        None => readme,
+        Some(Change::Write(entry)) => blobs[&entry.object].clone(),
+        Some(Change::Delete) => {
+            return Err(refusal(
+                "release",
+                format!(
+                    "README.md: {} removes it, and with it the release line",
+                    upgrade::tag(new)
+                ),
+            ));
+        }
+    };
     let moved = upgrade::move_release_line(&readme, old, new).ok_or_else(|| {
         refusal(
             "release",
@@ -96,7 +103,7 @@ pub(super) fn run(args: &[&str]) -> Result<u8, String> {
          cat-file tag {new_ref}.",
         upgrade::tag(old),
         upgrade::tag(new),
-        written + usize::from(readme.is_some()),
+        written + usize::from(readme.is_some() && !plan.changes.contains_key("README.md")),
         plan.judgments.len(),
         upgrade::tag(new),
     );
@@ -231,6 +238,68 @@ fn read_tree(root: &Path, rev: &str) -> Result<Tree, String> {
     Ok(tree)
 }
 
+/// What `settle` needs of the working tree: what it holds at each path of the plan and each
+/// directory above, each entry below a directory at a path the plan writes, and whether its file
+/// system ignores case.
+fn work_tree(root: &Path, plan: &Plan) -> Result<WorkTree, String> {
+    let found: BTreeMap<String, Found> = upgrade::asked(plan)
+        .into_iter()
+        .map(|path| {
+            let at = found(root, &path);
+            (path, at)
+        })
+        .collect();
+    let mut below = BTreeMap::new();
+    for (path, change) in &plan.changes {
+        // Listed only where the path and each directory above it is a directory, no link, so that
+        // nothing outside the tree is read (Q-12).
+        let real = path
+            .match_indices('/')
+            .map(|(at, _)| &path[..at])
+            .chain(std::iter::once(path.as_str()))
+            .all(|dir| found.get(dir) == Some(&Found::Dir));
+        if matches!(change, Change::Write(_)) && real {
+            list_below(root, path, &mut below)?;
+        }
+    }
+    let ignores_case = git::probe(root, &["config", "--type=bool", "core.ignoreCase"])?
+        .is_some_and(|value| value.trim() == "true");
+    Ok(WorkTree {
+        found,
+        below,
+        ignores_case,
+    })
+}
+
+/// Each entry below the directory at `dir`, with what it is, read without following a link: a
+/// directory is listed in turn, a link is not. An entry whose name is no UTF-8 counts as a file of
+/// the working tree's own, which the plan deletes nowhere.
+fn list_below(root: &Path, dir: &str, below: &mut BTreeMap<String, Found>) -> Result<(), String> {
+    let entries = fs::read_dir(root.join(dir))
+        .map_err(|e| format!("{dir}: unreadable — {e} — not decided"))?;
+    for entry in entries {
+        let entry = entry.map_err(|e| format!("{dir}: unreadable — {e} — not decided"))?;
+        let name = entry.file_name();
+        let path = format!("{dir}/{}", name.to_string_lossy());
+        let kind = match entry.file_type() {
+            Ok(kind) if kind.is_symlink() => Found::Link,
+            Ok(kind) if kind.is_dir() => Found::Dir,
+            Ok(kind) if kind.is_file() => Found::Regular,
+            _ => Found::Other,
+        };
+        let kind = if name.to_str().is_none() {
+            Found::Other
+        } else {
+            kind
+        };
+        below.insert(path.clone(), kind);
+        if kind == Found::Dir {
+            list_below(root, &path, below)?;
+        }
+    }
+    Ok(())
+}
+
 /// What the working tree holds at the path, read without following a link.
 fn found(root: &Path, path: &str) -> Found {
     match fs::symlink_metadata(root.join(path)) {
@@ -316,7 +385,12 @@ fn write_plan(
         }
         // A file there is removed, not written over, so that a hard link to a file outside the
         // tree carries no byte out (Q-8), as git replaces a file it checks out.
-        match fs::remove_file(&file) {
+        // A directory there, which the plan's deletions left empty, is removed first.
+        let removed = match fs::symlink_metadata(&file) {
+            Ok(meta) if meta.is_dir() => fs::remove_dir(&file),
+            _ => fs::remove_file(&file),
+        };
+        match removed {
             Err(e) if e.kind() != ErrorKind::NotFound => return Err(failed(path, e, &done)),
             _ => {}
         }

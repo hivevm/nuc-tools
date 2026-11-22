@@ -232,6 +232,9 @@ traceability/sensor-tests:absent
 traceability/sensor-tests:adr
 traceability/sensor-tests:uncited
 upgrade/file:added
+upgrade/file:both
+upgrade/file:deleted
+upgrade/file:kept
 upgrade/file:link
 upgrade/file:mode
 upgrade/run:changed
