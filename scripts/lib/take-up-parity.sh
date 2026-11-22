@@ -22,9 +22,10 @@
 # PARITY_TAKE_UPS and PARITY_TAKE_UP_DIFFERENCES name other tables, for
 # scripts/test-check-parity.sh.
 
-# The rows of the two tables, as take_up_load reads them.
+# The rows of the two tables, as take_up_load reads them, and the path of the table of differences.
 TAKE_UP_ROWS=()
 declare -A TAKE_UP_KNOWN=()
+TAKE_UP_DIFFERENCES=""
 
 # take_up_load — the two tables read and checked, before any comparison runs; 2 on a missing or
 # malformed table, which names it.
@@ -32,7 +33,7 @@ take_up_load() {
   local table="${PARITY_TAKE_UPS:-$ROOT/tests/parity/take-ups.tsv}"
   local differences="${PARITY_TAKE_UP_DIFFERENCES:-$ROOT/tests/parity/take-up-differences.tsv}"
   local row url from to template release path reason extra hex='^[0-9a-f]{40}$'
-  TAKE_UP_ROWS=() TAKE_UP_KNOWN=()
+  TAKE_UP_ROWS=() TAKE_UP_KNOWN=() TAKE_UP_DIFFERENCES="$differences"
   [[ -f "$table" ]] || { echo "Parity check: $table — not found" >&2; return 2; }
   [[ -f "$differences" ]] || { echo "Parity check: $differences — not found" >&2; return 2; }
   while IFS= read -r row || [[ -n "$row" ]]; do
@@ -59,8 +60,7 @@ take_up_load() {
 # agrees, 1 where one differs or cannot be replayed.
 take_up_replays() {
   local nuc="$1" work="$2" cache="$3" failed=0
-  local repo="$cache/.take-ups"
-  local differences="${PARITY_TAKE_UP_DIFFERENCES:-$ROOT/tests/parity/take-up-differences.tsv}"
+  local repo="$cache/.take-ups" differences="$TAKE_UP_DIFFERENCES"
   # The binary runs in the directory of each replay, so a path given relative is made absolute.
   [[ "$nuc" == /* ]] || nuc="$PWD/$nuc"
   declare -A met=()

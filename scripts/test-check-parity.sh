@@ -1437,6 +1437,7 @@ tu_git "$tu_template" tag -a -m v0.10.0 v0.10.0
 tu_git "$tu_project" init -q -b main
 printf -- '- **Template release:** v0.9.0\n' > "$tu_project/README.md"
 echo old > "$tu_project/a.txt"
+echo run > "$tu_project/run.sh" && chmod +x "$tu_project/run.sh"
 echo '*.log' > "$tu_project/.gitignore"
 tu_git "$tu_project" add -A && tu_git "$tu_project" commit -q -m start
 tu_from="$(tu_git "$tu_project" rev-parse HEAD)"
@@ -1516,6 +1517,22 @@ expect fail "a replay that writes an ignored path the human left alone fails" \
 expect fail "a replay that writes another executable bit fails" \
   "a.txt ( M) has another executable bit than the take-up" \
   run_take_ups "$(tu_nuc mode "$TU_AGREES; chmod +x a.txt")" "$work/take-up-none.tsv"
+expect fail "a replay that drops the executable bit the take-up keeps fails" \
+  "run.sh ( M) has another executable bit than the take-up" \
+  run_take_ups "$(tu_nuc unmode "$TU_AGREES; chmod -x run.sh")" "$work/take-up-none.tsv"
+# A commit whose tree holds an entry '.git', which git refuses to check out: the replay of a
+# take-up from it cannot be set up.
+tu_blob="$(echo evil | tu_git "$tu_project" hash-object -w --stdin)"
+tu_inner="$(printf '100644 blob %s\tevil\n' "$tu_blob" | tu_git "$tu_project" mktree)"
+tu_tree="$({ tu_git "$tu_project" ls-tree "$tu_from"; printf '040000 tree %s\t.git\n' "$tu_inner"; } \
+  | tu_git "$tu_project" mktree)"
+tu_unset="$(tu_git "$tu_project" commit-tree "$tu_tree" -p "$tu_from" -m unsettable)"
+tu_git "$tu_project" branch unsettable "$tu_unset"
+printf 'file://%s\t%s\t%s\tfile://%s\n' "$tu_project" "$tu_unset" "$tu_to" "$tu_template" > "$work/take-ups-unset.tsv"
+expect fail "a take-up whose replay cannot be set up fails" \
+  "take-up v0.9.0 -> v0.10.0 — its replay could not be set up" \
+  env PARITY_TAKE_UPS="$work/take-ups-unset.tsv" PARITY_TAKE_UP_DIFFERENCES="$work/take-up-none.tsv" \
+  bash "$HARNESS" --cache "$work/tu-cache" --nuc "$(tu_nuc agrees "$TU_AGREES")" --take-ups
 # A run over a corpus reads the tables of the take-ups before any comparison, and replays them in
 # its last shard.
 c="$(corpus "$work/tu-agree.toml" agree)"
@@ -1535,5 +1552,15 @@ else
 fi
 expect fail "a run over a corpus replays the take-ups in its last shard" "its commits cannot be fetched from" \
   run_with_take_ups "$work/take-ups-gone.tsv" "$c" "$(reactive_nuc)"
+# A shard that replays nothing reads the tables as well: a malformed one fails it with exit 2.
+out="$(PARITY_TAKE_UPS="$work/take-ups-bad.tsv" PARITY_TAKE_UP_DIFFERENCES="$work/take-up-none.tsv" \
+  run_shard 1/2 "$c" "$(reactive_nuc)" 2>&1)"; rc=$?
+if ((rc == 2)) && [[ "$out" == *"is not '<url><TAB><commit><TAB><commit><TAB><template url>'"* ]]; then
+  passed=$((passed + 1))
+else
+  failed=$((failed + 1))
+  echo "FAIL: a shard other than the last refuses a malformed table of the take-ups (exit $rc)" >&2
+  while IFS= read -r l; do printf '    %s\n' "$l"; done <<< "$out" >&2
+fi
 
 summary "Parity harness self-test"

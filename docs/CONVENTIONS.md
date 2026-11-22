@@ -37,7 +37,7 @@ skimmed. The design revision drops what prevented nothing
   inputs, before any rule runs, and a rule gets text, never a path. A rule's tests are then cases
   of text without a repository, and a file `nuc` cannot read ends the run before a rule could
   pass on less than it should have seen (Q-1). Where a refusal stands is decided in
-  [ARCH-rules-outcome-hooks-answer](adr/ARCH-rules-outcome-hooks-answer.md),
+  [ARCH-rules-hooks-and-command-plans](adr/ARCH-rules-hooks-and-command-plans.md),
   where a read may lead in Q-12, and where in the shell a read may stand in
   `tests/functional_core.rs`.
 - **A port copies the bash, quirks included** — a rule reports what its bash check reports on

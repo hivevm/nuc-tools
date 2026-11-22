@@ -51,7 +51,8 @@ golden path and the test pattern an agent copies from are named here.
   an outcome: the findings of `src/finding.rs`, a refusal of its own where it cannot decide the tree
   as its bash check would, and notes for the summary. Each has one rule ID, the reason `nuc explain`
   gives, and the inputs it reads; the list of every rule is `rules::ALL`. A rule reads no file and
-  runs no process ([ARCH-rules-outcome-hooks-answer](adr/ARCH-rules-outcome-hooks-answer.md)). The
+  runs no process
+  ([ARCH-rules-hooks-and-command-plans](adr/ARCH-rules-hooks-and-command-plans.md)). The
   rules of the decision record share one reading of it in `src/adr.rs` with the sensors
   binding-adrs, plain-rules, and review-binding. The rules of Markdown share one reading of its
   links in `src/markdown.rs`. Both stand outside `src/rules/`, the way the bash's
@@ -114,7 +115,7 @@ golden path and the test pattern an agent copies from are named here.
   ([API-hook-contract-keyed-shims](adr/API-hook-contract-keyed-shims.md)). Each decides as the
   release the tree carries, and as the newest release `nuc` knows where the README names none. A
   hook's function returns an answer, not a rule's outcome
-  ([ARCH-rules-outcome-hooks-answer](adr/ARCH-rules-outcome-hooks-answer.md)).
+  ([ARCH-rules-hooks-and-command-plans](adr/ARCH-rules-hooks-and-command-plans.md)).
   `pre-commit`, `pre-merge-commit`, `pre-push`, `reference-transaction`, and the merge driver of the
   ADR index are ported; `tests/bench/hook-latency.sh` measures `reference-transaction` against Q-5
   in `benchmark.yml`, on a schedule, never as a gate.
@@ -185,17 +186,21 @@ golden path and the test pattern an agent copies from are named here.
   git or the network are none of them
   ([API-sensor-cores-ask-the-shell](adr/API-sensor-cores-ask-the-shell.md)).
 - **Upgrade** — `src/upgrade.rs` decides the take-up of a template release
-  ([API-upgrade-by-blob-toml-optional](adr/API-upgrade-by-blob-toml-optional.md)):
-  from the README the old and the new release, or a refusal keyed `upgrade/run:<reason>`; from the
-  trees of both and of `HEAD`, each path with its kind and object, a plan of writes, deletions, and
-  judgments, the findings of `upgrade::ALL`; the plan settled against what the working tree holds at
-  each path and each directory above it, read by the shell without following a link, with each entry
-  below a directory at a path to write, listed the same way; the guards of a path, as git's
-  `verify_path` refuses it with `core.protectNTFS` and `core.protectHFS` on; the release line
-  spliced into the README's bytes; each line of a file outside the base that names a `NUC-` ADR the
-  new release lacks, read as the rule `docs/adr-refs` reads a reference; and whether the take-up
-  skips a release. `shell::upgrade` reads the trees and the blobs through git, refuses before the
-  first write, and writes the plan in `write_plan`, the one writer of the working tree.
+  ([API-upgrade-by-blob-toml-optional](adr/API-upgrade-by-blob-toml-optional.md)): from the README
+  the old and the new release, or a refusal keyed `upgrade/run:<reason>`; from the trees of both and
+  of `HEAD`, each path with its kind and object, a plan of writes, deletions, and judgments, the
+  findings of `upgrade::ALL`; the plan settled against what the working tree holds at each path and
+  each directory above it, read by the shell without following a link, with each entry below a
+  directory at a path to write, listed the same way; the guards of a path, as git's `verify_path`
+  refuses it with `core.protectNTFS` and `core.protectHFS` on; the README the release line is
+  spliced into, the project's or the new release's where the plan writes it, or a refusal where the
+  plan deletes it; the paths the summary counts, each once; each line of a file outside the base
+  that names a `NUC-` ADR the new release lacks, read as the rule `docs/adr-refs` reads a reference;
+  and whether the take-up skips a release. `shell::upgrade` reads the trees and the blobs through
+  git, refuses before the first write, and writes the plan in `write_plan`, the one writer of the
+  working tree, naming what it wrote where a write fails after the first. The rules and the plan of
+  `src/upgrade.rs` are the third kind of decision beside the rules and the hooks
+  ([ARCH-rules-hooks-and-command-plans](adr/ARCH-rules-hooks-and-command-plans.md)).
 - **Binary** — `src/main.rs` calls the shell and nothing else.
 - **Parity harness** — `scripts/check-parity.sh` runs the bash checks of each repository of the
   corpus, `check-docs.sh`, `check-traceability.sh`, and `check-devcontainer.sh`, from v0.10.0 on
@@ -288,23 +293,25 @@ golden path and the test pattern an agent copies from are named here.
   `tests/support/`, whose `Fixture::new` turns `core.autocrlf`, background maintenance, and the
   file-system monitor off in the repository's own configuration, `nuc` run on it as a process under
   a cleared environment whose `HOME` is an empty directory of the test process's own
-  ([TEST-fixtures-with-own-home](adr/TEST-fixtures-with-own-home.md)), and its exit code and
-  output asserted; an ADR identifier, a marker, or a section reference a test writes but does not
-  mean comes from `src/testing.rs` or `tests/support/`, since the gate reads the tests as text. A
-  test that reads this repository's own tree takes its root from `tests/support/sources.rs`, which
-  fails where the test binary was built from another checkout than the one it runs in. The
-  structural test `tests/functional_core.rs` holds the shape, and inside the shell lets only the
-  functions `tests/functional_core.guarded` names read, list, or resolve a path and only those
-  `tests/functional_core.writers` names write. `tests/isolation.rs` runs `nuc check` on a tree of
-  bait and without the network (Q-7, Q-11), and `nuc upgrade` against a filter and a textconv
-  driver of the repository and against the paths its guards refuse (Q-7, Q-8); the fixtures of
-  `nuc upgrade`, a template repository with an annotated tag per release and a project derived
-  from it, are built by `tests/support/upgrade.rs`; and `tests/contract.rs` holds the command line's
-  contract and the rule IDs that stay (G-6). `tests/hooks.rs` runs the shims through git with the
-  built `nuc` or a stand-in, and calls `nuc hook` directly for every shim, on every platform of Q-4
-  (G-2, G-3, G-5, Q-1, Q-7 to Q-11). `tests/adr_citations.rs` fails on a citation of a superseded or
-  rejected ADR outside `docs/adr/` and `docs/plan/`, but where its list
-  `tests/adr_citations.template` names it.
+  ([TEST-fixtures-with-own-home](adr/TEST-fixtures-with-own-home.md)), and its exit code and output
+  asserted; an ADR identifier, a marker, or a section reference a test writes but does not mean
+  comes from `src/testing.rs` or `tests/support/`, since the gate reads the tests as text. A test
+  that reads this repository's own tree takes its root from `tests/support/sources.rs`, which fails
+  where the test binary was built from another checkout than the one it runs in. The structural test
+  `tests/functional_core.rs` holds the shape, and inside the shell lets only the functions
+  `tests/functional_core.guarded` names read, list, or resolve a path and only those
+  `tests/functional_core.writers` names write. `tests/overview.rs` fails on a module of the crate
+  this overview does not name. `tests/isolation.rs` runs `nuc check` on a tree of bait and without
+  the network (Q-7, Q-11), and `nuc upgrade` against a filter and a textconv driver of the
+  repository, the paths its guards refuse, a decoy in the environment, a canary token, and a README
+  or a `nuc.toml` that links out, and without the network (Q-7 to Q-12); the fixtures of `nuc
+  upgrade`, a template repository with an annotated tag per release and a project derived from it,
+  are built by `tests/support/upgrade.rs`; and `tests/contract.rs` holds the command line's contract
+  and the rule IDs that stay (G-6). `tests/hooks.rs` runs the shims through git with the built `nuc`
+  or a stand-in, and calls `nuc hook` directly for every shim, on every platform of Q-4 (G-2, G-3,
+  G-5, Q-1, Q-7 to Q-11). `tests/adr_citations.rs` fails on a citation of a superseded or rejected
+  ADR outside `docs/adr/` and `docs/plan/`, but where its list `tests/adr_citations.template` names
+  it.
 
 ## How it runs
 

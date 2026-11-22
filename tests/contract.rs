@@ -447,14 +447,15 @@ fn every_key_stays_once_listed_and_each_reason_is_one_lower_case_word() {
     );
 }
 
-/// Verifies: ARCH-rules-outcome-hooks-answer, G-6
+/// Verifies: ARCH-rules-hooks-and-command-plans, G-6
 #[test]
-fn no_rule_id_is_held_twice_by_the_rules_and_the_hooks() {
+fn no_rule_id_is_held_twice_by_the_rules_the_hooks_and_the_take_up() {
     let mut seen = std::collections::BTreeSet::new();
     for id in nuc::rules::ALL
         .iter()
         .map(|rule| rule.id)
         .chain(nuc::hook::ALL.iter().map(|rule| rule.id))
+        .chain(nuc::upgrade::ALL.iter().map(|rule| rule.id))
     {
         assert!(seen.insert(id), "the rule ID '{id}' is held twice");
     }
@@ -2733,25 +2734,25 @@ fn upgrade_refusals() -> Vec<(&'static str, &'static [&'static str], Setup)> {
                 .commit("Old");
         }),
         ("order", &["v0.9.0"], |_, _| {}),
-        ("ref", &["v0.11.0"], |_, _| {}),
-        ("ref", &["v0.12.0"], |p, t| {
+        ("ref", &["v0.12.0"], |_, _| {}),
+        ("ref", &["v0.12.1"], |p, t| {
             let source = t.root().to_str().expect("a UTF-8 path").to_owned();
             p.git(&[
                 "fetch",
                 "-q",
                 "--no-tags",
                 &source,
-                "refs/tags/v0.12.0:refs/template/v0.12.0",
+                "refs/tags/v0.12.1:refs/template/v0.12.1",
             ]);
         }),
         ("ref", &["v0.10.0"], |p, t| {
-            // The annotated tag v0.11.0 where v0.10.0 is asked for.
+            // The annotated tag v0.12.0 where v0.10.0 is asked for.
             let source = t.root().to_str().expect("a UTF-8 path").to_owned();
-            let refspec = "refs/tags/v0.11.0:refs/template/v0.10.0";
+            let refspec = "refs/tags/v0.12.0:refs/template/v0.10.0";
             p.git(&["fetch", "-q", "--no-tags", "--force", &source, refspec]);
         }),
-        ("version", &["v0.11.0"], |p, t| {
-            fetch_release(p, t, "v0.11.0")
+        ("version", &["v0.12.0"], |p, t| {
+            fetch_release(p, t, "v0.12.0")
         }),
         ("version", &["v0.13.0"], |p, t| {
             fetch_release(p, t, "v0.13.0")
@@ -2759,38 +2760,49 @@ fn upgrade_refusals() -> Vec<(&'static str, &'static [&'static str], Setup)> {
     ]
 }
 
-/// Verifies: API-upgrade-by-blob-toml-optional, G-4
+/// A project on v0.11.1, which ships no `nuc.toml`, takes up v0.12.0, the first release that ships
+/// one, whose minimum this `nuc` meets: the release's `nuc.toml` is judged and taken up as a file
+/// the template adds.
+/// Verifies: API-upgrade-by-blob-toml-optional, G-4, G-5
 #[test]
-fn upgrade_takes_up_a_release_from_a_project_and_a_template_without_a_nuc_toml() {
+fn upgrade_takes_up_the_first_release_with_a_nuc_toml_into_a_project_without_one() {
     use support::upgrade::template;
-    let readme = "# NUC\n\n- **Template release:** v0.10.0 — this release.\n";
+    let readme = "# NUC\n\n- **Template release:** v0.11.1 — this release.\n";
     let template = template(&[
         (
-            "v0.10.0",
+            "v0.11.1",
             &[
                 ("README.md", Some(readme)),
-                ("AGENTS.md", Some("# Agents v0.10.0\n")),
+                ("AGENTS.md", Some("# Agents v0.11.1\n")),
             ],
         ),
-        ("v0.11.0", &[("AGENTS.md", Some("# Agents v0.11.0\n"))]),
+        (
+            "v0.12.0",
+            &[
+                ("AGENTS.md", Some("# Agents v0.12.0\n")),
+                ("nuc.toml", Some(UPGRADE_TOML)),
+            ],
+        ),
     ]);
     let project = Fixture::new("upgrade-no-toml");
     project
         .write(
             "README.md",
-            "# Project\n\n- **Template release:** v0.10.0\n",
+            "# Project\n\n- **Template release:** v0.11.1\n",
         )
-        .write("AGENTS.md", "# Agents v0.10.0\n")
-        .commit("Take up v0.10.0");
+        .write("AGENTS.md", "# Agents v0.11.1\n")
+        .commit("Take up v0.11.1");
     project.git(&["switch", "-q", "-c", "feat/take-up"]);
-    fetch_release(&project, &template, "v0.10.0");
-    fetch_release(&project, &template, "v0.11.0");
-    let output = project.nuc(&["upgrade", "v0.11.0"]);
+    fetch_release(&project, &template, "v0.11.1");
+    fetch_release(&project, &template, "v0.12.0");
+    let output = project.nuc(&["upgrade", "v0.12.0"]);
     assert_eq!(code(&output), Some(0), "{}", stderr(&output));
-    assert_eq!(read(&project, "AGENTS.md"), "# Agents v0.11.0\n");
+    assert_eq!(stdout(&output), "");
+    assert_eq!(read(&project, "AGENTS.md"), "# Agents v0.12.0\n");
+    assert_eq!(read(&project, "nuc.toml"), UPGRADE_TOML);
     assert_eq!(
         read(&project, "README.md"),
-        "# Project\n\n- **Template release:** v0.11.0\n"
+        "# Project\n\n- **Template release:** v0.12.0\n"
     );
 }
 
@@ -2798,12 +2810,13 @@ fn upgrade_takes_up_a_release_from_a_project_and_a_template_without_a_nuc_toml()
 #[test]
 fn every_refusal_of_upgrade_writes_nothing_and_ends_in_its_key() {
     let template = two_releases();
-    // v0.11.0 asks for a nuc newer than this one.
+    // v0.12.0, the first release that ships a nuc.toml, asks for a nuc newer than this one; v0.12.1
+    // is a tag that is not annotated, on the same commit, refused before its nuc.toml is read.
     template
         .write("nuc.toml", "minimum = \"99.0.0\"\nrules = []\n")
-        .commit("v0.11.0");
-    template.git(&["tag", "-a", "-m", "NUC v0.11.0", "v0.11.0"]);
-    template.git(&["tag", "v0.12.0"]);
+        .commit("v0.12.0");
+    template.git(&["tag", "-a", "-m", "NUC v0.12.0", "v0.12.0"]);
+    template.git(&["tag", "v0.12.1"]);
     // v0.13.0 ships a nuc.toml this nuc cannot read.
     template
         .write("nuc.toml", "unknown = 1\n")
@@ -2888,7 +2901,6 @@ fn recut() -> (Fixture, Fixture) {
             "v0.9.0",
             &[
                 ("README.md", Some(readme)),
-                ("nuc.toml", Some(UPGRADE_TOML)),
                 (&gone_file, Some(&gone_text)),
                 (&kept_file, Some(&kept_text)),
                 ("scripts/cites.sh", Some(&cites_gone)),

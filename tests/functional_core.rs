@@ -1,4 +1,4 @@
-//! The structural test of the shape of the code. Verifies: ARCH-rules-outcome-hooks-answer
+//! The structural test of the shape of the code. Verifies: ARCH-rules-hooks-and-command-plans
 //! Verifies: API-sensor-cores-ask-the-shell
 //!
 //! The library outside `src/shell/` names nothing of `functional_core.forbidden`, the list kept

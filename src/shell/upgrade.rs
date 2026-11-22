@@ -67,32 +67,7 @@ pub(super) fn run(args: &[&str]) -> Result<u8, String> {
     upgrade::settle(&mut plan, &head, &work).map_err(|r| r.to_string())?;
     let (blobs, mut judgments) = read_and_cite(&root, &plan, &head, &now, new)?;
     judgments.extend(upgrade::skipped(old, new));
-    // The release line is moved in the README as the plan leaves it: the new release's where the
-    // plan takes it up, the project's otherwise.
-    let readme = match plan.changes.get("README.md") {
-        None => readme,
-        Some(Change::Write(entry)) => blobs[&entry.object].clone(),
-        Some(Change::Delete) => {
-            return Err(refusal(
-                "release",
-                format!(
-                    "README.md: {} removes it, and with it the release line",
-                    upgrade::tag(new)
-                ),
-            ));
-        }
-    };
-    let moved = upgrade::move_release_line(&readme, old, new).ok_or_else(|| {
-        refusal(
-            "release",
-            format!(
-                "README.md: the Template release line, read as UTF-8, names neither {} nor {}",
-                upgrade::tag(old),
-                upgrade::tag(new)
-            ),
-        )
-    })?;
-    let readme = (readme != moved).then_some(moved);
+    let readme = upgrade::readme(&plan, readme, &blobs, (old, new)).map_err(|r| r.to_string())?;
     write_plan(&root, &plan, &blobs, readme.as_deref())?;
     plan.judgments.extend(judgments);
     plan.judgments
@@ -100,24 +75,15 @@ pub(super) fn run(args: &[&str]) -> Result<u8, String> {
     for judgment in &plan.judgments {
         println!("{judgment}");
     }
-    let (written, deleted) = plan
-        .changes
-        .values()
-        .fold((0, 0), |(w, d), change| match change {
-            Change::Write(_) => (w + 1, d),
-            Change::Delete => (w, d + 1),
-        });
+    let summary = upgrade::summary(&plan, readme.as_deref());
     eprintln!(
-        "nuc upgrade {} -> {}: {} written, {deleted} deleted, {} listed; read the notes of {}: git \
+        "nuc upgrade {} -> {}: {} written, {} deleted, {} listed; read the notes of {}: git \
          cat-file tag {new_ref}.",
         upgrade::tag(old),
         upgrade::tag(new),
-        written + usize::from(readme.is_some() && !plan.changes.contains_key("README.md")),
-        plan.judgments
-            .iter()
-            .map(|judgment| judgment.file.as_str())
-            .collect::<BTreeSet<_>>()
-            .len(),
+        summary.written,
+        summary.deleted,
+        summary.listed,
         upgrade::tag(new),
     );
     Ok(if plan.judgments.is_empty() {

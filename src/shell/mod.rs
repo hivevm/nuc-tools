@@ -1,6 +1,6 @@
 //! The imperative shell: the only module that spawns processes, touches the file system, reads
-//! the environment, or prints (ARCH-rules-outcome-hooks-answer). It reads the command line and the
-//! repository, calls the rules, and reports what they return.
+//! the environment, or prints (ARCH-rules-hooks-and-command-plans). It reads the command line and
+//! the repository, calls the rules, and reports what they return.
 
 pub mod git;
 mod hook;

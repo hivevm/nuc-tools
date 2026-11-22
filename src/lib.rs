@@ -1,5 +1,5 @@
 //! `nuc`: the mechanics of the NUC template. The rules are pure functions over values; every
-//! effect lives in [`shell`] (ARCH-rules-outcome-hooks-answer).
+//! effect lives in [`shell`] (ARCH-rules-hooks-and-command-plans).
 
 pub mod adr;
 pub mod bash;

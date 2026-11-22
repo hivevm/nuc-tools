@@ -1,6 +1,6 @@
 # ARCH-rules-outcome-hooks-answer: One library crate whose rules return an outcome and whose hooks return an answer, its effects in one shell module, and a thin binary
 
-- **Status:** 🟢 accepted
+- **Status:** ⚪ superseded by ARCH-rules-hooks-and-command-plans
 - **Date:** 2026-11-06
 - **Deciders:** Markus Brigl
 - **Applies to:** the source tree of the crate, `src/main.rs`, `src/shell/`, every rule module, `src/hook.rs`, the type a rule returns and the type a hook returns, and the structural test that holds them

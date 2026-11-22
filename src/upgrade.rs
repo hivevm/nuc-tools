@@ -707,38 +707,88 @@ pub fn case_collision<'a>(writes: &[&'a str], kept: &[&'a str]) -> Option<(&'a s
 
 /// The README with the old tag in its first Template release line replaced by the new one, and
 /// no other byte changed; the README as it is where that line names the new tag already, and none
-/// where it names neither or is no UTF-8.
+/// where it names neither or is no UTF-8. The line and the tag's place on it are the ones
+/// `docs_template_release::release_at` reads, the reading `releases` takes the old release from.
 pub fn move_release_line(readme: &[u8], old: Version, new: Version) -> Option<Vec<u8>> {
-    const LABEL: &str = "**Template release:**";
-    let (old, new) = (tag(old), tag(new));
-    let mut start = 0;
-    for line in readme.split_inclusive(|&b| b == b'\n') {
-        // The first release line, as `releases` read it from the README read lossily; none where
-        // that line is no UTF-8, so that no later line is written in its place.
-        let lossy = String::from_utf8_lossy(line);
-        if lossy.contains(LABEL) && docs_template_release::carried(&lossy).is_some() {
-            let text = std::str::from_utf8(line).ok()?;
-            let after = text.find(LABEL)? + LABEL.len();
-            let rest = &text[after..];
-            let names = |tag: &str| {
-                rest.find(tag).filter(|&at| {
-                    rest[..at]
-                        .chars()
-                        .all(|c| c.is_whitespace() || c == '[' || c == '`')
-                })
-            };
-            if names(&new).is_some() {
-                return Some(readme.to_vec());
-            }
-            let at = start + after + names(&old)?;
-            let mut moved = readme[..at].to_vec();
-            moved.extend_from_slice(new.as_bytes());
-            moved.extend_from_slice(&readme[at + old.len()..]);
-            return Some(moved);
-        }
-        start += line.len();
+    let (carried, at) = docs_template_release::release_at(readme)?;
+    if carried == Carried::Release(new) {
+        return Some(readme.to_vec());
     }
-    None
+    if carried != Carried::Release(old) {
+        return None;
+    }
+    let mut moved = readme[..at.start].to_vec();
+    moved.extend_from_slice(tag(new).as_bytes());
+    moved.extend_from_slice(&readme[at.end..]);
+    Some(moved)
+}
+
+/// The README a take-up writes in place of the one the plan leaves, its release line moved: in the
+/// new release's bytes where the plan writes `README.md`, in the project's otherwise; none where
+/// the line names the new release already. Refused with `release` where the plan deletes
+/// `README.md`, and where its first release line, read as UTF-8, names neither release. `blobs`
+/// holds the object of every path the plan writes, as the shell reads them before.
+pub fn readme(
+    plan: &Plan,
+    project: Vec<u8>,
+    blobs: &BTreeMap<String, Vec<u8>>,
+    (old, new): (Version, Version),
+) -> Result<Option<Vec<u8>>, Refusal> {
+    let readme = match plan.changes.get("README.md") {
+        None => project,
+        Some(Change::Write(entry)) => blobs[&entry.object].clone(),
+        Some(Change::Delete) => {
+            return Err(Refusal::new(
+                "release",
+                format!(
+                    "README.md: {} removes it, and with it the release line",
+                    tag(new)
+                ),
+            ));
+        }
+    };
+    let moved = move_release_line(&readme, old, new).ok_or_else(|| {
+        Refusal::new(
+            "release",
+            format!(
+                "README.md: the Template release line, read as UTF-8, names neither {} nor {}",
+                tag(old),
+                tag(new)
+            ),
+        )
+    })?;
+    Ok((readme != moved).then_some(moved))
+}
+
+/// What the summary of a take-up counts.
+#[derive(Debug, PartialEq, Eq)]
+pub struct Summary {
+    /// The paths written, the README among them where only its release line moved.
+    pub written: usize,
+    pub deleted: usize,
+    /// The paths listed, several findings at one path counted once.
+    pub listed: usize,
+}
+
+/// The summary of the plan once written, with `readme` the README `readme` returned.
+pub fn summary(plan: &Plan, readme: Option<&[u8]>) -> Summary {
+    let (written, deleted) = plan
+        .changes
+        .values()
+        .fold((0, 0), |(w, d), change| match change {
+            Change::Write(_) => (w + 1, d),
+            Change::Delete => (w, d + 1),
+        });
+    Summary {
+        written: written + usize::from(readme.is_some() && !plan.changes.contains_key("README.md")),
+        deleted,
+        listed: plan
+            .judgments
+            .iter()
+            .map(|judgment| judgment.file.as_str())
+            .collect::<BTreeSet<_>>()
+            .len(),
+    }
 }
 
 #[cfg(test)]
@@ -1286,6 +1336,82 @@ mod tests {
     }
 
     #[test]
+    fn the_readme_s_line_moves_in_the_bytes_the_plan_leaves() {
+        let releases = (Version(0, 12, 0), Version(0, 12, 1));
+        let project = b"# P\n\n- **Template release:** v0.12.0\n".to_vec();
+        let blobs: BTreeMap<String, Vec<u8>> = [(
+            "b1".to_owned(),
+            b"# NUC\n\n- **Template release:** v0.12.0 \xe2\x80\x94 this release.\n".to_vec(),
+        )]
+        .into();
+        let mut plan = Plan {
+            changes: BTreeMap::new(),
+            judgments: Vec::new(),
+        };
+        // The plan leaves README.md: the project's line moves.
+        assert_eq!(
+            readme(&plan, project.clone(), &blobs, releases).unwrap(),
+            Some(b"# P\n\n- **Template release:** v0.12.1\n".to_vec())
+        );
+        // It names the new release already: nothing to write over the plan's README.
+        let there = b"- **Template release:** v0.12.1\n".to_vec();
+        assert_eq!(readme(&plan, there, &blobs, releases).unwrap(), None);
+        // The plan writes README.md: the line moves in the new release's bytes.
+        plan.changes
+            .insert("README.md".to_owned(), Change::Write(file("b1")));
+        assert_eq!(
+            readme(&plan, project.clone(), &blobs, releases).unwrap(),
+            Some(b"# NUC\n\n- **Template release:** v0.12.1 \xe2\x80\x94 this release.\n".to_vec())
+        );
+        // The plan deletes README.md, and with it the line.
+        plan.changes.insert("README.md".to_owned(), Change::Delete);
+        assert_eq!(
+            readme(&plan, project, &blobs, releases).unwrap_err().reason,
+            "release"
+        );
+        // The line names neither release.
+        plan.changes.clear();
+        let other = b"- **Template release:** v0.11.0\n".to_vec();
+        assert_eq!(
+            readme(&plan, other, &blobs, releases).unwrap_err().reason,
+            "release"
+        );
+    }
+
+    #[test]
+    fn the_summary_counts_each_path_once() {
+        let mut plan = Plan {
+            changes: [
+                ("a.sh".to_owned(), Change::Write(file("a1"))),
+                ("b.sh".to_owned(), Change::Delete),
+            ]
+            .into(),
+            judgments: vec![
+                judgment("c.sh", "both", String::new()),
+                Finding {
+                    line: Some(3),
+                    ..judgment("c.sh", "both", String::new())
+                },
+                judgment("d.sh", "kept", String::new()),
+            ],
+        };
+        let line = b"moved".as_slice();
+        // Two findings at c.sh count once; a README whose line alone moved counts as written.
+        let want = |written| Summary {
+            written,
+            deleted: 1,
+            listed: 2,
+        };
+        assert_eq!(summary(&plan, None), want(1));
+        assert_eq!(summary(&plan, Some(line)), want(2));
+        // A README the plan writes counts once, its line moved or not.
+        plan.changes
+            .insert("README.md".to_owned(), Change::Write(file("r1")));
+        assert_eq!(summary(&plan, Some(line)), want(2));
+        assert_eq!(summary(&plan, None), want(2));
+    }
+
+    #[test]
     fn the_release_line_moves_and_nothing_else() {
         let (old, new) = (Version(0, 12, 0), Version(0, 12, 1));
         let readme = b"# P\n\ncaf\xe9 v0.12.0 is named here.\n\n- **Template release:** v0.12.0 \
@@ -1320,6 +1446,11 @@ mod tests {
             move_release_line(b"- **Template release:** v0.12.0 \xe9\n", old, new),
             None
         );
+        // A first release line that names no release is not written, nor a later one in its place,
+        // and `releases` reads no release from it either.
+        let later = "- **Template release:** soon\n\n**Template release:** v0.12.0\n";
+        assert_eq!(move_release_line(later.as_bytes(), old, new), None);
+        assert_eq!(releases(later, "v0.12.1").unwrap_err().reason, "release");
     }
 
     #[test]

@@ -60,8 +60,9 @@ Only a normalization renumbers them
    which refuses or passes exactly as the bash hook of that release does.
 3. **G-3** — When git merges `docs/adr/README.md`, `nuc` writes the index both sides imply, or
    stops with a conflict when both sides changed its prose.
-4. **G-4** — When a project takes up a template release, `nuc upgrade` applies its mechanical
-   migrations and lists what needs judgment.
+4. **G-4** — When a project takes up a template release, `nuc upgrade` writes into the working
+   tree every migration the two releases and the project's tree decide, lists each judgment as a
+   finding, and exits 0 without one and 1 with one.
 5. **G-5** — When the `nuc` binary is missing or older than the project's `nuc.toml` requires,
    every hook and check fails closed with a message naming how to install it.
 6. **G-6** — When a check fails, its output names a stable rule ID and `file:line`, and
@@ -120,8 +121,9 @@ from the threats below.
   files git names it in the repository git runs it in.
 - **Q-10** — No token disclosure: a canary token in the environment and in the git configuration
   appears in no output and in no written file.
-- **Q-11** — No network in checks and hooks: with network access blocked, every check and hook
-  reports the same findings as with it.
+- **Q-11** — No network in checks, hooks, and take-ups: with network access blocked, every check
+  and hook reports the same findings as with it, and `nuc upgrade` writes the same files and lists
+  the same findings.
 - **Q-12** — Reads stay inside: no command of `nuc` reads a file or lists a directory of the tree
   that resolves outside the repository; a fixture whose link, symbolic link, or listed path leads
   a read outside shows exit 2 and a message naming it. A test of existence, as the bash's `-e`,
@@ -146,7 +148,7 @@ What this project explicitly does not try to do.
 - **No writes beyond the repository without a human's instruction.** `nuc` pushes nothing,
   writes nothing to GitHub, and applies no repository settings unless a human explicitly
   instructs it; sensors only read.
-- **No network access in checks and hooks,** except in a sensor that names it.
+- **No network access in checks, hooks, and take-ups,** except in a sensor that names it.
 
 ## Constraints
 

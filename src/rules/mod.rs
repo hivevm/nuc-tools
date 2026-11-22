@@ -1,5 +1,5 @@
 //! The rules: one module each, with one rule ID, unique across the crate (G-6,
-//! ARCH-rules-outcome-hooks-answer). A rule is a pure function from the [`Inputs`] the shell
+//! ARCH-rules-hooks-and-command-plans). A rule is a pure function from the [`Inputs`] the shell
 //! gathered to its outcome: its findings, a refusal of its own, and notes for the summary.
 
 use crate::config::Version;
@@ -247,7 +247,7 @@ pub struct Rule {
 
 /// What a rule returns: its findings; a refusal of its own, the reason it cannot decide the tree
 /// as its bash check would; and notes for the summary of the run, which are no findings
-/// (ARCH-rules-outcome-hooks-answer).
+/// (ARCH-rules-hooks-and-command-plans).
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Outcome {
     pub findings: Vec<Finding>,
