@@ -290,23 +290,23 @@ golden path and the test pattern an agent copies from are named here.
   `tests/support/`, whose `Fixture::new` turns `core.autocrlf`, background maintenance, and the
   file-system monitor off in the repository's own configuration, `nuc` run on it as a process under
   a cleared environment whose `HOME` is an empty directory of the test process's own
-  ([TEST-fixtures-with-own-home](adr/TEST-fixtures-with-own-home.md)), and its exit code and
-  output asserted; an ADR identifier, a marker, or a section reference a test writes but does not
-  mean comes from `src/testing.rs` or `tests/support/`, since the gate reads the tests as text. A
-  test that reads this repository's own tree takes its root from `tests/support/sources.rs`, which
-  fails where the test binary was built from another checkout than the one it runs in. The
-  structural test `tests/functional_core.rs` holds the shape, and inside the shell lets only the
-  functions `tests/functional_core.guarded` names read, list, or resolve a path and only those
+  ([TEST-fixtures-with-own-home](adr/TEST-fixtures-with-own-home.md)), and its exit code and output
+  asserted; an ADR identifier, a marker, or a section reference a test writes but does not mean
+  comes from `src/testing.rs` or `tests/support/`, since the gate reads the tests as text. A test
+  that reads this repository's own tree takes its root from `tests/support/sources.rs`, which fails
+  where the test binary was built from another checkout than the one it runs in. The structural test
+  `tests/functional_core.rs` holds the shape, and inside the shell lets only the functions
+  `tests/functional_core.guarded` names read, list, or resolve a path and only those
   `tests/functional_core.writers` names write. `tests/isolation.rs` runs `nuc check` on a tree of
-  bait and without the network (Q-7, Q-11), and `nuc upgrade` against a filter and a textconv
-  driver of the repository and against the paths its guards refuse (Q-7, Q-8); the fixtures of
-  `nuc upgrade`, a template repository with an annotated tag per release and a project derived
-  from it, are built by `tests/support/upgrade.rs`; and `tests/contract.rs` holds the command line's
-  contract and the rule IDs that stay (G-6). `tests/hooks.rs` runs the shims through git with the
-  built `nuc` or a stand-in, and calls `nuc hook` directly for every shim, on every platform of Q-4
-  (G-2, G-3, G-5, Q-1, Q-7 to Q-11). `tests/adr_citations.rs` fails on a citation of a superseded or
-  rejected ADR outside `docs/adr/` and `docs/plan/`, but where its list
-  `tests/adr_citations.template` names it.
+  bait and without the network (Q-7, Q-11), and `nuc upgrade` against a filter and a textconv driver
+  of the repository, the paths its guards refuse, a decoy in the environment, a canary token, and a
+  README or a `nuc.toml` that links out (Q-7 to Q-10, Q-12); the fixtures of `nuc upgrade`, a
+  template repository with an annotated tag per release and a project derived from it, are built by
+  `tests/support/upgrade.rs`; and `tests/contract.rs` holds the command line's contract and the rule
+  IDs that stay (G-6). `tests/hooks.rs` runs the shims through git with the built `nuc` or a
+  stand-in, and calls `nuc hook` directly for every shim, on every platform of Q-4 (G-2, G-3, G-5,
+  Q-1, Q-7 to Q-11). `tests/adr_citations.rs` fails on a citation of a superseded or rejected ADR
+  outside `docs/adr/` and `docs/plan/`, but where its list `tests/adr_citations.template` names it.
 
 ## How it runs
 

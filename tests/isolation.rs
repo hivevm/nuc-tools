@@ -11,7 +11,9 @@
 //! macOS and Windows have no such namespace for an unprivileged process, so Q-11 is shown on
 //! Linux, x64 and arm64. `nuc hook` is held to Q-7 and Q-11 for every shim in `tests/hooks.rs`.
 //! `nuc upgrade` is held to Q-7 against a filter and a textconv driver of the repository, and to
-//! Q-8 against a symbolic link above a path it writes and a template tree with a `.git` entry.
+//! Q-8 against a symbolic link above a path it writes and a template tree with a `.git` entry, to
+//! Q-9 against a decoy in the environment, to Q-10 against a canary token, and to Q-12 against a
+//! README.md or a nuc.toml that links out of the repository.
 
 mod support;
 
@@ -343,4 +345,139 @@ fn upgrade_writes_no_byte_through_a_hard_link_to_a_file_outside() {
         std::fs::read_to_string(&agents).expect("read"),
         "# Agents v0.10.0\n"
     );
+}
+
+/// Verifies: API-upgrade-by-blob-toml-optional, Q-9
+#[test]
+fn upgrade_leaves_a_decoy_in_the_environment_untouched() {
+    use support::upgrade::{derived, two_releases};
+    // A decoy a leak would take up as well: a derived project on a branch of its own, both tags
+    // fetched, so that its snapshot decides and not only a refusal on `main`. A commit of its own
+    // sets its HEAD, index, and tree apart from the project's, which the fixtures build alike.
+    let decoy_template = two_releases();
+    let decoy = derived(&decoy_template);
+    decoy.write("decoy.md", "decoy\n").commit("Decoy");
+    let git_dir = decoy.root().join(".git");
+    let (git_dir, work_tree, index) = (
+        git_dir.to_str().expect("a UTF-8 path").to_owned(),
+        decoy.root().to_str().expect("a UTF-8 path").to_owned(),
+        git_dir
+            .join("index")
+            .to_str()
+            .expect("a UTF-8 path")
+            .to_owned(),
+    );
+    let before = support::snapshot(decoy.root());
+    let template = two_releases();
+    let project = derived(&template);
+    let vars = [
+        ("GIT_DIR", git_dir.as_str()),
+        ("GIT_WORK_TREE", work_tree.as_str()),
+        ("GIT_INDEX_FILE", index.as_str()),
+        (
+            "GIT_CONFIG_PARAMETERS",
+            "'core.hooksPath'='/nonexistent-decoy-hooks'",
+        ),
+    ];
+    let output = project.nuc_with(&vars, &["upgrade", "v0.10.0"]);
+    let after = support::snapshot(decoy.root());
+    assert!(
+        after == before,
+        "nuc upgrade changed the decoy: {:?}",
+        support::changed(&before, &after)
+    );
+    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    assert_eq!(
+        std::fs::read_to_string(project.root().join("AGENTS.md")).expect("read"),
+        "# Agents v0.10.0\n"
+    );
+}
+
+/// Verifies: API-upgrade-by-blob-toml-optional, Q-10
+#[test]
+fn upgrade_shows_a_canary_token_in_no_output_and_no_file() {
+    use support::upgrade::{derived, two_releases};
+    const TOKEN: &str = "nuc-canary-token-5f3a9c";
+    let template = two_releases();
+    let project = derived(&template);
+    // A file both sides changed, so that the take-up lists a judgment and prints its message.
+    project
+        .write("scripts/check-docs.sh", "echo the project's\n")
+        .commit("Own check");
+    project.git(&[
+        "config",
+        "http.extraHeader",
+        &format!("Authorization: Bearer {TOKEN}"),
+    ]);
+    let before = support::snapshot(project.root());
+    let vars = [
+        ("GITHUB_TOKEN", TOKEN),
+        ("GH_TOKEN", TOKEN),
+        ("NUC_TOKEN", TOKEN),
+    ];
+    let output = project.nuc_with(&vars, &["upgrade", "v0.10.0"]);
+    assert_eq!(output.status.code(), Some(1), "{}", stderr(&output));
+    assert!(
+        stdout(&output).contains("scripts/check-docs.sh"),
+        "{}",
+        stdout(&output)
+    );
+    assert!(
+        !stdout(&output).contains(TOKEN) && !stderr(&output).contains(TOKEN),
+        "{}{}",
+        stdout(&output),
+        stderr(&output)
+    );
+    let written: Vec<_> = support::snapshot(project.root())
+        .into_iter()
+        .filter(|entry| !before.contains(entry))
+        .collect();
+    assert!(!written.is_empty(), "the take-up wrote nothing");
+    for (path, contents) in written {
+        assert!(
+            !String::from_utf8_lossy(&contents).contains(TOKEN),
+            "{} holds the token",
+            path.display()
+        );
+    }
+}
+
+/// Verifies: API-upgrade-by-blob-toml-optional, Q-12
+#[cfg(unix)]
+#[test]
+fn upgrade_reads_no_readme_or_nuc_toml_that_links_out_of_the_repository() {
+    use support::upgrade::{derived, two_releases};
+    let outside = Fixture::new("upgrade-read-outside");
+    // Read, either would let the take-up go on: a README naming the release the project carries,
+    // a nuc.toml asking for a nuc newer than this one.
+    outside
+        .write("README.md", "- **Template release:** v0.9.0\n")
+        .write("nuc.toml", "minimum = \"99.0.0\"\nrules = []\n");
+    for path in ["README.md", "nuc.toml"] {
+        let template = two_releases();
+        let project = derived(&template);
+        std::fs::remove_file(project.root().join(path)).expect("removed");
+        std::os::unix::fs::symlink(outside.root().join(path), project.root().join(path))
+            .expect("linked");
+        project.commit("Link out");
+        let status = stdout(&project.git(&["status", "--porcelain"]));
+        let output = project.nuc(&["upgrade", "v0.10.0"]);
+        assert_eq!(output.status.code(), Some(2), "{path}: {}", stderr(&output));
+        assert!(
+            stderr(&output).contains(path),
+            "{path}: {}",
+            stderr(&output)
+        );
+        assert!(
+            !stderr(&output).contains("[config/toml:old]"),
+            "{path}: {}",
+            stderr(&output)
+        );
+        assert_eq!(stdout(&project.git(&["status", "--porcelain"])), status);
+        assert_eq!(
+            std::fs::read_to_string(project.root().join("AGENTS.md")).expect("read"),
+            "# Agents v0.9.0\n",
+            "{path}"
+        );
+    }
 }
