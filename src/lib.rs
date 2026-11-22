@@ -18,3 +18,4 @@ pub mod shell;
 #[cfg(test)]
 mod testing;
 pub mod traceability;
+pub mod upgrade;

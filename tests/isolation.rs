@@ -10,6 +10,8 @@
 //! reports with the network (Q-11); CI lifts the restriction the Ubuntu runner puts on making one.
 //! macOS and Windows have no such namespace for an unprivileged process, so Q-11 is shown on
 //! Linux, x64 and arm64. `nuc hook` is held to Q-7 and Q-11 for every shim in `tests/hooks.rs`.
+//! `nuc upgrade` is held to Q-7 against a filter and a textconv driver of the repository, and to
+//! Q-8 against a symbolic link above a path it writes and a template tree with a `.git` entry.
 
 mod support;
 
@@ -200,4 +202,145 @@ fn the_network_blocked_changes_nothing() {
     assert_eq!(stdout(&blocked), stdout(&online));
     assert_eq!(stderr(&blocked), stderr(&online));
     assert!(!canary.exists(), "nuc check ran content of the tree");
+}
+
+/// Verifies: API-upgrade-by-blob-toml-optional, Q-7
+#[test]
+fn upgrade_runs_no_filter_or_textconv_driver_of_the_repository() {
+    use support::upgrade::{derived, two_releases};
+    let template = two_releases();
+    let project = derived(&template);
+    project.write(".gitattributes", "* filter=canary diff=canary\n");
+    // Older than the index the commit writes, so that no path is racily clean, which git would
+    // hash.
+    let past = std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1_600_000_000);
+    for (path, _) in support::snapshot(project.root()) {
+        if !path.starts_with(project.root().join(".git")) {
+            let file = std::fs::File::options()
+                .write(true)
+                .open(&path)
+                .expect("opened");
+            file.set_modified(past).expect("the time is set");
+        }
+    }
+    project.commit("Attributes");
+    let canary = project.root().join("canary-ran");
+    let run = format!("sh -c 'echo ran >> \"{}\"; cat'", shell_path(&canary));
+    for key in [
+        "filter.canary.clean",
+        "filter.canary.smudge",
+        "filter.canary.process",
+        "diff.canary.textconv",
+    ] {
+        project.git(&["config", key, &run]);
+    }
+    project.git(&["config", "filter.canary.required", "true"]);
+    let output = project.nuc(&["upgrade", "v0.10.0"]);
+    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    assert!(
+        !canary.exists(),
+        "nuc upgrade ran a driver of the repository"
+    );
+    assert_eq!(
+        std::fs::read_to_string(project.root().join("AGENTS.md")).expect("read"),
+        "# Agents v0.10.0\n"
+    );
+}
+
+/// Verifies: API-upgrade-by-blob-toml-optional, Q-8
+#[cfg(unix)]
+#[test]
+fn upgrade_refuses_a_symbolic_link_above_a_path_it_writes() {
+    use support::upgrade::{UPGRADE_TOML, fetch_release, two_releases};
+    let template = two_releases();
+    let outside = Fixture::new("upgrade-outside");
+    outside.write("adr/keep.md", "outside\n");
+    let readme = "# Project\n\n- **Template release:** v0.9.0\n";
+    let project = Fixture::project("upgrade-link", UPGRADE_TOML, readme);
+    project.write(".gitignore", "/docs\n").commit("Ignore docs");
+    std::os::unix::fs::symlink(outside.root(), project.root().join("docs")).expect("linked");
+    project.git(&["switch", "-q", "-c", "feat/take-up"]);
+    fetch_release(&project, &template, "v0.9.0");
+    fetch_release(&project, &template, "v0.10.0");
+    let before = support::snapshot(outside.root());
+    let output = project.nuc(&["upgrade", "v0.10.0"]);
+    assert_eq!(output.status.code(), Some(2), "{}", stderr(&output));
+    assert!(
+        stderr(&output).trim_end().ends_with("[upgrade/run:path]"),
+        "{}",
+        stderr(&output)
+    );
+    assert_eq!(support::snapshot(outside.root()), before);
+    assert!(!project.root().join("AGENTS.md").exists());
+}
+
+/// Verifies: API-upgrade-by-blob-toml-optional, Q-8
+#[test]
+fn upgrade_refuses_a_template_tree_entry_that_names_dot_git_or_leaves_the_tree() {
+    use support::upgrade::{derived, fetch_release, two_releases};
+    // Trees git would not build from a working tree: v0.10.0 with an entry `<name>/config`, where a
+    // file system reads the name as `.git` or a way out of the tree.
+    for name in [".git", "GIT~1", "..", "a\\b"] {
+        let template = two_releases();
+        let blob = support::stdout(&template.git_with_input(
+            &["hash-object", "-w", "--stdin"],
+            b"[core]\n\thooksPath = /tmp/evil\n",
+        ));
+        let inner = support::stdout(&template.git_with_input(
+            &["mktree"],
+            format!("100644 blob {}\tconfig\n", blob.trim()).as_bytes(),
+        ));
+        let mut listing = support::stdout(&template.git(&["ls-tree", "v0.10.0^{tree}"]));
+        listing.push_str(&format!("040000 tree {}\t{name}\n", inner.trim()));
+        let tree = support::stdout(&template.git_with_input(&["mktree"], listing.as_bytes()));
+        let commit = support::stdout(&template.git(&[
+            "commit-tree",
+            tree.trim(),
+            "-p",
+            "v0.10.0^{commit}",
+            "-m",
+            "v0.10.1",
+        ]));
+        template.git(&["tag", "-a", "-m", "NUC v0.10.1", "v0.10.1", commit.trim()]);
+        let project = derived(&template);
+        fetch_release(&project, &template, "v0.10.1");
+        let config = std::fs::read(project.root().join(".git/config")).expect("read");
+        let status = stdout(&project.git(&["status", "--porcelain"]));
+        let output = project.nuc(&["upgrade", "v0.10.1"]);
+        assert_eq!(output.status.code(), Some(2), "{name}: {}", stderr(&output));
+        assert!(
+            stderr(&output).trim_end().ends_with("[upgrade/run:path]"),
+            "{name}: {}",
+            stderr(&output)
+        );
+        assert_eq!(
+            std::fs::read(project.root().join(".git/config")).expect("read"),
+            config
+        );
+        assert_eq!(stdout(&project.git(&["status", "--porcelain"])), status);
+    }
+}
+
+/// Verifies: API-upgrade-by-blob-toml-optional, Q-8
+#[cfg(unix)]
+#[test]
+fn upgrade_writes_no_byte_through_a_hard_link_to_a_file_outside() {
+    use support::upgrade::{derived, two_releases};
+    let template = two_releases();
+    let project = derived(&template);
+    let outside = Fixture::new("upgrade-hard-link");
+    outside.write("agents.md", "# Agents v0.9.0\n");
+    let agents = project.root().join("AGENTS.md");
+    std::fs::remove_file(&agents).expect("removed");
+    std::fs::hard_link(outside.root().join("agents.md"), &agents).expect("linked");
+    let output = project.nuc(&["upgrade", "v0.10.0"]);
+    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    assert_eq!(
+        std::fs::read_to_string(outside.root().join("agents.md")).expect("read"),
+        "# Agents v0.9.0\n"
+    );
+    assert_eq!(
+        std::fs::read_to_string(&agents).expect("read"),
+        "# Agents v0.10.0\n"
+    );
 }

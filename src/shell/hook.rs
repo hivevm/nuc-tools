@@ -145,7 +145,7 @@ const RECORD: &str = "checks-green-trees";
 /// under an active filter is stat-dirty or racily clean, which git would hash through the filter.
 /// Otherwise git's status decides, every active filter neutralized and no submodule left out, so
 /// that a staged change of a gitlink shows as the bash's git shows it.
-fn clean(root: &Path) -> Result<bool, String> {
+pub(super) fn clean(root: &Path) -> Result<bool, String> {
     if git::environment_driver(root)?.is_some() || git::checked_out_submodule(root)?.is_some() {
         return Ok(false);
     }

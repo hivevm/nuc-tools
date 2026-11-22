@@ -68,6 +68,10 @@ set -uo pipefail
 # shellcheck source-path=SCRIPTDIR source=lib/selftest.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib/selftest.sh"
 HARNESS="$ROOT/scripts/check-parity.sh"
+# A run over a corpus replays no take-up of this repository's: the tables are empty, and the cases
+# of the replay name their own (API-upgrade-by-blob-toml-optional).
+echo '# None.' > "$work/take-ups-empty.tsv"
+export PARITY_TAKE_UPS="$work/take-ups-empty.tsv" PARITY_TAKE_UP_DIFFERENCES="$work/take-ups-empty.tsv"
 
 MISSING="README.md: no '**Template release:**' line — the Template section names the release of the template this repository carries, or 'unreleased' (ADR-0005)"
 MALFORMED="README.md: the Template release line names neither a 'vX.Y.Z' tag nor 'unreleased' — a release moves it to the tag it cuts (ADR-0005)"
@@ -1413,5 +1417,123 @@ printf 'pattern\tdocs/x\t-\n' > "$work/hooks-bad.tsv"
 expect fail "a row of the hook table that names no hook/ rule is refused" "is not 'pattern<TAB>hook/<rule>|notice/<name><TAB>fields|-'" \
   env PARITY_HOOK_TABLE="$work/hooks-bad.tsv" PARITY_HOOK_SCENARIOS="$HOOK_SCENARIOS_FILE" PARITY_HOOK_CASES="$NO_CASES" \
   bash "$HARNESS" --nuc "$(hook_nuc agrees "$HOOK_AGREES")" --hooks "$tree"
+
+# --- cases: the replay of the take-ups --------------------------------------------------------
+
+# A template with the tags v0.9.0 and v0.10.0, and a project whose take-up of v0.10.0 is the commit
+# after the one it starts from; the stand-ins of nuc write as each case needs, in the directory the
+# replay runs them in (API-upgrade-by-blob-toml-optional).
+tu_git() { git -c core.hooksPath=/dev/null -c user.name=t -c user.email=t@x.invalid -C "$@"; }
+tu_template="$work/tu-template" tu_project="$work/tu-project"
+mkdir -p "$tu_template" "$tu_project"
+tu_git "$tu_template" init -q -b main
+printf -- '- **Template release:** v0.9.0\n' > "$tu_template/README.md"
+echo old > "$tu_template/a.txt"
+tu_git "$tu_template" add -A && tu_git "$tu_template" commit -q -m v0.9.0
+tu_git "$tu_template" tag -a -m v0.9.0 v0.9.0
+echo new > "$tu_template/a.txt"
+tu_git "$tu_template" commit -q -am v0.10.0
+tu_git "$tu_template" tag -a -m v0.10.0 v0.10.0
+tu_git "$tu_project" init -q -b main
+printf -- '- **Template release:** v0.9.0\n' > "$tu_project/README.md"
+echo old > "$tu_project/a.txt"
+echo '*.log' > "$tu_project/.gitignore"
+tu_git "$tu_project" add -A && tu_git "$tu_project" commit -q -m start
+tu_from="$(tu_git "$tu_project" rev-parse HEAD)"
+printf -- '- **Template release:** v0.10.0\n' > "$tu_project/README.md"
+echo new > "$tu_project/a.txt"
+tu_git "$tu_project" commit -q -am take-up
+tu_to="$(tu_git "$tu_project" rev-parse HEAD)"
+printf 'file://%s\t%s\t%s\tfile://%s\n' "$tu_project" "$tu_from" "$tu_to" "$tu_template" > "$work/take-ups.tsv"
+echo '# None.' > "$work/take-up-none.tsv"
+printf 'v0.10.0\tb.txt\tthe template only\n' > "$work/take-up-b.tsv"
+printf 'file://%s\t%s\t%s\tfile://%s\n' "$work/tu-gone" "$tu_from" "$tu_to" "$tu_template" > "$work/take-ups-gone.tsv"
+
+# tu_nuc <name> <body> — a stand-in of nuc whose run of 'upgrade' is the body.
+tu_nuc() { hook_nuc "take-up-$1" "$2"; }
+TU_AGREES='printf -- "- **Template release:** v0.10.0\n" > README.md; echo new > a.txt'
+
+# run_take_ups <nuc> <differences> — the replay alone, on the table of the one take-up.
+# shellcheck disable=SC2317,SC2329 # run through expect
+run_take_ups() {
+  env PARITY_TAKE_UPS="$work/take-ups.tsv" PARITY_TAKE_UP_DIFFERENCES="$2" \
+    bash "$HARNESS" --cache "$work/tu-cache" --nuc "$1" --take-ups
+}
+
+expect pass "a replay that writes what the take-up holds passes" "" \
+  run_take_ups "$(tu_nuc agrees "$TU_AGREES")" "$work/take-up-none.tsv"
+expect fail "a replay that writes a path the human left alone fails and names it" \
+  "b.txt (??) is written where the take-up has none" \
+  run_take_ups "$(tu_nuc more "$TU_AGREES; echo extra > b.txt")" "$work/take-up-none.tsv"
+expect pass "a path the table of differences lists for the release passes" "" \
+  run_take_ups "$(tu_nuc listed "$TU_AGREES; echo extra > b.txt")" "$work/take-up-b.tsv"
+expect fail "a row of the table of differences no replay meets fails" "is listed, and no replay writes it" \
+  run_take_ups "$(tu_nuc agrees "$TU_AGREES")" "$work/take-up-b.tsv"
+expect fail "a replay that writes other bytes fails" "a.txt ( M) holds other bytes than the take-up" \
+  run_take_ups "$(tu_nuc other 'printf -- "- **Template release:** v0.10.0\n" > README.md; echo other > a.txt')" \
+  "$work/take-up-none.tsv"
+expect pass "a path nuc lists as a judgment is not compared" "" \
+  run_take_ups "$(tu_nuc judged "$TU_AGREES; echo mine > c.txt; echo 'c.txt: upgrade/file: merge it [upgrade/file:both]'; exit 1")" \
+  "$work/take-up-none.tsv"
+expect fail "a replay where nuc upgrade cannot decide fails" "nuc upgrade exits 2" \
+  run_take_ups "$(tu_nuc refuses 'echo refused >&2; exit 2')" "$work/take-up-none.tsv"
+printf 'file://%s\t%s\n' "$tu_project" "$tu_from" > "$work/take-ups-bad.tsv"
+expect fail "a row of the table of take-ups without its four fields is refused" \
+  "is not '<url><TAB><commit><TAB><commit><TAB><template url>'" \
+  env PARITY_TAKE_UPS="$work/take-ups-bad.tsv" PARITY_TAKE_UP_DIFFERENCES="$work/take-up-none.tsv" \
+  bash "$HARNESS" --cache "$work/tu-cache" --nuc "$(tu_nuc agrees "$TU_AGREES")" --take-ups
+
+# What the replay cannot reach or set up fails, and names it, rather than skipping the take-up.
+expect fail "a take-up whose commits cannot be fetched fails" "its commits cannot be fetched from" \
+  env PARITY_TAKE_UPS="$work/take-ups-gone.tsv" PARITY_TAKE_UP_DIFFERENCES="$work/take-up-none.tsv" \
+  bash "$HARNESS" --cache "$work/tu-cache" --nuc "$(tu_nuc agrees "$TU_AGREES")" --take-ups
+printf 'file://%s\t%s\t%s\tfile://%s\n' "$tu_project" "$tu_from" "$tu_to" "$work/tu-no-template" > "$work/take-ups-no-tags.tsv"
+expect fail "a take-up whose tags cannot be fetched fails" "the tags cannot be fetched from" \
+  env PARITY_TAKE_UPS="$work/take-ups-no-tags.tsv" PARITY_TAKE_UP_DIFFERENCES="$work/take-up-none.tsv" \
+  bash "$HARNESS" --cache "$work/tu-cache-tags" --nuc "$(tu_nuc agrees "$TU_AGREES")" --take-ups
+tu_git "$tu_project" checkout -q -b no-line "$tu_from"
+echo '# No release line.' > "$tu_project/README.md"
+tu_git "$tu_project" commit -q -am no-line
+tu_no_line="$(tu_git "$tu_project" rev-parse HEAD)"
+tu_git "$tu_project" checkout -q main
+printf 'file://%s\t%s\t%s\tfile://%s\n' "$tu_project" "$tu_from" "$tu_no_line" "$tu_template" > "$work/take-ups-no-line.tsv"
+expect fail "a take-up whose README names no release fails" "its README names no release" \
+  env PARITY_TAKE_UPS="$work/take-ups-no-line.tsv" PARITY_TAKE_UP_DIFFERENCES="$work/take-up-none.tsv" \
+  bash "$HARNESS" --cache "$work/tu-cache" --nuc "$(tu_nuc agrees "$TU_AGREES")" --take-ups
+printf 'v0.10.0\tb.txt\n' > "$work/take-up-bad.tsv"
+expect fail "a row of the table of differences without its reason is refused" \
+  "is not '<release><TAB><path><TAB><reason>'" \
+  run_take_ups "$(tu_nuc agrees "$TU_AGREES")" "$work/take-up-bad.tsv"
+# Each way a path can differ from the take-up fails, an ignored path and the executable bit
+# included.
+expect fail "a replay that deletes a path the take-up keeps fails" \
+  "a.txt ( D) is deleted where the take-up keeps it" \
+  run_take_ups "$(tu_nuc deletes 'printf -- "- **Template release:** v0.10.0\n" > README.md; rm a.txt')" \
+  "$work/take-up-none.tsv"
+expect fail "a replay that writes an ignored path the human left alone fails" \
+  "x.log (!!) is written where the take-up has none" \
+  run_take_ups "$(tu_nuc ignored "$TU_AGREES; echo log > x.log")" "$work/take-up-none.tsv"
+expect fail "a replay that writes another executable bit fails" \
+  "a.txt ( M) has another executable bit than the take-up" \
+  run_take_ups "$(tu_nuc mode "$TU_AGREES; chmod +x a.txt")" "$work/take-up-none.tsv"
+# A run over a corpus reads the tables of the take-ups before any comparison, and replays them in
+# its last shard.
+c="$(corpus "$work/tu-agree.toml" agree)"
+# run_with_take_ups <table> <corpus> <nuc> — the harness on the corpus, replaying the table.
+# shellcheck disable=SC2317,SC2329 # run through expect
+run_with_take_ups() {
+  (export PARITY_TAKE_UPS="$1" PARITY_TAKE_UP_DIFFERENCES="$work/take-up-none.tsv"; run "$2" "$3")
+}
+out="$(run_with_take_ups "$work/take-ups-bad.tsv" "$c" "$(reactive_nuc)" 2>&1)"; rc=$?
+if ((rc == 2)) && [[ "$out" == *"is not '<url><TAB><commit><TAB><commit><TAB><template url>'"* \
+  && "$out" != *"finding(s) of the ported rules"* ]]; then
+  passed=$((passed + 1))
+else
+  failed=$((failed + 1))
+  echo "FAIL: a run over a corpus refuses a malformed table of the take-ups before any comparison (exit $rc)" >&2
+  while IFS= read -r l; do printf '    %s\n' "$l"; done <<< "$out" >&2
+fi
+expect fail "a run over a corpus replays the take-ups in its last shard" "its commits cannot be fetched from" \
+  run_with_take_ups "$work/take-ups-gone.tsv" "$c" "$(reactive_nuc)"
 
 summary "Parity harness self-test"

@@ -49,7 +49,7 @@ const FIX: &str = "a derived project restores the file of its release and narrow
 /// `^[[:space:]]*([-*] )?\*\*Template release:\*\*[[:space:]]*` an optional `[` or backtick, a
 /// `vX.Y.Z`, an optional `]` or backtick, an optional `(…)`, then `, forked` and no letter or
 /// digit.
-fn forked(readme: &str) -> bool {
+pub fn forked(readme: &str) -> bool {
     readme.lines().any(|line| {
         let line = line.trim_start_matches([' ', '\t', '\r', '\x0b', '\x0c']);
         let line = line

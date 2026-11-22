@@ -25,6 +25,10 @@ skimmed. The design revision drops what prevented nothing
 - **A self-test asserts what it builds** — it takes its fixtures from the tree it copies or writes
   them itself, never from the template's own ADRs, scripts, or numbers, so it holds in a derived
   project and after a normalization.
+- **A fixture named for a template release holds what its tag holds** — a fixture that stands for
+  a real release, by its tag or by a bound such as v0.9.0, carries only files the tag carries, as
+  `git ls-tree -r <tag>` lists them; a file only a later release ships, such as `nuc.toml` before
+  v0.12.0, stays out. A fixture that holds more lets a decision rest on a release that never was.
 - **A test of an absence first shows the run it watches** — a test that asserts that nothing was
   run, printed, or written asserts first what the run did: its exit status, the exact answer it
   expects, the path past an early exit. Otherwise a run that never reached `nuc`, a binary

@@ -194,7 +194,7 @@ pub fn carried(readme: &str) -> Option<Carried> {
 }
 
 /// The text after a `vX.Y.Z` tag at the start of the value, each number without a leading zero.
-fn tag(value: &str) -> Option<&str> {
+pub fn tag(value: &str) -> Option<&str> {
     let mut rest = value.strip_prefix('v')?;
     for i in 0..3 {
         if i > 0 {

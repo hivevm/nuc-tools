@@ -1,0 +1,7 @@
+# The paths nuc upgrade writes otherwise than the human who committed a take-up of
+# tests/parity/take-ups.tsv did, each with its reason, read by scripts/lib/take-up-parity.sh
+# (API-upgrade-by-blob-toml-optional). One row per path, three fields separated by tabs: the release
+# taken up, the path, and the reason. A row no replay meets fails, so that a stale reason does not
+# stand.
+
+v0.12.0	docs/plan/revision-2026-11-18/01-the-hooks-pin-check-reads-its-cases-from-a-table.md	an open ticket of the template's own plan, which v0.12.0 adds and no project takes up; the project removes it after the take-up, as the human did not take it

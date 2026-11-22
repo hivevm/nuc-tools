@@ -157,6 +157,20 @@ minimum holds like a release's.
   the names of tools. It exits 0, or 2 where a transcript does not read as it expects, no request
   was selected, or, for `--finding`, the README cannot be read, with nothing on the standard output
   ([API-measure-reads-harness-transcripts](docs/adr/API-measure-reads-harness-transcripts.md)).
+- `nuc upgrade <tag>` takes up the template release `<tag>`
+  ([API-upgrade-by-blob-toml-optional](docs/adr/API-upgrade-by-blob-toml-optional.md)). On a branch
+  of its own, with a clean working tree, fetch the release the README's `Template release` line
+  names and the one to take up, each into `refs/template/`:
+  `git fetch --no-tags https://github.com/hivevm/nuc.git refs/tags/<tag>:refs/template/<tag>`.
+  `nuc upgrade` then writes the base, the `NUC-` ADRs, `AGENTS.md`, and `docs/adr/NUC.blobs`, as
+  the release has them, takes up each other file the project left as its release had it, moves
+  the release line, and writes nothing else: no index, no ref, no commit. Each change it cannot
+  decide is a finding line under `upgrade/file`, `upgrade/citation`, or `upgrade/notes`: a file
+  both sides changed, with the `git diff` to merge it by, a citation of a `NUC-` ADR the release
+  lacks, and the notes of the releases a take-up skips. Settle each, read the notes of the release
+  as the summary on the standard error names them, run the checks, and commit. It exits 0 with no
+  finding, 1 with one, and 2 where it refuses, having written nothing; each refusal ends in a key
+  `[upgrade/run:<reason>]`.
 - `nuc --version` prints the version.
 
 The rules port every check of the template's `check-docs.sh`, 1 to 16, each as the release a tree

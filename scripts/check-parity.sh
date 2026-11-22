@@ -23,8 +23,9 @@
 # tree as pinned first and then its variants, and the n shards take contiguous slices of that
 # sequence of about equal cost. A comparison costs the 'cost' of its tree in the corpus.
 # WHOLE_COST, the seconds of the parts that read all the template's trees at once, the pins of the
-# copied fixture tables, the releases a rule's check changed at, the sensor scenarios, and the hook
-# scenarios, which run in the last shard alone, n/n, is appended at the end of the sequence.
+# copied fixture tables, the releases a rule's check changed at, the sensor scenarios, the hook
+# scenarios, and the replay of the take-ups, which run in the last shard alone, n/n, is appended at
+# the end of the sequence.
 # The deal reads the corpus and the variants alone, so that every shard deals the same, a tree it
 # refuses or cannot fetch included. A slice that starts inside a tree also compares that tree as
 # pinned, since its variants are measured against it, but reports that comparison only where it is
@@ -81,6 +82,11 @@
 # and nuc, compared as that file says. A tree whose .githooks/nuc.blobs pins its hooks carries
 # nuc's shims, not bash hooks, and is left out of them.
 #
+# Last, the last shard replays the take-ups of tests/parity/take-ups.tsv through
+# scripts/lib/take-up-parity.sh (API-upgrade-by-blob-toml-optional): 'nuc upgrade' on the commit
+# before each take-up, compared with the take-up a human committed. Its tables are read before any
+# comparison runs. --take-ups runs the replay alone.
+#
 # The tree of the corpus runs its own bash scripts: the corpus is pinned by commit, and a pull
 # request that moves a pin is reviewed like code. nuc is built from the working tree by
 # 'cargo build --locked'; the harness is a test of the build, as scripts/check-build.sh is
@@ -90,6 +96,7 @@
 #     scripts/check-parity.sh [--root <dir>] [--corpus <file>] [--cache <dir>] [--nuc <binary>]
 #                             [--variants <file>] [--no-hooks] [--shard <k>/<n>]
 #     scripts/check-parity.sh [--root <dir>] [--nuc <binary>] --hooks <template tree>...
+#     scripts/check-parity.sh [--root <dir>] [--cache <dir>] [--nuc <binary>] --take-ups
 #     scripts/check-parity.sh --compare <bash output> <bash exit> <nuc output> <nuc exit>
 #     scripts/check-parity.sh --sense-compare <sensor> <release> <bash output> <bash exit>
 #                             <nuc output> <nuc exit>
@@ -105,9 +112,10 @@
 # and of sensor scenarios, that run at once, and PARITY_WHOLE_COST other seconds for the parts the
 # last shard alone runs.
 # Exit code 0 when every repository and variant agrees, 1 on a difference, a refused tree, a
-# variant that fits no tree or does not fire, a cache that cannot be filled, or a pin of a copied
-# table the template's tag does not bear out, 2 on a missing or malformed list of pins, a malformed
-# corpus, table, or variants file, a cost of a tree that is no number of seconds above 0, a
+# variant that fits no tree or does not fire, a cache that cannot be filled, a pin of a copied
+# table the template's tag does not bear out, or a take-up that differs or cannot be replayed, 2 on
+# a missing or malformed list of pins, a malformed corpus, table, variants file, or table of the
+# take-ups, a cost of a tree that is no number of seconds above 0, a
 # PARITY_JOBS that is no number of jobs, a PARITY_WHOLE_COST that is none, a shard that is not
 # <k>/<n> with 1 <= k <= n, a deal of the comparisons that does not come out whole, a root that
 # does not exist, or an argument it does not read.
@@ -126,7 +134,7 @@ LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")/lib" && pwd)"
 # shellcheck source-path=SCRIPTDIR source=lib/root.sh
 source "$LIB/root.sh"
 # The usage is one line, as enter_root reads which options take a value from it.
-usage="scripts/check-parity.sh [--root <dir>] [--corpus <file>] [--cache <dir>] [--nuc <binary>] [--variants <file>] [--no-hooks] [--shard <k>/<n>] [--hooks <template tree>...] | --compare <bash output> <bash exit> <nuc output> <nuc exit> | --sense-compare <sensor> <release> <bash output> <bash exit> <nuc output> <nuc exit>"
+usage="scripts/check-parity.sh [--root <dir>] [--corpus <file>] [--cache <dir>] [--nuc <binary>] [--variants <file>] [--no-hooks] [--shard <k>/<n>] [--hooks <template tree>...] [--take-ups] | --compare <bash output> <bash exit> <nuc output> <nuc exit> | --sense-compare <sensor> <release> <bash output> <bash exit> <nuc output> <nuc exit>"
 enter_root "${BASH_SOURCE[0]}" "$usage" "$@"
 set -- "${ARGS[@]}"
 TABLE="${PARITY_TABLE:-$ROOT/tests/parity/normalize.tsv}"
@@ -139,6 +147,8 @@ source "$LIB/check.sh"
 source "$LIB/pin.sh"
 # shellcheck source-path=SCRIPTDIR source=lib/hook-parity.sh
 source "$LIB/hook-parity.sh"
+# shellcheck source-path=SCRIPTDIR source=lib/take-up-parity.sh
+source "$LIB/take-up-parity.sh"
 # shellcheck source-path=SCRIPTDIR source=lib/sensor-parity.sh
 source "$LIB/sensor-parity.sh"
 
@@ -344,6 +354,8 @@ corpus="$ROOT/tests/parity/corpus.toml" cache="$ROOT/.scratch/parity" nuc=""
 variants="$ROOT/tests/parity/variants.tsv"
 # Whether the hook scenarios run, and the trees they run on alone under --hooks.
 hooks=1 hooks_only=0
+# Whether the replay of the take-ups runs alone.
+take_ups_only=0
 hook_trees=()
 # The share of the comparisons this run makes, k of n; 1/1 is all of them.
 shard=1/1
@@ -358,6 +370,7 @@ while (($#)); do
     --no-hooks) hooks=0; shift ;;
     --shard) shard="${2:-}"; shift 2 || die "--shard takes <k>/<n>" ;;
     --hooks) hooks_only=1; shift; while (($#)) && [[ "$1" != --* ]]; do hook_trees+=("$1"); shift; done ;;
+    --take-ups) take_ups_only=1; shift ;;
     *) rest_args "${BASH_SOURCE[0]}" "$usage" 0 "$@" ;;
   esac
 done
@@ -369,6 +382,10 @@ shard_k="${BASH_REMATCH[1]}" shard_n="${BASH_REMATCH[2]}"
 whole=$((shard_k == shard_n))
 load_table
 load_sensor_tables || exit 2
+# The tables of the take-ups, read before any comparison, where the replay runs.
+if ((whole || take_ups_only)); then
+  take_up_load || exit 2
+fi
 
 # The corpus, one 'name url commit' line per repository, and the cost of one comparison of each
 # tree, its key 'cost' or '-' where it has none.
@@ -495,6 +512,14 @@ release_of() {
   local re='^(v'"$num"'\.'"$num"'\.'"$num"')($|[][:space:],;:)`]|\.([[:space:]]|$))'
   [[ "$value" =~ $re ]] && echo "${BASH_REMATCH[1]}"
 }
+
+# --take-ups: the replay of the take-ups alone (API-upgrade-by-blob-toml-optional).
+if ((take_ups_only)); then
+  take_up_replays "$nuc" "$work" "$cache"
+  rc=$?
+  ((rc)) && echo "Parity check FAILED." >&2
+  exit "$rc"
+fi
 
 # --hooks: the hook scenarios alone, on the template trees given.
 if ((hooks_only)); then
@@ -1000,6 +1025,12 @@ fi
 # The hook scenarios, on the template's trees of the corpus (TEST-hook-scenarios-on-bash-hooks).
 if ((hooks && whole)); then
   hook_parity "$nuc" "$work" "${tree_dirs[@]}"
+  case $? in 0) ;; 2) exit 2 ;; *) failed=1 ;; esac
+fi
+
+# The replay of the take-ups (API-upgrade-by-blob-toml-optional).
+if ((whole)); then
+  take_up_replays "$nuc" "$work" "$cache"
   case $? in 0) ;; 2) exit 2 ;; *) failed=1 ;; esac
 fi
 
