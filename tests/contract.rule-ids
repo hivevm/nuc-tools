@@ -48,3 +48,5 @@ traceability/sensor-tests
 # The judgments of nuc upgrade, which no nuc.toml names, and which a reader branches on alike
 # (API-upgrade-takes-up-by-blob).
 upgrade/file
+upgrade/citation
+upgrade/notes

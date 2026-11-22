@@ -4,13 +4,14 @@
 //! refuses before the first write what the plan or the working tree does not allow, reads every
 //! blob the plan writes, then writes the plan, moves the release line, and prints the judgments.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::env;
 use std::fs;
 use std::io::ErrorKind;
 use std::path::Path;
 
 use crate::config;
+use crate::finding::Finding;
 use crate::upgrade::{self, Change, Entry, Found, Kind, Plan, Refusal, Tree, WorkTree};
 
 use super::tree::Tree as Repo;
@@ -60,7 +61,8 @@ pub(super) fn run(args: &[&str]) -> Result<u8, String> {
     upgrade::refuse_paths(&plan, &head).map_err(|r| r.to_string())?;
     let work = work_tree(&root, &plan)?;
     upgrade::settle(&mut plan, &head, &work).map_err(|r| r.to_string())?;
-    let blobs = read_blobs(&root, &plan)?;
+    let (blobs, mut judgments) = read_and_cite(&root, &plan, &head, &now, new)?;
+    judgments.extend(upgrade::skipped(old, new));
     // The release line is moved in the README as the plan leaves it: the new release's where the
     // plan takes it up, the project's otherwise.
     let readme = match plan.changes.get("README.md") {
@@ -88,6 +90,9 @@ pub(super) fn run(args: &[&str]) -> Result<u8, String> {
     })?;
     let readme = (readme != moved).then_some(moved);
     write_plan(&root, &plan, &blobs, readme.as_deref())?;
+    plan.judgments.extend(judgments);
+    plan.judgments
+        .sort_by(|a, b| (&a.file, a.line).cmp(&(&b.file, b.line)));
     for judgment in &plan.judgments {
         println!("{judgment}");
     }
@@ -104,7 +109,11 @@ pub(super) fn run(args: &[&str]) -> Result<u8, String> {
         upgrade::tag(old),
         upgrade::tag(new),
         written + usize::from(readme.is_some() && !plan.changes.contains_key("README.md")),
-        plan.judgments.len(),
+        plan.judgments
+            .iter()
+            .map(|judgment| judgment.file.as_str())
+            .collect::<BTreeSet<_>>()
+            .len(),
         upgrade::tag(new),
     );
     Ok(if plan.judgments.is_empty() {
@@ -311,27 +320,62 @@ fn found(root: &Path, path: &str) -> Found {
     }
 }
 
-/// The bytes of every blob the plan writes, read before the first write, so that a blob the clone
-/// lacks refuses the run with nothing written (SEC-git-cleared-without-lazy-fetch).
-fn read_blobs(root: &Path, plan: &Plan) -> Result<BTreeMap<String, Vec<u8>>, String> {
+/// The blobs the plan writes and the files outside the base as the plan leaves it, read in one
+/// batch before the first write, and each line of those files that cites a `NUC-` ADR the new
+/// release, `now` at `new`, lacks.
+fn read_and_cite(
+    root: &Path,
+    plan: &Plan,
+    head: &Tree,
+    now: &Tree,
+    new: config::Version,
+) -> Result<(Blobs, Vec<Finding>), String> {
+    let kept = upgrade::kept_files(plan, head);
+    let mut objects: BTreeSet<&str> = kept.values().map(String::as_str).collect();
+    objects.extend(plan.changes.values().filter_map(|change| match change {
+        Change::Write(entry) => Some(entry.object.as_str()),
+        Change::Delete => None,
+    }));
+    let blobs = read_blobs(root, &objects)?;
+    let texts: BTreeMap<String, &[u8]> = kept
+        .iter()
+        .map(|(path, object)| (path.clone(), blobs[object].as_slice()))
+        .collect();
+    let judgments = upgrade::citations(&texts, &upgrade::base_identifiers(now), new);
+    Ok((blobs, judgments))
+}
+
+/// The bytes of blobs, by object.
+type Blobs = BTreeMap<String, Vec<u8>>;
+
+/// The bytes of each blob, read by one `git cat-file --batch` before the first write, so that a
+/// blob the clone lacks refuses the run with nothing written (SEC-git-cleared-without-lazy-fetch).
+fn read_blobs(root: &Path, objects: &BTreeSet<&str>) -> Result<Blobs, String> {
+    let mut input = Vec::new();
+    for object in objects {
+        input.extend_from_slice(object.as_bytes());
+        input.push(b'\n');
+    }
+    let out = git::run_bytes_with_input(root, &["cat-file", "--batch"], &input)?;
     let mut blobs = BTreeMap::new();
-    for change in plan.changes.values() {
-        let Change::Write(entry) = change else {
-            continue;
+    let mut rest = out.as_slice();
+    for object in objects {
+        // '<object> blob <size>\n<bytes>\n', or '<object> missing\n'.
+        let end = rest.iter().position(|&b| b == b'\n').unwrap_or(rest.len());
+        let head = String::from_utf8_lossy(&rest[..end]).into_owned();
+        let size = match head.split(' ').collect::<Vec<_>>().as_slice() {
+            [name, "blob", size] if name == object => size.parse::<usize>().ok(),
+            _ => None,
         };
-        if blobs.contains_key(&entry.object) {
-            continue;
-        }
-        let (code, _) = git::status_and_output(root, &["cat-file", "-e", &entry.object])?;
-        if code != 0 {
+        let Some(size) = size.filter(|size| end + 1 + size < rest.len() + 1) else {
             return Err(format!(
-                "the object {} is not in the repository, as in a partial clone, and nuc fetches \
-                 none — fetch it first — not decided",
-                entry.object
+                "the object {object} is not a blob in the repository, as in a partial clone, and \
+                 nuc fetches none — fetch it first — not decided"
             ));
-        }
-        let bytes = git::run_bytes(root, &["cat-file", "blob", &entry.object])?;
-        blobs.insert(entry.object.clone(), bytes);
+        };
+        let body = &rest[end + 1..end + 1 + size];
+        blobs.insert((*object).to_owned(), body.to_vec());
+        rest = rest.get(end + 2 + size..).unwrap_or_default();
     }
     Ok(blobs)
 }

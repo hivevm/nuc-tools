@@ -6,6 +6,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
+use crate::adr;
+use crate::bash;
 use crate::config::Version;
 use crate::finding::Finding;
 use crate::rules::{Carried, docs_base_blobs, docs_template_release};
@@ -48,8 +50,31 @@ pub const FILE: Rule = Rule {
               (API-upgrade-takes-up-by-blob).",
 };
 
+/// A citation of a `NUC-` ADR the new release lacks.
+pub const REMOVED: &str = "removed";
+
+/// The citations a release that merges, splits, or removes a `NUC-` ADR leaves behind.
+pub const CITATION: Rule = Rule {
+    id: "upgrade/citation",
+    reasons: &[REMOVED],
+    explain: "a line of the project names a NUC- ADR the new release no longer has; nuc upgrade \
+              moves no citation, and the maintainer moves it by the map in the release's notes \
+              (API-upgrade-takes-up-by-blob).",
+};
+
+/// A take-up past a release whose notes were not read.
+pub const SKIPPED: &str = "skipped";
+
+/// The notes of the releases between the two a take-up skips.
+pub const NOTES: Rule = Rule {
+    id: "upgrade/notes",
+    reasons: &[SKIPPED],
+    explain: "the take-up skips releases between the two, whose notes may ask for more than files; \
+              the maintainer reads each (API-upgrade-takes-up-by-blob).",
+};
+
 /// Every rule of `nuc upgrade`.
-pub const ALL: &[&Rule] = &[&FILE];
+pub const ALL: &[&Rule] = &[&FILE, &CITATION, &NOTES];
 
 /// The rule a refusal of `nuc upgrade` is keyed under, `[upgrade/run:<reason>]`.
 pub const RUN: &str = "upgrade/run";
@@ -325,6 +350,101 @@ pub fn plan(
         plan.changes.insert(path.clone(), change);
     }
     plan
+}
+
+/// The judgment that the take-up skips releases: none where the new release is the one after the
+/// old, `vX.Y.(Z+1)`, `vX.(Y+1).0`, or `v(X+1).0.0`.
+pub fn skipped(old: Version, new: Version) -> Option<Finding> {
+    let Version(x, y, z) = old;
+    let next = [
+        z.checked_add(1).map(|z| Version(x, y, z)),
+        y.checked_add(1).map(|y| Version(x, y, 0)),
+        x.checked_add(1).map(|x| Version(x, 0, 0)),
+    ];
+    (!next.contains(&Some(new))).then(|| Finding {
+        rule: NOTES.id,
+        reason: SKIPPED,
+        file: "README.md".to_owned(),
+        line: None,
+        message: format!(
+            "the take-up from {} to {} skips the releases between them, whose notes were not \
+             read; read each",
+            tag(old),
+            tag(new)
+        ),
+    })
+}
+
+/// The files outside the base in the tree as the plan leaves it, each with its object: the new
+/// release's where the plan writes the path, the project's where it keeps it.
+pub fn kept_files(plan: &Plan, head: &Tree) -> BTreeMap<String, String> {
+    let regular = |entry: &Entry| matches!(entry.kind, Kind::File | Kind::Executable);
+    let mut files: BTreeMap<String, String> = head
+        .iter()
+        .filter(|(path, entry)| !plan.changes.contains_key(*path) && regular(entry))
+        .map(|(path, entry)| (path.clone(), entry.object.clone()))
+        .collect();
+    for (path, change) in &plan.changes {
+        if let Change::Write(entry) = change {
+            files.insert(path.clone(), entry.object.clone());
+        }
+    }
+    files.retain(|path, _| !is_base(path));
+    files
+}
+
+/// The `NUC-` identifiers the tree's base holds, each a file `docs/adr/NUC-<slug>.md`.
+pub fn base_identifiers(tree: &Tree) -> BTreeSet<String> {
+    tree.keys()
+        .filter_map(|path| path.strip_prefix("docs/adr/"))
+        .filter(|name| name.starts_with("NUC-"))
+        .filter_map(|name| name.strip_suffix(".md"))
+        .map(str::to_owned)
+        .collect()
+}
+
+/// Each line of the files, by path with their bytes, that names a `NUC-` identifier `known` lacks,
+/// read as the rule `docs/adr-refs` reads a reference: a code span of a Markdown file is none. A
+/// file that holds a NUL byte or is no UTF-8 is read as no text.
+pub fn citations<T: AsRef<[u8]>>(
+    files: &BTreeMap<String, T>,
+    known: &BTreeSet<String>,
+    new: Version,
+) -> Vec<Finding> {
+    let categories = ["NUC".to_owned()];
+    let mut found = Vec::new();
+    for (path, text) in files {
+        let text = text.as_ref();
+        if text.contains(&0) || std::str::from_utf8(text).is_err() {
+            continue;
+        }
+        for (n, raw) in bash::awk_lines(text).into_iter().enumerate() {
+            let line = if path.ends_with(".md") {
+                adr::code_spans_out(raw)
+            } else {
+                raw.to_vec()
+            };
+            let named: BTreeSet<String> = adr::named_references(&line, &categories)
+                .into_iter()
+                .map(|reference| String::from_utf8_lossy(reference).into_owned())
+                .filter(|reference| !known.contains(reference))
+                .collect();
+            for reference in named {
+                found.push(Finding {
+                    rule: CITATION.id,
+                    reason: REMOVED,
+                    file: path.clone(),
+                    line: Some(n + 1),
+                    message: format!(
+                        "names {reference}, which {} lacks; move the citation by the map in its \
+                         notes",
+                        tag(new)
+                    ),
+                });
+            }
+        }
+    }
+    found
 }
 
 /// What the working tree holds at a path, read without following a link.
@@ -624,6 +744,7 @@ pub fn move_release_line(readme: &[u8], old: Version, new: Version) -> Option<Ve
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::testing::cat_id;
 
     fn file(object: &str) -> Entry {
         Entry {
@@ -1022,6 +1143,101 @@ mod tests {
             .map(|j| (j.file.as_str(), j.reason))
             .collect();
         assert_eq!(judged, [("newdir", ADDED)]);
+    }
+
+    #[test]
+    fn a_take_up_past_the_next_release_is_a_judgment() {
+        let v = |x, y, z| Version(x, y, z);
+        for new in [v(0, 11, 2), v(0, 12, 0), v(1, 0, 0)] {
+            assert_eq!(skipped(v(0, 11, 1), new), None, "{new}");
+        }
+        for new in [
+            v(0, 11, 3),
+            v(0, 12, 1),
+            v(0, 13, 0),
+            v(1, 0, 1),
+            v(2, 0, 0),
+        ] {
+            let judgment = skipped(v(0, 11, 1), new).expect("skipped");
+            assert_eq!(
+                (judgment.rule, judgment.reason),
+                (NOTES.id, SKIPPED),
+                "{new}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_line_naming_a_nuc_adr_the_new_release_lacks_is_a_judgment() {
+        // Assembled, so that this repository's gate reads them as no reference of its own.
+        let (gone, kept) = (cat_id("NUC", "gone-away"), cat_id("NUC", "kept-here"));
+        let other = cat_id("NUC", "gone-too");
+        let known: BTreeSet<String> = [kept.clone()].into();
+        let files: BTreeMap<String, Vec<u8>> = [
+            (
+                "docs/adr/own.md",
+                format!(
+                    "# Own\n\nAs {gone} §2 and {kept} say, and `{gone}`.\n{gone}, {other}, and \
+                     {gone} again.\n"
+                ),
+            ),
+            (
+                "src/lib.rs",
+                format!("// Verifies: {gone}\n// `{gone}` in code\n"),
+            ),
+            (
+                "notes.txt",
+                format!("{}, one word, names no ADR\n", cat_id("NUC", "gone")),
+            ),
+            ("image.bin", format!("{gone}\0")),
+        ]
+        .into_iter()
+        .map(|(path, text)| (path.to_owned(), text.into_bytes()))
+        .collect();
+        let citations = citations(&files, &known, Version(0, 10, 0));
+        let found: Vec<(&str, Option<usize>)> = citations
+            .iter()
+            .map(|f| (f.file.as_str(), f.line))
+            .collect();
+        // Line 4 names two removed ADRs, the first twice and apart: one finding for each.
+        assert_eq!(
+            found,
+            [
+                ("docs/adr/own.md", Some(3)),
+                ("docs/adr/own.md", Some(4)),
+                ("docs/adr/own.md", Some(4)),
+                ("src/lib.rs", Some(1)),
+                ("src/lib.rs", Some(2)),
+            ]
+        );
+    }
+
+    #[test]
+    fn the_files_read_for_citations_are_the_tree_as_the_plan_leaves_it_outside_the_base() {
+        let old = tree(&[
+            ("a.md", file("a1")),
+            ("gone.md", file("g")),
+            ("AGENTS.md", file("x")),
+        ]);
+        let new = tree(&[("a.md", file("a2")), ("AGENTS.md", file("y"))]);
+        let head = tree(&[
+            ("a.md", file("a1")),
+            ("gone.md", file("g")),
+            ("AGENTS.md", file("x")),
+            ("own.md", file("o")),
+        ]);
+        let plan = plan(&old, &new, &head, R, true);
+        let kept = kept_files(&plan, &head);
+        let kept: Vec<(&str, &str)> = kept.iter().map(|(p, o)| (p.as_str(), o.as_str())).collect();
+        assert_eq!(kept, [("a.md", "a2"), ("own.md", "o")]);
+        assert_eq!(
+            base_identifiers(&tree(&[
+                ("docs/adr/NUC-base-is-fixed.md", file("b")),
+                ("docs/adr/NUC.blobs", file("l")),
+                ("docs/adr/own.md", file("a")),
+            ])),
+            ["NUC-base-is-fixed".to_owned()].into()
+        );
     }
 
     #[test]

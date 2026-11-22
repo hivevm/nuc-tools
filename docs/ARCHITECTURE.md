@@ -189,9 +189,11 @@ golden path and the test pattern an agent copies from are named here.
   `upgrade::ALL`; the plan settled against what the working tree holds at each path and each
   directory above it, read by the shell without following a link, with each entry below a directory
   at a path to write, listed the same way; the guards of a path, as git's `verify_path` refuses it
-  with `core.protectNTFS` and `core.protectHFS` on; and the release line spliced into the README's
-  bytes. `shell::upgrade` reads the trees and the blobs through git, refuses before the first write,
-  and writes the plan in `write_plan`, the one writer of the working tree.
+  with `core.protectNTFS` and `core.protectHFS` on; the release line spliced into the README's
+  bytes; each line of a file outside the base that names a `NUC-` ADR the new release lacks, read as
+  the rule `docs/adr-refs` reads a reference; and whether the take-up skips a release.
+  `shell::upgrade` reads the trees and the blobs through git, refuses before the first write, and
+  writes the plan in `write_plan`, the one writer of the working tree.
 - **Binary** — `src/main.rs` calls the shell and nothing else.
 - **Parity harness** — `scripts/check-parity.sh` runs the bash checks of each repository of the
   corpus, `check-docs.sh`, `check-traceability.sh`, and `check-devcontainer.sh`, from v0.10.0 on
@@ -380,12 +382,13 @@ release, and takes the argument as the new one. It checks that each is an annota
 under `refs/template/`, and that the new release's `nuc.toml` asks for no newer `nuc`. It lists the
 trees of both tags and of `HEAD` with `git ls-tree`, and has the core plan the take-up. Before
 anything is written, it refuses a path the guards refuse, reads what the working tree holds at each
-path of the plan and above it, has the core settle the plan against that, and reads every blob the
-plan writes. Then it deletes, removes the directories the deletions leave empty, writes each file as
-a new one with the blob's bytes and mode, and splices the release line into the README. It prints
-the judgments as findings and exits 1 where there is one, and 0 otherwise; every refusal exits 2
-with nothing written, and a write that fails after the first names what was written. It keeps no
-state.
+path of the plan and above it, has the core settle the plan against that, and reads, in one `git
+cat-file --batch`, every blob the plan writes and every file outside the base as the plan leaves it,
+whose citations of a `NUC-` ADR the new release lacks it lists. Then it deletes, removes the
+directories the deletions leave empty, writes each file as a new one with the blob's bytes and mode,
+and splices the release line into the README. It prints the judgments as findings and exits 1 where
+there is one, and 0 otherwise; every refusal exits 2 with nothing written, and a write that fails
+after the first names what was written. It keeps no state.
 
 A release starts when a human pushes a tag `vX.Y.Z` that names the version of `Cargo.toml`.
 `release.yml` builds the four targets, writes `SHA256SUMS`, attests each binary and verifies the

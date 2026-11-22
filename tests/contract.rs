@@ -2638,6 +2638,10 @@ fn upgrade_writes_the_mode_of_the_new_release() {
     template.git(&["tag", "-a", "-m", "NUC v0.10.1", "v0.10.1"]);
     let project = derived(&template);
     fetch_release(&project, &template, "v0.10.1");
+    // The release before, taken up first, so that no release is skipped.
+    let output = project.nuc(&["upgrade", "v0.10.0"]);
+    assert_eq!(code(&output), Some(0), "{}", stderr(&output));
+    project.commit("Take up v0.10.0");
     let output = project.nuc(&["upgrade", "v0.10.1"]);
     assert_eq!(code(&output), Some(0), "{}", stderr(&output));
     let mode = std::fs::metadata(project.root().join("docs/adr/NUC-kept.md"))
@@ -2663,12 +2667,15 @@ fn upgrade_lists_a_mode_the_working_tree_cannot_carry() {
     project.git(&["config", "core.fileMode", "false"]);
     let output = project.nuc(&["upgrade", "v0.10.1"]);
     assert_eq!(code(&output), Some(1), "{}", stderr(&output));
+    // The jump past v0.10.0 lists its notes; the mode stands beside the rest of the plan, written.
     let out = stdout(&output);
+    let lines: Vec<&str> = out.lines().collect();
+    assert_eq!(lines.len(), 2, "{out}");
+    assert!(lines[0].ends_with(" [upgrade/notes:skipped]"), "{out}");
     assert!(
-        out.starts_with("docs/adr/NUC-kept.md: upgrade/file: ")
-            && out.contains("git update-index --chmod=+x docs/adr/NUC-kept.md")
-            && out.ends_with(" [upgrade/file:mode]\n")
-            && out.lines().count() == 1,
+        lines[1].starts_with("docs/adr/NUC-kept.md: upgrade/file: ")
+            && lines[1].contains("git update-index --chmod=+x docs/adr/NUC-kept.md")
+            && lines[1].ends_with(" [upgrade/file:mode]"),
         "{out}"
     );
     assert_eq!(read(&project, "AGENTS.md"), "# Agents v0.10.0\n");
@@ -2808,6 +2815,125 @@ fn upgrade_judges_nuc_toml_before_anything_else() {
         stderr(&output).contains("[config/toml:old]"),
         "{}",
         stderr(&output)
+    );
+}
+
+/// The base ADR the re-cut of `recut` removes, and the one it keeps, assembled so that this
+/// repository's gate reads them as no reference of its own.
+fn recut_ids() -> (String, String) {
+    (
+        support::cat_id("NUC", "gone-away"),
+        support::cat_id("NUC", "kept-here"),
+    )
+}
+
+/// v0.9.0 to v0.11.0 of a template whose v0.10.0 removes the first ADR of `recut_ids` from its
+/// base, and a project derived from v0.9.0 that cites it, with the three tags fetched.
+fn recut() -> (Fixture, Fixture) {
+    use support::upgrade::template;
+    let (gone, kept) = recut_ids();
+    let (gone_file, kept_file) = (format!("docs/adr/{gone}.md"), format!("docs/adr/{kept}.md"));
+    let (gone_text, kept_text) = (format!("# {gone}\n"), format!("# {kept}\n"));
+    let (cites_gone, cites_kept) = (
+        format!("# As {gone} says.\n"),
+        format!("# As {kept} says.\n"),
+    );
+    let kept_later = format!("# {kept}, v0.11.0\n");
+    let readme = "# NUC\n\n- **Template release:** v0.9.0 — this release.\n";
+    let template = template(&[
+        (
+            "v0.9.0",
+            &[
+                ("README.md", Some(readme)),
+                ("nuc.toml", Some(UPGRADE_TOML)),
+                (&gone_file, Some(&gone_text)),
+                (&kept_file, Some(&kept_text)),
+                ("scripts/cites.sh", Some(&cites_gone)),
+            ],
+        ),
+        (
+            "v0.10.0",
+            &[(&gone_file, None), ("scripts/cites.sh", Some(&cites_kept))],
+        ),
+        ("v0.11.0", &[(&kept_file, Some(&kept_later))]),
+    ]);
+    let project = Fixture::project(
+        "upgrade-recut",
+        UPGRADE_TOML,
+        "# Project\n\n- **Template release:** v0.9.0\n",
+    );
+    project
+        .write(&gone_file, &gone_text)
+        .write(&kept_file, &kept_text)
+        .write("scripts/cites.sh", &cites_gone)
+        // A copy of another record, which TEST-copies-keep-old-identifiers has left as it is.
+        .write(
+            "tests/parity/copied.sh",
+            &format!("# The bash of v0.9.0 cites {gone}.\n"),
+        )
+        .write(
+            "docs/adr/own.md",
+            &format!(
+                "# Own\n\nIt narrows {gone} §2 and {kept} §1.\n\nNot `{gone}`, a code span.\n"
+            ),
+        )
+        .commit("Take up v0.9.0");
+    project.git(&["switch", "-q", "-c", "feat/take-up"]);
+    for tag in ["v0.9.0", "v0.10.0", "v0.11.0"] {
+        fetch_release(&project, &template, tag);
+    }
+    (template, project)
+}
+
+/// Verifies: API-upgrade-takes-up-by-blob
+#[test]
+fn upgrade_lists_each_citation_of_a_nuc_adr_the_new_release_lacks() {
+    let (gone, kept) = recut_ids();
+    let (_template, project) = recut();
+    let own = read(&project, "docs/adr/own.md");
+    let copied = read(&project, "tests/parity/copied.sh");
+    let output = project.nuc(&["upgrade", "v0.10.0"]);
+    assert_eq!(code(&output), Some(1), "{}", stderr(&output));
+    let out = stdout(&output);
+    let lines: Vec<&str> = out.lines().collect();
+    assert_eq!(lines.len(), 2, "{out}");
+    for (line, at) in lines
+        .iter()
+        .zip(["docs/adr/own.md:3", "tests/parity/copied.sh:1"])
+    {
+        assert!(
+            line.starts_with(&format!("{at}: upgrade/citation: names {gone}, "))
+                && line.ends_with(" [upgrade/citation:removed]"),
+            "{line}"
+        );
+    }
+    // Each citation stays, the copy's too, and the script the plan takes up cites no more.
+    assert_eq!(read(&project, "docs/adr/own.md"), own);
+    assert_eq!(read(&project, "tests/parity/copied.sh"), copied);
+    assert_eq!(
+        read(&project, "scripts/cites.sh"),
+        format!("# As {kept} says.\n")
+    );
+    assert!(!project.root().join(format!("docs/adr/{gone}.md")).exists());
+}
+
+/// Verifies: API-upgrade-takes-up-by-blob
+#[test]
+fn upgrade_lists_a_take_up_that_skips_a_release() {
+    let (_template, project) = recut();
+    let output = project.nuc(&["upgrade", "v0.11.0"]);
+    assert_eq!(code(&output), Some(1), "{}", stderr(&output));
+    let out = stdout(&output);
+    let notes: Vec<&str> = out
+        .lines()
+        .filter(|line| line.contains("upgrade/notes"))
+        .collect();
+    assert_eq!(notes.len(), 1, "{out}");
+    assert!(
+        notes[0].starts_with("README.md: upgrade/notes: the take-up from v0.9.0 to v0.11.0 skips ")
+            && notes[0].ends_with(" [upgrade/notes:skipped]"),
+        "{}",
+        notes[0]
     );
 }
 

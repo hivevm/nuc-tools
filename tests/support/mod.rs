@@ -359,6 +359,12 @@ pub fn id(key: &str) -> String {
     format!("{}-{key}", "ADR")
 }
 
+/// The identifier `<CAT>-<slug>` of a record from template release v0.9.0 on, assembled for the
+/// same reason.
+pub fn cat_id(category: &str, slug: &str) -> String {
+    format!("{category}-{slug}")
+}
+
 /// A line of a marker that cites the identifiers, assembled for the same reason.
 pub fn mark(ids: &str) -> String {
     format!("{}: {ids}\n", "Verifies")
