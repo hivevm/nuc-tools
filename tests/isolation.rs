@@ -12,8 +12,9 @@
 //! Linux, x64 and arm64. `nuc hook` is held to Q-7 and Q-11 for every shim in `tests/hooks.rs`.
 //! `nuc upgrade` is held to Q-7 against a filter and a textconv driver of the repository, and to
 //! Q-8 against a symbolic link above a path it writes and a template tree with a `.git` entry, to
-//! Q-9 against a decoy in the environment, to Q-10 against a canary token, and to Q-12 against a
-//! README.md or a nuc.toml that links out of the repository.
+//! Q-9 against a decoy in the environment, to Q-10 against a canary token, to Q-11 without the
+//! network on Linux, and to Q-12 against a README.md or a nuc.toml that links out of the
+//! repository.
 
 mod support;
 
@@ -480,4 +481,41 @@ fn upgrade_reads_no_readme_or_nuc_toml_that_links_out_of_the_repository() {
             "{path}"
         );
     }
+}
+
+/// Verifies: API-upgrade-by-blob-toml-optional, Q-11
+#[cfg(target_os = "linux")]
+#[test]
+fn upgrade_without_the_network_writes_and_lists_what_it_does_with_it() {
+    use support::upgrade::{derived, two_releases};
+    let template = two_releases();
+    let (online, blocked) = (derived(&template), derived(&template));
+    for project in [&online, &blocked] {
+        // A file both sides changed, so that the take-up lists a judgment as well as writing.
+        project
+            .write("scripts/check-docs.sh", "echo the project's\n")
+            .commit("Own check");
+    }
+    let with = online.nuc(&["upgrade", "v0.10.0"]);
+    let without = offline(&blocked, &["upgrade", "v0.10.0"]);
+    assert_eq!(with.status.code(), Some(1), "{}", stderr(&with));
+    assert_eq!(
+        without.status.code(),
+        with.status.code(),
+        "{}",
+        stderr(&without)
+    );
+    assert_eq!(stdout(&without), stdout(&with));
+    assert_eq!(stderr(&without), stderr(&with));
+    // The working trees, each file by its path below the root, the git directory left out.
+    let tree = |project: &Fixture| -> Vec<(PathBuf, Vec<u8>)> {
+        support::snapshot(project.root())
+            .into_iter()
+            .filter_map(|(path, contents)| {
+                let path = path.strip_prefix(project.root()).ok()?.to_path_buf();
+                (!path.starts_with(".git")).then_some((path, contents))
+            })
+            .collect()
+    };
+    assert_eq!(tree(&blocked), tree(&online));
 }
