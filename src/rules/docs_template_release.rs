@@ -180,17 +180,36 @@ fn names_release(value: &str) -> bool {
 /// The release the README carries, as the first Template release line names it: a tag, or
 /// `Unreleased`; none when no line names one, as this rule reports.
 pub fn carried(readme: &str) -> Option<Carried> {
-    let line = readme.split('\n').find(|line| is_release_line(line))?;
+    release_at(readme.as_bytes()).map(|(carried, _)| carried)
+}
+
+/// The release the first Template release line of the README's bytes names, as `carried` reads
+/// it, with the byte range of its tag or `unreleased` in the README; none when that line names
+/// none or is no UTF-8. The first line is the first that reads as one with each byte that is no
+/// UTF-8 replaced, so that a later line never stands in for it.
+pub fn release_at(readme: &[u8]) -> Option<(Carried, std::ops::Range<usize>)> {
+    let mut start = 0;
+    let mut lines = readme.split(|&b| b == b'\n');
+    let line = loop {
+        let line = lines.next()?;
+        if is_release_line(&String::from_utf8_lossy(line)) {
+            break std::str::from_utf8(line).ok()?;
+        }
+        start += line.len() + 1;
+    };
     let value = after_label(line);
     if !names_release(value) {
         return None;
     }
     let value = value.strip_prefix(['[', '`']).unwrap_or(value);
+    let at = start + (line.len() - value.len());
     if value.starts_with("unreleased") {
-        return Some(Carried::Unreleased);
+        return Some((Carried::Unreleased, at..at + "unreleased".len()));
     }
     let rest = tag(value)?;
-    Version::parse(&value[1..value.len() - rest.len()]).map(Carried::Release)
+    let end = value.len() - rest.len();
+    let version = Version::parse(&value[1..end])?;
+    Some((Carried::Release(version), at..at + end))
 }
 
 /// The text after a `vX.Y.Z` tag at the start of the value, each number without a leading zero.
@@ -350,6 +369,28 @@ mod tests {
         assert_eq!(carried("# Project\n"), None);
         let two = readme("- **Template release:** v0.5.0\n- **Template release:** v0.6.0");
         assert_eq!(carried(&two), v(0, 5, 0));
+    }
+
+    #[test]
+    fn the_release_is_read_with_the_bytes_of_its_tag_from_the_first_line_only() {
+        let v = |a, b, c| Carried::Release(Version(a, b, c));
+        let text =
+            b"# P\n\ncaf\xe9 v0.1.0\n- **Template release:** [v0.12.0](x) \xe2\x80\x94 v0.12.0\n";
+        let (carried, at) = release_at(text).unwrap();
+        assert_eq!(carried, v(0, 12, 0));
+        assert_eq!(&text[at], b"v0.12.0");
+        let unreleased = b"**Template release:** unreleased.\n";
+        let (carried, at) = release_at(unreleased).unwrap();
+        assert_eq!(carried, Carried::Unreleased);
+        assert_eq!(&unreleased[at], b"unreleased");
+        // A first line that names none, or is no UTF-8, is the line: a later one never stands in.
+        for first in [
+            &b"- **Template release:** soon"[..],
+            b"- **Template release:** v0.5.0 \xe9",
+        ] {
+            let text = [first, b"\n**Template release:** v0.6.0\n"].concat();
+            assert_eq!(release_at(&text), None);
+        }
     }
 
     #[test]

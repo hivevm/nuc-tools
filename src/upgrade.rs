@@ -707,38 +707,20 @@ pub fn case_collision<'a>(writes: &[&'a str], kept: &[&'a str]) -> Option<(&'a s
 
 /// The README with the old tag in its first Template release line replaced by the new one, and
 /// no other byte changed; the README as it is where that line names the new tag already, and none
-/// where it names neither or is no UTF-8.
+/// where it names neither or is no UTF-8. The line and the tag's place on it are the ones
+/// `docs_template_release::release_at` reads, the reading `releases` takes the old release from.
 pub fn move_release_line(readme: &[u8], old: Version, new: Version) -> Option<Vec<u8>> {
-    const LABEL: &str = "**Template release:**";
-    let (old, new) = (tag(old), tag(new));
-    let mut start = 0;
-    for line in readme.split_inclusive(|&b| b == b'\n') {
-        // The first release line, as `releases` read it from the README read lossily; none where
-        // that line is no UTF-8, so that no later line is written in its place.
-        let lossy = String::from_utf8_lossy(line);
-        if lossy.contains(LABEL) && docs_template_release::carried(&lossy).is_some() {
-            let text = std::str::from_utf8(line).ok()?;
-            let after = text.find(LABEL)? + LABEL.len();
-            let rest = &text[after..];
-            let names = |tag: &str| {
-                rest.find(tag).filter(|&at| {
-                    rest[..at]
-                        .chars()
-                        .all(|c| c.is_whitespace() || c == '[' || c == '`')
-                })
-            };
-            if names(&new).is_some() {
-                return Some(readme.to_vec());
-            }
-            let at = start + after + names(&old)?;
-            let mut moved = readme[..at].to_vec();
-            moved.extend_from_slice(new.as_bytes());
-            moved.extend_from_slice(&readme[at + old.len()..]);
-            return Some(moved);
-        }
-        start += line.len();
+    let (carried, at) = docs_template_release::release_at(readme)?;
+    if carried == Carried::Release(new) {
+        return Some(readme.to_vec());
     }
-    None
+    if carried != Carried::Release(old) {
+        return None;
+    }
+    let mut moved = readme[..at.start].to_vec();
+    moved.extend_from_slice(tag(new).as_bytes());
+    moved.extend_from_slice(&readme[at.end..]);
+    Some(moved)
 }
 
 #[cfg(test)]
@@ -1320,6 +1302,11 @@ mod tests {
             move_release_line(b"- **Template release:** v0.12.0 \xe9\n", old, new),
             None
         );
+        // A first release line that names no release is not written, nor a later one in its place,
+        // and `releases` reads no release from it either.
+        let later = "- **Template release:** soon\n\n**Template release:** v0.12.0\n";
+        assert_eq!(move_release_line(later.as_bytes(), old, new), None);
+        assert_eq!(releases(later, "v0.12.1").unwrap_err().reason, "release");
     }
 
     #[test]
