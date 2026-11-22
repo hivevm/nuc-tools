@@ -2753,7 +2753,45 @@ fn upgrade_refusals() -> Vec<(&'static str, &'static [&'static str], Setup)> {
         ("version", &["v0.11.0"], |p, t| {
             fetch_release(p, t, "v0.11.0")
         }),
+        ("version", &["v0.13.0"], |p, t| {
+            fetch_release(p, t, "v0.13.0")
+        }),
     ]
+}
+
+/// Verifies: API-upgrade-by-blob-toml-optional, G-4
+#[test]
+fn upgrade_takes_up_a_release_from_a_project_and_a_template_without_a_nuc_toml() {
+    use support::upgrade::template;
+    let readme = "# NUC\n\n- **Template release:** v0.10.0 — this release.\n";
+    let template = template(&[
+        (
+            "v0.10.0",
+            &[
+                ("README.md", Some(readme)),
+                ("AGENTS.md", Some("# Agents v0.10.0\n")),
+            ],
+        ),
+        ("v0.11.0", &[("AGENTS.md", Some("# Agents v0.11.0\n"))]),
+    ]);
+    let project = Fixture::new("upgrade-no-toml");
+    project
+        .write(
+            "README.md",
+            "# Project\n\n- **Template release:** v0.10.0\n",
+        )
+        .write("AGENTS.md", "# Agents v0.10.0\n")
+        .commit("Take up v0.10.0");
+    project.git(&["switch", "-q", "-c", "feat/take-up"]);
+    fetch_release(&project, &template, "v0.10.0");
+    fetch_release(&project, &template, "v0.11.0");
+    let output = project.nuc(&["upgrade", "v0.11.0"]);
+    assert_eq!(code(&output), Some(0), "{}", stderr(&output));
+    assert_eq!(read(&project, "AGENTS.md"), "# Agents v0.11.0\n");
+    assert_eq!(
+        read(&project, "README.md"),
+        "# Project\n\n- **Template release:** v0.11.0\n"
+    );
 }
 
 /// Verifies: API-upgrade-takes-up-by-blob, G-5
@@ -2766,6 +2804,11 @@ fn every_refusal_of_upgrade_writes_nothing_and_ends_in_its_key() {
         .commit("v0.11.0");
     template.git(&["tag", "-a", "-m", "NUC v0.11.0", "v0.11.0"]);
     template.git(&["tag", "v0.12.0"]);
+    // v0.13.0 ships a nuc.toml this nuc cannot read.
+    template
+        .write("nuc.toml", "unknown = 1\n")
+        .commit("v0.13.0");
+    template.git(&["tag", "-a", "-m", "NUC v0.13.0", "v0.13.0"]);
     for (reason, args, setup) in upgrade_refusals() {
         let project = derived(&template);
         setup(&project, &template);

@@ -1,8 +1,9 @@
-//! `nuc upgrade <tag>`: the shell of the take-up (API-upgrade-takes-up-by-blob). It reads
-//! `nuc.toml` as every command does, the release the README names, the two template tags under
-//! `refs/template/`, and the trees of both and of `HEAD`; the core decides the plan; the shell
-//! refuses before the first write what the plan or the working tree does not allow, reads every
-//! blob the plan writes, then writes the plan, moves the release line, and prints the judgments.
+//! `nuc upgrade <tag>`: the shell of the take-up (API-upgrade-by-blob-toml-optional). It reads
+//! `nuc.toml` as `nuc check` does where the project has one, the release the README names, the two
+//! template tags under `refs/template/`, and the trees of both and of `HEAD`; the core decides the
+//! plan; the shell refuses before the first write what the plan or the working tree does not
+//! allow, reads every blob the plan writes, then writes the plan, moves the release line, and
+//! prints the judgments.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::env;
@@ -18,7 +19,7 @@ use super::tree::Tree as Repo;
 use super::{FOUND, PASSED, git};
 
 /// `nuc upgrade <tag>`: the take-up of the release `<tag>` into the working tree of the repository
-/// `nuc` runs in. `nuc.toml` is judged first, as for every command (G-5).
+/// `nuc` runs in. `nuc.toml` is judged first, where the project has one (G-5).
 pub(super) fn run(args: &[&str]) -> Result<u8, String> {
     let [argument] = args else {
         return Err(refusal("usage", "usage: nuc upgrade <tag>"));
@@ -27,11 +28,14 @@ pub(super) fn run(args: &[&str]) -> Result<u8, String> {
         env::current_dir().map_err(|e| format!("the current directory is unreadable: {e}"))?;
     let root = git::toplevel(&start)?;
     let repo = Repo::new(root)?;
-    let text = repo
+    // A project on a release before v0.12.0 has no nuc.toml, and no minimum to judge
+    // (API-upgrade-by-blob-toml-optional).
+    if let Some(text) = repo
         .read(&repo.root.join("nuc.toml"))
         .map_err(config::unreadable)?
-        .ok_or_else(|| config::Refusal::Missing.to_string())?;
-    config::read(&text, super::running()).map_err(|refusal| refusal.to_string())?;
+    {
+        config::read(&text, super::running()).map_err(|refusal| refusal.to_string())?;
+    }
     let root = repo.root.clone();
     let branch = git::probe(&root, &["symbolic-ref", "-q", "--short", "HEAD"])?;
     if branch.as_deref().map(str::trim) == Some("main") {
@@ -196,11 +200,12 @@ fn template_ref(root: &Path, release: config::Version) -> Result<String, String>
 }
 
 /// Refused where the new release's `nuc.toml` asks for a `nuc` newer than this one, or cannot be
-/// read by it (G-5).
+/// read by it (G-5); a release without one, as before v0.12.0, asks for no minimum.
 fn refuse_newer_nuc(root: &Path, new_ref: &str, new: config::Version) -> Result<(), String> {
     let tag = upgrade::tag(new);
-    let text = git::blob_at(root, new_ref, "nuc.toml")?
-        .ok_or_else(|| refusal("version", format!("{tag} carries no nuc.toml")))?;
+    let Some(text) = git::blob_at(root, new_ref, "nuc.toml")? else {
+        return Ok(());
+    };
     let text = String::from_utf8(text)
         .map_err(|_| refusal("version", format!("{tag}: its nuc.toml is no UTF-8")))?;
     config::read(&text, super::running()).map_err(|why| {
