@@ -723,6 +723,74 @@ pub fn move_release_line(readme: &[u8], old: Version, new: Version) -> Option<Ve
     Some(moved)
 }
 
+/// The README a take-up writes in place of the one the plan leaves, its release line moved: in the
+/// new release's bytes where the plan writes `README.md`, in the project's otherwise; none where
+/// the line names the new release already. Refused with `release` where the plan deletes
+/// `README.md`, and where its first release line, read as UTF-8, names neither release. `blobs`
+/// holds the object of every path the plan writes, as the shell reads them before.
+pub fn readme(
+    plan: &Plan,
+    project: Vec<u8>,
+    blobs: &BTreeMap<String, Vec<u8>>,
+    (old, new): (Version, Version),
+) -> Result<Option<Vec<u8>>, Refusal> {
+    let readme = match plan.changes.get("README.md") {
+        None => project,
+        Some(Change::Write(entry)) => blobs[&entry.object].clone(),
+        Some(Change::Delete) => {
+            return Err(Refusal::new(
+                "release",
+                format!(
+                    "README.md: {} removes it, and with it the release line",
+                    tag(new)
+                ),
+            ));
+        }
+    };
+    let moved = move_release_line(&readme, old, new).ok_or_else(|| {
+        Refusal::new(
+            "release",
+            format!(
+                "README.md: the Template release line, read as UTF-8, names neither {} nor {}",
+                tag(old),
+                tag(new)
+            ),
+        )
+    })?;
+    Ok((readme != moved).then_some(moved))
+}
+
+/// What the summary of a take-up counts.
+#[derive(Debug, PartialEq, Eq)]
+pub struct Summary {
+    /// The paths written, the README among them where only its release line moved.
+    pub written: usize,
+    pub deleted: usize,
+    /// The paths listed, several findings at one path counted once.
+    pub listed: usize,
+}
+
+/// The summary of the plan once written, with `readme` the README `readme` returned.
+pub fn summary(plan: &Plan, readme: Option<&[u8]>) -> Summary {
+    let (written, deleted) = plan
+        .changes
+        .values()
+        .fold((0, 0), |(w, d), change| match change {
+            Change::Write(_) => (w + 1, d),
+            Change::Delete => (w, d + 1),
+        });
+    Summary {
+        written: written + usize::from(readme.is_some() && !plan.changes.contains_key("README.md")),
+        deleted,
+        listed: plan
+            .judgments
+            .iter()
+            .map(|judgment| judgment.file.as_str())
+            .collect::<BTreeSet<_>>()
+            .len(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1265,6 +1333,82 @@ mod tests {
         assert_eq!(case_collision(&["docs/a.md"], &["docs/b.md"]), None);
         // The project's own pair, which the plan does not write, collides with nothing.
         assert_eq!(case_collision(&["x.md"], &["Readme.md", "README.md"]), None);
+    }
+
+    #[test]
+    fn the_readme_s_line_moves_in_the_bytes_the_plan_leaves() {
+        let releases = (Version(0, 12, 0), Version(0, 12, 1));
+        let project = b"# P\n\n- **Template release:** v0.12.0\n".to_vec();
+        let blobs: BTreeMap<String, Vec<u8>> = [(
+            "b1".to_owned(),
+            b"# NUC\n\n- **Template release:** v0.12.0 \xe2\x80\x94 this release.\n".to_vec(),
+        )]
+        .into();
+        let mut plan = Plan {
+            changes: BTreeMap::new(),
+            judgments: Vec::new(),
+        };
+        // The plan leaves README.md: the project's line moves.
+        assert_eq!(
+            readme(&plan, project.clone(), &blobs, releases).unwrap(),
+            Some(b"# P\n\n- **Template release:** v0.12.1\n".to_vec())
+        );
+        // It names the new release already: nothing to write over the plan's README.
+        let there = b"- **Template release:** v0.12.1\n".to_vec();
+        assert_eq!(readme(&plan, there, &blobs, releases).unwrap(), None);
+        // The plan writes README.md: the line moves in the new release's bytes.
+        plan.changes
+            .insert("README.md".to_owned(), Change::Write(file("b1")));
+        assert_eq!(
+            readme(&plan, project.clone(), &blobs, releases).unwrap(),
+            Some(b"# NUC\n\n- **Template release:** v0.12.1 \xe2\x80\x94 this release.\n".to_vec())
+        );
+        // The plan deletes README.md, and with it the line.
+        plan.changes.insert("README.md".to_owned(), Change::Delete);
+        assert_eq!(
+            readme(&plan, project, &blobs, releases).unwrap_err().reason,
+            "release"
+        );
+        // The line names neither release.
+        plan.changes.clear();
+        let other = b"- **Template release:** v0.11.0\n".to_vec();
+        assert_eq!(
+            readme(&plan, other, &blobs, releases).unwrap_err().reason,
+            "release"
+        );
+    }
+
+    #[test]
+    fn the_summary_counts_each_path_once() {
+        let mut plan = Plan {
+            changes: [
+                ("a.sh".to_owned(), Change::Write(file("a1"))),
+                ("b.sh".to_owned(), Change::Delete),
+            ]
+            .into(),
+            judgments: vec![
+                judgment("c.sh", "both", String::new()),
+                Finding {
+                    line: Some(3),
+                    ..judgment("c.sh", "both", String::new())
+                },
+                judgment("d.sh", "kept", String::new()),
+            ],
+        };
+        let line = b"moved".as_slice();
+        // Two findings at c.sh count once; a README whose line alone moved counts as written.
+        let want = |written| Summary {
+            written,
+            deleted: 1,
+            listed: 2,
+        };
+        assert_eq!(summary(&plan, None), want(1));
+        assert_eq!(summary(&plan, Some(line)), want(2));
+        // A README the plan writes counts once, its line moved or not.
+        plan.changes
+            .insert("README.md".to_owned(), Change::Write(file("r1")));
+        assert_eq!(summary(&plan, Some(line)), want(2));
+        assert_eq!(summary(&plan, None), want(2));
     }
 
     #[test]

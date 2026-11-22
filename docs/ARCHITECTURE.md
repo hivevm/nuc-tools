@@ -191,11 +191,13 @@ golden path and the test pattern an agent copies from are named here.
   judgments, the findings of `upgrade::ALL`; the plan settled against what the working tree holds at
   each path and each directory above it, read by the shell without following a link, with each entry
   below a directory at a path to write, listed the same way; the guards of a path, as git's
-  `verify_path` refuses it with `core.protectNTFS` and `core.protectHFS` on; the release line
-  spliced into the README's bytes; each line of a file outside the base that names a `NUC-` ADR the
-  new release lacks, read as the rule `docs/adr-refs` reads a reference; and whether the take-up
-  skips a release. `shell::upgrade` reads the trees and the blobs through git, refuses before the
-  first write, and writes the plan in `write_plan`, the one writer of the working tree.
+  `verify_path` refuses it with `core.protectNTFS` and `core.protectHFS` on; the README the release
+  line is spliced into, the project's or the new release's where the plan writes it, or a refusal
+  where the plan deletes it; the paths the summary counts, each once; each line of a file outside
+  the base that names a `NUC-` ADR the new release lacks, read as the rule `docs/adr-refs` reads a
+  reference; and whether the take-up skips a release. `shell::upgrade` reads the trees and the blobs
+  through git, refuses before the first write, and writes the plan in `write_plan`, the one writer
+  of the working tree.
 - **Binary** — `src/main.rs` calls the shell and nothing else.
 - **Parity harness** — `scripts/check-parity.sh` runs the bash checks of each repository of the
   corpus, `check-docs.sh`, `check-traceability.sh`, and `check-devcontainer.sh`, from v0.10.0 on
