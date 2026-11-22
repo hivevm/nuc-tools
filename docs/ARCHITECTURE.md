@@ -185,19 +185,21 @@ golden path and the test pattern an agent copies from are named here.
   git or the network are none of them
   ([API-sensor-cores-ask-the-shell](adr/API-sensor-cores-ask-the-shell.md)).
 - **Upgrade** — `src/upgrade.rs` decides the take-up of a template release
-  ([API-upgrade-by-blob-toml-optional](adr/API-upgrade-by-blob-toml-optional.md)):
-  from the README the old and the new release, or a refusal keyed `upgrade/run:<reason>`; from the
-  trees of both and of `HEAD`, each path with its kind and object, a plan of writes, deletions, and
-  judgments, the findings of `upgrade::ALL`; the plan settled against what the working tree holds at
-  each path and each directory above it, read by the shell without following a link, with each entry
-  below a directory at a path to write, listed the same way; the guards of a path, as git's
-  `verify_path` refuses it with `core.protectNTFS` and `core.protectHFS` on; the README the release
-  line is spliced into, the project's or the new release's where the plan writes it, or a refusal
-  where the plan deletes it; the paths the summary counts, each once; each line of a file outside
-  the base that names a `NUC-` ADR the new release lacks, read as the rule `docs/adr-refs` reads a
-  reference; and whether the take-up skips a release. `shell::upgrade` reads the trees and the blobs
-  through git, refuses before the first write, and writes the plan in `write_plan`, the one writer
-  of the working tree.
+  ([API-upgrade-by-blob-toml-optional](adr/API-upgrade-by-blob-toml-optional.md)): from the README
+  the old and the new release, or a refusal keyed `upgrade/run:<reason>`; from the trees of both and
+  of `HEAD`, each path with its kind and object, a plan of writes, deletions, and judgments, the
+  findings of `upgrade::ALL`; the plan settled against what the working tree holds at each path and
+  each directory above it, read by the shell without following a link, with each entry below a
+  directory at a path to write, listed the same way; the guards of a path, as git's `verify_path`
+  refuses it with `core.protectNTFS` and `core.protectHFS` on; the README the release line is
+  spliced into, the project's or the new release's where the plan writes it, or a refusal where the
+  plan deletes it; the paths the summary counts, each once; each line of a file outside the base
+  that names a `NUC-` ADR the new release lacks, read as the rule `docs/adr-refs` reads a reference;
+  and whether the take-up skips a release. `shell::upgrade` reads the trees and the blobs through
+  git, refuses before the first write, and writes the plan in `write_plan`, the one writer of the
+  working tree, naming what it wrote where a write fails after the first. The rules and the plan of
+  `src/upgrade.rs` are the third kind of decision beside the rules and the hooks
+  ([ARCH-rules-hooks-and-command-plans](adr/ARCH-rules-hooks-and-command-plans.md)).
 - **Binary** — `src/main.rs` calls the shell and nothing else.
 - **Parity harness** — `scripts/check-parity.sh` runs the bash checks of each repository of the
   corpus, `check-docs.sh`, `check-traceability.sh`, and `check-devcontainer.sh`, from v0.10.0 on
