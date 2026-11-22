@@ -84,8 +84,9 @@
 #
 # Last, the last shard replays the take-ups of tests/parity/take-ups.tsv through
 # scripts/lib/take-up-parity.sh (API-upgrade-by-blob-toml-optional): 'nuc upgrade' on the commit
-# before each take-up, compared with the take-up a human committed. Its tables are read before any
-# comparison runs. --take-ups runs the replay alone.
+# before each take-up, compared with the take-up a human committed. Every shard reads its tables
+# before any comparison runs, so that a malformed table fails each. --take-ups runs the replay
+# alone.
 #
 # The tree of the corpus runs its own bash scripts: the corpus is pinned by commit, and a pull
 # request that moves a pin is reviewed like code. nuc is built from the working tree by
@@ -382,10 +383,9 @@ shard_k="${BASH_REMATCH[1]}" shard_n="${BASH_REMATCH[2]}"
 whole=$((shard_k == shard_n))
 load_table
 load_sensor_tables || exit 2
-# The tables of the take-ups, read before any comparison, where the replay runs.
-if ((whole || take_ups_only)); then
-  take_up_load || exit 2
-fi
+# The tables of the take-ups, read before any comparison by every shard, so that a malformed table
+# fails each, though only the last replays them.
+take_up_load || exit 2
 
 # The corpus, one 'name url commit' line per repository, and the cost of one comparison of each
 # tree, its key 'cost' or '-' where it has none.
