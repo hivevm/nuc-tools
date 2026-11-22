@@ -183,7 +183,8 @@ golden path and the test pattern an agent copies from are named here.
   git or the network are none of them
   ([API-sensor-cores-ask-the-shell](adr/API-sensor-cores-ask-the-shell.md)).
 - **Upgrade** — `src/upgrade.rs` decides the take-up of a template release
-  ([API-upgrade-takes-up-by-blob](adr/API-upgrade-takes-up-by-blob.md)): from the README the old and
+  ([API-upgrade-by-blob-toml-optional](adr/API-upgrade-by-blob-toml-optional.md)):
+  from the README the old and
   the new release, or a refusal keyed `upgrade/run:<reason>`; from the trees of both and of `HEAD`,
   each path with its kind and object, a plan of writes, deletions, and judgments, the findings of
   `upgrade::ALL`; the plan settled against what the working tree holds at each path and each

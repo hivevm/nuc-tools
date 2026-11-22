@@ -1,6 +1,6 @@
 # API-upgrade-by-blob-toml-optional: `nuc upgrade <tag>` replaces the base, takes up each other file the project left as its release had it, moves the release line, writes only the working tree, lists every other change as a finding, and judges a `nuc.toml` only where there is one
 
-- **Status:** 🟡 proposed
+- **Status:** 🟢 accepted
 - **Date:** 2026-11-22
 - **Deciders:** Markus Brigl
 - **Applies to:** the `nuc upgrade` command, its source in the shell and in the core, the template tags it reads, the files it writes and deletes, its `upgrade/` rules and keys, and its refusals

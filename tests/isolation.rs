@@ -204,7 +204,7 @@ fn the_network_blocked_changes_nothing() {
     assert!(!canary.exists(), "nuc check ran content of the tree");
 }
 
-/// Verifies: API-upgrade-takes-up-by-blob, Q-7
+/// Verifies: API-upgrade-by-blob-toml-optional, Q-7
 #[test]
 fn upgrade_runs_no_filter_or_textconv_driver_of_the_repository() {
     use support::upgrade::{derived, two_releases};
@@ -247,7 +247,7 @@ fn upgrade_runs_no_filter_or_textconv_driver_of_the_repository() {
     );
 }
 
-/// Verifies: API-upgrade-takes-up-by-blob, Q-8
+/// Verifies: API-upgrade-by-blob-toml-optional, Q-8
 #[cfg(unix)]
 #[test]
 fn upgrade_refuses_a_symbolic_link_above_a_path_it_writes() {
@@ -274,7 +274,7 @@ fn upgrade_refuses_a_symbolic_link_above_a_path_it_writes() {
     assert!(!project.root().join("AGENTS.md").exists());
 }
 
-/// Verifies: API-upgrade-takes-up-by-blob, Q-8
+/// Verifies: API-upgrade-by-blob-toml-optional, Q-8
 #[test]
 fn upgrade_refuses_a_template_tree_entry_that_names_dot_git_or_leaves_the_tree() {
     use support::upgrade::{derived, fetch_release, two_releases};
@@ -321,7 +321,7 @@ fn upgrade_refuses_a_template_tree_entry_that_names_dot_git_or_leaves_the_tree()
     }
 }
 
-/// Verifies: API-upgrade-takes-up-by-blob, Q-8
+/// Verifies: API-upgrade-by-blob-toml-optional, Q-8
 #[cfg(unix)]
 #[test]
 fn upgrade_writes_no_byte_through_a_hard_link_to_a_file_outside() {

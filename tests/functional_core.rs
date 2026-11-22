@@ -531,7 +531,7 @@ fn a_rule_module_without_exactly_one_well_formed_id_is_found() {
     }
 }
 
-/// Verifies: API-upgrade-takes-up-by-blob
+/// Verifies: API-upgrade-by-blob-toml-optional
 #[test]
 fn the_core_names_no_effect() {
     let src = root().join("src");
@@ -900,7 +900,7 @@ fn the_shell_reads_only_through_the_guard() {
     );
 }
 
-/// Verifies: Q-8, API-upgrade-takes-up-by-blob
+/// Verifies: Q-8, API-upgrade-by-blob-toml-optional
 #[test]
 fn the_shell_writes_only_where_its_list_says() {
     let found = shell_calls_outside(

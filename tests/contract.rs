@@ -370,7 +370,7 @@ fn shim_keys() -> Vec<(String, String)> {
 
 /// Verifies: API-command-line-with-sense, API-hook-contract-keyed-shims, G-6
 /// Verifies: API-config-refusals-keyed, API-sensor-cores-ask-the-shell
-/// Verifies: API-upgrade-takes-up-by-blob
+/// Verifies: API-upgrade-by-blob-toml-optional
 #[test]
 fn every_key_stays_once_listed_and_each_reason_is_one_lower_case_word() {
     let listed: Vec<&str> = RULE_KEYS
@@ -2459,7 +2459,7 @@ fn read(fixture: &Fixture, path: &str) -> String {
     std::fs::read_to_string(fixture.root().join(path)).unwrap_or_else(|e| panic!("{path}: {e}"))
 }
 
-/// Verifies: API-upgrade-takes-up-by-blob, G-4
+/// Verifies: API-upgrade-by-blob-toml-optional, G-4
 #[test]
 fn upgrade_replaces_the_base_and_moves_the_release_line() {
     let template = two_releases();
@@ -2508,7 +2508,7 @@ fn upgrade_replaces_the_base_and_moves_the_release_line() {
     );
 }
 
-/// Verifies: API-upgrade-takes-up-by-blob, G-4
+/// Verifies: API-upgrade-by-blob-toml-optional, G-4
 #[test]
 fn upgrade_takes_up_every_path_the_project_left_and_lists_the_rest() {
     use support::upgrade::{three_way_project, three_way_releases};
@@ -2564,7 +2564,7 @@ fn upgrade_takes_up_every_path_the_project_left_and_lists_the_rest() {
     );
 }
 
-/// Verifies: API-upgrade-takes-up-by-blob
+/// Verifies: API-upgrade-by-blob-toml-optional
 #[test]
 fn upgrade_lists_a_directory_the_plan_s_deletions_leave_standing() {
     use support::upgrade::{three_way_project, three_way_releases};
@@ -2597,7 +2597,7 @@ fn upgrade_lists_a_directory_the_plan_s_deletions_leave_standing() {
     }
 }
 
-/// Verifies: API-upgrade-takes-up-by-blob
+/// Verifies: API-upgrade-by-blob-toml-optional
 #[test]
 fn upgrade_takes_up_a_readme_the_project_left_and_keeps_its_release_line() {
     use support::upgrade::{three_way_project, three_way_releases};
@@ -2627,7 +2627,7 @@ fn upgrade_takes_up_a_readme_the_project_left_and_keeps_its_release_line() {
     );
 }
 
-/// Verifies: API-upgrade-takes-up-by-blob
+/// Verifies: API-upgrade-by-blob-toml-optional
 #[cfg(unix)]
 #[test]
 fn upgrade_writes_the_mode_of_the_new_release() {
@@ -2655,7 +2655,7 @@ fn upgrade_writes_the_mode_of_the_new_release() {
     );
 }
 
-/// Verifies: API-upgrade-takes-up-by-blob
+/// Verifies: API-upgrade-by-blob-toml-optional
 #[test]
 fn upgrade_lists_a_mode_the_working_tree_cannot_carry() {
     let template = two_releases();
@@ -2794,7 +2794,7 @@ fn upgrade_takes_up_a_release_from_a_project_and_a_template_without_a_nuc_toml()
     );
 }
 
-/// Verifies: API-upgrade-takes-up-by-blob, G-5
+/// Verifies: API-upgrade-by-blob-toml-optional, G-5
 #[test]
 fn every_refusal_of_upgrade_writes_nothing_and_ends_in_its_key() {
     let template = two_releases();
@@ -2843,7 +2843,7 @@ fn every_refusal_of_upgrade_writes_nothing_and_ends_in_its_key() {
     }
 }
 
-/// Verifies: API-upgrade-takes-up-by-blob, G-5
+/// Verifies: API-upgrade-by-blob-toml-optional, G-5
 #[test]
 fn upgrade_judges_nuc_toml_before_anything_else() {
     let template = two_releases();
@@ -2928,7 +2928,7 @@ fn recut() -> (Fixture, Fixture) {
     (template, project)
 }
 
-/// Verifies: API-upgrade-takes-up-by-blob
+/// Verifies: API-upgrade-by-blob-toml-optional
 #[test]
 fn upgrade_lists_each_citation_of_a_nuc_adr_the_new_release_lacks() {
     let (gone, kept) = recut_ids();
@@ -2960,7 +2960,7 @@ fn upgrade_lists_each_citation_of_a_nuc_adr_the_new_release_lacks() {
     assert!(!project.root().join(format!("docs/adr/{gone}.md")).exists());
 }
 
-/// Verifies: API-upgrade-takes-up-by-blob
+/// Verifies: API-upgrade-by-blob-toml-optional
 #[test]
 fn upgrade_lists_a_take_up_that_skips_a_release() {
     let (_template, project) = recut();
@@ -2980,7 +2980,7 @@ fn upgrade_lists_a_take_up_that_skips_a_release() {
     );
 }
 
-/// Verifies: API-upgrade-takes-up-by-blob, G-6
+/// Verifies: API-upgrade-by-blob-toml-optional, G-6
 #[test]
 fn every_rule_of_upgrade_is_explained_and_turned_on_by_no_nuc_toml() {
     let fixture = Fixture::project("upgrade-explain", UPGRADE_TOML, README);

@@ -19,5 +19,5 @@ hook.rs merge_sides fs::write
 # Writes the plan of nuc upgrade into the working tree, below the root at the paths the core
 # allows, each directory above which was read as no symbolic link: deletes files and the
 # directories they leave empty, makes the missing directories, writes the files and the README,
-# and sets each file's mode (API-upgrade-takes-up-by-blob).
+# and sets each file's mode (API-upgrade-by-blob-toml-optional).
 upgrade.rs write_plan fs::remove_file fs::remove_dir fs::create_dir_all fs::write fs::set_permissions

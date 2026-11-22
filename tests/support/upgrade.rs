@@ -1,6 +1,6 @@
 //! The fixtures of `nuc upgrade`: a template repository with an annotated tag per release, and a
 //! project derived from its first release with the tags fetched into `refs/template/`, as the
-//! normalize skill fetches them (API-upgrade-takes-up-by-blob).
+//! normalize skill fetches them (API-upgrade-by-blob-toml-optional).
 
 use super::{Fixture, stderr};
 

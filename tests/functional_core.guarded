@@ -25,5 +25,5 @@ measure.rs entries read_dir
 measure.rs read fs::read
 # Lists the entries below a directory of the working tree at a path nuc upgrade writes, that
 # directory and each above it read as a directory and no link, without following a link below
-# (API-upgrade-takes-up-by-blob).
+# (API-upgrade-by-blob-toml-optional).
 upgrade.rs list_below read_dir

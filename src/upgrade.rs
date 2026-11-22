@@ -1,7 +1,7 @@
 //! `nuc upgrade <tag>`: the take-up of a template release, decided from three trees, the old
 //! release's, the new release's, and the project's `HEAD`, as a plan the shell writes into the
-//! working tree once no refusal stands (API-upgrade-takes-up-by-blob). Every function here is pure;
-//! the shell reads the trees and the README, and carries out the plan.
+//! working tree once no refusal stands (API-upgrade-by-blob-toml-optional). Every function here is
+//! pure; the shell reads the trees and the README, and carries out the plan.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
@@ -47,7 +47,7 @@ pub const FILE: Rule = Rule {
     explain: "nuc upgrade takes up a path of a template release only where the project left it as \
               its release had it, and writes regular files only; it lists each other path for the \
               maintainer to take up by hand, and leaves its bytes as they are \
-              (API-upgrade-takes-up-by-blob).",
+              (API-upgrade-by-blob-toml-optional).",
 };
 
 /// A citation of a `NUC-` ADR the new release lacks.
@@ -59,7 +59,7 @@ pub const CITATION: Rule = Rule {
     reasons: &[REMOVED],
     explain: "a line of the project names a NUC- ADR the new release no longer has; nuc upgrade \
               moves no citation, and the maintainer moves it by the map in the release's notes \
-              (API-upgrade-takes-up-by-blob).",
+              (API-upgrade-by-blob-toml-optional).",
 };
 
 /// A take-up past a release whose notes were not read.
@@ -70,7 +70,7 @@ pub const NOTES: Rule = Rule {
     id: "upgrade/notes",
     reasons: &[SKIPPED],
     explain: "the take-up skips releases between the two, whose notes may ask for more than files; \
-              the maintainer reads each (API-upgrade-takes-up-by-blob).",
+              the maintainer reads each (API-upgrade-by-blob-toml-optional).",
 };
 
 /// Every rule of `nuc upgrade`.
