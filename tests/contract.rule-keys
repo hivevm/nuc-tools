@@ -3,7 +3,8 @@
 # every key a refusal of nuc.toml ends in (API-config-refusals-keyed). A key stays once listed: a
 # reader or a test branches on it in place of a message's wording, so no reason is renamed,
 # dropped, or given to another cause. Also every key `nuc sense` ends a refusal in
-# (API-sensor-cores-ask-the-shell).
+# (API-sensor-cores-ask-the-shell), and every key of `nuc upgrade`, its judgments and its refusals
+# (API-upgrade-takes-up-by-blob).
 
 config/toml:missing
 config/toml:old
@@ -230,3 +231,16 @@ traceability/criteria:unnamed
 traceability/sensor-tests:absent
 traceability/sensor-tests:adr
 traceability/sensor-tests:uncited
+upgrade/file:added
+upgrade/file:link
+upgrade/file:mode
+upgrade/run:changed
+upgrade/run:main
+upgrade/run:old
+upgrade/run:order
+upgrade/run:path
+upgrade/run:ref
+upgrade/run:release
+upgrade/run:usage
+upgrade/run:version
+upgrade/run:write

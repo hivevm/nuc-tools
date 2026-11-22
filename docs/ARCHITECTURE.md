@@ -23,13 +23,17 @@ runs as a hook, or CI. What crosses its boundary:
   answers about the tree, git run as a process; the variables CI sets for a pull request, which
   the check of drafts on `main` reads; and for `nuc hook`, the arguments and the standard input
   git hands a hook, the `GIT_DIR` it sets, the run `NUC_HOOK_RUN` the `pre-push` shim names, and
-  the three sides git hands the merge driver; and for `nuc measure`, the transcripts of a harness
-  in its directory outside the repository. The tree and the transcripts are untrusted input.
+  the three sides git hands the merge driver; for `nuc measure`, the transcripts of a harness
+  in its directory outside the repository; and for `nuc upgrade`, the template's release tags a
+  maintainer fetched into `refs/template/`. The tree, the tags, and the transcripts are untrusted
+  input.
 - **Out:** the findings on the standard output, or the measures of `nuc measure`; the summary,
   the notices of a hook, and every refusal on the standard error; and the exit code. `nuc check`
   and `nuc measure` write no file and keep no state; `nuc hook pre-push` keeps the record of green
   trees in the git directory, and the merge driver writes the merged index over ours, after git
-  merged the prose in a scratch directory it makes fresh in the git directory and removes.
+  merged the prose in a scratch directory it makes fresh in the git directory and removes. `nuc
+  upgrade` writes and deletes files of the working tree, and nothing else: no index, no ref, no
+  commit.
 - **Beside it:** the template's bash scripts and hooks, the oracle the parity harness compares
   `nuc` with, on a corpus of repositories fetched from GitHub; the reference shims, which run the
   project's checks where `nuc hook` answers that they run; the release workflow, which
@@ -178,6 +182,16 @@ golden path and the test pattern an agent copies from are named here.
   release has no such sensor is not decided. The template's sensors that need a process other than
   git or the network are none of them
   ([API-sensor-cores-ask-the-shell](adr/API-sensor-cores-ask-the-shell.md)).
+- **Upgrade** — `src/upgrade.rs` decides the take-up of a template release
+  ([API-upgrade-takes-up-by-blob](adr/API-upgrade-takes-up-by-blob.md)): from the README the old
+  and the new release, or a refusal keyed `upgrade/run:<reason>`; from the trees of both and of
+  `HEAD`, each path with its kind and object, a plan of writes, deletions, and judgments, the
+  findings of `upgrade::ALL`; the plan settled against what the working tree holds at each path
+  and each directory above it, read by the shell without following a link; the guards of a path,
+  as git's `verify_path` refuses it with `core.protectNTFS` and `core.protectHFS` on; and the
+  release line spliced into the README's bytes. `shell::upgrade` reads the trees and the blobs
+  through git, refuses before the first write, and writes the plan in `write_plan`, the one writer
+  of the working tree.
 - **Binary** — `src/main.rs` calls the shell and nothing else.
 - **Parity harness** — `scripts/check-parity.sh` runs the bash checks of each repository of the
   corpus, `check-docs.sh`, `check-traceability.sh`, and `check-devcontainer.sh`, from v0.10.0 on
@@ -358,6 +372,20 @@ builds the line `tokens <n>`, after the breakdown and the draft of a finding whe
 for; for the draft it reads the README through the `Tree`. The whole output is built before it is
 printed, so that a refusal, exit 2 with its cause on the standard error, leaves the standard output
 empty. It writes nothing and keeps no state.
+
+`nuc upgrade <tag>` finds the root of the working tree, reads `nuc.toml` as `nuc check` does,
+refuses on `main`, and refuses a tree that is not clean as `nuc hook pre-push` tells it, an
+untracked file included. It reads the README's bytes and the release its line names, the old
+release, and takes the argument as the new one. It checks that each is an annotated tag of its name
+under `refs/template/`, and that the new release's `nuc.toml` asks for no newer `nuc`. It lists the
+trees of both tags and of `HEAD` with `git ls-tree`, and has the core plan the take-up. Before
+anything is written, it refuses a path the guards refuse, reads what the working tree holds at each
+path of the plan and above it, has the core settle the plan against that, and reads every blob the
+plan writes. Then it deletes, removes the directories the deletions leave empty, writes each file as
+a new one with the blob's bytes and mode, and splices the release line into the README. It prints
+the judgments as findings and exits 1 where there is one, and 0 otherwise; every refusal exits 2
+with nothing written, and a write that fails after the first names what was written. It keeps no
+state.
 
 A release starts when a human pushes a tag `vX.Y.Z` that names the version of `Cargo.toml`.
 `release.yml` builds the four targets, writes `SHA256SUMS`, attests each binary and verifies the

@@ -7,6 +7,7 @@ mod hook;
 mod measure;
 mod sense;
 mod tree;
+mod upgrade;
 
 use std::backtrace::{Backtrace, BacktraceStatus};
 use std::collections::BTreeMap;
@@ -39,7 +40,7 @@ const RUN_DOCS: u8 = 4;
 const USAGE: &str = "usage: nuc check [--repo <path>] [--format text|json|sarif] | nuc hook <name> | nuc \
                      measure [--harness claude-code] [--transcripts <dir>] [--branch <name>]... \
                      [--since <time>] [--until <time>] [--breakdown] [--finding] | nuc sense <name> [--repo \
-                     <path>] [<argument>...] | nuc explain <rule ID> | nuc --version";
+                     <path>] [<argument>...] | nuc upgrade <tag> | nuc explain <rule ID> | nuc --version";
 
 /// The entry point of the binary: runs the command named on the command line and returns the exit
 /// code the process ends with. A panic is an internal error: it names its cause and where it arose,
@@ -79,6 +80,7 @@ fn run() -> ExitCode {
         ["hook", name, rest @ ..] => hook::run(name, rest),
         ["measure", options @ ..] => measure::run(options),
         ["sense", name, options @ ..] => sense::run(name, options),
+        ["upgrade", rest @ ..] => upgrade::run(rest),
         ["explain", id] => explain(id),
         ["--version"] => {
             println!("nuc {}", env!("CARGO_PKG_VERSION"));
@@ -708,8 +710,9 @@ fn read_history(
 
 /// `nuc explain <id>`: the reason of the rule (G-6).
 fn explain(id: &str) -> Result<u8, String> {
-    let (id, reason) =
-        config::explanation(id).ok_or_else(|| format!("no rule '{id}' is known to this nuc"))?;
+    let (id, reason) = config::explanation(id)
+        .or_else(|| crate::upgrade::find(id).map(|rule| (rule.id, rule.explain)))
+        .ok_or_else(|| format!("no rule '{id}' is known to this nuc"))?;
     println!("{id}: {reason}");
     Ok(PASSED)
 }

@@ -8,6 +8,15 @@ as a judgment, a finding line under an `upgrade/` rule. A run with a judgment wr
 exits 1. A symlink or a submodule on either side is a judgment. The path guards refuse, before the
 first write, a path through a symlink of the working tree. `nuc explain` explains each new rule.
 
+Ticket 02 built the base of this: the reasons `link`, `added`, and `mode` for the base paths, the
+settling of the plan against the working tree (a symlink above a path refuses, a path the working
+tree keeps of its own is `added`), the guards of `verify_path`, and the case collisions. This
+ticket runs them over every other path. A directory the working tree keeps at a path to write is
+`added` without regard to the plan's deletions so far; the swap of a file and a directory makes
+that "after the plan's deletions", as the ADR says. Once every path is planned, the isolation test
+of a template tree with a `.git` entry expects the refusal `path` rather than a run that leaves
+`.git/config` alone.
+
 ## Acceptance criteria
 
 - [ ] Given a path the template changed and the project did not, when `nuc upgrade B` runs, then
@@ -19,8 +28,8 @@ first write, a path through a symlink of the working tree. `nuc explain` explain
       keeps the project's bytes, and the exit is 1.
 - [ ] Given a symlink or a submodule in A, B, or `HEAD` at a path the template changed, when it
       runs, then it is a judgment and nothing is written there.
-- [ ] Given a working tree whose directory on a path to write is a symlink, when it runs, then it
-      exits 2 and nothing is written.
+- [ ] Given a template that replaces a file with a directory of the same name, and one that
+      replaces a directory with a file, when it runs, then both are taken up.
 - [ ] Given each new rule ID, when `nuc explain <id>` runs, then it prints the reason, and the rule
       IDs and keys stand in `tests/contract.rule-ids` and `tests/contract.rule-keys`.
 

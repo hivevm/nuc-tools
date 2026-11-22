@@ -11,6 +11,7 @@
 #![allow(dead_code)]
 
 pub mod sources;
+pub mod upgrade;
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -251,6 +252,35 @@ impl Fixture {
 
     pub fn git(&self, args: &[&str]) -> Output {
         git_in(&self.root, args)
+    }
+
+    /// git for `args` on the repository, the input written to its standard input, which must
+    /// succeed.
+    pub fn git_with_input(&self, args: &[&str], input: &[u8]) -> Output {
+        use std::io::Write;
+        let mut child = cleared(&mut Command::new("git"))
+            .arg("-C")
+            .arg(&self.root)
+            .args(["-c", &format!("core.hooksPath={NULL_DEVICE}")])
+            .args(args)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .expect("git runs");
+        child
+            .stdin
+            .take()
+            .expect("piped")
+            .write_all(input)
+            .expect("the input is written");
+        let output = child.wait_with_output().expect("git ends");
+        assert!(
+            output.status.success(),
+            "git {args:?} failed: {}",
+            stderr(&output)
+        );
+        output
     }
 
     /// Stage everything and commit it.

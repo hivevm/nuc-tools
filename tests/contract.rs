@@ -6,6 +6,7 @@
 
 mod support;
 
+use support::upgrade::{UPGRADE_TOML, derived, fetch_release, two_releases};
 use support::{CONFIG, Fixture, README, stderr, stdout};
 
 fn code(output: &std::process::Output) -> Option<i32> {
@@ -299,6 +300,7 @@ fn every_rule_keeps_its_id_and_is_explained() {
         .iter()
         .map(|rule| rule.id)
         .chain(nuc::hook::ALL.iter().map(|rule| rule.id))
+        .chain(nuc::upgrade::ALL.iter().map(|rule| rule.id))
         .collect();
     for id in &listed {
         assert!(
@@ -368,6 +370,7 @@ fn shim_keys() -> Vec<(String, String)> {
 
 /// Verifies: API-command-line-with-sense, API-hook-contract-keyed-shims, G-6
 /// Verifies: API-config-refusals-keyed, API-sensor-cores-ask-the-shell
+/// Verifies: API-upgrade-takes-up-by-blob
 #[test]
 fn every_key_stays_once_listed_and_each_reason_is_one_lower_case_word() {
     let listed: Vec<&str> = RULE_KEYS
@@ -403,6 +406,16 @@ fn every_key_stays_once_listed_and_each_reason_is_one_lower_case_word() {
             nuc::config::Refusal::REASONS
                 .iter()
                 .map(|reason| (nuc::config::KEY.to_owned(), (*reason).to_owned())),
+        )
+        .chain(nuc::upgrade::ALL.iter().flat_map(|rule| {
+            rule.reasons
+                .iter()
+                .map(move |reason| (rule.id.to_owned(), (*reason).to_owned()))
+        }))
+        .chain(
+            nuc::upgrade::RUN_REASONS
+                .iter()
+                .map(|reason| (nuc::upgrade::RUN.to_owned(), (*reason).to_owned())),
         )
         .map(|(id, reason)| {
             assert!(
@@ -2430,5 +2443,273 @@ fn review_binding_reads_a_merge_message_as_bytes() {
         String::from_utf8_lossy(&output.stdout).contains(", 1 reviewed at the tip of its branch."),
         "{}",
         stdout(&output)
+    );
+}
+
+/// The working tree's files outside `.git`, to compare before and after a run.
+fn work_tree(fixture: &Fixture) -> Vec<(std::path::PathBuf, Vec<u8>)> {
+    let git = fixture.root().join(".git");
+    support::snapshot(fixture.root())
+        .into_iter()
+        .filter(|(path, _)| !path.starts_with(&git))
+        .collect()
+}
+
+fn read(fixture: &Fixture, path: &str) -> String {
+    std::fs::read_to_string(fixture.root().join(path)).unwrap_or_else(|e| panic!("{path}: {e}"))
+}
+
+/// Verifies: API-upgrade-takes-up-by-blob, G-4
+#[test]
+fn upgrade_replaces_the_base_and_moves_the_release_line() {
+    let template = two_releases();
+    let project = derived(&template);
+    // The project edited a file of its base, which it must not: the new release's replaces it.
+    project
+        .write("AGENTS.md", "# Agents, edited\n")
+        .commit("Edit");
+    // A byte of no UTF-8 elsewhere in the README stays as it is.
+    let mut readme = std::fs::read(project.root().join("README.md")).expect("read");
+    readme.extend_from_slice(b"\nCaf\xe9.\n");
+    std::fs::write(project.root().join("README.md"), &readme).expect("written");
+    project.commit("Latin-1");
+    let output = project.nuc(&["upgrade", "v0.10.0"]);
+    assert_eq!(code(&output), Some(0), "{}", stderr(&output));
+    assert_eq!(stdout(&output), "");
+    assert!(
+        stderr(&output).contains("nuc upgrade v0.9.0 -> v0.10.0: 5 written, 1 deleted, 0 listed"),
+        "{}",
+        stderr(&output)
+    );
+    assert_eq!(read(&project, "AGENTS.md"), "# Agents v0.10.0\n");
+    assert_eq!(read(&project, "docs/adr/NUC.blobs"), "blobs v0.10.0\n");
+    assert_eq!(
+        read(&project, "docs/adr/NUC-changed.md"),
+        "# NUC-changed v0.10.0\n"
+    );
+    assert_eq!(read(&project, "docs/adr/NUC-new.md"), "# NUC-new\n");
+    assert!(!project.root().join("docs/adr/NUC-gone.md").exists());
+    let mut expected = "# Project\n\nIt took up v0.9.0 once.\n\n- **Template release:** v0.10.0 — \
+                        the release of NUC this project carries.\n"
+        .as_bytes()
+        .to_vec();
+    expected.extend_from_slice(b"\nCaf\xe9.\n");
+    assert_eq!(
+        std::fs::read(project.root().join("README.md")).expect("read"),
+        expected
+    );
+    // Outside the base, the tracer writes nothing; nuc writes no index and no commit.
+    let status = stdout(&project.git(&["status", "--porcelain"]));
+    assert_eq!(
+        status,
+        " M AGENTS.md\n M README.md\n M docs/adr/NUC-changed.md\n D docs/adr/NUC-gone.md\n M \
+         docs/adr/NUC.blobs\n?? docs/adr/NUC-new.md\n"
+    );
+}
+
+/// Verifies: API-upgrade-takes-up-by-blob
+#[cfg(unix)]
+#[test]
+fn upgrade_writes_the_mode_of_the_new_release() {
+    use std::os::unix::fs::PermissionsExt;
+    let template = two_releases();
+    template.git(&["update-index", "--chmod=+x", "docs/adr/NUC-kept.md"]);
+    template.git(&["commit", "-q", "-m", "v0.10.1"]);
+    template.git(&["tag", "-a", "-m", "NUC v0.10.1", "v0.10.1"]);
+    let project = derived(&template);
+    fetch_release(&project, &template, "v0.10.1");
+    let output = project.nuc(&["upgrade", "v0.10.1"]);
+    assert_eq!(code(&output), Some(0), "{}", stderr(&output));
+    let mode = std::fs::metadata(project.root().join("docs/adr/NUC-kept.md"))
+        .expect("the file is there")
+        .permissions()
+        .mode();
+    assert_eq!(mode & 0o777, 0o755);
+    assert_eq!(
+        stdout(&project.git(&["diff", "--summary", "docs/adr/NUC-kept.md"])),
+        " mode change 100644 => 100755 docs/adr/NUC-kept.md\n"
+    );
+}
+
+/// Verifies: API-upgrade-takes-up-by-blob
+#[test]
+fn upgrade_lists_a_mode_the_working_tree_cannot_carry() {
+    let template = two_releases();
+    template.git(&["update-index", "--chmod=+x", "docs/adr/NUC-kept.md"]);
+    template.git(&["commit", "-q", "-m", "v0.10.1"]);
+    template.git(&["tag", "-a", "-m", "NUC v0.10.1", "v0.10.1"]);
+    let project = derived(&template);
+    fetch_release(&project, &template, "v0.10.1");
+    project.git(&["config", "core.fileMode", "false"]);
+    let output = project.nuc(&["upgrade", "v0.10.1"]);
+    assert_eq!(code(&output), Some(1), "{}", stderr(&output));
+    let out = stdout(&output);
+    assert!(
+        out.starts_with("docs/adr/NUC-kept.md: upgrade/file: ")
+            && out.contains("git update-index --chmod=+x docs/adr/NUC-kept.md")
+            && out.ends_with(" [upgrade/file:mode]\n")
+            && out.lines().count() == 1,
+        "{out}"
+    );
+    assert_eq!(read(&project, "AGENTS.md"), "# Agents v0.10.0\n");
+}
+
+/// The setup of a case of a refusal: the project and the template.
+type Setup = fn(&Fixture, &Fixture);
+
+/// Each refusal of `nuc upgrade`: its reason, the arguments, and what makes the project refuse.
+fn upgrade_refusals() -> Vec<(&'static str, &'static [&'static str], Setup)> {
+    vec![
+        ("usage", &[], |_, _| {}),
+        ("usage", &["v0.10.0", "v0.11.0"], |_, _| {}),
+        ("usage", &["0.10.0"], |_, _| {}),
+        ("main", &["v0.10.0"], |p, _| {
+            p.git(&["switch", "-q", "main"]);
+        }),
+        ("changed", &["v0.10.0"], |p, _| {
+            p.write("AGENTS.md", "# Agents, unstaged\n");
+        }),
+        ("changed", &["v0.10.0"], |p, _| {
+            p.write("notes.txt", "untracked\n");
+        }),
+        ("changed", &["v0.10.0"], |p, _| {
+            p.write("AGENTS.md", "# Agents, staged\n");
+            p.git(&["add", "AGENTS.md"]);
+            p.write("AGENTS.md", "# Agents v0.9.0\n");
+        }),
+        ("release", &["v0.10.0"], |p, _| {
+            p.write("README.md", "- **Template release:** banana\n")
+                .commit("Unreadable");
+        }),
+        ("release", &["v0.10.0"], |p, _| {
+            p.git(&["rm", "-q", "README.md"]);
+            p.commit("No README");
+        }),
+        ("release", &["v0.10.0"], |p, _| {
+            // The first release line is no UTF-8; a later example line is not written in its
+            // place.
+            let readme =
+                b"- **Template release:** v0.9.0 caf\xe9\n\n**Template release:** v0.9.0\n";
+            std::fs::write(p.root().join("README.md"), readme).expect("written");
+            p.commit("Latin-1 line");
+        }),
+        ("release", &["v0.10.0"], |p, _| {
+            p.write("README.md", "- **Template release:** unreleased\n")
+                .commit("Unreleased");
+        }),
+        ("release", &["v0.10.0"], |p, _| {
+            p.write("README.md", "- **Template release:** v0.9.0, forked\n")
+                .commit("Fork");
+        }),
+        ("old", &["v0.10.0"], |p, _| {
+            p.write("README.md", "- **Template release:** v0.8.1\n")
+                .commit("Old");
+        }),
+        ("order", &["v0.9.0"], |_, _| {}),
+        ("ref", &["v0.11.0"], |_, _| {}),
+        ("ref", &["v0.12.0"], |p, t| {
+            let source = t.root().to_str().expect("a UTF-8 path").to_owned();
+            p.git(&[
+                "fetch",
+                "-q",
+                "--no-tags",
+                &source,
+                "refs/tags/v0.12.0:refs/template/v0.12.0",
+            ]);
+        }),
+        ("ref", &["v0.10.0"], |p, t| {
+            // The annotated tag v0.11.0 where v0.10.0 is asked for.
+            let source = t.root().to_str().expect("a UTF-8 path").to_owned();
+            let refspec = "refs/tags/v0.11.0:refs/template/v0.10.0";
+            p.git(&["fetch", "-q", "--no-tags", "--force", &source, refspec]);
+        }),
+        ("version", &["v0.11.0"], |p, t| {
+            fetch_release(p, t, "v0.11.0")
+        }),
+    ]
+}
+
+/// Verifies: API-upgrade-takes-up-by-blob, G-5
+#[test]
+fn every_refusal_of_upgrade_writes_nothing_and_ends_in_its_key() {
+    let template = two_releases();
+    // v0.11.0 asks for a nuc newer than this one.
+    template
+        .write("nuc.toml", "minimum = \"99.0.0\"\nrules = []\n")
+        .commit("v0.11.0");
+    template.git(&["tag", "-a", "-m", "NUC v0.11.0", "v0.11.0"]);
+    template.git(&["tag", "v0.12.0"]);
+    for (reason, args, setup) in upgrade_refusals() {
+        let project = derived(&template);
+        setup(&project, &template);
+        let status = stdout(&project.git(&["status", "--porcelain"]));
+        let before = work_tree(&project);
+        let mut argv = vec!["upgrade"];
+        argv.extend(args.iter());
+        let output = project.nuc(&argv);
+        assert_eq!(
+            code(&output),
+            Some(2),
+            "{reason} {args:?}: {}",
+            stderr(&output)
+        );
+        assert!(
+            stderr(&output)
+                .trim_end()
+                .ends_with(&format!("[upgrade/run:{reason}]")),
+            "{reason} {args:?}: {}",
+            stderr(&output)
+        );
+        assert_eq!(stdout(&output), "", "{reason} {args:?}");
+        assert_eq!(
+            stdout(&project.git(&["status", "--porcelain"])),
+            status,
+            "{reason} {args:?}"
+        );
+        assert!(
+            support::changed(&before, &work_tree(&project)).is_empty(),
+            "{reason} {args:?}"
+        );
+    }
+}
+
+/// Verifies: API-upgrade-takes-up-by-blob, G-5
+#[test]
+fn upgrade_judges_nuc_toml_before_anything_else() {
+    let template = two_releases();
+    let project = derived(&template);
+    project
+        .write("nuc.toml", "minimum = \"99.0.0\"\nrules = []\n")
+        .commit("Newer");
+    project.write("notes.txt", "untracked\n");
+    let output = project.nuc(&["upgrade", "v0.10.0"]);
+    assert_eq!(code(&output), Some(2));
+    assert!(
+        stderr(&output).contains("[config/toml:old]"),
+        "{}",
+        stderr(&output)
+    );
+}
+
+/// Verifies: API-upgrade-takes-up-by-blob, G-6
+#[test]
+fn every_rule_of_upgrade_is_explained_and_turned_on_by_no_nuc_toml() {
+    let fixture = Fixture::project("upgrade-explain", UPGRADE_TOML, README);
+    for rule in nuc::upgrade::ALL {
+        let output = fixture.nuc(&["explain", rule.id]);
+        assert_eq!(code(&output), Some(0), "{}", rule.id);
+        assert!(stdout(&output).starts_with(&format!("{}: ", rule.id)));
+    }
+    let listed = format!(
+        "minimum = \"0.0.0\"\nrules = [\"{}\"]\n",
+        nuc::upgrade::FILE.id
+    );
+    fixture.write("nuc.toml", &listed).commit("List");
+    let output = fixture.nuc(&["check"]);
+    assert_eq!(code(&output), Some(2));
+    assert!(
+        stderr(&output).contains("[config/toml:unknown]"),
+        "{}",
+        stderr(&output)
     );
 }
