@@ -1,6 +1,6 @@
 # ARCH-rules-hooks-and-command-plans: One library crate whose rules return an outcome, whose hooks return an answer, and whose commands that change the tree return a plan, its effects in one shell module, and a thin binary
 
-- **Status:** 🟡 proposed
+- **Status:** 🟢 accepted
 - **Date:** 2026-11-22
 - **Deciders:** Markus Brigl
 - **Applies to:** the source tree of the crate, `src/main.rs`, `src/shell/`, every rule module, `src/hook.rs`, `src/upgrade.rs`, the type a rule returns, the type a hook returns, the plan a command returns, the lists of rule IDs and how `nuc explain` reads them, and the structural test that holds them

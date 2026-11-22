@@ -51,7 +51,8 @@ golden path and the test pattern an agent copies from are named here.
   an outcome: the findings of `src/finding.rs`, a refusal of its own where it cannot decide the tree
   as its bash check would, and notes for the summary. Each has one rule ID, the reason `nuc explain`
   gives, and the inputs it reads; the list of every rule is `rules::ALL`. A rule reads no file and
-  runs no process ([ARCH-rules-outcome-hooks-answer](adr/ARCH-rules-outcome-hooks-answer.md)). The
+  runs no process
+  ([ARCH-rules-hooks-and-command-plans](adr/ARCH-rules-hooks-and-command-plans.md)). The
   rules of the decision record share one reading of it in `src/adr.rs` with the sensors
   binding-adrs, plain-rules, and review-binding. The rules of Markdown share one reading of its
   links in `src/markdown.rs`. Both stand outside `src/rules/`, the way the bash's
@@ -114,7 +115,7 @@ golden path and the test pattern an agent copies from are named here.
   ([API-hook-contract-keyed-shims](adr/API-hook-contract-keyed-shims.md)). Each decides as the
   release the tree carries, and as the newest release `nuc` knows where the README names none. A
   hook's function returns an answer, not a rule's outcome
-  ([ARCH-rules-outcome-hooks-answer](adr/ARCH-rules-outcome-hooks-answer.md)).
+  ([ARCH-rules-hooks-and-command-plans](adr/ARCH-rules-hooks-and-command-plans.md)).
   `pre-commit`, `pre-merge-commit`, `pre-push`, `reference-transaction`, and the merge driver of the
   ADR index are ported; `tests/bench/hook-latency.sh` measures `reference-transaction` against Q-5
   in `benchmark.yml`, on a schedule, never as a gate.

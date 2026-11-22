@@ -447,7 +447,7 @@ fn every_key_stays_once_listed_and_each_reason_is_one_lower_case_word() {
     );
 }
 
-/// Verifies: ARCH-rules-outcome-hooks-answer, G-6
+/// Verifies: ARCH-rules-hooks-and-command-plans, G-6
 #[test]
 fn no_rule_id_is_held_twice_by_the_rules_the_hooks_and_the_take_up() {
     let mut seen = std::collections::BTreeSet::new();
